@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
     ClientRequest,
@@ -1374,6 +1374,53 @@ describe('AgentSpace files', () => {
         expect(waitingCards()).toBeNull();
     });
 
+    it.each([
+        [401, 'Agenda.pdf was not attached: the session ended. Sign in again and attach it.'],
+        [403, 'Agenda.pdf was not attached: this account is not allowed to talk to the agent.'],
+        [404, 'Agenda.pdf was not attached: this conversation is no longer there. Start a new one.'],
+        [201, 'Agenda.pdf was not attached: the server answered in a way this client cannot read.'],
+    ])(
+        'says an upload answered %i, which no retry mends, in its own words, leaving no card to try again',
+        async (status, said) => {
+            const { transport } = deploymentAnswering();
+            render(
+                drawn(transport, null, null, {
+                    upload: () => Promise.resolve({ status, body: '', headers: {} }),
+                }),
+            );
+
+            chosen(fileOf('Agenda.pdf'));
+
+            expect(within(await screen.findByRole('alert')).getByText(said)).toBeDefined();
+            expect(waitingCards()).toBeNull();
+        },
+    );
+
+    it('puts focus on the card beside one taken off, and back in the field once none is left', async () => {
+        const { transport } = deploymentAnswering();
+        screenOf(transport);
+
+        chosen(fileOf('Offer v3.pdf'), fileOf('Price list 2027.xlsx'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Remove Offer v3.pdf' }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove Price list 2027.xlsx' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Remove Price list 2027.xlsx' }));
+
+        expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Tell the agent what to do' }));
+    });
+
+    it('puts focus back in the field once the refusals are dismissed', async () => {
+        const { transport } = deploymentAnswering();
+        screenOf(transport);
+
+        chosen(fileOf('Floor plan.dwg'));
+        fireEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: 'Dismiss' }));
+
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Tell the agent what to do' }));
+    });
+
     it('holds Send while a file is on its way and while one did not upload, until it is tried again', async () => {
         const { transport, asked } = deploymentAnswering();
         const attempts: ((answered: Awaited<ReturnType<AttachmentUpload>>) => void)[] = [];
@@ -1522,6 +1569,31 @@ describe('AgentSpace files', () => {
 
         expect(screen.queryByText('Drop to attach to your question')).toBeNull();
         expect(await screen.findByRole('button', { name: 'Remove Offer v3.pdf' })).toBeDefined();
+    });
+
+    it('keeps the drop surface up while a drag moves inside the column, and takes it down once the drag leaves', () => {
+        const { transport } = deploymentAnswering();
+        screenOf(transport);
+        const thread = screen.getByRole('log', { name: 'Conversation with the agent' });
+        const field = screen.getByRole('textbox', { name: 'Tell the agent what to do' });
+        const carrying = { types: ['Files'], files: [fileOf('Offer v3.pdf')] };
+
+        // Where the drag went is set on the event itself, which jsdom's drag events do not carry from their init.
+        const leaveFor = (to: Element): void => {
+            const leaving = createEvent.dragLeave(thread, { dataTransfer: carrying });
+
+            Object.defineProperty(leaving, 'relatedTarget', { value: to });
+            fireEvent(thread, leaving);
+        };
+
+        fireEvent.dragEnter(thread, { dataTransfer: carrying });
+        leaveFor(field);
+
+        expect(screen.getByText('Drop to attach to your question')).toBeDefined();
+
+        leaveFor(document.body);
+
+        expect(screen.queryByText('Drop to attach to your question')).toBeNull();
     });
 
     it('draws the files a sent question carried under its words, named from the conversation’s files', async () => {

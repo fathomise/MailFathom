@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import { useRef } from 'react';
 import { mostFilesPerConversation, mostFilesPerQuestion } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { SymbolControl } from '../controls/SymbolControl';
@@ -20,15 +21,46 @@ const tooMany: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     other: 'agent.files.refused.tooMany.other',
 };
 
+const uploadFailures: Readonly<Record<Extract<FileRefusal, { reason: 'failed' }>['failure'], MessageKey>> = {
+    unauthenticated: 'agent.files.refused.unauthenticated',
+    unauthorized: 'agent.files.refused.unauthorized',
+    unreadable: 'agent.files.refused.unreadable',
+    missing: 'agent.files.refused.missing',
+};
+
 const control =
     'flex size-6.5 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-hover hover:text-text';
 
 /**
  * What the files a question will carry look like under the field: the refusals of the last attempt above the cards of
  * the files waiting, each of which can be taken off again, and one that did not upload tried again.
+ *
+ * @param onLeft Puts focus back in the question field, where it goes once what held it is gone and nothing is beside it.
  */
-export function WaitingFiles({ files }: { readonly files: QuestionFiles }) {
+export function WaitingFiles({ files, onLeft }: { readonly files: QuestionFiles; readonly onLeft: () => void }) {
     const { locale, translate } = useLocalization();
+    const removers = useRef(new Map<number, HTMLButtonElement>());
+
+    // Taking a card off takes away the control holding focus, so focus moves first — to the card that takes its place,
+    // else the one before it, else the field — and is where it belongs before the card has gone.
+    const remove = (at: number): void => {
+        const file = files.waiting[at];
+
+        if (file === undefined) {
+            return;
+        }
+
+        const beside = files.waiting[at + 1] ?? files.waiting[at - 1];
+        const next = beside === undefined ? undefined : removers.current.get(beside.key);
+
+        if (next === undefined) {
+            onLeft();
+        } else {
+            next.focus();
+        }
+
+        files.remove(file.key);
+    };
 
     // Every refusal is a sentence of its own, so the lookup is a function rather than a table: each reason fills
     // different holes.
@@ -61,6 +93,8 @@ export function WaitingFiles({ files }: { readonly files: QuestionFiles }) {
                 return translate('agent.files.refused.empty', { name: refusal.name });
             case 'notRead':
                 return translate('agent.files.refused.notRead', { name: refusal.name });
+            case 'failed':
+                return translate(uploadFailures[refusal.failure], { name: refusal.name });
         }
     };
 
@@ -82,7 +116,10 @@ export function WaitingFiles({ files }: { readonly files: QuestionFiles }) {
                     <SymbolControl
                         label={translate('agent.files.dismiss')}
                         className="flex size-6.5 shrink-0 items-center justify-center rounded-md transition hover:bg-hover"
-                        onPress={files.dismissRefusals}
+                        onPress={() => {
+                            onLeft();
+                            files.dismissRefusals();
+                        }}
                     >
                         <Icon name="close" className="size-icon-sm" />
                     </SymbolControl>
@@ -91,12 +128,19 @@ export function WaitingFiles({ files }: { readonly files: QuestionFiles }) {
 
             {files.waiting.length === 0 ? null : (
                 <ul aria-label={translate('agent.files.waiting')} className="flex touch-strip gap-2">
-                    {files.waiting.map((file) => (
+                    {files.waiting.map((file, at) => (
                         <li key={file.key} className="shrink-0">
                             <WaitingFileCard
                                 file={file}
+                                removerRef={(element) => {
+                                    if (element === null) {
+                                        removers.current.delete(file.key);
+                                    } else {
+                                        removers.current.set(file.key, element);
+                                    }
+                                }}
                                 onRemove={() => {
-                                    files.remove(file.key);
+                                    remove(at);
                                 }}
                                 onRetry={() => {
                                     files.retry(file.key);
@@ -112,10 +156,12 @@ export function WaitingFiles({ files }: { readonly files: QuestionFiles }) {
 
 function WaitingFileCard({
     file,
+    removerRef,
     onRemove,
     onRetry,
 }: {
     readonly file: WaitingFile;
+    readonly removerRef: (element: HTMLButtonElement | null) => void;
     readonly onRemove: () => void;
     readonly onRetry: () => void;
 }) {
@@ -154,6 +200,7 @@ function WaitingFileCard({
             ) : null}
 
             <SymbolControl
+                ref={removerRef}
                 label={translate('agent.files.remove', { name: file.name })}
                 className={control}
                 onPress={onRemove}

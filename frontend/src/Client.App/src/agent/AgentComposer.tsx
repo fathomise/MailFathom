@@ -245,7 +245,12 @@ export function AgentComposer({
                     </ul>
                 ) : null}
 
-                <WaitingFiles files={files} />
+                <WaitingFiles
+                    files={files}
+                    onLeft={() => {
+                        input.current?.focus();
+                    }}
+                />
 
                 <form
                     className="flex w-full items-center gap-1.5 rounded-lg border-2 border-accent bg-panel p-1.5 transition focus-within:ring-3 focus-within:ring-accent-soft workspace:gap-2.5 desktop:py-2.5 desktop:ps-2 desktop:pe-3.25"

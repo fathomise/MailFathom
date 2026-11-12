@@ -187,6 +187,10 @@ export const en = {
         '{name} was not attached: what it holds is not a file the agent reads, whatever its name says. It reads PDF, Office, OpenDocument and text files, saved messages, and pictures.',
     'agent.files.refused.conversationFull':
         '{name} was not attached: this conversation already holds the {count} files one can. Start a new conversation to attach more.',
+    'agent.files.refused.unauthenticated': '{name} was not attached: the session ended. Sign in again and attach it.',
+    'agent.files.refused.unauthorized': '{name} was not attached: this account is not allowed to talk to the agent.',
+    'agent.files.refused.missing': '{name} was not attached: this conversation is no longer there. Start a new one.',
+    'agent.files.refused.unreadable': '{name} was not attached: the server answered in a way this client cannot read.',
     'agent.files.refused.tooMany.one': '{count} file was not attached: a question carries at most {most} files.',
     'agent.files.refused.tooMany.few': '{count} files were not attached: a question carries at most {most} files.',
     'agent.files.refused.tooMany.many': '{count} files were not attached: a question carries at most {most} files.',

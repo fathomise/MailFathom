@@ -194,6 +194,12 @@ export const pl: Catalogue = {
         'Nie dołączono {name}: niezależnie od nazwy jego zawartość nie jest plikiem, który agent czyta. Agent czyta pliki PDF, Office, OpenDocument i tekstowe, zapisane wiadomości oraz obrazy.',
     'agent.files.refused.conversationFull':
         'Nie dołączono {name}: ta rozmowa ma już {count} plików, czyli najwięcej, ile może. Aby dołączyć kolejne, zacznij nową rozmowę.',
+    'agent.files.refused.unauthenticated':
+        'Nie dołączono {name}: sesja wygasła. Zaloguj się ponownie i dołącz plik jeszcze raz.',
+    'agent.files.refused.unauthorized': 'Nie dołączono {name}: to konto nie ma uprawnień do rozmowy z agentem.',
+    'agent.files.refused.missing': 'Nie dołączono {name}: tej rozmowy już nie ma. Zacznij nową.',
+    'agent.files.refused.unreadable':
+        'Nie dołączono {name}: serwer odpowiedział w sposób, którego ten klient nie potrafi odczytać.',
     'agent.files.refused.tooMany.one': 'Nie dołączono {count} pliku: pytanie może zawierać najwyżej {most} plików.',
     'agent.files.refused.tooMany.few': 'Nie dołączono {count} plików: pytanie może zawierać najwyżej {most} plików.',
     'agent.files.refused.tooMany.many': 'Nie dołączono {count} plików: pytanie może zawierać najwyżej {most} plików.',

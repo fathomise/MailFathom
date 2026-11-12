@@ -747,8 +747,9 @@ MailFathomDesign.data.agentFileLimits = {
 };
 
 // The files waiting under the field when the artboard's `agentFiles` property is `waiting`: one sent up, one on its
-// way, one that failed, and a refusal for each of the six reasons - the three the field refuses before sending, and the
-// three only the service can give.
+// way, one that failed for want of the server, which can be tried again, and a line for each of the ten reasons a file
+// is not attached - four the field refuses before sending, two only the service can give, and four uploads no retry can
+// mend.
 MailFathomDesign.data.agentFileSamples = {
   tray: [
     { name: "Offer v3 - rollout.pdf", kind: "PDF", size: "1.2 MB", state: "done" },
@@ -763,5 +764,9 @@ MailFathomDesign.data.agentFileSamples = {
     { reason: "empty", name: "Notes.txt" },
     { reason: "unread", name: "Scan 0412.pdf" },
     { reason: "full", name: "Minutes - March.docx" },
+    { reason: "session", name: "Agenda.pdf" },
+    { reason: "grant", name: "Budget.xlsx" },
+    { reason: "gone", name: "Contract.pdf" },
+    { reason: "garbled", name: "Quote.pdf" },
   ],
 };

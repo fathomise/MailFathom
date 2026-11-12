@@ -3920,6 +3920,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         : r.reason === "empty" ? r.name + " was not attached: it is empty."
         : r.reason === "unread" ? r.name + " was not attached: what it holds is not a file the agent reads, whatever its name says. It reads " + FILE_LIMITS.kindsSaid + "."
         : r.reason === "full" ? r.name + " was not attached: this conversation already holds the " + FILE_LIMITS.maxHeld + " files one can. Start a new conversation to attach more."
+        : r.reason === "session" ? r.name + " was not attached: the session ended. Sign in again and attach it."
+        : r.reason === "grant" ? r.name + " was not attached: this account is not allowed to talk to the agent."
+        : r.reason === "gone" ? r.name + " was not attached: this conversation is no longer there. Start a new one."
+        : r.reason === "garbled" ? r.name + " was not attached: the server answered in a way this client cannot read."
         : (r.count === 1 ? "1 file was" : r.count + " files were") + " not attached: a question carries at most " + FILE_LIMITS.maxFiles + " files.";
       return {
         agentFileRef: this.agentFileRef,

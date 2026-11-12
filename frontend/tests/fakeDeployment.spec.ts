@@ -775,8 +775,13 @@ test('takes a file into a conversation before its first question, lists it, and 
         files: [fileId],
     });
 
+    // The question is read among everything the conversation answers with, the answer to it included.
     expect(ask(deployment, 'GET', conversation)).toMatchObject({
-        entries: [{ entry: { entry: 'message', text: 'Compare', files: [fileId] } }],
+        entries: expect.arrayContaining([
+            expect.objectContaining({
+                entry: expect.objectContaining({ entry: 'message', text: 'Compare', files: [fileId] }),
+            }),
+        ]),
     });
 });
 

@@ -8,6 +8,7 @@ import {
     mostFilesPerQuestion,
     takeAgentConversationFile,
     type AgentFileRefusal,
+    type ClientFailureReason,
     type ClientSession,
 } from '@mailfathom/client-backend';
 import { useAttachmentUpload } from '../deployment/attachmentUpload';
@@ -66,11 +67,19 @@ export interface WaitingFile {
     readonly fileId: string | null;
 }
 
-/** Why a file was not attached, each its own sentence on the screen. */
+/**
+ * Why a file was not attached, each its own sentence on the screen. `failed` is an upload that failed for a reason no
+ * retry mends — only a server that did not answer leaves a card that can be tried again.
+ */
 export type FileRefusal =
     | { readonly reason: 'kind'; readonly name: string; readonly extension: string }
     | { readonly reason: 'tooMany'; readonly count: number }
-    | { readonly reason: AgentFileRefusal; readonly name: string; readonly octets: number };
+    | { readonly reason: AgentFileRefusal; readonly name: string; readonly octets: number }
+    | {
+          readonly reason: 'failed';
+          readonly name: string;
+          readonly failure: Exclude<ClientFailureReason, 'unavailable'>;
+      };
 
 export interface QuestionFiles {
     readonly waiting: readonly WaitingFile[];
@@ -133,6 +142,12 @@ export function useQuestionFiles(session: ClientSession | null, conversation: st
         setWaiting((before) => before.map((file) => (file.key === key ? { ...file, ...change } : file)));
     };
 
+    const refuse = (key: number, refusal: FileRefusal): void => {
+        handedOver.current.delete(key);
+        setWaiting((before) => before.filter((held) => held.key !== key));
+        setRefusals((before) => [...before, refusal]);
+    };
+
     const start = (key: number, file: File, name: string): void => {
         const abandon = new AbortController();
 
@@ -151,16 +166,16 @@ export function useQuestionFiles(session: ClientSession | null, conversation: st
                 return;
             }
 
-            if (taken.outcome === 'failed') {
+            if (taken.outcome === 'read') {
+                if (taken.value.outcome === 'taken') {
+                    settle(key, { state: 'uploaded', fileId: taken.value.file.fileId });
+                } else {
+                    refuse(key, { reason: taken.value.refusal, name, octets: file.size });
+                }
+            } else if (taken.failure.reason === 'unavailable') {
                 settle(key, { state: 'failed' });
-            } else if (taken.value.outcome === 'taken') {
-                settle(key, { state: 'uploaded', fileId: taken.value.file.fileId });
             } else {
-                const refusal = taken.value.refusal;
-
-                handedOver.current.delete(key);
-                setWaiting((before) => before.filter((held) => held.key !== key));
-                setRefusals((before) => [...before, { reason: refusal, name, octets: file.size }]);
+                refuse(key, { reason: 'failed', name, failure: taken.failure.reason });
             }
         });
     };
