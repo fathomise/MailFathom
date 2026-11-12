@@ -39,7 +39,7 @@ public sealed class MailboxCensusReaderTests
 
         // Assert
         Assert.Equal(MailFathomPermission.MailRead, refusal.RequiredPermission);
-        await this.store.DidNotReceiveWithAnyArgs().CountAsync(default!, default!, default, default);
+        await this.store.DidNotReceiveWithAnyArgs().CountAsync(default!, default!, default, TestContext.Current.CancellationToken);
     }
 
     /// <summary>A ceiling outside the accepted range is refused rather than clamped, as a listing's page size is.</summary>
@@ -180,7 +180,7 @@ public sealed class MailboxCensusReaderTests
 
         // Assert
         Assert.Same(MailCensus.Empty, counted);
-        await this.store.DidNotReceiveWithAnyArgs().CountAsync(default!, default!, default, default);
+        await this.store.DidNotReceiveWithAnyArgs().CountAsync(default!, default!, default, TestContext.Current.CancellationToken);
     }
 
     /// <summary>What lies beyond the leading groups is read off the figures rather than counted again.</summary>

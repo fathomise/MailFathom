@@ -143,11 +143,12 @@ internal sealed class StoredEmailCensusReader(MailFathomDbContext dbContext) : I
 
     /// <summary>Keys each message by the domain of its sender's address.</summary>
     /// <remarks>
-    /// The normalized address carries exactly one <c>@</c>, so what follows the first is the domain. The culture-free
-    /// overload of <see cref="string.IndexOf(string, StringComparison)" /> has no translation in this provider; the one
-    /// written here is translated to <c>strpos</c>, which compares code points rather than anything a culture decides.
+    /// The normalized address carries exactly one <c>@</c>, so what follows the first is the domain. Neither the
+    /// <see cref="char" /> overload of <c>IndexOf</c> nor the one taking a <see cref="StringComparison" /> has a
+    /// translation in the pinned provider; the one written here is translated to <c>strpos</c>, which compares code
+    /// points rather than anything a culture decides.
     /// </remarks>
-    [SuppressMessage("Globalization", "CA1310:Specify StringComparison for correctness", Justification = "Translated to strpos, which no culture reaches; an @ is no character a culture ignores when this runs in memory.")]
+    [SuppressMessage("Performance", "CA1866:Use char overload", Justification = "The char overload has no translation in the pinned provider; the string one is translated to strpos.")]
     private static IQueryable<string?> SenderDomains(IQueryable<StoredEmailEntity> matching) =>
         matching.Select(static email => email.SenderNormalizedAddress == null
             ? null
