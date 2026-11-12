@@ -1410,6 +1410,16 @@ describe('AgentSpace files', () => {
         expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Tell the agent what to do' }));
     });
 
+    it('puts focus on a card’s remove control when its upload is tried again', async () => {
+        const { transport } = deploymentAnswering();
+        render(drawn(transport, null, null, { upload: () => Promise.resolve(null) }));
+
+        chosen(fileOf('Offer v3.pdf'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Try uploading Offer v3.pdf again' }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove Offer v3.pdf' }));
+    });
+
     it('puts focus back in the field once the refusals are dismissed', async () => {
         const { transport } = deploymentAnswering();
         screenOf(transport);

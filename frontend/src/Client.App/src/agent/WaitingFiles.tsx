@@ -143,6 +143,9 @@ export function WaitingFiles({ files, onLeft }: { readonly files: QuestionFiles;
                                     remove(at);
                                 }}
                                 onRetry={() => {
+                                    // Trying again takes the retry control away, so focus moves to the card's own
+                                    // remove control first.
+                                    removers.current.get(file.key)?.focus();
                                     files.retry(file.key);
                                 }}
                             />
