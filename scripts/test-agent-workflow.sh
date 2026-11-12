@@ -12394,6 +12394,7 @@ agent.ts agentHistory GET /api/client/agent/conversations
 agent.ts current - -
 agent.ts answeredEntries - -
 agent.ts composingEntries - -
+agent.ts fastAnswerCeiling - -
 agent.ts answeredConversation GET /api/client/agent/conversations/{conversationId}
 agent.ts composingConversation GET /api/client/agent/conversations/{conversationId}
 agent.ts messagePosted POST /api/client/agent/conversations/{conversationId}/messages
