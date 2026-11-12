@@ -1680,11 +1680,11 @@ internal sealed record AgentConversationScenario(
         },
     ];
 
-    /// <summary>The words an answer written at a ceiling says it stopped with, in the languages a case is asked in.</summary>
-    // What a report says where it covers less than was asked, in either language the cases are asked in.
+    /// <summary>The words a report covering less than was asked says so with, in the languages a case is asked in.</summary>
     private static readonly string[] CoversOnlyPart =
         ["does not cover", "doesn't cover", "not covered", "cannot cover", "can't cover", "only covers", "covers only", "only from", "only since", "goes back only", "only goes back", "reaches back", "earliest", "no invoices before", "no invoice before", "nothing before", "no mail before", "no messages before", "nie obejmuje", "obejmuje tylko", "tylko od", "najwcześniejsz", "nic sprzed", "brak faktur sprzed"];
 
+    /// <summary>The words an answer written at a ceiling says it stopped with, in the languages a case is asked in.</summary>
     private static readonly string[] StoppedAtTheLimit =
         ["limit", "stopped", "did not read", "didn't read", "not read", "could not read", "more mail", "only read", "zatrzyma", "nie przeczyta", "przeczytałem tylko", "przeczytałam tylko"];
 
