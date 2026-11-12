@@ -523,6 +523,21 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.Equal(searches, verdict.Get<BooleanMetric>(AgentConversationScenario.CalledTheToolsAskedForMetricName).Value);
     }
 
+    /// <summary>A figure only a count produces is held to the answer like any evidence, so an answer giving another figure fails the check.</summary>
+    [Fact]
+    public async Task RunAsync_AnAnswerNotCarryingTheCountedFigure_FailsTheEvidenceCheck()
+    {
+        // Arrange
+        var scenario = Named("Agent.Counting.RankedDomains");
+        using var model = new ScriptedAgentChatClient([Count("domain")], "Apart from your own, saltmarsh.test writes most.");
+
+        // Act
+        var verdict = await this.RunAsync(scenario, model);
+
+        // Assert
+        Assert.False(verdict.Get<BooleanMetric>(AgentConversationScenario.CarriesEvidenceMetricName).Value);
+    }
+
     /// <summary>A count is a reading of the mailbox, so an answer resting on one alone counts as looked up.</summary>
     [Fact]
     public async Task RunAsync_AnAnswerRestingOnACountAlone_CountsAsLookedUp()

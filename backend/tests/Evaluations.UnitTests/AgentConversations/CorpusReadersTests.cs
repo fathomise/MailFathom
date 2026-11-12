@@ -162,9 +162,9 @@ public sealed class CorpusReadersTests
 
         // Assert
         Assert.Equal(
-            ("owner@example.test", "wiebke.jankowski@harbourline.test", distinctSenders, true),
+            ("OWNER@EXAMPLE.TEST", "WIEBKE.JANKOWSKI@HARBOURLINE.TEST", distinctSenders, true),
             (senders!.Groups[0].Key, senders.Groups[1].Key, senders.GroupCount, senders.GroupsBeyond > 0));
-        Assert.Equal(["example.test", "harbourline.test", "quietfjord.test"], domains!.Groups.Take(3).Select(static group => group.Key));
+        Assert.Equal(["EXAMPLE.TEST", "HARBOURLINE.TEST", "QUIETFJORD.TEST"], domains!.Groups.Take(3).Select(static group => group.Key));
     }
 
     /// <summary>A day is read on the person's clock, where a message sent late in the UTC evening of 7 September arrived on the 8th.</summary>

@@ -27,6 +27,7 @@ public sealed class MailboxReadTelemetryTests : IDisposable
         MailboxReadTelemetry.EmailContentSpanName,
         MailboxReadTelemetry.EmailThreadSpanName,
         MailboxReadTelemetry.SearchRankingSpanName,
+        MailboxReadTelemetry.MailboxCensusSpanName,
     ];
 
     private readonly ConcurrentBag<Activity> published = [];

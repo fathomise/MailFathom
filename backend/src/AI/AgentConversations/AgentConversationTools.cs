@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.Retrieval;
@@ -478,7 +479,12 @@ internal sealed class AgentConversationTools
     };
 
     /// <summary>Guards every key somebody else wrote — a sender's address or its domain — before the reading is written around it.</summary>
-    /// <remarks>A period is this deployment's own date and a category is a name the account declared, so neither is guarded.</remarks>
+    /// <remarks>
+    /// A period is this deployment's own date and a category is a name the account declared, so neither is guarded. An
+    /// address is counted in the case-folded form it is compared in, which is written in capitals; it is shown in lower
+    /// case, the form a person reads and writes an address in, which loses nothing the folded form still held.
+    /// </remarks>
+    [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "Shown to a model to write back to a person, never compared; the comparison form stays the upper-case one.")]
     private async Task<IReadOnlyList<MailCensusGroup>> GuardedGroupsAsync(
         IReadOnlyList<MailCensusGroup> groups,
         MailCensusDimension dimension,
@@ -495,7 +501,7 @@ internal sealed class AgentConversationTools
         {
             guarded.Add(group with
             {
-                Key = await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, group.Key, cancellationToken),
+                Key = await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, group.Key?.ToLowerInvariant(), cancellationToken),
             });
         }
 

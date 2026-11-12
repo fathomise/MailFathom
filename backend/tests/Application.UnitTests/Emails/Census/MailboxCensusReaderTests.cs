@@ -74,7 +74,7 @@ public sealed class MailboxCensusReaderTests
         // Assert
         Assert.Same(census, counted);
         await this.store.Received(1).CountAsync(
-            Arg.Is<MailboxEmailSelection>(selection => selection.SenderNormalizedAddress == "ada@example.org"),
+            Arg.Is<MailboxEmailSelection>(selection => string.Equals(selection.SenderNormalizedAddress, "ada@example.org", StringComparison.OrdinalIgnoreCase)),
             Arg.Is<MailCensusGrouping>(grouping => grouping.Dimension == MailCensusDimension.SenderAddress),
             MailboxCensusReader.DefaultLeadingGroups,
             Arg.Any<CancellationToken>());

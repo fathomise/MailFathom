@@ -1230,10 +1230,11 @@ internal sealed record AgentConversationScenario(
             "Agent.Counting.Total",
             "How many emails are there in my mailbox altogether?",
             UserLanguage.English,
-            [MailboxTotal],
+            [],
             CensusSubject)
         {
             Calls = [AgentConversationTools.CountMailToolName],
+            Counted = [MailboxTotal],
         },
         new(
             "Agent.Counting.RankedSenders",
@@ -1248,10 +1249,11 @@ internal sealed record AgentConversationScenario(
             "Agent.Counting.RankedDomains",
             "Which organisations, apart from my own, do I exchange the most email with? Name the top two.",
             UserLanguage.English,
-            ["harbourline", "quietfjord"],
+            [],
             [.. CensusSubject, "Harbourline", "Quietfjord", "Saltmarsh", "organisation", "domain"])
         {
             Calls = [AgentConversationTools.CountMailToolName],
+            Counted = ["harbourline", "quietfjord"],
         },
 
         // Asked on a clock two hours ahead of UTC, where a message Vasco Iversen sent at 22:43 UTC on 7 September
@@ -1260,10 +1262,11 @@ internal sealed record AgentConversationScenario(
             "Agent.Counting.ADayOnThePersonsClock",
             "How many emails arrived on Monday, 7 September?",
             UserLanguage.English,
-            [ArrivedOn(new DateOnly(2026, 9, 7), "Europe/Warsaw")],
+            [],
             [.. CensusSubject, "Monday", "7 September", "day"])
         {
             Calls = [AgentConversationTools.CountMailToolName],
+            Counted = [ArrivedOn(new DateOnly(2026, 9, 7), "Europe/Warsaw")],
             Zone = "Europe/Warsaw",
         },
 
@@ -1273,10 +1276,11 @@ internal sealed record AgentConversationScenario(
             "Agent.Counting.MoreGroupsThanOneReadingShows",
             "How many different sender addresses appear in my mailbox?",
             UserLanguage.English,
-            [SenderAddressesInTheMailbox],
+            [],
             [.. CensusSubject, "address", "different", "people"])
         {
             Calls = [AgentConversationTools.CountMailToolName],
+            Counted = [SenderAddressesInTheMailbox],
         },
 
         // Asks "how many", but about a figure one message states, which no count of the mailbox can answer.
@@ -1376,6 +1380,10 @@ internal sealed record AgentConversationScenario(
 
     /// <summary>Gets the tools the question cannot be answered without, each of which the run has to call.</summary>
     public IReadOnlyList<string> Calls { get; init; } = [];
+
+    /// <summary>Gets what the answer must state that a count of the mailbox produces rather than any message — a figure, or a sender domain only an address carries.</summary>
+    /// <remarks>Checked beside <see cref="Evidence" /> under the same metric, and apart from it because no message's text carries it.</remarks>
+    public IReadOnlyList<string> Counted { get; init; } = [];
 
     /// <summary>Gets the turns of the conversation before the question, oldest first.</summary>
     public IReadOnlyList<AgentHistoryTurn> History { get; init; } = [];
@@ -1829,7 +1837,7 @@ internal sealed record AgentConversationScenario(
     {
         var text = presented?.Value ?? string.Empty;
         var read = AnswerMarkdown.AsRead(text);
-        var missing = this.Evidence.Where(phrase => !read.Contains(phrase, StringComparison.OrdinalIgnoreCase)).ToList();
+        var missing = this.Evidence.Concat(this.Counted).Where(phrase => !read.Contains(phrase, StringComparison.OrdinalIgnoreCase)).ToList();
         var refusedMarkdown = AnswerMarkdown.Refused(text);
         var acts = written.OfType<AgentActionProposed>().Select(static proposal => proposal.Act).ToList();
         var proposed = acts.Select(DescriptionOf).Order(StringComparer.OrdinalIgnoreCase).ToList();
@@ -1840,7 +1848,7 @@ internal sealed record AgentConversationScenario(
             AgentComposition.InstructionFor(AgentConversationInstructions.TextFor(this.Language)));
         var language = WrittenLanguage.Shortfall(text, this.Language);
 
-        if (this.Evidence.Count > 0)
+        if (this.Evidence.Count > 0 || this.Counted.Count > 0)
         {
             var lookups = called.Count(ReadingTools.Contains);
 

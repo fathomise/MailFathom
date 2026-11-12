@@ -1507,12 +1507,12 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         Assert.Contains("to read, summarise, or retell a conversation, use read_thread", tool.Description, StringComparison.Ordinal);
     }
 
-    /// <summary>A census reading states the total, the groups it leads with, and how many groups and messages lie beyond them, so the model never names the leaders as everybody.</summary>
+    /// <summary>A census reading states the total, the groups it leads with — an address in the lower case a person writes it in — and how many groups and messages lie beyond them, so the model never names the leaders as everybody.</summary>
     [Fact]
     public async Task CountMail_GroupedBySender_ShowsTheLeadingGroupsAndWhatLiesBeyondThem()
     {
         // Arrange
-        var tool = this.CountingTool(new MailCensus([new("ada@example.org", 9), new(null, 2)], GroupCount: 7, CountedInGroups: 30, Total: 30));
+        var tool = this.CountingTool(new MailCensus([new("ADA@EXAMPLE.ORG", 9), new(null, 2)], GroupCount: 7, CountedInGroups: 30, Total: 30));
 
         // Act
         var answer = await tool.InvokeAsync(
