@@ -221,6 +221,9 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
         Assert.Equal(
             [false, true, false],
             provider.SentBodies.Select(static body => body.Contains(Told, StringComparison.Ordinal)));
+        Assert.Superset(
+            new HashSet<string> { ScopedMailKnowledgeRetrieval.SearchToolName, AgentRunEffort.GoDeepToolName },
+            OfferedTools(provider.SentBodies[1]).ToHashSet());
         Assert.Single(this.Written<AgentAnswerDeepened>());
     }
 
