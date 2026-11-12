@@ -1302,6 +1302,7 @@ public static class ServiceCollectionExtensions
         // the bounds it hands passages over under are the same wherever the retrieval is reached from.
         services.AddSingleton(answeringBudget.Retrieval);
         services.AddSingleton(answeringBudget.Run);
+        services.AddSingleton(new AgentRunBounds(answeringBudget.Run, answeringBudget.DeepRun));
         services.AddSingleton(answeringBudget.Period);
         // Registered as itself as well as behind the port, so a deployment that turns the model-judged second pass on
         // can wrap this one rather than rebuild it. Both resolve the same scoped instance, so an instance that adds no

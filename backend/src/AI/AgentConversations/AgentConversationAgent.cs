@@ -49,7 +49,7 @@ namespace MailFathom.AI.AgentConversations;
 internal sealed class AgentConversationAgent : IAgentAnswerComposer
 {
     private readonly ChatGenerationPlan plan;
-    private readonly MailAnsweringRunBounds runBounds;
+    private readonly AgentRunBounds runBounds;
     private readonly IMailAnsweringSpendLedger spendLedger;
     private readonly IProviderEndpointCredentialSource credentialSource;
     private readonly OpenAiCompatibleClientFactory clientFactory;
@@ -65,7 +65,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
 
     /// <summary>Initializes the agent over the declared endpoint and the use cases its tools read and propose through.</summary>
     /// <param name="plan">The validated declaration: which endpoint answers and with which parameters.</param>
-    /// <param name="runBounds">What one run may send, call, and consume before it is stopped.</param>
+    /// <param name="runBounds">What one run may send, call, and consume before it is stopped, in the fast mode and the deep one.</param>
     /// <param name="spendLedger">Counts what every call of the run added to the current period.</param>
     /// <param name="credentialSource">Resolves what a request presents to the endpoint.</param>
     /// <param name="clientFactory">Opens a provider client over the endpoint.</param>
@@ -80,7 +80,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     /// <param name="logger">Records the outcome without recording any question, answer, or message.</param>
     public AgentConversationAgent(
         [FromKeyedServices(ChatCapability.Agent)] ChatGenerationPlan plan,
-        MailAnsweringRunBounds runBounds,
+        AgentRunBounds runBounds,
         IMailAnsweringSpendLedger spendLedger,
         IProviderEndpointCredentialSource credentialSource,
         OpenAiCompatibleClientFactory clientFactory,
@@ -111,20 +111,20 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<PresentationText>> ComposeAsync(AgentAnswerBrief brief, AgentAnswerJournal journal, CancellationToken cancellationToken)
+    public async Task<AgentCompletion> ComposeAsync(AgentAnswerBrief brief, AgentAnswerJournal journal, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(brief);
         ArgumentNullException.ThrowIfNull(journal);
 
         var scope = await this.readers.ScopeResolver.ReadableScopeAsync(MailboxReaderKind.ConversationAgent, [], [], JunkMailInclusion.Excluded, cancellationToken);
-        var runLedger = new MailAnsweringRunLedger(this.runBounds);
+        var effort = new AgentRunEffort(brief.Question.Mode, this.runBounds, journal);
         var zone = this.readers.Clock.Zone();
 
         // The turn states the person's own wall clock, so a bound the model writes back is read at that zone's offset.
         var retrieval = new ScopedMailKnowledgeRetrieval(
             this.readers.KnowledgeSearch,
             scope,
-            runLedger,
+            effort.Ledger,
             this.egressGuard,
             zone.Reading(brief.Question.AskedAt));
         var tools = new AgentConversationTools(journal, retrieval, this.readers, this.egressGuard, scope.AccountIds);
@@ -135,7 +135,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         var answer = await ChatModelFallThrough.RunAsync(
             this.plan,
             this.logger,
-            (model, attemptToken) => this.AskAsync(model, brief, accounts, languages, zone, tools, journal, runLedger, stickySession, attemptToken),
+            (model, attemptToken) => this.AskAsync(model, brief, accounts, languages, zone, tools, journal, effort, stickySession, attemptToken),
             () => !tools.HasProposed,
             cancellationToken);
 
@@ -160,7 +160,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
 
         AgentConversationEvents.LogAnswered(this.logger, this.plan.Endpoint.Alias, cited.Length);
 
-        return tools.FollowUps;
+        return new AgentCompletion(tools.FollowUps, effort.Ceiling);
     }
 
     /// <summary>Turns an answer into the text a block may carry, or refuses it as no answer at all.</summary>
@@ -275,7 +275,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         UserTimeZone zone,
         AgentConversationTools tools,
         AgentAnswerJournal journal,
-        MailAnsweringRunLedger runLedger,
+        AgentRunEffort effort,
         string stickySession,
         CancellationToken cancellationToken)
     {
@@ -297,11 +297,12 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             this.operationRunner,
             this.healthRecorder,
             this.loggerFactory.CreateLogger<ResilientChatClient>());
-        await using var budgetedClient = new BudgetedChatClient(resilientClient, runLedger, this.spendLedger);
+        await using var budgetedClient = new BudgetedChatClient(resilientClient, effort.Ledger, this.spendLedger);
         using var recordedClient = new RecordedChatClient(budgetedClient, journal);
         using var steeredClient = new SteeredChatClient(recordedClient, journal, this.egressGuard);
+        using var lastCallClient = new LastCallChatClient(steeredClient, effort);
 
-        var agent = AgentConversationComposition.Compose(steeredClient, model, brief.Language, tools.Create(), this.instructionEnvelope, this.loggerFactory);
+        var agent = AgentConversationComposition.Compose(lastCallClient, model, brief.Language, effort.Offer(tools.Create()), this.instructionEnvelope, this.loggerFactory);
         var response = await agent.RunAsync(ChatConversationMapping.ToProviderConversation(guarded), session: null, options: null, cancellationToken);
 
         if (Presentable(response.Text) is not { } answer)

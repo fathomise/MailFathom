@@ -40,6 +40,7 @@ public sealed class AgentConversationEntrySerializationTests
             new AgentToolAnswered(message, "call-1", "[]"),
             new AgentModelCharged(message, SentCharacters: 4_000, InputTokens: 1_100),
             new AgentConversationCompacted(message, Through: 6, "They agreed on the price.", Carried: [6]),
+            new AgentAnswerDeepened(message, PresentationText.Create("It reaches back a year of supplier mail.")),
         ];
 
         // Act
@@ -235,6 +236,56 @@ public sealed class AgentConversationEntrySerializationTests
 
         // Assert
         Assert.Equal(entry.FollowUps, read.FollowUps);
+    }
+
+    /// <summary>The mode a question was asked in is in its record, under the word a client sends it as.</summary>
+    [Fact]
+    public void Serialize_AQuestionAskedDeep_WritesAndReadsItsMode()
+    {
+        // Arrange
+        var entry = new AgentMessageWritten(
+            AgentMessageId.New(),
+            AgentMessageAuthor.Person,
+            PresentationText.Create("Every price change this year"),
+            Scope: null,
+            AgentAnswerMode.Deep);
+
+        // Act
+        var written = JsonSerializer.Serialize(entry, AgentConversationEntryJsonContext.Default.AgentConversationEntry);
+        var read = Assert.IsType<AgentMessageWritten>(RoundTrip(entry));
+
+        // Assert
+        Assert.Contains("\"mode\":\"Deep\"", written, StringComparison.Ordinal);
+        Assert.Equal(AgentAnswerMode.Deep, read.Mode);
+    }
+
+    /// <summary>A question written before a question carried a mode, and every message that is no question, reads as carrying none.</summary>
+    [Fact]
+    public void Deserialize_AMessageWrittenWithoutAMode_ReadsAsCarryingNone()
+    {
+        // Arrange
+        var written = $$"""{"entry":"message","messageId":"{{AgentMessageId.New().Value}}","author":"Person","text":"Who sent the quote?"}""";
+
+        // Act
+        var read = Assert.IsType<AgentMessageWritten>(
+            JsonSerializer.Deserialize(written, AgentConversationEntryJsonContext.Default.AgentConversationEntry));
+
+        // Assert
+        Assert.Null(read.Mode);
+    }
+
+    /// <summary>An ending that answered at a ceiling reads back how much it had read.</summary>
+    [Fact]
+    public void Serialize_AnEndingAtACeiling_ReadsTheCeilingBack()
+    {
+        // Arrange
+        var entry = new AgentAnswerEnded(AgentMessageId.New(), AgentAnswerOutcome.Completed, Ceiling: new AgentRunCeiling(200));
+
+        // Act
+        var read = Assert.IsType<AgentAnswerEnded>(RoundTrip(entry));
+
+        // Assert
+        Assert.Equal(200, read.Ceiling?.MessagesRead);
     }
 
     /// <summary>An ending written before an answer could suggest anything carries no such member, and is still read.</summary>

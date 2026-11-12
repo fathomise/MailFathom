@@ -22,6 +22,9 @@ public sealed class MailAnsweringBudgetMapperTests
             MaxRetrievedCharactersPerRun = 9_000,
             MaxProviderCallsPerRun = 4,
             MaxTokensPerRun = 40_000,
+            MaxRetrievedCharactersPerDeepRun = 45_000,
+            MaxProviderCallsPerDeepRun = 12,
+            MaxTokensPerDeepRun = 140_000,
             MaxAnswerCharacters = 12_000,
             MaxCitations = 12,
             AggregatePeriod = TimeSpan.FromMinutes(30),
@@ -39,6 +42,9 @@ public sealed class MailAnsweringBudgetMapperTests
         Assert.Equal(9_000, budget.Run.MaximumRetrievedCharacters);
         Assert.Equal(4, budget.Run.MaximumProviderCalls);
         Assert.Equal(40_000L, budget.Run.MaximumTokens);
+        Assert.Equal(45_000, budget.DeepRun.MaximumRetrievedCharacters);
+        Assert.Equal(12, budget.DeepRun.MaximumProviderCalls);
+        Assert.Equal(140_000L, budget.DeepRun.MaximumTokens);
         Assert.Equal(12_000, budget.Answer.MaximumAnswerCharacters);
         Assert.Equal(12, budget.Answer.MaximumCitations);
         Assert.Equal(TimeSpan.FromMinutes(30), budget.Period.Period);

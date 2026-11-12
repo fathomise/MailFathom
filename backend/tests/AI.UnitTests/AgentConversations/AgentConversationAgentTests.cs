@@ -4,6 +4,7 @@
 
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using MailFathom.AI.AgentConversations;
 using MailFathom.AI.Chat;
 using MailFathom.AI.Orchestration;
@@ -89,11 +90,12 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             standby: []);
 
         // Act
-        var followUps = await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000))
+        var completion = await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000))
             .ComposeAsync(this.Brief(), this.journal, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(["Who confirmed the bays?"], followUps.Select(static followUp => followUp.Value));
+        Assert.Equal(["Who confirmed the bays?"], completion.FollowUps.Select(static followUp => followUp.Value));
+        Assert.Null(completion.Ceiling);
     }
 
     [Fact]
@@ -109,12 +111,91 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
                 maximumRequestCharacters: 100_000));
 
         // Act
-        var followUps = await provider.AgentOver(plan)
+        var completion = await provider.AgentOver(plan)
             .ComposeAsync(this.Brief(), this.journal, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(1, provider.StandbyRequestCount);
-        Assert.Empty(followUps);
+        Assert.Empty(completion.FollowUps);
+    }
+
+    /// <summary>An automatic run is offered the move, and a move it makes is written into the conversation with the reason the model gave.</summary>
+    [Fact]
+    public async Task ComposeAsync_AnAutomaticRunThatAsksToGoDeep_RecordsTheMoveWithItsReason()
+    {
+        // Arrange
+        using var provider = new ScriptedProvider(
+            answering: [GoingDeep("It reaches back a year of supplier mail."), Answering("Prices rose twice.")],
+            standby: []);
+
+        // Act
+        await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000))
+            .ComposeAsync(this.Brief(AgentAnswerMode.Auto), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(AgentRunEffort.GoDeepToolName, provider.SentBodies[0], StringComparison.Ordinal);
+        var deepened = Assert.Single(this.Written<AgentAnswerDeepened>());
+        Assert.Equal("It reaches back a year of supplier mail.", deepened.Reason.Value);
+    }
+
+    /// <summary>A fast or a deep run is never offered the move: a fast one never moves on its own, and a deep one has nowhere to go.</summary>
+    [Theory]
+    [InlineData(AgentAnswerMode.Fast)]
+    [InlineData(AgentAnswerMode.Deep)]
+    public async Task ComposeAsync_ARunAskedFastOrDeep_IsNotOfferedTheMove(AgentAnswerMode mode)
+    {
+        // Arrange
+        using var provider = new ScriptedProvider(answering: [Answering("Two bays were confirmed.")], standby: []);
+
+        // Act
+        await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000))
+            .ComposeAsync(this.Brief(mode), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.DoesNotContain(AgentRunEffort.GoDeepToolName, provider.SentBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>A fast run's last call may call no tool and is told to answer and say it stopped, and the run is recorded as having answered at its ceiling.</summary>
+    [Fact]
+    public async Task ComposeAsync_AFastRunReachingItsLastCall_AnswersWithoutToolsAndReportsTheCeiling()
+    {
+        // Arrange
+        var search = new RecordingEmailKnowledgeSearch()
+            .Returning("invoices", KnowledgePassages.Create("Invoice 14 is due.", subject: "Invoice"));
+        using var provider = new ScriptedProvider(
+            answering: [Searching("invoices"), Answering("Invoice 14 is due; I stopped at the limit.")],
+            standby: []);
+        var bounds = new AgentRunBounds(MailAnsweringRunBounds.Create(20_000, 2, 160_000), AgentRunBounds.DefaultDeep);
+
+        // Act
+        var completion = await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000), search, bounds: bounds)
+            .ComposeAsync(this.Brief(AgentAnswerMode.Fast), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.DoesNotContain("\"tool_choice\":\"none\"", provider.SentBodies[0], StringComparison.Ordinal);
+        Assert.Contains("\"tool_choice\":\"none\"", provider.SentBodies[1], StringComparison.Ordinal);
+        Assert.Equal(1, completion.Ceiling?.MessagesRead);
+        Assert.Empty(this.Written<AgentAnswerDeepened>());
+    }
+
+    /// <summary>An automatic run that has not moved is offered the move alone on the call before its last fast one, so a question that needs more reading goes deep rather than stopping.</summary>
+    [Fact]
+    public async Task ComposeAsync_AnAutomaticRunNearingItsLastFastCall_IsOfferedOnlyTheMove()
+    {
+        // Arrange
+        using var provider = new ScriptedProvider(
+            answering: [Suggesting("Who sent it?"), GoingDeep("It needs every invoice this year."), Answering("Nine invoices arrived.")],
+            standby: []);
+        var bounds = new AgentRunBounds(MailAnsweringRunBounds.Create(20_000, 3, 160_000), AgentRunBounds.DefaultDeep);
+
+        // Act
+        var completion = await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000), bounds: bounds)
+            .ComposeAsync(this.Brief(AgentAnswerMode.Auto), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([AgentRunEffort.GoDeepToolName], OfferedTools(provider.SentBodies[1]));
+        Assert.Single(this.Written<AgentAnswerDeepened>());
+        Assert.Null(completion.Ceiling);
     }
 
     /// <summary>An answer that rests on nothing is low whatever the model rated it, because the band is capped by its support.</summary>
@@ -322,6 +403,12 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
         + (receivedOnOrAfter is null ? string.Empty : ",\\\"receivedOnOrAfter\\\":\\\"" + receivedOnOrAfter + "\\\"")
         + "}\"}}]},\"finish_reason\":\"tool_calls\"}]}";
 
+    private static string GoingDeep(string reason) =>
+        "{\"id\":\"chatcmpl-5\",\"object\":\"chat.completion\",\"created\":1,\"model\":\"a-chat-model\","
+        + "\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call-5\","
+        + "\"type\":\"function\",\"function\":{\"name\":\"" + AgentRunEffort.GoDeepToolName + "\","
+        + "\"arguments\":\"{\\\"reason\\\":\\\"" + reason + "\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}";
+
     private static string Answering(string text) =>
         "{\"id\":\"chatcmpl-2\",\"object\":\"chat.completion\",\"created\":1,\"model\":\"a-chat-model\","
         + "\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"" + text + "\"},"
@@ -335,7 +422,18 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             .Single()
             .Block;
 
-    private AgentAnswerBrief Brief() => new(
+    private static IReadOnlyList<string> OfferedTools(string body)
+    {
+        using var request = JsonDocument.Parse(body);
+
+        return [.. request.RootElement.GetProperty("tools").EnumerateArray().Select(static tool => tool.GetProperty("function").GetProperty("name").GetString()!)];
+    }
+
+    private IReadOnlyList<TEntry> Written<TEntry>()
+        where TEntry : AgentConversationEntry =>
+        [.. this.store.ReceivedCalls().SelectMany(static call => call.GetArguments()).OfType<TEntry>()];
+
+    private AgentAnswerBrief Brief(AgentAnswerMode mode = AgentAnswerMode.Auto) => new(
         new AgentQuestion(
             this.conversation,
             SyntheticUser.Deployment,
@@ -343,7 +441,10 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             Scope: null,
             this.answer,
             OpenedAt: 1,
-            Now),
+            Now)
+        {
+            Mode = mode,
+        },
         UserLanguage.English,
         History: []);
 
@@ -396,7 +497,8 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             IEmailKnowledgeSearch? search = null,
             MailFolderIdentity[]? foldersWithheldFromAI = null,
             IMailAccountLanguages? accountLanguages = null,
-            string zoneId = "UTC")
+            string zoneId = "UTC",
+            AgentRunBounds? bounds = null)
         {
             var transportFactory = Substitute.For<IHttpClientFactory>();
             transportFactory
@@ -447,7 +549,7 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
 
             return new AgentConversationAgent(
                 plan,
-                MailAnsweringRunBounds.Default,
+                bounds ?? AgentRunBounds.Default,
                 Substitute.For<IMailAnsweringSpendLedger>(),
                 credentialSource,
                 new OpenAiCompatibleClientFactory(),

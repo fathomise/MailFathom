@@ -90,6 +90,26 @@ public sealed class ClientAgentConversationEndpointTests
         Assert.Equal($"/api/client/agent/conversations/{Conversation}", accepted.Location);
     }
 
+    /// <summary>The mode a question names is the one its record carries, and a question naming none is asked in auto.</summary>
+    [Theory]
+    [InlineData(AgentAnswerMode.Deep, AgentAnswerMode.Deep)]
+    [InlineData(AgentAnswerMode.Fast, AgentAnswerMode.Fast)]
+    [InlineData(null, AgentAnswerMode.Auto)]
+    public async Task Ask_AQuestionNamingAModeOrNone_WritesTheModeItIsAskedIn(AgentAnswerMode? named, AgentAnswerMode written)
+    {
+        // Arrange
+        AgentMessageWritten? question = null;
+        this.store
+            .AskAsync(Arg.Any<AgentConversationId>(), SyntheticUser.Deployment, Arg.Do<AgentMessageWritten>(entry => question = entry), Arg.Any<AgentMessageId>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(new AgentMessagePosting(AgentMessagePostingOutcome.Written, 2, AgentMessageId.New()));
+
+        // Act
+        await this.AskAsync(Conversation, new ClientAgentMessageRequest(Guid.CreateVersion7(Now), "Every quote this year", null, named));
+
+        // Assert
+        Assert.Equal(written, question?.Mode);
+    }
+
     /// <summary>A request missing what a question needs is refused before anything reaches the store.</summary>
     [Theory]
     [MemberData(nameof(MalformedQuestions))]
@@ -526,7 +546,7 @@ public sealed class ClientAgentConversationEndpointTests
     /// <summary>Indexes into <see cref="MalformedQuestionCases" />, which the request records being internal keeps out of a theory's own data.</summary>
     public static TheoryData<int> MalformedQuestions => [.. Enumerable.Range(0, MalformedQuestionCases.Length)];
 
-    /// <summary>Requests missing an identifier, text, or a coherent scope.</summary>
+    /// <summary>Requests missing an identifier, text, a coherent scope, or a declared mode.</summary>
     private static (Guid Conversation, ClientAgentMessageRequest? Request)[] MalformedQuestionCases =>
     [
         (Conversation, null),
@@ -535,6 +555,7 @@ public sealed class ClientAgentConversationEndpointTests
         (Conversation, new ClientAgentMessageRequest(Guid.CreateVersion7(Now), "   ", null)),
         (Conversation, new ClientAgentMessageRequest(Guid.CreateVersion7(Now), new string('x', PresentationText.MaxLength + 1), null)),
         (Conversation, new ClientAgentMessageRequest(Guid.CreateVersion7(Now), "About this thread", new ClientAgentMessageScope(AgentScopeKind.Thread, null))),
+        (Conversation, new ClientAgentMessageRequest(Guid.CreateVersion7(Now), "What did the supplier quote?", null, (AgentAnswerMode)42)),
     ];
 
     /// <summary>Requests with nothing to search for, or asking for a number of conversations outside the bound.</summary>

@@ -71,7 +71,26 @@ internal sealed class MailAnsweringOptions : IValidatableObject
     /// <summary>Gets or sets the greatest number of tokens, sent and received together, one run may consume.</summary>
     /// <remarks>The cost ceiling, stated in the unit a provider bills by. Checked before each call against what the calls before it reported, so the call that crosses it is paid for — what a call will cost is not knowable until it has been answered.</remarks>
     [Range(1, 100_000_000)]
-    public long MaxTokensPerRun { get; set; } = 80_000;
+    public long MaxTokensPerRun { get; set; } = 160_000;
+
+    /// <summary>Gets or sets the greatest number of characters of retrieved mail one Agent run asked to go deep may send.</summary>
+    /// <remarks>
+    /// The privacy ceiling of a deep run, read exactly as <see cref="MaxRetrievedCharactersPerRun" /> is and never below
+    /// it. The three ceilings above are what every run is held to and what a fast Agent run is; these three are what a
+    /// person may ask one Agent question to go to instead, and what an automatic run moves to at most once. The model,
+    /// the plan, and the period are the same in every mode.
+    /// </remarks>
+    [Range(1, 10_000_000)]
+    public int MaxRetrievedCharactersPerDeepRun { get; set; } = 100_000;
+
+    /// <summary>Gets or sets the greatest number of provider calls one Agent run asked to go deep may make.</summary>
+    [Range(1, 1_000)]
+    public int MaxProviderCallsPerDeepRun { get; set; } = 24;
+
+    /// <summary>Gets or sets the greatest number of tokens, sent and received together, one Agent run asked to go deep may consume.</summary>
+    /// <remarks>Never above <see cref="MaxTokensPerPeriod" />, because a deep run is admitted against the period like every other and one that may spend more than a whole period would be admitted to spend what no period holds.</remarks>
+    [Range(1, 100_000_000)]
+    public long MaxTokensPerDeepRun { get; set; } = 1_000_000;
 
     /// <summary>Gets or sets the greatest number of characters one answer may carry.</summary>
     /// <remarks>What a single response publishes rather than what a run spends. It cuts rather than refuses, because an answer larger than a limit has already been generated and paid for; the response says it was cut.</remarks>
@@ -109,7 +128,7 @@ internal sealed class MailAnsweringOptions : IValidatableObject
 
     /// <summary>Gets or sets the greatest number of tokens the runs of one period may consume between them.</summary>
     [Range(1, 10_000_000_000)]
-    public long MaxTokensPerPeriod { get; set; } = 300_000;
+    public long MaxTokensPerPeriod { get; set; } = 2_000_000;
 
     /// <summary>Reports every reason this declaration could not be mapped, by reading the declaration alone.</summary>
     /// <returns>One message per rule this declaration breaks, which is empty for a usable one.</returns>
@@ -149,6 +168,27 @@ internal sealed class MailAnsweringOptions : IValidatableObject
             yield return new ValidationResult(
                 $"MailAnswering declares MaxConversationContextTokens of {this.MaxConversationContextTokens}, above the MaxTokensPerRun of {this.MaxTokensPerRun}, so a long Agent conversation would send more in one call than its whole run may spend.",
                 [nameof(this.MaxConversationContextTokens)]);
+        }
+
+        // A deep ceiling below its fast one would make the mode that reads further read less, and an automatic run
+        // that moved would find its ceilings lowered under it.
+        foreach (var (deep, fast, deepName, fastName) in new (long Deep, long Fast, string DeepName, string FastName)[]
+        {
+            (this.MaxRetrievedCharactersPerDeepRun, this.MaxRetrievedCharactersPerRun, nameof(this.MaxRetrievedCharactersPerDeepRun), nameof(this.MaxRetrievedCharactersPerRun)),
+            (this.MaxProviderCallsPerDeepRun, this.MaxProviderCallsPerRun, nameof(this.MaxProviderCallsPerDeepRun), nameof(this.MaxProviderCallsPerRun)),
+            (this.MaxTokensPerDeepRun, this.MaxTokensPerRun, nameof(this.MaxTokensPerDeepRun), nameof(this.MaxTokensPerRun)),
+        }.Where(static ceiling => ceiling.Deep < ceiling.Fast))
+        {
+            yield return new ValidationResult(
+                $"MailAnswering declares {deepName} of {deep}, below the {fastName} of {fast}, so asking the Agent to go deep would let it go less far than a fast question.",
+                [deepName]);
+        }
+
+        if (this.MaxTokensPerDeepRun > this.MaxTokensPerPeriod)
+        {
+            yield return new ValidationResult(
+                $"MailAnswering declares MaxTokensPerDeepRun of {this.MaxTokensPerDeepRun}, above the MaxTokensPerPeriod of {this.MaxTokensPerPeriod}, so one deep Agent run could spend more than every run of a period may between them.",
+                [nameof(this.MaxTokensPerDeepRun)]);
         }
 
         if (this.AggregatePeriod <= TimeSpan.Zero)

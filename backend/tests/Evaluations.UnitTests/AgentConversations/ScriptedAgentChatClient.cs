@@ -13,7 +13,7 @@ namespace MailFathom.Evaluations.UnitTests.AgentConversations;
 /// </remarks>
 /// <param name="calls">Each tool it calls, by name, with the arguments it passes; empty for a model that calls none.</param>
 /// <param name="answer">The text it answers with.</param>
-/// <param name="callsEveryTurn">Whether it makes its calls again on every turn and so never answers, which is a model that runs until its bounds stop it.</param>
+/// <param name="callsEveryTurn">Whether it makes its calls again on every turn and so answers only when a call allows it no tool, which is a model that runs until its bounds stop it.</param>
 /// <param name="summary">What it writes when it is asked to compact a conversation, which is the one request offering it no tool; <see langword="null" /> for a run that never compacts.</param>
 /// <param name="inputTokensPerReply">The input tokens each reply reports, which a run's ledger counts against its token ceiling.</param>
 internal sealed class ScriptedAgentChatClient(
@@ -31,11 +31,12 @@ internal sealed class ScriptedAgentChatClient(
         ChatOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var called = messages.SelectMany(static message => message.Contents).OfType<FunctionResultContent>().Any();
+        var called = messages.SelectMany(static message => message.Contents).OfType<FunctionResultContent>().Any()
+            || options?.ToolMode is NoneChatToolMode;
         var compacting = summary is not null && options?.Tools is not { Count: > 0 };
         var reply = compacting
             ? new ChatMessage(ChatRole.Assistant, summary)
-            : calls.Count > 0 && (callsEveryTurn || !called)
+            : calls.Count > 0 && (!called || (callsEveryTurn && options?.ToolMode is not NoneChatToolMode))
             ? new ChatMessage(
                 ChatRole.Assistant,
                 [.. calls.Select(static (call, index) => new FunctionCallContent($"call-{index}", call.Tool, call.Arguments))])

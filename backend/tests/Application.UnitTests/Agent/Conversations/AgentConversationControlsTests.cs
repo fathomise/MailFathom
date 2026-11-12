@@ -57,12 +57,13 @@ public sealed class AgentConversationControlsTests
             message,
             PresentationText.Create("What did the supplier quote?"),
             AgentMessageScope.Mailbox(),
+            AgentAnswerMode.Deep,
             TestContext.Current.CancellationToken);
         var announced = await this.PublishedAsync(signals, channel);
 
         // Assert
         Assert.NotNull(written);
-        Assert.Equal((message, AgentMessageAuthor.Person), (written.MessageId, written.Author));
+        Assert.Equal((message, AgentMessageAuthor.Person, AgentAnswerMode.Deep), (written.MessageId, written.Author, written.Mode));
         Assert.NotNull(posting.Answer);
         var signal = Assert.Single(announced);
         Assert.Equal(
@@ -91,6 +92,7 @@ public sealed class AgentConversationControlsTests
             AgentMessageId.New(),
             PresentationText.Create("What did the supplier quote?"),
             scope: null,
+            AgentAnswerMode.Auto,
             TestContext.Current.CancellationToken);
 
         // Assert

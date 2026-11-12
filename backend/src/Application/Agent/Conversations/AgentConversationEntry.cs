@@ -43,6 +43,7 @@ namespace MailFathom.Application.Agent.Conversations;
 [JsonDerivedType(typeof(AgentToolAnswered), AgentToolAnswered.Kind)]
 [JsonDerivedType(typeof(AgentModelCharged), AgentModelCharged.Kind)]
 [JsonDerivedType(typeof(AgentConversationCompacted), AgentConversationCompacted.Kind)]
+[JsonDerivedType(typeof(AgentAnswerDeepened), AgentAnswerDeepened.Kind)]
 public abstract record AgentConversationEntry
 {
     private protected AgentConversationEntry()

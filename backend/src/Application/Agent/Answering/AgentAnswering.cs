@@ -218,9 +218,9 @@ public sealed class AgentAnswering
             NamedEmails = await this.ReadNamedEmailsAsync(question.User, scope, cancellationToken),
         };
 
-        var followUps = await this.composer.ComposeAsync(brief, journal, cancellationToken);
+        var completion = await this.composer.ComposeAsync(brief, journal, cancellationToken);
 
-        await journal.CompleteAsync(followUps, cancellationToken);
+        await journal.CompleteAsync(completion, cancellationToken);
     }
 
     private async Task<IReadOnlyList<StoredEmailId>> ReadNamedEmailsAsync(

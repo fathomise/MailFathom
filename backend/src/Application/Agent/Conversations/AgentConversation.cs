@@ -147,6 +147,10 @@ public sealed record AgentConversation
                 case AgentActionProposed proposed:
                     return this.TryWrite(proposed, proposed.MessageId, turn => this.Offer(proposed, turn), out refusal);
 
+                // The move is a fact about how far the run went, which a reading of what was said shows nowhere yet.
+                case AgentAnswerDeepened deepened:
+                    return this.TryWrite(deepened, deepened.MessageId, static _ => { }, out refusal);
+
                 case AgentAnswerEnded ended:
                     return this.TryWrite(ended, ended.MessageId, turn => turn.Outcome = ended.Outcome, out refusal);
 

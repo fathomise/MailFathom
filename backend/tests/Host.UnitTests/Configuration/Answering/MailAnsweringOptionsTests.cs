@@ -27,12 +27,16 @@ public sealed class MailAnsweringOptionsTests
         Assert.Equal(1_200, settings.MaxCharactersPerPassage);
         Assert.Equal(20_000, settings.MaxRetrievedCharactersPerRun);
         Assert.Equal(8, settings.MaxProviderCallsPerRun);
-        Assert.Equal(80_000L, settings.MaxTokensPerRun);
+        Assert.Equal(160_000L, settings.MaxTokensPerRun);
+        Assert.Equal(100_000, settings.MaxRetrievedCharactersPerDeepRun);
+        Assert.Equal(24, settings.MaxProviderCallsPerDeepRun);
+        Assert.Equal(1_000_000L, settings.MaxTokensPerDeepRun);
+        Assert.Equal(128_000, settings.MaxConversationContextTokens);
         Assert.Equal(20_000, settings.MaxAnswerCharacters);
         Assert.Equal(20, settings.MaxCitations);
         Assert.Equal(TimeSpan.FromHours(1), settings.AggregatePeriod);
         Assert.Equal(30, settings.MaxRunsPerPeriod);
-        Assert.Equal(300_000L, settings.MaxTokensPerPeriod);
+        Assert.Equal(2_000_000L, settings.MaxTokensPerPeriod);
         Assert.Empty(Validate(settings));
     }
 
@@ -131,6 +135,47 @@ public sealed class MailAnsweringOptionsTests
 
         // Assert
         Assert.Contains(errors, error => error.Contains("above the MaxTokensPerRun of 50000", StringComparison.Ordinal));
+    }
+
+    /// <summary>Each deep ceiling below its fast one is refused, because asking to go deep would then go less far.</summary>
+    [Theory]
+    [InlineData(19_999, 24, 1_000_000, nameof(MailAnsweringOptions.MaxRetrievedCharactersPerDeepRun))]
+    [InlineData(100_000, 7, 1_000_000, nameof(MailAnsweringOptions.MaxProviderCallsPerDeepRun))]
+    [InlineData(100_000, 24, 159_999, nameof(MailAnsweringOptions.MaxTokensPerDeepRun))]
+    public void FindConfigurationErrors_ADeepCeilingBelowItsFastOne_IsReported(
+        int retrievedCharacters,
+        int providerCalls,
+        long tokens,
+        string deepCeiling)
+    {
+        // Arrange
+        var settings = new MailAnsweringOptions
+        {
+            MaxRetrievedCharactersPerDeepRun = retrievedCharacters,
+            MaxProviderCallsPerDeepRun = providerCalls,
+            MaxTokensPerDeepRun = tokens,
+        };
+
+        // Act
+        var errors = settings.FindConfigurationErrors();
+
+        // Assert
+        var error = Assert.Single(errors);
+        Assert.StartsWith($"MailAnswering declares {deepCeiling} of", error, StringComparison.Ordinal);
+    }
+
+    /// <summary>A deep run allowed more tokens than a whole period holds would be admitted to spend what no period has.</summary>
+    [Fact]
+    public void FindConfigurationErrors_ADeepRunAboveThePeriodsTokens_IsReported()
+    {
+        // Arrange
+        var settings = new MailAnsweringOptions { MaxTokensPerPeriod = 300_000 };
+
+        // Act
+        var errors = settings.FindConfigurationErrors();
+
+        // Assert
+        Assert.Contains(errors, error => error.Contains("MaxTokensPerDeepRun of 1000000, above the MaxTokensPerPeriod of 300000", StringComparison.Ordinal));
     }
 
     /// <summary>The cross-field rule lives in Validate, and the same call has to reach it or half the rules would be skipped.</summary>

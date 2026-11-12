@@ -388,24 +388,12 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.True(verdict.Get<BooleanMetric>(AgentConversationScenario.FollowUpsOnSubjectMetricName).Value);
     }
 
+    /// <summary>A model that would search for ever is made to answer on its last call, inside its bounds, and is then held to saying it stopped.</summary>
     [Fact]
-    public async Task RunAsync_AModelThatNeverStopsSearching_FailsTheBoundsCheck()
+    public async Task RunAsync_AModelThatNeverStopsSearching_AnswersOnItsLastCallAndFailsOnlyTheAdmissionCheck()
     {
         // Arrange
-        using var model = new ScriptedAgentChatClient([Search("LumenDesk export error")], "Never reached.", callsEveryTurn: true);
-
-        // Act
-        var verdict = await this.RunAsync(Quoting, model);
-
-        // Assert
-        Assert.False(verdict.Get<BooleanMetric>(AgentConversationScenario.WithinBoundsMetricName).Value);
-    }
-
-    [Fact]
-    public async Task RunAsync_AModelWhoseLastCallAloneCrossesTheDefaultTokenCeiling_PassesTheBoundsCheck()
-    {
-        // Arrange
-        using var model = new ScriptedAgentChatClient([Search("LumenDesk export error")], "Never graded.", inputTokensPerReply: 50_000);
+        using var model = new ScriptedAgentChatClient([Search("LumenDesk export error")], "The export error is in the log.", callsEveryTurn: true);
 
         // Act
         var verdict = await this.RunAsync(Quoting, model);
@@ -413,13 +401,81 @@ public sealed class AgentConversationScenarioTests : IDisposable
         // Assert
         var withinBounds = verdict.Get<BooleanMetric>(AgentConversationScenario.WithinBoundsMetricName);
         Assert.True(withinBounds.Value, withinBounds.Reason);
+        Assert.False(verdict.Get<BooleanMetric>(AgentConversationScenario.SaysItStoppedMetricName).Value);
     }
 
-    [Fact]
-    public async Task RunAsync_AModelWhoseCallStartsPastTheDefaultTokenCeiling_FailsTheBoundsCheckNamingTheTokens()
+    /// <summary>A fast run that cannot read enough passes the stop checks only where its answer says it stopped at the limit.</summary>
+    [Theory]
+    [InlineData("TP-2601 to BO-2608 so far; I stopped at the limit of what this answer may read.", true)]
+    [InlineData("TP-2601 to BO-2608 are all the invoices.", false)]
+    public async Task RunAsync_AFastRunReadingPastItsCeiling_PassesTheAdmissionCheckOnlyWhereItSaysItStopped(string answer, bool passes)
     {
         // Arrange
-        using var model = new ScriptedAgentChatClient([Search("LumenDesk export error")], "Never graded.", inputTokensPerReply: 90_000);
+        using var model = new ScriptedAgentChatClient([Search("supplier invoice")], answer, callsEveryTurn: true);
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Effort.FastStopsAtItsLimitAndSaysSo"), model);
+
+        // Assert
+        Assert.True(verdict.Get<BooleanMetric>(AgentConversationScenario.StoppedAsExpectedMetricName).Value);
+        Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.SaysItStoppedMetricName).Value);
+    }
+
+    /// <summary>A question asking for everything passes the move check only where the model asked to go deep.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RunAsync_AnAutomaticRunAskedForEverything_PassesTheMoveCheckOnlyWhereItWentDeep(bool goesDeep)
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient(
+            [goesDeep ? GoDeep("It asks for every invoice of the year.") : Search("supplier invoice")],
+            "BO-2614 was the largest.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Effort.AutoGoesDeepWhenAskedForEverything"), model);
+
+        // Assert
+        var moved = verdict.Get<BooleanMetric>(AgentConversationScenario.MovedAsExpectedMetricName);
+        Assert.Equal(goesDeep, moved.Value);
+    }
+
+    /// <summary>A narrow question passes the move check only where the model stayed within the fast ceilings.</summary>
+    [Fact]
+    public async Task RunAsync_AnAutomaticRunGoingDeepForANarrowQuestion_FailsTheMoveCheck()
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient([GoDeep("It might need more reading.")], "WP-2627 is the newest.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Effort.AutoStaysFastForANarrowQuestion"), model);
+
+        // Assert
+        Assert.False(verdict.Get<BooleanMetric>(AgentConversationScenario.MovedAsExpectedMetricName).Value);
+    }
+
+    /// <summary>A last call that alone carries the run past its token ceiling still started within it, so the run answered within the bounds a deployment checks.</summary>
+    [Fact]
+    public async Task RunAsync_AModelWhoseLastCallAloneCrossesTheDefaultTokenCeiling_AnswersAndPassesTheBoundsCheck()
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient([Search("LumenDesk export error")], "The export error is in the log.", inputTokensPerReply: 90_000);
+
+        // Act
+        var verdict = await this.RunAsync(Quoting, model);
+
+        // Assert
+        var withinBounds = verdict.Get<BooleanMetric>(AgentConversationScenario.WithinBoundsMetricName);
+        Assert.True(withinBounds.Value, withinBounds.Reason);
+        Assert.True(verdict.Get<BooleanMetric>(AgentConversationScenario.AnsweredMetricName).Value);
+    }
+
+    /// <summary>A first call that spends the whole token ceiling leaves no call to answer on, which the bounds check reports as a run with no answer.</summary>
+    [Fact]
+    public async Task RunAsync_AModelWhoseFirstCallSpendsTheWholeTokenCeiling_FailsTheBoundsCheck()
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient([Search("LumenDesk export error")], "Never graded.", inputTokensPerReply: 170_000);
 
         // Act
         var verdict = await this.RunAsync(Quoting, model);
@@ -427,7 +483,7 @@ public sealed class AgentConversationScenarioTests : IDisposable
         // Assert
         var withinBounds = verdict.Get<BooleanMetric>(AgentConversationScenario.WithinBoundsMetricName);
         Assert.False(withinBounds.Value);
-        Assert.Contains("started at 90005 tokens", withinBounds.Reason, StringComparison.Ordinal);
+        Assert.Contains("reached its bounds before it answered", withinBounds.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1003,6 +1059,9 @@ public sealed class AgentConversationScenarioTests : IDisposable
             ["dueOn"] = dueOn,
             ["messageId"] = null,
         });
+
+    private static (string Tool, IDictionary<string, object?> Arguments) GoDeep(string reason) =>
+        (AgentRunEffort.GoDeepToolName, new Dictionary<string, object?> { ["reason"] = reason });
 
     private static (string Tool, IDictionary<string, object?> Arguments) Rate(string band) =>
         ("rate_confidence", new Dictionary<string, object?> { ["band"] = band });

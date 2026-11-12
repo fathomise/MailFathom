@@ -20,7 +20,7 @@ public sealed class MailAnsweringRunBoundsTests
         // Assert
         Assert.Equal(20_000, bounds.MaximumRetrievedCharacters);
         Assert.Equal(8, bounds.MaximumProviderCalls);
-        Assert.Equal(80_000L, bounds.MaximumTokens);
+        Assert.Equal(160_000L, bounds.MaximumTokens);
     }
 
     /// <summary>A run that could not send even one passage would answer from nothing while appearing to have read the mailbox.</summary>

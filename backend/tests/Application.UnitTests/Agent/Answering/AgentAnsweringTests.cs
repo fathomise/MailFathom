@@ -34,7 +34,7 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
 
     private readonly IAgentConversationStore store = Substitute.For<IAgentConversationStore>();
 
-    private readonly IAgentAnswerComposer composer = Substitute.For<IAgentAnswerComposer>();
+    private readonly IAgentAnswerComposer composer = ComposingPlainly();
 
     private readonly IAgentConversationSummarizer summarizer = Substitute.For<IAgentConversationSummarizer>();
 
@@ -161,7 +161,7 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
         IReadOnlyList<PresentationText> followUps = [PresentationText.Create("Draft a reply to Northwind")];
         this.composer
             .ComposeAsync(Arg.Any<AgentAnswerBrief>(), Arg.Any<AgentAnswerJournal>(), Arg.Any<CancellationToken>())
-            .Returns(followUps);
+            .Returns(new AgentCompletion(followUps, Ceiling: null));
 
         // Act
         await this.Answering().RunAsync(this.Question(), TestContext.Current.CancellationToken);
@@ -170,6 +170,24 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
         var ended = Assert.IsType<AgentAnswerEnded>(this.written[^1]);
         Assert.Equal(AgentAnswerOutcome.Completed, ended.Outcome);
         Assert.Equal(followUps, ended.FollowUps);
+        Assert.Null(ended.Ceiling);
+    }
+
+    /// <summary>A run that answered at a ceiling ends completed, and its ending says so in the form a client offers a deeper mode from.</summary>
+    [Fact]
+    public async Task RunAsync_AComposerThatAnsweredAtACeiling_EndsTheAnswerCompletedNamingIt()
+    {
+        // Arrange
+        this.composer
+            .ComposeAsync(Arg.Any<AgentAnswerBrief>(), Arg.Any<AgentAnswerJournal>(), Arg.Any<CancellationToken>())
+            .Returns(new AgentCompletion([], new AgentRunCeiling(12)));
+
+        // Act
+        await this.Answering().RunAsync(this.Question(), TestContext.Current.CancellationToken);
+
+        // Assert
+        var ended = Assert.IsType<AgentAnswerEnded>(this.written[^1]);
+        Assert.Equal((AgentAnswerOutcome.Completed, 12), (ended.Outcome, ended.Ceiling?.MessagesRead));
     }
 
     /// <summary>The composer is handed the conversation before the question and not the question itself, which it is handed on its own.</summary>
@@ -232,7 +250,7 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
                 await journal.ReportAsync(AgentActivity.SearchingMail, CancellationToken.None);
                 journal.Stopping.ThrowIfCancellationRequested();
 
-                return (IReadOnlyList<PresentationText>)[];
+                return AgentCompletion.Plain;
             });
 
         // Act
@@ -249,7 +267,7 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
         // Arrange
         this.composer
             .ComposeAsync(Arg.Any<AgentAnswerBrief>(), Arg.Any<AgentAnswerJournal>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<IReadOnlyList<PresentationText>>(new InvalidOperationException("Unexpected.")));
+            .Returns(Task.FromException<AgentCompletion>(new InvalidOperationException("Unexpected.")));
 
         // Act and assert
         await Assert.ThrowsAsync<InvalidOperationException>(() => this.Answering().RunAsync(this.Question(), TestContext.Current.CancellationToken));
@@ -370,4 +388,13 @@ public sealed class AgentAnsweringTests : IAsyncDisposable
         this.signals,
         this.languages,
         this.clock);
+
+    private static IAgentAnswerComposer ComposingPlainly()
+    {
+        var composer = Substitute.For<IAgentAnswerComposer>();
+        composer.ComposeAsync(Arg.Any<AgentAnswerBrief>(), Arg.Any<AgentAnswerJournal>(), Arg.Any<CancellationToken>())
+            .Returns(AgentCompletion.Plain);
+
+        return composer;
+    }
 }
