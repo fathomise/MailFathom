@@ -12,6 +12,7 @@ import {
     steerAgentRun,
     stopAgentRun,
     type AgentAnswerMode,
+    type AgentMessageScope,
     type AgentProposalDecision,
     type ClientFailureReason,
     type ClientResult,
@@ -357,7 +358,11 @@ export function AgentSpace({
         }
     }
 
-    async function send(text: string, asked: AgentAnswerMode = mode): Promise<string | null> {
+    async function send(
+        text: string,
+        asked: AgentAnswerMode = mode,
+        scope: AgentMessageScope | null = context?.scope ?? null,
+    ): Promise<string | null> {
         if (session === null) {
             return null;
         }
@@ -367,7 +372,7 @@ export function AgentSpace({
 
         const posted =
             current === null || inFlight === null
-                ? await askAgent(session, transport, conversation, message, text, context?.scope ?? null, asked)
+                ? await askAgent(session, transport, conversation, message, text, scope, asked)
                 : await steerAgentRun(session, transport, conversation, inFlight.run, message, text);
 
         if (posted.outcome === 'failed') {
@@ -443,11 +448,12 @@ export function AgentSpace({
         return refused;
     }
 
-    // The same question again in `deep`, which leaves the control on `deep` for the questions after it as well.
-    function askInDeep(question: string): Promise<string | null> {
+    // The same question again in `deep`, about what it was asked about rather than what the field carries now, which
+    // leaves the control on `deep` for the questions after it as well.
+    function askInDeep(question: string, scope: AgentMessageScope | null): Promise<string | null> {
         setMode('deep');
 
-        return send(question, 'deep');
+        return send(question, 'deep', scope);
     }
 
     function cancel(): void {

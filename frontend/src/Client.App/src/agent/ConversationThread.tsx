@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ClientFailureReason, DeclaredSource } from '@mailfathom/client-backend';
+import type { AgentMessageScope, ClientFailureReason, DeclaredSource } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
@@ -30,7 +30,8 @@ const readFailures: Readonly<Record<ClientFailureReason, MessageKey>> = {
  * @param following Changed whenever the reader asks something or opens a conversation, which pins the thread to its
  * bottom again.
  * @param onAsk Asks a question the last answer suggested, exactly as sending it from the field would.
- * @param onAskInDeep Asks an answer's question again in `deep`, and `null` while an answer is being composed.
+ * @param onAskInDeep Asks an answer's question again in `deep`, about what it was asked about, and `null` while an
+ * answer is being composed.
  * @param onFollowSource Opens a source an answer cites, so the fact it backs can be checked against it.
  */
 export function ConversationThread({
@@ -51,7 +52,7 @@ export function ConversationThread({
     readonly settledThrough: number;
     readonly following: number;
     readonly onAsk: (question: string) => Promise<unknown>;
-    readonly onAskInDeep: ((question: string) => Promise<unknown>) | null;
+    readonly onAskInDeep: ((question: string, scope: AgentMessageScope | null) => Promise<unknown>) | null;
     readonly onFollowSource: (source: DeclaredSource) => void;
 }) {
     const { translate } = useLocalization();

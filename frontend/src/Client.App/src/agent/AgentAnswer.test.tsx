@@ -4,7 +4,7 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { DeclaredSource } from '@mailfathom/client-backend';
+import type { AgentMessageScope, DeclaredSource } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { AgentAnswer } from './AgentAnswer';
 import type { Answer } from './threadTurns';
@@ -104,9 +104,10 @@ describe('AgentAnswer', () => {
         expect(screen.queryByText('The agent is going through your mail…')).toBeNull();
     });
 
-    it('offers a fast answer that stopped at its ceiling the same question in deep', async () => {
+    it('offers a fast answer that stopped at its ceiling the same question in deep, about what it was asked about', async () => {
         const asked = vi.fn(() => Promise.resolve());
-        drawnAnswer({ ...answered, mode: 'fast', ceiling: { messagesRead: 200 } }, asked);
+        const thread: AgentMessageScope = { kind: 'thread', subject: '0198f4a1-0000-7000-8000-00000000b001' };
+        drawnAnswer({ ...answered, scope: thread, mode: 'fast', ceiling: { messagesRead: 200 } }, asked);
 
         expect(
             screen.getByText('Stopped at the fast limit: it read 200 messages. The rest may change the answer.'),
@@ -115,7 +116,7 @@ describe('AgentAnswer', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Ask again in Deep' }));
 
         await waitFor(() => {
-            expect(asked).toHaveBeenCalledWith('When does the lease renew?');
+            expect(asked).toHaveBeenCalledWith('When does the lease renew?', thread);
         });
     });
 
@@ -135,7 +136,10 @@ describe('AgentAnswer', () => {
     });
 });
 
-function inLocalization(answer: Answer, onAskInDeep: ((question: string) => Promise<unknown>) | null = null) {
+function inLocalization(
+    answer: Answer,
+    onAskInDeep: ((question: string, scope: AgentMessageScope | null) => Promise<unknown>) | null = null,
+) {
     return (
         <LocalizationProvider>
             <AgentAnswer answer={answer} settledThrough={10} onFollowSource={vi.fn()} onAskInDeep={onAskInDeep} />
@@ -143,6 +147,9 @@ function inLocalization(answer: Answer, onAskInDeep: ((question: string) => Prom
     );
 }
 
-function drawnAnswer(answer: Answer, onAskInDeep: ((question: string) => Promise<unknown>) | null = null) {
+function drawnAnswer(
+    answer: Answer,
+    onAskInDeep: ((question: string, scope: AgentMessageScope | null) => Promise<unknown>) | null = null,
+) {
     return render(inLocalization(answer, onAskInDeep));
 }

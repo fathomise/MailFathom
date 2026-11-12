@@ -383,6 +383,8 @@ describe('readAgentConversation', () => {
         ['a ceiling that names no count', { ceiling: {} }],
         ['a ceiling with a negative count', { ceiling: { messagesRead: -1 } }],
         ['a ceiling with a fractional count', { ceiling: { messagesRead: 1.5 } }],
+        ['a ceiling that is a string', { ceiling: '20' }],
+        ['a ceiling that is a list', { ceiling: [20] }],
     ])('refuses an ending naming %s, which the service never writes', async (_, written) => {
         const answered = await readAgentConversation(
             session,
@@ -397,6 +399,22 @@ describe('readAgentConversation', () => {
         );
 
         expect(answered).toMatchObject({ outcome: 'failed', failure: { reason: 'unreadable' } });
+    });
+
+    it('reads a move to deep whose reason is as long as a presented line may be, and refuses one longer', async () => {
+        const moved = (reason: string) =>
+            readAgentConversation(
+                session,
+                answering({
+                    status: 200,
+                    body: pageOf([entryOf(1, { entry: 'answerDeepened', messageId: question, reason })]),
+                }),
+                conversation,
+                0,
+            );
+
+        expect(await moved('x'.repeat(4000))).toMatchObject({ outcome: 'read' });
+        expect(await moved('x'.repeat(4001))).toMatchObject({ outcome: 'failed', failure: { reason: 'unreadable' } });
     });
 
     it('refuses a move to deep that gives no reason', async () => {

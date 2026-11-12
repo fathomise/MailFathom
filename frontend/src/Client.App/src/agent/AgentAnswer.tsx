@@ -100,8 +100,8 @@ export function AnswerScope({ scope, ranIn = null }: { readonly scope: MessageKe
  *
  * @param settledThrough What was already there when the conversation was opened, which draws without animating in.
  * @param onFollowSource What following one of this answer's sources does, which is opening it for checking.
- * @param onAskInDeep Asks this answer's question again in `deep`, answering once it was sent or refused, and `null`
- * while the conversation cannot take a question — an answer is being composed in it.
+ * @param onAskInDeep Asks this answer's question again in `deep`, about what it was asked about, answering once it was
+ * sent or refused, and `null` while the conversation cannot take a question — an answer is being composed in it.
  */
 export function AgentAnswer({
     answer,
@@ -112,7 +112,7 @@ export function AgentAnswer({
     readonly answer: Answer;
     readonly settledThrough: number;
     readonly onFollowSource: (source: DeclaredSource) => void;
-    readonly onAskInDeep: ((question: string) => Promise<unknown>) | null;
+    readonly onAskInDeep: ((question: string, scope: AgentMessageScope | null) => Promise<unknown>) | null;
 }) {
     const { locale, translate } = useLocalization();
     const deep = ranDeep(answer);
@@ -191,7 +191,7 @@ export function AgentAnswer({
                         )}
                     </p>
                     {deep || answer.question === null ? null : (
-                        <AskInDeep question={answer.question} onAsk={onAskInDeep} />
+                        <AskInDeep question={answer.question} scope={answer.scope} onAsk={onAskInDeep} />
                     )}
                 </div>
             )}
@@ -227,17 +227,19 @@ export function AgentAnswer({
  */
 function AskInDeep({
     question,
+    scope,
     onAsk,
 }: {
     readonly question: string;
-    readonly onAsk: ((question: string) => Promise<unknown>) | null;
+    readonly scope: AgentMessageScope | null;
+    readonly onAsk: ((question: string, scope: AgentMessageScope | null) => Promise<unknown>) | null;
 }) {
     const { translate } = useLocalization();
     const [asking, setAsking] = useState(false);
 
-    async function ask(send: (question: string) => Promise<unknown>): Promise<void> {
+    async function ask(send: (question: string, scope: AgentMessageScope | null) => Promise<unknown>): Promise<void> {
         setAsking(true);
-        await send(question);
+        await send(question, scope);
         setAsking(false);
     }
 

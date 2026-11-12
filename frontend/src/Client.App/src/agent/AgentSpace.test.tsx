@@ -720,6 +720,43 @@ describe('AgentSpace', () => {
         expect(screen.getByRole('radio', { name: /^Auto - / })).toHaveProperty('checked', true);
     });
 
+    it('asks a fast answer stopped at its ceiling again in deep about what it was asked about, not what the field carries', async () => {
+        const thread = { kind: 'Thread', subject: '0198f4a1-0000-7000-8000-00000000b001' };
+        const { transport, asked } = deploymentAnswering();
+        const askedFast: MailFathomTransport = (request) =>
+            request.method === 'GET' && request.path === `${conversations}/${agent.answeredConversationId}`
+                ? Promise.resolve({
+                      status: 200,
+                      headers: {},
+                      body: JSON.stringify({
+                          ...agent.answeredConversation,
+                          entries: agent.answeredConversation.entries.map((held) =>
+                              held.entry.entry === 'message'
+                                  ? { ...held, entry: { ...held.entry, scope: thread, mode: 'Fast' } }
+                                  : held.entry.entry === 'answerEnded'
+                                    ? { ...held, entry: { ...held.entry, ceiling: agent.fastAnswerCeiling } }
+                                    : held,
+                          ),
+                      }),
+                  })
+                : transport(request);
+        screenOf(askedFast);
+
+        await opened('How many bays were confirmed');
+        fireEvent.click(await screen.findByRole('button', { name: 'Ask again in Deep' }));
+
+        await waitFor(() => {
+            expect(asked.filter((request) => request.method === 'POST')).toHaveLength(1);
+        });
+
+        expect(JSON.parse(asked.find((request) => request.method === 'POST')?.body ?? '{}')).toMatchObject({
+            text: 'How many bays were confirmed?',
+            scope: thread,
+            mode: 'Deep',
+        });
+        expect(screen.getByRole('radio', { name: /^Deep - / })).toHaveProperty('checked', true);
+    });
+
     it('opens a new conversation carrying what another space handed over, and asks under it', async () => {
         const { transport, asked } = deploymentAnswering();
         const { rerender } = render(drawn(transport));
