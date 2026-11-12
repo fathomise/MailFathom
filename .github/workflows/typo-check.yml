@@ -171,7 +171,7 @@ jobs:
             exit 0
           fi
 
-          # Images are dropped by what they are rather than by the configuration, which says nothing
+          # Images and fonts are dropped by what they are rather than by the configuration, which says nothing
           # about them: `typos` applies its own binary detection to the walk it does when it is given
           # a directory, while a path named on the command line is read whether that detection would
           # have skipped it or not.
@@ -183,7 +183,7 @@ jobs:
           readable_paths=()
           for changed_path in "${changed_paths[@]}"; do
             case "${changed_path,,}" in
-              *.png | *.jpg | *.jpeg | *.gif | *.ico | *.webp | *.woff | *.woff2 | *.pdf) continue ;;
+              *.png | *.jpg | *.jpeg | *.gif | *.ico | *.webp | *.ttf | *.woff | *.woff2 | *.pdf) continue ;;
             esac
 
             readable_paths+=("$changed_path")
