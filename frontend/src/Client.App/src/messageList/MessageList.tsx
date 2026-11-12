@@ -45,6 +45,7 @@ import { ReadingsAsked, type AskedReadings } from '../messageRows/ReadingsAsked'
 import { SenderDetails, type AskedSender } from '../senderMark/SenderDetails';
 import { ReceiptDetails, type AskedReceipts } from '../receipts/ReceiptDetails';
 import { standingOfSummary } from '../receipts/receiptMarks';
+import { externalMarkOf, useExternalMarking } from '../senderMark/externalMark';
 import { marksSender, senderMarkOf } from '../senderMark/senderMarks';
 import { rowMark, rowWithFlags, type RowContents } from '../messageRows/rowContents';
 import {
@@ -192,6 +193,7 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
     const { workspace, revise } = useWorkspace();
     const listed = useListedMail();
     const acts = useMailboxActs();
+    const externalMarking = useExternalMarking();
 
     // Dragging a row to a folder is a pointer's gesture alone, which is the design's own: it leaves the move
     // dialog as what a finger reaches, and on a touch screen the folder column is a drawer a drag cannot reach while a
@@ -1177,6 +1179,7 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
                                 : undefined
                         }
                         senderMark={marksSenderOf(row) ? senderMarkOf(row.sender) : null}
+                        external={marksSenderOf(row) ? externalMarkOf(externalMarking, row.account, row.sender) : null}
                         onSenderDetails={() => {
                             explainSender(row, null);
                         }}

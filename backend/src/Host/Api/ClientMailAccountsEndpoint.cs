@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Access.Organizations;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Domain.Access;
@@ -53,6 +54,7 @@ internal static class ClientMailAccountsEndpoint
     /// <param name="reader">Reads the user's accounts and reduces each one's folders to a single reading.</param>
     /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
     /// <param name="assignments">Reads which of the accounts more than one user is assigned.</param>
+    /// <param name="organizations">Reads which of the accounts belong to an organization that marks external mail.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
     /// <returns><c>200</c> with the user's accounts, empty where they own none, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.read</c>.</returns>
     /// <remarks>It speaks to no mail server, so a client request cannot wait on IMAP and cannot set the remote <c>\Seen</c> flag.</remarks>
@@ -60,6 +62,7 @@ internal static class ClientMailAccountsEndpoint
         [FromServices] MailAccountFreshnessReader reader,
         [FromServices] ISpamActionSettingsReader spamActions,
         [FromServices] IMailAccountAssignments assignments,
+        [FromServices] IOrganizationStore organizations,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -67,7 +70,12 @@ internal static class ClientMailAccountsEndpoint
 
         var accounts = await reader.ReadAsync(MailboxReaderKind.Person, cancellationToken);
 
-        return TypedResults.Ok(await ClientMailAccountsResponse.ForAsync(accounts, spamActions, assignments, cancellationToken));
+        return TypedResults.Ok(await ClientMailAccountsResponse.ForAsync(
+            accounts,
+            spamActions,
+            assignments,
+            organizations,
+            cancellationToken));
     }
 }
 
@@ -83,10 +91,11 @@ internal sealed record ClientMailAccountsResponse(
     bool SynchronizationEnabled,
     IReadOnlyList<ClientMailAccountResponse> Accounts)
 {
-    /// <summary>Describes the user's accounts on the wire, reading which of them are shared from the assignments.</summary>
+    /// <summary>Describes the user's accounts on the wire, reading which of them are shared from the assignments and which mark external mail from their organizations.</summary>
     /// <param name="accounts">What the use case answered.</param>
     /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
     /// <param name="assignments">Reads which of the accounts more than one user is assigned.</param>
+    /// <param name="organizations">Reads which of the accounts belong to an organization that marks external mail.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
     /// <returns>The response body.</returns>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
@@ -94,36 +103,44 @@ internal sealed record ClientMailAccountsResponse(
         MailAccountFreshnessDirectory accounts,
         ISpamActionSettingsReader spamActions,
         IMailAccountAssignments assignments,
+        IOrganizationStore organizations,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(accounts);
         ArgumentNullException.ThrowIfNull(assignments);
+        ArgumentNullException.ThrowIfNull(organizations);
 
-        var sharedAccounts = await assignments.ReadSharedAmongAsync(
-            accounts.Accounts.Select(static account => account.Account.Id),
-            cancellationToken);
+        MailAccountId[] identifiers = [.. accounts.Accounts.Select(static account => account.Account.Id)];
+        var sharedAccounts = await assignments.ReadSharedAmongAsync(identifiers, cancellationToken);
+        var markingAccounts = await organizations.ReadMailAccountsMarkingExternalMailAsync(identifiers, cancellationToken);
 
-        return For(accounts, spamActions, sharedAccounts);
+        return For(accounts, spamActions, sharedAccounts, markingAccounts);
     }
 
     /// <summary>Describes the user's accounts on the wire.</summary>
     /// <param name="accounts">What the use case answered.</param>
     /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
     /// <param name="sharedAccounts">The accounts among these that more than one user is assigned.</param>
+    /// <param name="markingAccounts">The accounts among these whose organization marks external mail.</param>
     /// <returns>The response body.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="accounts" />, <paramref name="spamActions" />, or <paramref name="sharedAccounts" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     internal static ClientMailAccountsResponse For(
         MailAccountFreshnessDirectory accounts,
         ISpamActionSettingsReader spamActions,
-        IReadOnlySet<MailAccountId> sharedAccounts)
+        IReadOnlySet<MailAccountId> sharedAccounts,
+        IReadOnlySet<MailAccountId> markingAccounts)
     {
         ArgumentNullException.ThrowIfNull(accounts);
         ArgumentNullException.ThrowIfNull(spamActions);
         ArgumentNullException.ThrowIfNull(sharedAccounts);
+        ArgumentNullException.ThrowIfNull(markingAccounts);
 
         return new ClientMailAccountsResponse(
             accounts.SynchronizationEnabled,
-            [.. accounts.Accounts.Select(account => ClientMailAccountResponse.For(account, spamActions, sharedAccounts))]);
+            [
+                .. accounts.Accounts.Select(account =>
+                    ClientMailAccountResponse.For(account, spamActions, sharedAccounts, markingAccounts)),
+            ]);
     }
 }
 
@@ -139,6 +156,7 @@ internal sealed record ClientMailAccountsResponse(
 /// <param name="BehindSince">Since when the account has been behind, or <see langword="null" /> while it is not.</param>
 /// <param name="WaitingChangeCount">How many changes MailFathom holds for the account that its mail server does not have yet; sends are not counted.</param>
 /// <param name="OldestWaitingChangeCommittedAt">When the oldest of those changes was committed, or <see langword="null" /> when none waits.</param>
+/// <param name="MarksExternalMail">Whether the account belongs to an organization that turned the External mark on, so a received message its signature does not prove is marked; always <see langword="false" /> for an account in no organization.</param>
 /// <remarks>
 /// <para>
 /// The three answer different parts of one question and are published apart for that reason. The timestamp says how old
@@ -155,6 +173,12 @@ internal sealed record ClientMailAccountsResponse(
 /// <para>
 /// Being shared is published so a client can mark the mailbox wherever it is drawn or chosen. It is one fact about the
 /// assignment and names none of the other users.
+/// </para>
+/// <para>
+/// Whether the account marks external mail is published here because it is a fact about the account's organization,
+/// which every account carries apart: a client draws the mark from it and from the trust source each message already
+/// publishes, so the mark costs no request of its own and a switch an administrator turned reaches a running client at
+/// its next read of the accounts.
 /// </para>
 /// <para>
 /// The last four are what the account freshness line is drawn from. It turns the account not current once one of three
@@ -174,22 +198,26 @@ internal sealed record ClientMailAccountResponse(
     DateTimeOffset? SynchronizationStateSince,
     DateTimeOffset? BehindSince,
     int WaitingChangeCount,
-    DateTimeOffset? OldestWaitingChangeCommittedAt)
+    DateTimeOffset? OldestWaitingChangeCommittedAt,
+    bool MarksExternalMail)
 {
     /// <summary>Describes one account on the wire.</summary>
     /// <param name="account">The account's freshness.</param>
     /// <param name="spamActions">Reads whether the account's spam verdicts move its mail.</param>
     /// <param name="sharedAccounts">The accounts that more than one user is assigned.</param>
+    /// <param name="markingAccounts">The accounts whose organization marks external mail.</param>
     /// <returns>The response body.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="account" />, <paramref name="spamActions" />, or <paramref name="sharedAccounts" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     internal static ClientMailAccountResponse For(
         MailAccountFreshness account,
         ISpamActionSettingsReader spamActions,
-        IReadOnlySet<MailAccountId> sharedAccounts)
+        IReadOnlySet<MailAccountId> sharedAccounts,
+        IReadOnlySet<MailAccountId> markingAccounts)
     {
         ArgumentNullException.ThrowIfNull(account);
         ArgumentNullException.ThrowIfNull(spamActions);
         ArgumentNullException.ThrowIfNull(sharedAccounts);
+        ArgumentNullException.ThrowIfNull(markingAccounts);
 
         return new(
             account.Account.Id.Value,
@@ -202,6 +230,7 @@ internal sealed record ClientMailAccountResponse(
             account.StateSince,
             account.BehindSince,
             account.WaitingChanges?.Count ?? 0,
-            account.WaitingChanges?.OldestCommittedAt);
+            account.WaitingChanges?.OldestCommittedAt,
+            markingAccounts.Contains(account.Account.Id));
     }
 }

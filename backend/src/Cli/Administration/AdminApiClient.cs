@@ -2341,6 +2341,31 @@ internal sealed class AdminApiClient
             NoSuchOrganization);
     }
 
+    /// <summary>Turns one organization's External mark on or off for every member at once.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="organizationId">The organization whose mark changes.</param>
+    /// <param name="request">Whether the mark is on from now on.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>A task that completes once the deployment has accepted the switch.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="token" /> or <paramref name="request" /> is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment holds no such organization, refused the request or the credential, or could not be reached.</exception>
+    internal Task SetOrganizationExternalMarkAsync(
+        string token,
+        Guid organizationId,
+        OrganizationExternalMarkRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return this.RequestAsync(
+            HttpMethod.Put,
+            AdminEndpointRoutes.OrganizationExternalMarkPath(organizationId),
+            token,
+            cancellationToken,
+            JsonContent.Create(request, CliJsonContext.Default.OrganizationExternalMarkRequest),
+            NoSuchOrganization);
+    }
+
     /// <summary>Replaces the short name one organization's members sign in under.</summary>
     /// <param name="token">The bearer credential to present.</param>
     /// <param name="organizationId">The organization whose short name changes.</param>

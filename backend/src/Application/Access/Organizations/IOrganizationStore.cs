@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Paging;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
 
 namespace MailFathom.Application.Access.Organizations;
 
@@ -71,6 +72,25 @@ public interface IOrganizationStore
     Task<OrganizationWriteResult> ChangeShortNameAsync(
         Guid organizationId,
         OrganizationShortName shortName,
+        CancellationToken cancellationToken);
+
+    /// <summary>Turns the External mark on or off for every member of an organization at once.</summary>
+    /// <param name="organizationId">The organization.</param>
+    /// <param name="marksExternalMail">Whether its members see the mark from now on.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><see cref="OrganizationWriteOutcome.Written" /> or <see cref="OrganizationWriteOutcome.UnknownOrganization" />.</returns>
+    /// <remarks>Writing the value the organization already holds is written all the same, so the act is safe to repeat.</remarks>
+    Task<OrganizationWriteResult> SetExternalMarkAsync(
+        Guid organizationId,
+        bool marksExternalMail,
+        CancellationToken cancellationToken);
+
+    /// <summary>Reads which of some mail accounts belong to an organization that marks external mail, for a member's own client to draw the mark.</summary>
+    /// <param name="mailAccounts">The accounts asked about, bounded by how many one person is assigned.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The accounts among those given whose organization turned the External mark on; an account in no organization is never among them.</returns>
+    Task<IReadOnlySet<MailAccountId>> ReadMailAccountsMarkingExternalMailAsync(
+        IReadOnlyCollection<MailAccountId> mailAccounts,
         CancellationToken cancellationToken);
 
     /// <summary>Answers whether the deployment holds an organization, for an act that writes under one and must refuse an unknown one rather than fail on its key.</summary>

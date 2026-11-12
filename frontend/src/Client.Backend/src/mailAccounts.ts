@@ -42,6 +42,12 @@ export interface MailAccount {
 
     /** When the oldest of those changes was committed, or `null` where none waits. */
     readonly oldestWaitingChangeCommittedAt: string | null;
+
+    /**
+     * Whether the account belongs to an organization that turned the External mark on, so a received message its
+     * signature does not prove is marked. Always `false` for an account in no organization.
+     */
+    readonly marksExternalMail: boolean;
 }
 
 /** The user's accounts, beside the deployment-wide switch that says whether any of them is being refreshed at all. */
@@ -146,12 +152,13 @@ export function parseMailAccount(value: unknown): MailAccount | null {
     const behindSince = record['behindSince'];
     const waitingChangeCount = record['waitingChangeCount'];
     const oldestWaitingChangeCommittedAt = record['oldestWaitingChangeCommittedAt'];
+    const marksExternalMail = record['marksExternalMail'];
 
     if (typeof id !== 'string' || typeof displayName !== 'string' || typeof behind !== 'boolean') {
         return null;
     }
 
-    if (typeof filesJunk !== 'boolean' || typeof shared !== 'boolean') {
+    if (typeof filesJunk !== 'boolean' || typeof shared !== 'boolean' || typeof marksExternalMail !== 'boolean') {
         return null;
     }
 
@@ -187,6 +194,7 @@ export function parseMailAccount(value: unknown): MailAccount | null {
         behindSince,
         waitingChangeCount,
         oldestWaitingChangeCommittedAt,
+        marksExternalMail,
     };
 }
 

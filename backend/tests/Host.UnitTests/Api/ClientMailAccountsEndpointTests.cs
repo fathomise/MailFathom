@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Access.Organizations;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Spam.Actions;
@@ -32,6 +33,8 @@ public sealed class ClientMailAccountsEndpointTests
 
     private static readonly IReadOnlySet<MailAccountId> NoneShared = new HashSet<MailAccountId>();
 
+    private static readonly IReadOnlySet<MailAccountId> NoneMarking = new HashSet<MailAccountId>();
+
     /// <summary>The path a client appends to the address it was configured with, pinned because the client composes it from a constant of its own.</summary>
     [Fact]
     public void MailAccountsRoute_IsThePathAClientComposes() =>
@@ -45,7 +48,7 @@ public sealed class ClientMailAccountsEndpointTests
         var directory = Directory(Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.True(response.SynchronizationEnabled);
@@ -61,7 +64,8 @@ public sealed class ClientMailAccountsEndpointTests
                 SynchronizationStateSince: null,
                 BehindSince: null,
                 WaitingChangeCount: 0,
-                OldestWaitingChangeCommittedAt: null),
+                OldestWaitingChangeCommittedAt: null,
+                MarksExternalMail: false),
             Assert.Single(response.Accounts));
     }
 
@@ -77,7 +81,7 @@ public sealed class ClientMailAccountsEndpointTests
         var directory = Directory(Freshness(Work, state, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(state.ToString(), Assert.Single(response.Accounts).SynchronizationState);
@@ -94,7 +98,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt, behind));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(behind, Assert.Single(response.Accounts).Behind);
@@ -109,7 +113,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Work, MailSynchronizationState.NeverSynchronized, lastSynchronizedAt: null));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Null(Assert.Single(response.Accounts).LastSynchronizedAt);
@@ -125,7 +129,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(
@@ -141,7 +145,7 @@ public sealed class ClientMailAccountsEndpointTests
         var directory = new MailAccountFreshnessDirectory(SynchronizationEnabled: true, []);
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Empty(response.Accounts);
@@ -164,7 +168,7 @@ public sealed class ClientMailAccountsEndpointTests
         });
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         var account = Assert.Single(response.Accounts);
@@ -196,7 +200,7 @@ public sealed class ClientMailAccountsEndpointTests
             ]));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(
@@ -211,7 +215,8 @@ public sealed class ClientMailAccountsEndpointTests
                 SynchronizationStateSince: null,
                 BehindSince: null,
                 WaitingChangeCount: 0,
-                OldestWaitingChangeCommittedAt: null),
+                OldestWaitingChangeCommittedAt: null,
+                MarksExternalMail: false),
             Assert.Single(response.Accounts));
     }
 
@@ -225,7 +230,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Private, MailSynchronizationState.Synchronized, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, SpamActionsFor(filingAccount: Work), NoneShared);
+        var response = ClientMailAccountsResponse.For(directory, SpamActionsFor(filingAccount: Work), NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal([true, false], response.Accounts.Select(account => account.FilesJunk));
@@ -241,7 +246,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Private, MailSynchronizationState.Synchronized, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, new HashSet<MailAccountId> { Work.Id });
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, new HashSet<MailAccountId> { Work.Id }, NoneMarking);
 
         // Assert
         Assert.Equal([true, false], response.Accounts.Select(account => account.Shared));
@@ -261,10 +266,35 @@ public sealed class ClientMailAccountsEndpointTests
             directory,
             NoSpamActions,
             AssignmentsSharing(Work),
+            OrganizationsMarking(),
             TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([true, false], response.Accounts.Select(account => account.Shared));
+    }
+
+    /// <summary>
+    /// Which accounts mark external mail is read in one question for every account the use case answered with, and an
+    /// account whose organization never turned the mark on — or that belongs to none — says it does not.
+    /// </summary>
+    [Fact]
+    public async Task ForAsync_AnAccountWhoseOrganizationMarksExternalMail_SaysSoAndAnAccountWhoseOrganizationDoesNotSaysNot()
+    {
+        // Arrange
+        var directory = Directory(
+            Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt),
+            Freshness(Private, MailSynchronizationState.Synchronized, SynchronizedAt));
+
+        // Act
+        var response = await ClientMailAccountsResponse.ForAsync(
+            directory,
+            NoSpamActions,
+            AssignmentsSharing(Work),
+            OrganizationsMarking(Work),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([true, false], response.Accounts.Select(account => account.MarksExternalMail));
     }
 
     /// <summary>The deployment-wide switch is reported beside the accounts, because no per-account value carries it.</summary>
@@ -279,7 +309,7 @@ public sealed class ClientMailAccountsEndpointTests
             [Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt)]);
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(synchronizationEnabled, response.SynchronizationEnabled);
@@ -316,5 +346,15 @@ public sealed class ClientMailAccountsEndpointTests
         }
 
         return reader;
+    }
+
+    private static IOrganizationStore OrganizationsMarking(params ServedMailAccount[] marking)
+    {
+        var organizations = Substitute.For<IOrganizationStore>();
+        IReadOnlySet<MailAccountId> markingAccounts = marking.Select(static account => account.Id).ToHashSet();
+        organizations.ReadMailAccountsMarkingExternalMailAsync(Arg.Any<IReadOnlyCollection<MailAccountId>>(), Arg.Any<CancellationToken>())
+            .Returns(markingAccounts);
+
+        return organizations;
     }
 }

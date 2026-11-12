@@ -115,5 +115,6 @@ public sealed class PersistedOrganizationListingTests
             shortName,
             members,
             mailAccounts,
-            Recorded);
+            Recorded,
+            MarksExternalMail: false);
 }

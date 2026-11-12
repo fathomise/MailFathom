@@ -959,6 +959,13 @@ accounts ends with, filled per member from `{{displayName}}`, `{{jobTitle}}`, an
 message, and [the template routes](../operations/admin-endpoint.md#the-organization-footer-template-routes) what it
 refuses.
 
+**An organization can mark the mail its signature does not prove.** `mfctl organization set-external-mark
+--organization <id> --enabled true` puts an *External* chip on every message an account of the organization received
+that was not sent from one of its mail accounts through MailFathom, and `--enabled false` takes it away again; it starts
+off, and `mfctl organization list` shows where it stands. Members' clients pick the change up without signing in again.
+[The External mark](../features/sender-authentication.md#the-external-mark-for-an-organization-that-turns-it-on) says
+what the chip asks about and why a colleague writing from another mail application earns it too.
+
 **A company can have an administrator of its own.** A role assigned at an organization's scope administers that
 organization's people — recording them with `mfctl user add --organization <id>`, editing their records, and provisioning
 their credentials — and nobody else: a person outside it reads to that administrator as somebody this deployment does not

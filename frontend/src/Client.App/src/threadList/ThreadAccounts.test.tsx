@@ -18,6 +18,7 @@ function account(id: string, displayName: string): MailAccount {
         lastSynchronizedAt: null,
         behind: false,
         filesJunk: false,
+        marksExternalMail: false,
         shared: false,
         synchronizationStateSince: null,
         behindSince: null,

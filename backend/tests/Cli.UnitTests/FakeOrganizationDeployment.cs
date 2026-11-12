@@ -70,11 +70,18 @@ internal static class FakeOrganizationDeployment
     /// <param name="displayName">The name an operator reads it by.</param>
     /// <param name="members">How many users belong to it.</param>
     /// <param name="mailAccounts">How many mail accounts belong to it.</param>
+    /// <param name="marksExternalMail">Whether its External mark is on.</param>
     /// <returns>The organization, as an element of the listing's array.</returns>
-    internal static string Organization(Guid id, string shortName, string displayName, int members, int mailAccounts = 0) =>
+    internal static string Organization(
+        Guid id,
+        string shortName,
+        string displayName,
+        int members,
+        int mailAccounts = 0,
+        bool marksExternalMail = false) =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $$"""{"id":"{{id:D}}","displayName":"{{displayName}}","shortName":"{{shortName}}","members":{{members}},"mailAccounts":{{mailAccounts}},"createdAt":"2026-08-20T09:00:00+00:00"}""");
+            $$"""{"id":"{{id:D}}","displayName":"{{displayName}}","shortName":"{{shortName}}","members":{{members}},"mailAccounts":{{mailAccounts}},"createdAt":"2026-08-20T09:00:00+00:00","marksExternalMail":{{(marksExternalMail ? "true" : "false")}}}""");
 
     private static string ListingPage(
         IReadOnlyList<string> organizations,

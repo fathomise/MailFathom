@@ -662,7 +662,44 @@ public sealed class ClientMailTimelineEndpointTests
         var response = ClientMailTimelineEntryResponse.For(row, NoPhotos);
 
         // Assert
-        Assert.Equal(new ClientMailListedSenderResponse("Authenticated", "Trusted", "Verified", false), response.Sender);
+        Assert.Equal(new ClientMailListedSenderResponse("Authenticated", "Trusted", "Verified", false, TrustSource: null, TrustMember: null), response.Sender);
+    }
+
+    /// <summary>
+    /// What recognized the author reaches a row by its name, and a colleague the member directory named carries that name
+    /// too, because a client's External mark says how a colleague's message comes to be marked.
+    /// </summary>
+    [Theory]
+    [InlineData(SenderTrustSource.OrganizationMember, null, "OrganizationMember", null)]
+    [InlineData(SenderTrustSource.OrganizationDirectory, "Marta Nowak", "OrganizationDirectory", "Marta Nowak")]
+    [InlineData(SenderTrustSource.PersonalContact, null, "PersonalContact", null)]
+    public void For_ARowSomethingRecognized_CarriesWhatRecognizedItAndTheColleagueItNamed(
+        SenderTrustSource source,
+        string? memberName,
+        string expectedSource,
+        string? expectedMember)
+    {
+        // Arrange
+        var row = new BrowsedEmail(
+            SyntheticListedEmail() with
+            {
+                SenderVerification = new SenderVerification
+                {
+                    AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
+                    DeploymentTrust = SenderTrustLevel.Trusted,
+                    DeploymentTrustGrantedBy = source,
+                    RecognizingMemberName = memberName,
+                },
+            },
+            Preview: null,
+            Enrichment: null,
+            ThreadMessageCount: null);
+
+        // Act
+        var response = ClientMailTimelineEntryResponse.For(row, NoPhotos);
+
+        // Assert
+        Assert.Equal((expectedSource, expectedMember), (response.Sender.TrustSource, response.Sender.TrustMember));
     }
 
     /// <summary>An unsigned message whose author nothing established still carries the facts, each stating its absence.</summary>
@@ -676,7 +713,7 @@ public sealed class ClientMailTimelineEndpointTests
         var response = ClientMailTimelineEntryResponse.For(row, NoPhotos);
 
         // Assert
-        Assert.Equal(new ClientMailListedSenderResponse("NotEstablished", "Unknown", "NotSigned", false), response.Sender);
+        Assert.Equal(new ClientMailListedSenderResponse("NotEstablished", "Unknown", "NotSigned", false, TrustSource: null, TrustMember: null), response.Sender);
     }
 
     /// <summary>Both cursors reach the wire, because a list a screen can only scroll one way is half a list, and a page of messages leaves the grouped list out of its body.</summary>

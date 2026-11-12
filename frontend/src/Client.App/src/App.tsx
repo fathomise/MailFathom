@@ -60,6 +60,7 @@ import { FolderTree } from './folders/FolderTree';
 import { FullHtmlSurface } from './fullHtml/FullHtmlSurface';
 import type { MessageKey } from './localization/en';
 import { ReadingZoneContext } from './localization/useReadingZone';
+import { ExternalMarkingContext, externalMarkingOf } from './senderMark/externalMark';
 import { useLocalization } from './localization/useLocalization';
 import { ListModeSwitch } from './mailSpace/ListModeSwitch';
 import { NothingOpen } from './mailSpace/NothingOpen';
@@ -2193,7 +2194,17 @@ export function App({
         </ReadingZoneContext>
     );
 
-    return <FootersInForceContext value={footers}>{frame}</FootersInForceContext>;
+    // Beside the footers, because which accounts mark external mail is a fact about the accounts and the reader's
+    // organization that the frame already read, and every surface drawing a sender mark draws the External chip from it.
+    return (
+        <FootersInForceContext value={footers}>
+            <ExternalMarkingContext
+                value={externalMarkingOf(mailAccounts, deploymentSession?.organizationName ?? null)}
+            >
+                {frame}
+            </ExternalMarkingContext>
+        </FootersInForceContext>
+    );
 }
 
 // What a composer is mounted under, so that asking for a second message replaces the first rather than editing it.

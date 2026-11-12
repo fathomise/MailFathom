@@ -303,6 +303,7 @@ internal static class CliRootCommand
             ListOrganizationsCommand.Create(context),
             RenameOrganizationCommand.Create(context),
             SetOrganizationShortNameCommand.Create(context),
+            SetOrganizationExternalMarkCommand.Create(context),
             RemoveOrganizationCommand.Create(context),
             new Command("signing-key", "Read, rotate, and revoke the keys an organization signs its accounts' mail with.")
             {

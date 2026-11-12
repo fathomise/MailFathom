@@ -23,6 +23,7 @@ import { useReadingZone } from '../localization/useReadingZone';
 import { senderDetailsShape, type MarkAnchor } from '../markDetails/detailsPlacement';
 import { MarkDetailsDialog } from '../markDetails/MarkDetailsDialog';
 import { useAskedMessage } from '../markDetails/useAskedMessage';
+import { externalMarkOf, organizationSignatureStepOf, useExternalMarking } from './externalMark';
 import { listedSenderOf, senderMarkInk, senderMarkOf, senderMarkPill, senderMarksDrawn } from './senderMarks';
 import { senderVerificationOf, type Said, type VerificationStep } from './verificationSteps';
 
@@ -273,8 +274,18 @@ function Verification({
 }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
+    const marking = useExternalMarking();
     const verification = senderVerificationOf(message, (instant) => wordInstant(instant, locale, 'full', timeZone));
     const drawn = senderMarksDrawn[verification.mark];
+    // Where the organization marks external mail, its signature is a step of its own, first under Trust, and a message
+    // it does not prove says so in a box under the mark's own sentence, whichever of the mark or the chip opened these.
+    const external = externalMarkOf(marking, message.account, message.sender);
+    const organizationSignature = organizationSignatureStepOf(marking, message.account, message.sender);
+    const groups = verification.groups.map((group) =>
+        organizationSignature !== null && group.name === 'senderMark.group.trust'
+            ? { ...group, steps: [organizationSignature, ...group.steps] }
+            : group,
+    );
     // A known sender is drawn in the neutral tone, so its title reads as plainly as an unrecognized one's.
     const plain = drawn.tone === 'plain' || drawn.tone === 'known';
 
@@ -305,13 +316,26 @@ function Verification({
                     <p className="pt-0.75 text-base/normal text-pretty text-text-soft">
                         {say(translate, verification.why)}
                     </p>
+
+                    {external === null ? null : (
+                        <div className="mt-2 flex items-start gap-2 rounded-md border border-error bg-error-soft px-2.5 py-2 text-base/normal text-pretty text-text-soft">
+                            <Icon name="domain_disabled" className="size-icon-md shrink-0 text-error-text" />
+
+                            <p className="min-w-0">
+                                <span className="font-semibold text-error-text">
+                                    {translate('senderMark.external.title')}
+                                </span>{' '}
+                                {say(translate, external.why)}
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {close}
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4.5 pt-3.5 pb-5.5 desktop:pb-4.5">
-                {verification.groups.map((group) => (
+                {groups.map((group) => (
                     <section key={group.name} aria-label={translate(group.name)} className="flex flex-col gap-1.5">
                         <h3 aria-hidden="true" className="text-xs/natural font-semibold text-muted">
                             {translate(group.name)}

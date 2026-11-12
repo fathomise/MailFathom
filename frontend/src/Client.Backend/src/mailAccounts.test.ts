@@ -22,6 +22,7 @@ const directoryBody = JSON.stringify({
             lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
             behind: false,
             filesJunk: false,
+            marksExternalMail: false,
             shared: true,
             synchronizationStateSince: null,
             behindSince: null,
@@ -83,6 +84,7 @@ describe('readMailAccounts', () => {
                         lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
                         behind: false,
                         filesJunk: false,
+                        marksExternalMail: false,
                         shared: true,
                         synchronizationStateSince: null,
                         behindSince: null,
@@ -92,6 +94,14 @@ describe('readMailAccounts', () => {
                 ],
             },
         });
+    });
+
+    it('reads an account whose organization marks external mail as one that says so', async () => {
+        const marking = directoryBody.replace('"marksExternalMail":false', '"marksExternalMail":true');
+
+        const result = await readMailAccounts(session, answering({ status: 200, body: marking }));
+
+        expect(result).toMatchObject({ outcome: 'read', value: { accounts: [{ marksExternalMail: true }] } });
     });
 
     it('reads an account that has never synchronized as one with no time on it', async () => {
@@ -104,6 +114,7 @@ describe('readMailAccounts', () => {
                     synchronizationState: 'NeverSynchronized',
                     behind: false,
                     filesJunk: false,
+                    marksExternalMail: false,
                     shared: false,
                     synchronizationStateSince: null,
                     behindSince: null,
@@ -127,6 +138,7 @@ describe('readMailAccounts', () => {
                         lastSynchronizedAt: null,
                         behind: false,
                         filesJunk: false,
+                        marksExternalMail: false,
                         shared: false,
                         synchronizationStateSince: null,
                         behindSince: null,
@@ -148,6 +160,7 @@ describe('readMailAccounts', () => {
                     synchronizationState: 'Unreachable',
                     behind: true,
                     filesJunk: false,
+                    marksExternalMail: false,
                     shared: false,
                     synchronizationStateSince: '2026-08-14T21:20:00+00:00',
                     behindSince: '2026-08-14T21:05:00+00:00',
@@ -189,6 +202,7 @@ describe('readMailAccounts', () => {
                     synchronizationState: 'Synchronized',
                     behind: false,
                     filesJunk: false,
+                    marksExternalMail: false,
                     shared: false,
                     synchronizationStateSince: null,
                     behindSince: null,
@@ -246,6 +260,7 @@ describe('readMailAccounts', () => {
                         synchronizationState: 'Synchronized',
                         behind: 'maybe',
                         filesJunk: false,
+                        marksExternalMail: false,
                         shared: false,
                         synchronizationStateSince: null,
                         behindSince: null,
@@ -293,6 +308,7 @@ describe('readMailAccounts', () => {
                         synchronizationState: 'Synchronized',
                         behind: false,
                         filesJunk: false,
+                        marksExternalMail: false,
                     },
                 ],
             }),
@@ -308,6 +324,7 @@ describe('readMailAccounts', () => {
                         synchronizationState: 'Rebuilding',
                         behind: false,
                         filesJunk: false,
+                        marksExternalMail: false,
                         shared: false,
                         synchronizationStateSince: null,
                         behindSince: null,
@@ -327,6 +344,28 @@ describe('readMailAccounts', () => {
                         displayName: 'Work',
                         synchronizationState: 'Synchronized',
                         lastSynchronizedAt: 1756633260,
+                        behind: false,
+                        filesJunk: false,
+                        marksExternalMail: false,
+                        shared: false,
+                        synchronizationStateSince: null,
+                        behindSince: null,
+                        waitingChangeCount: 0,
+                        oldestWaitingChangeCommittedAt: null,
+                    },
+                ],
+            }),
+        ],
+        [
+            'an account that does not say whether its organization marks external mail',
+            JSON.stringify({
+                synchronizationEnabled: true,
+                accounts: [
+                    {
+                        id: 'work',
+                        displayName: 'Work',
+                        synchronizationState: 'Synchronized',
+                        lastSynchronizedAt: null,
                         behind: false,
                         filesJunk: false,
                         shared: false,
@@ -354,6 +393,7 @@ describe('readMailAccounts', () => {
                 lastSynchronizedAt: null,
                 behind: false,
                 filesJunk: false,
+                marksExternalMail: false,
                 shared: false,
                 synchronizationStateSince: null,
                 behindSince: null,
@@ -377,6 +417,7 @@ describe('readMailAccounts', () => {
                 lastSynchronizedAt: null,
                 behind: false,
                 filesJunk: false,
+                marksExternalMail: false,
                 shared: false,
                 synchronizationStateSince: null,
                 behindSince: null,

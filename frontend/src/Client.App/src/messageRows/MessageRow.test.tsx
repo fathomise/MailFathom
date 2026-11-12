@@ -4,7 +4,7 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { MailSpamVerdict, MailTimelineEntry } from '@mailfathom/client-backend';
+import type { MailAccount, MailSpamVerdict, MailTimelineEntry } from '@mailfathom/client-backend';
 import { ContactPhotoContext, type ContactPhotoReader } from '../contactBook/contactPhotos';
 import { LocalizationProvider } from '../localization/Localization';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
@@ -13,6 +13,7 @@ import { swipeCarriesTo, swipeDistance, swipeDrift, swipeEngages } from '../cont
 import { glyphOf } from '../controls/icons';
 import { MailboxActsContext, nothingActed, type MailboxAct, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { ReadMarkingContext, nothingMarkedRead, type MarkedIn, type ReadMarking } from '../readMarking/useReadMarking';
+import { ExternalMarkingContext, externalMarkingOf, type ExternalMarking } from '../senderMark/externalMark';
 import { MessageRow } from './MessageRow';
 
 const email: MailTimelineEntry = {
@@ -45,7 +46,24 @@ const email: MailTimelineEntry = {
         deploymentTrust: 'Unknown',
         signatureOutcome: 'NotSigned',
         signerMatchesAuthor: false,
+        trustSource: null,
+        trustMember: null,
     },
+};
+
+const markingAccount: MailAccount = {
+    id: 'work',
+    displayName: 'Nordwind · work',
+    synchronizationState: 'Synchronized',
+    lastSynchronizedAt: null,
+    behind: false,
+    filesJunk: false,
+    shared: false,
+    synchronizationStateSince: null,
+    behindSince: null,
+    waitingChangeCount: 0,
+    oldestWaitingChangeCommittedAt: null,
+    marksExternalMail: true,
 };
 
 function drawMoved(moved: {
@@ -1217,6 +1235,78 @@ describe('MessageRow, the mark on who sent the message', () => {
 
         expect(pointed).not.toHaveBeenCalled();
         expect(opened).not.toHaveBeenCalled();
+    });
+});
+
+describe('MessageRow, the External chip', () => {
+    const nordwindMarks = externalMarkingOf([{ ...markingAccount, id: email.account }], 'Nordwind');
+    const name =
+        'External - not signed by Nordwind. It was not sent from a Nordwind mail account through MailFathom. ' +
+        'A colleague writing from another mail application is marked the same way.';
+
+    function externalRow({
+        marking = nordwindMarks,
+        sender = email.sender,
+        marksSender = true,
+        onSenderDetails = vi.fn(),
+        onOpen = vi.fn(),
+    }: {
+        marking?: ExternalMarking;
+        sender?: MailTimelineEntry['sender'];
+        marksSender?: boolean;
+        onSenderDetails?: (anchor: DOMRect) => void;
+        onOpen?: () => void;
+    }): HTMLElement {
+        render(
+            <LocalizationProvider>
+                <ExternalMarkingContext value={marking}>
+                    <ul>
+                        <MessageRow
+                            email={{ ...email, sender }}
+                            position={1}
+                            open={false}
+                            selected={false}
+                            focusable
+                            onSenderDetails={marksSender ? onSenderDetails : undefined}
+                            onOpen={onOpen}
+                            onPoint={vi.fn()}
+                            onElement={() => undefined}
+                        />
+                    </ul>
+                </ExternalMarkingContext>
+            </LocalizationProvider>,
+        );
+
+        return screen.getByRole('option');
+    }
+
+    it('says its reason inside the row a screen reader reads, on a message the organization did not sign', () => {
+        expect(externalRow({}).textContent).toContain(name);
+    });
+
+    it('opens the sender details and neither opens nor selects the message', () => {
+        const asked = vi.fn();
+        const opened = vi.fn();
+
+        externalRow({ onSenderDetails: asked, onOpen: opened });
+        fireEvent.click(senderMark(name));
+
+        expect([asked.mock.calls.length, opened.mock.calls.length]).toStrictEqual([1, 0]);
+    });
+
+    it.each([
+        ['a message the organization signed', nordwindMarks, { trustSource: 'OrganizationMember' } as const],
+        ['an account whose organization did not turn the mark on', externalMarkingOf([], 'Nordwind'), {}],
+    ])('is not drawn on %s', (_, marking, facts) => {
+        const row = externalRow({ marking, sender: { ...email.sender, ...facts } });
+
+        expect(row.textContent).not.toContain('External');
+    });
+
+    it('is not drawn on a row that marks no sender, such as one in Sent', () => {
+        const row = externalRow({ marksSender: false });
+
+        expect(row.textContent).not.toContain('External');
     });
 });
 

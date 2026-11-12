@@ -2558,6 +2558,9 @@
               "string"
             ]
           },
+          "marksExternalMail": {
+            "type": "boolean"
+          },
           "oldestWaitingChangeCommittedAt": {
             "format": "date-time",
             "type": [
@@ -2598,7 +2601,8 @@
           "synchronizationStateSince",
           "behindSince",
           "waitingChangeCount",
-          "oldestWaitingChangeCommittedAt"
+          "oldestWaitingChangeCommittedAt",
+          "marksExternalMail"
         ],
         "type": "object"
       },
@@ -3370,13 +3374,27 @@
           },
           "signerMatchesAuthor": {
             "type": "boolean"
+          },
+          "trustMember": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "trustSource": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "required": [
           "authorAuthentication",
           "deploymentTrust",
           "signatureOutcome",
-          "signerMatchesAuthor"
+          "signerMatchesAuthor",
+          "trustSource",
+          "trustMember"
         ],
         "type": "object"
       },
@@ -12052,6 +12070,20 @@
         ],
         "type": "object"
       },
+      "OrganizationExternalMarkRequest": {
+        "properties": {
+          "marksExternalMail": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        },
+        "required": [
+          "marksExternalMail"
+        ],
+        "type": "object"
+      },
       "OrganizationFooterTemplateResponse": {
         "properties": {
           "template": {
@@ -12152,6 +12184,9 @@
               "string"
             ]
           },
+          "marksExternalMail": {
+            "type": "boolean"
+          },
           "members": {
             "format": "int32",
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -12170,7 +12205,8 @@
           "shortName",
           "members",
           "mailAccounts",
-          "createdAt"
+          "createdAt",
+          "marksExternalMail"
         ],
         "type": "object"
       },
@@ -18322,6 +18358,60 @@
                   },
                   {
                     "$ref": "#/components/schemas/OrganizationDisplayNameRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/external-mark": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/OrganizationExternalMarkRequest"
                   }
                 ]
               }

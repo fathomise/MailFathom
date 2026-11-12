@@ -39,6 +39,8 @@ function message(id: string): Readonly<Record<string, unknown>> {
             deploymentTrust: 'Unknown',
             signatureOutcome: 'NotSigned',
             signerMatchesAuthor: false,
+            trustSource: null,
+            trustMember: null,
         },
     };
 }

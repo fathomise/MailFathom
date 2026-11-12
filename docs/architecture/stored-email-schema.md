@@ -302,7 +302,9 @@ however many people read it. [ADR 0014](https://github.com/fathomise/MailFathom/
 `organizations` holds one row per organization: `Id`, a version 7 identifier minted by the administrative act that
 records it, from the moment it records it; `DisplayName`, at most 128 characters; `ShortName`, at most 32 characters,
 stored upper-cased and unique across the deployment under its own index, because it is half of a login and what a
-sign-in resolves the organization by; and when it was recorded.
+sign-in resolves the organization by; when it was recorded; and `MarksExternalMail`, `boolean NOT NULL DEFAULT false`,
+whether its members see the [External mark](../features/sender-authentication.md#the-external-mark-for-an-organization-that-turns-it-on) on received mail its signature does
+not prove — the default being what every organization recorded before the column existed reads.
 
 `organization_signing_keys` holds [the keys an organization signs with](../operations/organization-signing-keys.md):
 every key the deployment ever minted for it, active, retired, or revoked. The organization's name is not on any of them.

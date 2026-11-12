@@ -14,15 +14,15 @@ namespace MailFathom.Application.Access.Organizations;
 /// Reading is <see cref="MailFathomPermission.AdminRead" />. Recording, renaming, and deleting an organization, and moving
 /// a mail account, is <see cref="MailFathomPermission.AdminConfigurationWrite" />, the grant that already records users
 /// and assigns accounts, because those change how the deployment's people and mailboxes are grouped rather than how any
-/// of them signs in. Changing an organization's short
+/// of them signs in; turning the External mark on or off takes the same grant, as the organization's other settings do. Changing an organization's short
 /// name and moving a user are <see cref="MailFathomPermission.AdminCredentialsWrite" />, because each changes the login a
 /// password is typed as — a short name every member's at once — which is a decision about how people sign in.
 /// </para>
 /// <para>
 /// Which scope reaches each act is ADR 0012's. Recording and deleting an organization and changing its short name are
 /// the deployment's alone — a short name is a namespace every organization's logins share, so a refusal on a collision
-/// would tell one organization's administrator what another holds. Reading, renaming the display name, and moving a
-/// user are admitted at a scope covering what they name, and what it does not cover is answered as absent.
+/// would tell one organization's administrator what another holds. Reading, renaming the display name, switching the
+/// External mark, and moving a user are admitted at a scope covering what they name, and what it does not cover is answered as absent.
 /// </para>
 /// <para>
 /// The identifier is a version 7 value minted from the instant the organization is recorded at, like every identifier
@@ -132,6 +132,29 @@ public sealed class OrganizationAdministration
 
         return await this.CoversOrganizationAsync(MailFathomPermission.AdminConfigurationWrite, organizationId, cancellationToken)
             ? await this.organizations.RenameAsync(organizationId, label, cancellationToken)
+            : OrganizationWriteResult.Of(OrganizationWriteOutcome.UnknownOrganization);
+    }
+
+    /// <summary>Turns the External mark on or off for every member of an organization and every one of its mail accounts at once.</summary>
+    /// <param name="organizationId">The organization.</param>
+    /// <param name="marksExternalMail">Whether its members see the mark on received mail the organization's signature does not prove.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>What the act did.</returns>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller holds <see cref="MailFathomPermission.AdminConfigurationWrite" /> at no scope.</exception>
+    /// <remarks>
+    /// The switch is the organization's as a whole, so it takes the grant and the scope the organization's other
+    /// settings take — its display name and its footer template — and no member or mail account writes it for itself.
+    /// An organization outside the caller's scope is answered as one this deployment does not hold.
+    /// </remarks>
+    public async Task<OrganizationWriteResult> SetExternalMarkAsync(
+        Guid organizationId,
+        bool marksExternalMail,
+        CancellationToken cancellationToken)
+    {
+        this.authorization.RequirePermissionAtAnyScope(MailFathomPermission.AdminConfigurationWrite);
+
+        return await this.CoversOrganizationAsync(MailFathomPermission.AdminConfigurationWrite, organizationId, cancellationToken)
+            ? await this.organizations.SetExternalMarkAsync(organizationId, marksExternalMail, cancellationToken)
             : OrganizationWriteResult.Of(OrganizationWriteOutcome.UnknownOrganization);
     }
 

@@ -15,6 +15,10 @@ internal sealed record OrganizationProvisioningRequest(string? DisplayName, stri
 /// <param name="DisplayName">The new display name.</param>
 internal sealed record OrganizationDisplayNameRequest(string? DisplayName);
 
+/// <summary>What turning an organization's External mark on or off carries.</summary>
+/// <param name="MarksExternalMail">Whether its members see the mark from now on; required, so a body that names nothing is refused rather than read as off.</param>
+internal sealed record OrganizationExternalMarkRequest(bool? MarksExternalMail);
+
 /// <summary>What changing an organization's short name carries.</summary>
 /// <param name="ShortName">The new short name.</param>
 internal sealed record OrganizationShortNameRequest(string? ShortName);
@@ -44,13 +48,15 @@ internal sealed record MailAccountOrganizationRequest(Guid? OrganizationId, bool
 /// <param name="Members">How many users belong to it.</param>
 /// <param name="MailAccounts">How many mail accounts belong to it.</param>
 /// <param name="CreatedAt">When it was recorded.</param>
+/// <param name="MarksExternalMail">Whether its members see the External mark on received mail its signature does not prove.</param>
 internal sealed record OrganizationResponse(
     Guid Id,
     string DisplayName,
     string ShortName,
     int Members,
     int MailAccounts,
-    DateTimeOffset CreatedAt)
+    DateTimeOffset CreatedAt,
+    bool MarksExternalMail)
 {
     internal static OrganizationResponse For(Organization organization)
     {
@@ -62,7 +68,8 @@ internal sealed record OrganizationResponse(
             organization.ShortName.Value,
             organization.Members,
             organization.MailAccounts,
-            organization.CreatedAt);
+            organization.CreatedAt,
+            organization.MarksExternalMail);
     }
 }
 

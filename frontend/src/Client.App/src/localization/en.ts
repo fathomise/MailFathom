@@ -1866,6 +1866,17 @@ export const en = {
     'senderMark.details': 'Sender details',
     'senderMark.rowDetail': '{sender} - {mark}',
     'senderMark.close': 'Close',
+    'senderMark.external.word': 'External',
+    'senderMark.external.title': 'External.',
+    'senderMark.external.short': 'External - not signed by {organization}',
+    'senderMark.external.name':
+        'External - not signed by {organization}. It was not sent from a {organization} mail account through MailFathom. A colleague writing from another mail application is marked the same way.',
+    'senderMark.external.nameColleague':
+        "External - not signed by {organization}. The address is {member}'s, a colleague in your organization: a colleague's message is marked this way when it is written in another mail application or sent from an account outside {organization}.",
+    'senderMark.external.why':
+        'This message is not signed by {organization}. It was not sent from a {organization} mail account through MailFathom. A colleague writing from another mail application is marked the same way.',
+    'senderMark.external.whyColleague':
+        "This message is not signed by {organization}. The address is {member}'s, a colleague in your organization: a colleague's message is marked this way when it is written in another mail application or sent from an account outside {organization}.",
     'senderMark.reading': 'Reading what was checked…',
     'senderMark.readFailed': 'What was checked about this sender could not be read: {reason}',
     'senderMark.why.signatureMismatch':
@@ -1953,6 +1964,7 @@ export const en = {
     'senderMark.step.authorDomain': 'Author domain',
     'senderMark.step.trustedSender': 'Trusted sender',
     'senderMark.step.knownSender': 'Known sender',
+    'senderMark.step.organizationSignature': "Organization's signature",
     'senderMark.step.signed': 'Signed',
     'senderMark.step.content': 'Content unchanged',
     'senderMark.step.authority': 'Certificate authority',
@@ -2015,6 +2027,12 @@ export const en = {
     'senderMark.trust.yourContact': '{address} is your contact.',
     'senderMark.trust.anotherUsersContact': '{address} is a contact of another user of this mailbox.',
     'senderMark.trust.recognized': 'This account recognizes {address}.',
+    'senderMark.trust.organizationSigned':
+        'Signed by {organization}: the message left one of its mail accounts through MailFathom.',
+    'senderMark.trust.organizationUnsigned':
+        'Not signed by {organization}. It was not sent from a {organization} mail account through MailFathom. A colleague writing from another mail application is marked the same way.',
+    'senderMark.trust.organizationUnsignedColleague':
+        "Not signed by {organization}. The address is {member}'s, a colleague in your organization: a colleague's message is marked this way when it is written in another mail application or sent from an account outside {organization}.",
     'senderMark.trust.organizationMember':
         "A member of your organization, {organization}. The organization's signature proves the message comes from {address}.",
     'senderMark.trust.organizationMemberDeleted':

@@ -33,5 +33,8 @@ internal sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organ
         entity.HasIndex(organization => organization.ShortName)
             .IsUnique()
             .HasDatabaseName(PersistenceConstraintNames.OrganizationShortNameUniqueIndexName);
+
+        // Off for every organization that existed before the switch did, so nothing any member sees changes on upgrade.
+        entity.Property(organization => organization.MarksExternalMail).HasDefaultValue(false);
     }
 }

@@ -42,13 +42,15 @@ export function senderMarkOf(sender: MailListedSender): SenderMark {
     return sender.authorAuthentication === 'Failed' ? 'authenticationFailed' : 'neutral';
 }
 
-/** The same four facts a row carries, read out of the message route's fuller answer. */
+/** The same facts a row carries, read out of the message route's fuller answer. */
 export function listedSenderOf(message: MailMessage): MailListedSender {
     return {
         authorAuthentication: message.sender.authorAuthentication,
         deploymentTrust: message.sender.deploymentTrust,
         signatureOutcome: message.signature.outcome,
         signerMatchesAuthor: message.signature.signerMatchesAuthor,
+        trustSource: message.sender.trustSource,
+        trustMember: message.sender.trustMember,
     };
 }
 

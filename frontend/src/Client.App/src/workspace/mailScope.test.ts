@@ -32,6 +32,7 @@ const offered: MailFolderDirectory = {
                 lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
                 behind: false,
                 filesJunk: false,
+                marksExternalMail: false,
                 shared: false,
                 synchronizationStateSince: null,
                 behindSince: null,

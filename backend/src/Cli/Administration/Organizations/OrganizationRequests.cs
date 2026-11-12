@@ -24,6 +24,11 @@ internal sealed record OrganizationProvisioned(
 internal sealed record OrganizationDisplayNameRequest(
     [property: JsonPropertyName("displayName")] string DisplayName);
 
+/// <summary>Whether an organization's members see the External mark from now on.</summary>
+/// <param name="MarksExternalMail">Whether the mark is on.</param>
+internal sealed record OrganizationExternalMarkRequest(
+    [property: JsonPropertyName("marksExternalMail")] bool MarksExternalMail);
+
 /// <summary>The short name an organization's members sign in under from now on.</summary>
 /// <param name="ShortName">The new short name.</param>
 /// <remarks>Its own type rather than a field beside the display name, because the deployment reads the two on different routes and only this one changes how anybody signs in.</remarks>

@@ -7,6 +7,7 @@ using MailFathom.Application.Access.Organizations;
 using MailFathom.Application.Paging;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
 using MailFathom.Infrastructure.Persistence.Policies;
 using MailFathom.Infrastructure.Persistence.Policies.MailAccounts;
 using MailFathom.Infrastructure.Security.SigningKeys;
@@ -75,7 +76,8 @@ internal sealed class PersistedOrganizations(
                 organization.ShortName,
                 dbContext.UserAccounts.Count(user => user.OrganizationId == organization.Id),
                 dbContext.MailAccountRecords.Count(account => account.OrganizationId == organization.Id),
-                organization.CreatedAt))
+                organization.CreatedAt,
+                organization.MarksExternalMail))
             .ToArrayAsync(cancellationToken);
 
         return ListingOf(query.PageOf(stored, row => row.Id));
@@ -106,7 +108,8 @@ internal sealed class PersistedOrganizations(
                         entry.ShortName,
                         entry.Row.Members,
                         entry.Row.MailAccounts,
-                        entry.Row.CreatedAt)),
+                        entry.Row.CreatedAt,
+                        entry.Row.MarksExternalMail)),
             ],
             [
                 .. read
@@ -238,6 +241,50 @@ internal sealed class PersistedOrganizations(
         {
             return OrganizationWriteResult.Of(OrganizationWriteOutcome.ShortNameTaken);
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<OrganizationWriteResult> SetExternalMarkAsync(
+        Guid organizationId,
+        bool marksExternalMail,
+        CancellationToken cancellationToken)
+    {
+        var written = await dbContext.Organizations
+            .Where(organization => organization.Id == organizationId)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(organization => organization.MarksExternalMail, marksExternalMail),
+                cancellationToken);
+
+        return WrittenOrUnknown(written);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlySet<MailAccountId>> ReadMailAccountsMarkingExternalMailAsync(
+        IReadOnlyCollection<MailAccountId> mailAccounts,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(mailAccounts);
+
+        var asked = mailAccounts
+            .Select(account => (Account: account, Identifier: Guid.TryParse(account.Value, out var identifier) ? identifier : (Guid?)null))
+            .Where(entry => entry.Identifier is not null)
+            .ToArray();
+
+        if (asked.Length == 0)
+        {
+            return new HashSet<MailAccountId>();
+        }
+
+        var identifiers = asked.Select(entry => entry.Identifier!.Value).ToArray();
+        var marking = await dbContext.MailAccountRecords
+            .AsNoTracking()
+            .Where(account => identifiers.Contains(account.Id))
+            .Where(account => dbContext.Organizations.Any(
+                organization => organization.Id == account.OrganizationId && organization.MarksExternalMail))
+            .Select(account => account.Id)
+            .ToArrayAsync(cancellationToken);
+
+        return asked.Where(entry => marking.Contains(entry.Identifier!.Value)).Select(entry => entry.Account).ToHashSet();
     }
 
     /// <inheritdoc />

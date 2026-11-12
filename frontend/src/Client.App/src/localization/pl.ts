@@ -1892,6 +1892,17 @@ export const pl: Catalogue = {
     'senderMark.details': 'Szczegóły nadawcy',
     'senderMark.rowDetail': '{sender} – {mark}',
     'senderMark.close': 'Zamknij',
+    'senderMark.external.word': 'Zewnętrzna',
+    'senderMark.external.title': 'Zewnętrzna.',
+    'senderMark.external.short': 'Zewnętrzna - brak podpisu organizacji {organization}',
+    'senderMark.external.name':
+        'Zewnętrzna - brak podpisu organizacji {organization}. Nie wysłano jej z konta pocztowego organizacji {organization} przez MailFathom. Wiadomość współpracownika napisana w innym programie pocztowym jest oznaczana tak samo.',
+    'senderMark.external.nameColleague':
+        'Zewnętrzna - brak podpisu organizacji {organization}. To adres osoby z Twojej organizacji ({member}): wiadomość współpracownika jest tak oznaczana, gdy napisano ją w innym programie pocztowym lub wysłano z konta spoza organizacji {organization}.',
+    'senderMark.external.why':
+        'Ta wiadomość nie ma podpisu organizacji {organization}. Nie wysłano jej z konta pocztowego organizacji {organization} przez MailFathom. Wiadomość współpracownika napisana w innym programie pocztowym jest oznaczana tak samo.',
+    'senderMark.external.whyColleague':
+        'Ta wiadomość nie ma podpisu organizacji {organization}. To adres osoby z Twojej organizacji ({member}): wiadomość współpracownika jest tak oznaczana, gdy napisano ją w innym programie pocztowym lub wysłano z konta spoza organizacji {organization}.',
     'senderMark.reading': 'Odczytywanie tego, co sprawdzono…',
     'senderMark.readFailed': 'Nie udało się odczytać, co sprawdzono o tym nadawcy: {reason}',
     'senderMark.why.signatureMismatch':
@@ -1980,6 +1991,7 @@ export const pl: Catalogue = {
     'senderMark.step.authorDomain': 'Domena autora',
     'senderMark.step.trustedSender': 'Zaufany nadawca',
     'senderMark.step.knownSender': 'Znany nadawca',
+    'senderMark.step.organizationSignature': 'Podpis organizacji',
     'senderMark.step.signed': 'Podpisana',
     'senderMark.step.content': 'Treść niezmieniona',
     'senderMark.step.authority': 'Urząd certyfikacji',
@@ -2042,6 +2054,12 @@ export const pl: Catalogue = {
     'senderMark.trust.yourContact': '{address} to Twój kontakt.',
     'senderMark.trust.anotherUsersContact': '{address} to kontakt innego użytkownika tej skrzynki.',
     'senderMark.trust.recognized': 'To konto rozpoznaje adres {address}.',
+    'senderMark.trust.organizationSigned':
+        'Podpisana przez organizację {organization}: wiadomość wyszła z jednego z jej kont pocztowych przez MailFathom.',
+    'senderMark.trust.organizationUnsigned':
+        'Brak podpisu organizacji {organization}. Nie wysłano jej z konta pocztowego organizacji {organization} przez MailFathom. Wiadomość współpracownika napisana w innym programie pocztowym jest oznaczana tak samo.',
+    'senderMark.trust.organizationUnsignedColleague':
+        'Brak podpisu organizacji {organization}. To adres osoby z Twojej organizacji ({member}): wiadomość współpracownika jest tak oznaczana, gdy napisano ją w innym programie pocztowym lub wysłano z konta spoza organizacji {organization}.',
     'senderMark.trust.organizationMember':
         'Członek Twojej organizacji, {organization}. Podpis organizacji potwierdza, że wiadomość pochodzi z adresu {address}.',
     'senderMark.trust.organizationMemberDeleted':

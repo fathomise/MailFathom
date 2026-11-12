@@ -145,6 +145,7 @@ namespace MailFathom.Cli;
 [JsonSerializable(typeof(OrganizationProvisioned))]
 [JsonSerializable(typeof(OrganizationDisplayNameRequest))]
 [JsonSerializable(typeof(OrganizationShortNameRequest))]
+[JsonSerializable(typeof(OrganizationExternalMarkRequest))]
 [JsonSerializable(typeof(OrganizationSigningKeyList))]
 [JsonSerializable(typeof(OrganizationSigningKeyRotated))]
 [JsonSerializable(typeof(OrganizationSigningKeyRevoked))]

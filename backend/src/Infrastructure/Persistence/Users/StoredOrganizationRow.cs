@@ -11,6 +11,7 @@ namespace MailFathom.Infrastructure.Persistence.Users;
 /// <param name="Members">How many users the same statement counted against it.</param>
 /// <param name="MailAccounts">How many mail accounts the same statement counted against it.</param>
 /// <param name="CreatedAt">When the row was recorded.</param>
+/// <param name="MarksExternalMail">Whether the organization's members see the External mark.</param>
 /// <remarks>
 /// Named rather than anonymous so the step that decides which rows are readable is a function over values rather than a
 /// clause inside a query. That is what makes an unreadable row assertable without a server: the deciding is the
@@ -22,4 +23,5 @@ internal sealed record StoredOrganizationRow(
     string ShortName,
     int Members,
     int MailAccounts,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    bool MarksExternalMail);

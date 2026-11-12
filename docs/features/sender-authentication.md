@@ -458,6 +458,29 @@ revocation, or a member leaving; [re-deriving stored mail](#re-deriving-what-is-
 keys, the membership, and the send records as they stand then, so a re-derivation after a revocation leaves no verdict
 that key reached.
 
+#### The External mark, for an organization that turns it on
+
+An organization can ask that every received message its signature does not prove be marked *External* in so many
+words. The switch is the organization's as a whole, **off by default**: an administrator turns it on for every member
+and every one of its mail accounts at once, through `PUT /api/admin/organizations/{organizationId}/external-mark` or
+`mfctl organization set-external-mark` ([the administrative routes](../operations/admin-endpoint.md#organizations)), and
+no member or mail account chooses for itself. An organization that never touched it, and every account in no
+organization, shows nothing.
+
+With the switch on, a received message on one of the organization's accounts whose verdict names any source but
+*organization member* — or none — carries a red *External* chip in the client: on its row, beside its sender, and as a
+box of its own in the sender details, which also open their *Trust* group with an *Organization's signature* step
+saying whether the signature proved the message. The chip asks about the signature and nothing else, so it stands
+beside the sender mark and changes no mark and no stored verdict: a contact is *Trusted* and *External*, and so is a
+colleague who wrote from another mail application or from an account outside the organization, which is why the chip's
+words always say how a colleague's message comes to be marked. A message stored before the organization signed its
+mail carries no signature either and is marked the same way, since stored mail is not evaluated again. Sent mail,
+drafts, and the reader's own messages are never marked.
+
+The client learns it from the accounts it already reads: each account says whether it marks external mail, and each
+row and message says what recognized its author, so the chip costs no request of its own and a switch turned reaches a
+running client at its next read of the accounts.
+
 ### A colleague the member directory names
 
 A receiving account that belongs to an organization also recognizes the organization's people by address, through

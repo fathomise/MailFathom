@@ -40,6 +40,8 @@ function message(id: string, position: number, unread = false): MailThreadMessag
                 deploymentTrust: 'Unknown',
                 signatureOutcome: 'NotSigned',
                 signerMatchesAuthor: false,
+                trustSource: null,
+                trustMember: null,
             },
         },
         message: null,
