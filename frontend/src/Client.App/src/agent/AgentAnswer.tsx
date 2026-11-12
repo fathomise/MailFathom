@@ -298,12 +298,12 @@ function Drawn({ answered }: { readonly answered: AnsweredBlock }) {
     );
 }
 
-/** A block written after the conversation was opened arrives animated; one already there when it was opened does not. */
 /** Whether a block is a file the answer hands over — one a message carried, or a report the Agent wrote. */
 function handsOver(block: AnswerBlock): boolean {
     return block.type === 'file' || block.type === 'report';
 }
 
+/** A block written after the conversation was opened arrives animated; one already there when it was opened does not. */
 function arrivalOf(answered: AnsweredBlock, settledThrough: number): string | undefined {
     return answered.sequence > settledThrough ? 'animate-block-arrival' : undefined;
 }
