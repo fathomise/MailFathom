@@ -134,6 +134,46 @@ describe('AgentAnswer', () => {
 
         expect(screen.getByRole('button', { name: 'Ask again in Deep' })).toHaveProperty('disabled', true);
     });
+
+    it('draws a file the run placed before its words under them, in a list of the files it hands over', () => {
+        const handingOver: Answer = {
+            ...answered,
+            blocks: [
+                {
+                    sequence: 1,
+                    phase: null,
+                    block: {
+                        type: 'file',
+                        named: 'file',
+                        evidence: {
+                            support: 'Cited',
+                            citations: [lease.id],
+                            freshness: { staleness: 'Unknown', observedAt: null },
+                            conflictingClaims: [],
+                        },
+                        file: {
+                            source: lease.id,
+                            attachmentPosition: 0,
+                            name: 'Hall lease.pdf',
+                            mediaType: 'application/pdf',
+                            sizeOctets: 6_144,
+                            sender: null,
+                            sentAt: null,
+                        },
+                    },
+                },
+                ...answered.blocks,
+            ],
+        };
+
+        drawnAnswer(handingOver);
+
+        const files = screen.getByRole('list', { name: 'Files it hands over' });
+        const words = screen.getByText('The lease renews in March.');
+
+        expect(files.textContent).toContain('Hall lease.pdf');
+        expect(words.compareDocumentPosition(files) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
 });
 
 function inLocalization(

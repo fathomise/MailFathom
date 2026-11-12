@@ -526,6 +526,9 @@
     --container-agent-question: 48.4375rem;
     --container-agent-question-narrow: 92%;
     --container-agent-answer: 56.25rem;
+    /* An answer's file: the design's card, as wide as one line of its name and origin needs and never wider, which on
+       the phone is the whole column instead. */
+    --container-answer-file: 25rem;
     --container-agent-thread: 83.875rem;
     --container-agent-tab: 13.75rem;
     --container-agent-deep-run: 35rem;

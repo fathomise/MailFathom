@@ -17,11 +17,12 @@ namespace MailFathom.Evaluations.Corpus;
 /// Each message puts what a case asks about where a first reading does not reach: past the cut a conversation reading
 /// makes of a body, deep inside a file many pages long, in a file nothing could read, or in a scan whose words a model
 /// transcribed. The lease is longer than one run may read in full, so a request to summarise all of it can only be
-/// answered in part, and the answer is measured on saying so.
+/// answered in part, and the answer is measured on saying so. One message carries three files of which a question means
+/// one, so handing the person a file is measured on choosing it rather than everything the message carries.
 /// </para>
 /// <para>
 /// A file's words are not in its MIME part, which carries a few placeholder octets: a deployment reads a file's words
-/// from the row the background reading stored, and <see cref="Readings" /> is that row for every file here. Every name
+/// from the row the background reading stored, and <see cref="Readings" /> is that row for every file a case reads. Every name
 /// is invented and every address sits under a reserved domain. Positions begin past every other suite's, so an
 /// identifier derived from one never names another.
 /// </para>
@@ -55,6 +56,18 @@ internal static class LongMail
 
     /// <summary>Gets a signed delivery note sent as a photograph, whose words a model transcribed.</summary>
     public static IReadOnlyList<CorpusMessage> DeliveryNote => Exchanges[3];
+
+    /// <summary>Gets the name of the file the lease is carried as.</summary>
+    public static string LeaseFile => "Harbour-Lane-lease-final.pdf";
+
+    /// <summary>Gets the name of the photograph the signed delivery note is carried as.</summary>
+    public static string DeliveryNotePhoto => "delivery-note-QS-30418.jpg";
+
+    /// <summary>Gets the message carrying the lease's completion documents, three files of which a question means one.</summary>
+    public static IReadOnlyList<CorpusMessage> CompletionDocuments => Exchanges[4];
+
+    /// <summary>Gets the name of the completion document a question about insurance means, beside two it does not.</summary>
+    public static string InsuranceCertificate => "Harbour-Lane-insurance-certificate.pdf";
 
     /// <summary>Gets the name of the drawing nothing could read, which an answer about the plans has to name.</summary>
     public static string UnreadDrawing => "KQ-level3-plan-rev-C.dwg";
@@ -90,7 +103,7 @@ internal static class LongMail
                 Clara Weissmann
                 Lindqvist Property
                 """,
-                ("Harbour-Lane-lease-final.pdf", "application/pdf", 6_144)),
+                (LeaseFile, "application/pdf", 6_144)),
         ],
         [
             Message(
@@ -120,7 +133,27 @@ internal static class LongMail
 
                 Quayside Supplies Dispatch
                 """,
-                ("delivery-note-QS-30418.jpg", "image/jpeg", 3_072)),
+                (DeliveryNotePhoto, "image/jpeg", 3_072)),
+        ],
+        [
+            Message(
+                FirstPosition + 4,
+                "clara.weissmann@lindqvist-property.test",
+                "Clara Weissmann",
+                new(2026, 9, 11, 11, 45, 0, TimeSpan.Zero),
+                "Harbour Lane: completion documents",
+                """
+                Ahead of completion, here are the three documents your solicitors asked for: the completion statement,
+                the schedule of keys we hand over on the day, and the landlord's buildings insurance certificate for
+                Harbour Lane.
+
+                Kind regards,
+                Clara Weissmann
+                Lindqvist Property
+                """,
+                ("Harbour-Lane-completion-statement.pdf", "application/pdf", 5_120),
+                ("Harbour-Lane-key-schedule.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 2_048),
+                (InsuranceCertificate, "application/pdf", 3_584)),
         ],
     ];
 

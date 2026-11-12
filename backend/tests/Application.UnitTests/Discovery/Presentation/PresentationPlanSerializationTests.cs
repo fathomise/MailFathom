@@ -288,6 +288,24 @@ public sealed class PresentationPlanSerializationTests
         Assert.Equal("primary", Assert.Single(read!.Blocks.OfType<DraftBlock>()).Account?.Value);
     }
 
+    /// <summary>A file reads back naming the message it arrived on and its place there, which is what a download is asked for by.</summary>
+    [Fact]
+    public void RoundTrip_AFile_ReadsBackItsMessageItsPositionAndWhatTheMessageSaidOfIt()
+    {
+        // Arrange
+        var written = JsonSerializer.Serialize(PresentationPlanExample.Compose(), Contract);
+
+        // Act
+        var read = JsonSerializer.Deserialize<PresentationPlan>(written, Contract);
+
+        // Assert
+        var file = Assert.Single(read!.Blocks.OfType<FileBlock>());
+
+        Assert.Equal(
+            (PresentationPlanExample.FirstCitation, 0, "renewal.pdf", "application/pdf", 128_000L, "Ada Bell", PresentationPlanExample.ObservedAt),
+            (file.Source, file.AttachmentPosition, file.Name?.Value, file.MediaType.Value, file.SizeOctets, file.Sender?.Value, file.SentAt));
+    }
+
     /// <summary>A conversation stored before a draft named its account is still read, as a draft naming none.</summary>
     [Fact]
     public void Deserialization_ADraftStoredAtTheRevisionBeforeItsAccount_IsReadAsOneNamingNone()

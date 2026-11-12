@@ -11,7 +11,7 @@ namespace MailFathom.Application.Discovery.Presentation;
 /// <summary>The closed catalogue of block types a presentation plan may hold.</summary>
 /// <remarks>
 /// <para>
-/// Eleven members and no twelfth. A plan is composed by a model, and a catalogue that were an open string would let one
+/// Twelve members and no thirteenth. A plan is composed by a model, and a catalogue that were an open string would let one
 /// invent a presentation the client has no renderer for — so the set is declared here, adding to it is a source change
 /// that reaches a review, and a client can switch over it exhaustively.
 /// </para>
@@ -52,6 +52,9 @@ public readonly record struct PresentationBlockType
 
     /// <summary>The identity of the block presenting files found in mail.</summary>
     public const string AttachmentGalleryIdentity = "attachmentGallery";
+
+    /// <summary>The identity of the block presenting one file handed to the person to download.</summary>
+    public const string FileIdentity = "file";
 
     /// <summary>The identity of the block presenting text to be sent.</summary>
     public const string DraftIdentity = "draft";
@@ -99,6 +102,15 @@ public readonly record struct PresentationBlockType
     /// <summary>Gets the type of the block presenting files found in mail.</summary>
     public static PresentationBlockType AttachmentGallery { get; } = new(AttachmentGalleryIdentity, version: 1);
 
+    /// <summary>Gets the type of the block presenting one file handed to the person to download.</summary>
+    /// <remarks>
+    /// A reading rather than an offer to act on: downloading changes nothing anybody would have to accept, so the block
+    /// carries a control and is still not <see cref="Actionable" />. A type of its own rather than an
+    /// <see cref="AttachmentGallery" /> of one, because a gallery is a file browser whose entries open the message they
+    /// arrived on and never fetch anything, while this block exists to hand the file itself over.
+    /// </remarks>
+    public static PresentationBlockType File { get; } = new(FileIdentity, version: 1);
+
     #endregion
 
     #region Acting — the blocks that present something a person may do next
@@ -138,6 +150,7 @@ public readonly record struct PresentationBlockType
         People,
         ThreadState,
         AttachmentGallery,
+        File,
         Draft,
         EventProposal,
         TaskProposal,

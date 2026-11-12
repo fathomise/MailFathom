@@ -38,6 +38,7 @@ namespace MailFathom.Application.Discovery.Presentation;
 [JsonDerivedType(typeof(PeopleBlock), PresentationBlockType.PeopleIdentity)]
 [JsonDerivedType(typeof(ThreadStateBlock), PresentationBlockType.ThreadStateIdentity)]
 [JsonDerivedType(typeof(AttachmentGalleryBlock), PresentationBlockType.AttachmentGalleryIdentity)]
+[JsonDerivedType(typeof(FileBlock), PresentationBlockType.FileIdentity)]
 [JsonDerivedType(typeof(DraftBlock), PresentationBlockType.DraftIdentity)]
 [JsonDerivedType(typeof(EventProposalBlock), PresentationBlockType.EventProposalIdentity)]
 [JsonDerivedType(typeof(TaskProposalBlock), PresentationBlockType.TaskProposalIdentity)]

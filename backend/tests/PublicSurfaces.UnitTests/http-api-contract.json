@@ -12897,6 +12897,9 @@
             "$ref": "#/components/schemas/PresentationBlockAttachmentGalleryBlock"
           },
           {
+            "$ref": "#/components/schemas/PresentationBlockFileBlock"
+          },
+          {
             "$ref": "#/components/schemas/PresentationBlockDraftBlock"
           },
           {
@@ -12917,6 +12920,7 @@
             "eventProposal": "#/components/schemas/PresentationBlockEventProposalBlock",
             "evidenceList": "#/components/schemas/PresentationBlockEvidenceListBlock",
             "factTable": "#/components/schemas/PresentationBlockFactTableBlock",
+            "file": "#/components/schemas/PresentationBlockFileBlock",
             "people": "#/components/schemas/PresentationBlockPeopleBlock",
             "suggestedAction": "#/components/schemas/PresentationBlockSuggestedActionBlock",
             "taskProposal": "#/components/schemas/PresentationBlockTaskProposalBlock",
@@ -13179,6 +13183,78 @@
         "required": [
           "columns",
           "rows",
+          "evidence"
+        ]
+      },
+      "PresentationBlockFileBlock": {
+        "properties": {
+          "attachmentPosition": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/PresentationEvidence"
+          },
+          "mediaType": {
+            "$ref": "#/components/schemas/PresentationText"
+          },
+          "name": {
+            "$ref": "#/components/schemas/PresentationText"
+          },
+          "referencedCitations": {
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "sender": {
+            "$ref": "#/components/schemas/PresentationText"
+          },
+          "sentAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sizeOctets": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "source": {
+            "$ref": "#/components/schemas/PresentationCitationId"
+          },
+          "type": {
+            "enum": [
+              "file"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "source",
+          "attachmentPosition",
+          "name",
+          "mediaType",
+          "sizeOctets",
+          "sender",
+          "sentAt",
           "evidence"
         ]
       },

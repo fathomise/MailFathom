@@ -211,6 +211,7 @@ export {
 } from './failure';
 export type {
     AnswerConfidence,
+    AnswerFile,
     AnswerLink,
     AttachmentAvailability,
     AttachmentEntry,

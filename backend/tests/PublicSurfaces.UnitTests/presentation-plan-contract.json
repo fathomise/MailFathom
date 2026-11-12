@@ -6,6 +6,7 @@
     "eventProposal": 1,
     "evidenceList": 1,
     "factTable": 1,
+    "file": 1,
     "people": 1,
     "suggestedAction": 1,
     "taskProposal": 1,
@@ -751,6 +752,78 @@
             },
             {
               "properties": {
+                "attachmentPosition": {
+                  "type": "integer"
+                },
+                "evidence": {
+                  "properties": {
+                    "citations": {
+                      "$ref": "#/properties/blocks/items/anyOf/0/properties/evidence/properties/citations"
+                    },
+                    "conflictingClaims": {
+                      "$ref": "#/properties/blocks/items/anyOf/0/properties/evidence/properties/conflictingClaims",
+                      "default": null
+                    },
+                    "freshness": {
+                      "$ref": "#/properties/blocks/items/anyOf/0/properties/evidence/properties/freshness"
+                    },
+                    "support": {
+                      "enum": [
+                        "Supported",
+                        "Unsupported",
+                        "Conflicting",
+                        "Stale",
+                        "Cited"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "support",
+                    "citations",
+                    "freshness"
+                  ],
+                  "type": "object"
+                },
+                "mediaType": true,
+                "name": true,
+                "referencedCitations": {
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "sender": true,
+                "sentAt": {
+                  "format": "date-time",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "sizeOctets": {
+                  "type": "integer"
+                },
+                "source": true,
+                "type": {
+                  "const": "file"
+                },
+                "version": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "source",
+                "attachmentPosition",
+                "name",
+                "mediaType",
+                "sizeOctets",
+                "sender",
+                "sentAt",
+                "evidence"
+              ]
+            },
+            {
+              "properties": {
                 "account": {
                   "default": null
                 },
@@ -1179,5 +1252,5 @@
       "null"
     ]
   },
-  "schemaVersion": 3
+  "schemaVersion": 4
 }

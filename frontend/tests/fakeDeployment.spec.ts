@@ -706,9 +706,9 @@ test('writes the answer to a proposal into the conversation, and refuses a secon
 
     const answered = ask(deployment, 'PUT', `${conversation}/proposals/6`, { decision: 'declined' });
 
-    expect(answered).toStrictEqual({ sequence: 12 });
-    expect(ask(deployment, 'GET', `${conversation}?since=11`)).toMatchObject({
-        entries: [{ sequence: 12, entry: { entry: 'resolution', proposedAt: 6, state: 'Declined' } }],
+    expect(answered).toStrictEqual({ sequence: 13 });
+    expect(ask(deployment, 'GET', `${conversation}?since=12`)).toMatchObject({
+        entries: [{ sequence: 13, entry: { entry: 'resolution', proposedAt: 6, state: 'Declined' } }],
     });
     expect(ask(deployment, 'PUT', `${conversation}/proposals/6`, { decision: 'accepted' })).toBe(409);
 });

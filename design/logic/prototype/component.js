@@ -3987,7 +3987,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const origin = (f) => f.origin === "report"
         ? { icon: "auto_awesome", said: "Report the agent wrote · " + f.pages, gone: "No longer held - ask the agent to write it again" }
         : f.origin === "message"
-          ? { icon: "mail", said: "From " + f.from, gone: "No longer held here - it is still in the message from " + f.from }
+          ? { icon: "mail", said: "From " + f.from, gone: "No longer available - the message from " + f.from + " was removed, or you can no longer open it" }
           : { icon: "attach_file", said: "You attached it", gone: "No longer held - attach it again to use it" };
       return {
         hasFiles: (m.files || []).length > 0,

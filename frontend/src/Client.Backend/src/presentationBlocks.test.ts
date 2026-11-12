@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+    parseAnswerFile,
     parseAttachmentEntries,
     parseBlockEvidence,
     parseComposedDraft,
@@ -476,6 +477,52 @@ describe('parseAttachmentEntries', () => {
 
     it('refuses more files than one gallery may hold', () => {
         expect(parseAttachmentEntries(Array.from({ length: 51 }, () => file))).toBeNull();
+    });
+});
+
+describe('parseAnswerFile', () => {
+    function file(over: Readonly<Record<string, unknown>> = {}): Readonly<Record<string, unknown>> {
+        return {
+            source: 'c-1',
+            attachmentPosition: 2,
+            name: 'Harbour-Lane-insurance-certificate.pdf',
+            mediaType: 'application/pdf',
+            sizeOctets: 3584,
+            sender: 'Clara Weissmann',
+            sentAt: '2026-09-11T11:45:00+00:00',
+            ...over,
+        };
+    }
+
+    it('reads the message a file arrived on, its place there, and what the message said of it', () => {
+        expect(parseAnswerFile(file())).toEqual({
+            source: 'c-1',
+            attachmentPosition: 2,
+            name: 'Harbour-Lane-insurance-certificate.pdf',
+            mediaType: 'application/pdf',
+            sizeOctets: 3584,
+            sender: 'Clara Weissmann',
+            sentAt: '2026-09-11T11:45:00+00:00',
+        });
+    });
+
+    it('reads a file its sender named nothing, from a message naming nobody and no date, as one stating none of them', () => {
+        expect(parseAnswerFile(file({ name: null, sender: undefined, sentAt: null }))).toMatchObject({
+            name: null,
+            sender: null,
+            sentAt: null,
+        });
+    });
+
+    it.each([
+        ['no source', { source: '' }],
+        ['a negative position', { attachmentPosition: -1 }],
+        ['a position that is not a whole number', { attachmentPosition: 1.5 }],
+        ['no media type', { mediaType: null }],
+        ['a size that is not a count', { sizeOctets: '3584' }],
+        ['a name that is not text', { name: 7 }],
+    ])('refuses a file with %s rather than offering a download it cannot bound', (_, over) => {
+        expect(parseAnswerFile(file(over))).toBeNull();
     });
 });
 

@@ -21,6 +21,7 @@ import {
     type MailFathomTransport,
     type RunFollowingSchedule,
 } from '@mailfathom/client-backend';
+import { AnswerDownloadsContext } from '../answerCanvas/answerDownloads';
 import { EvidenceInspector } from '../answerCanvas/EvidenceInspector';
 import type { ProposalLook } from '../answerCanvas/proposalAnswering';
 import { Confirmation } from '../confirmation/Confirmation';
@@ -657,17 +658,19 @@ export function AgentSpace({
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                     <ProposalAnswersContext value={{ answer: answerProposal, askAnotherTime, look: onLook }}>
                         <RewriteDockContext value={fieldColumn}>
-                            <ConversationThread
-                                turns={turns}
-                                reading={followed.reading}
-                                failure={followed.failure}
-                                status={inFlight === null || ranDeep(inFlight) ? undefined : inFlight.status}
-                                settledThrough={followed.settledThrough}
-                                following={following}
-                                onAsk={send}
-                                onAskInDeep={inFlight === null ? askInDeep : null}
-                                onFollowSource={followSource}
-                            />
+                            <AnswerDownloadsContext value={session}>
+                                <ConversationThread
+                                    turns={turns}
+                                    reading={followed.reading}
+                                    failure={followed.failure}
+                                    status={inFlight === null || ranDeep(inFlight) ? undefined : inFlight.status}
+                                    settledThrough={followed.settledThrough}
+                                    following={following}
+                                    onAsk={send}
+                                    onAskInDeep={inFlight === null ? askInDeep : null}
+                                    onFollowSource={followSource}
+                                />
+                            </AnswerDownloadsContext>
                         </RewriteDockContext>
                     </ProposalAnswersContext>
 

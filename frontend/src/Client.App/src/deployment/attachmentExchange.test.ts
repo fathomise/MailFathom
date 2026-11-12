@@ -61,7 +61,7 @@ describe('attachmentOctetsOf', () => {
     it.each([
         [401, 'unauthenticated'],
         [403, 'unauthorized'],
-        [404, 'unavailable'],
+        [404, 'missing'],
         [500, 'unavailable'],
     ] as const)('refuses a %s with the reason that status stands for', async (status, refusal) => {
         expect(await attachmentOctetsOf(answering(status), 1_024)).toBe(refusal);
@@ -129,7 +129,7 @@ describe('deliveryFailureOf', () => {
         expect(deliveryFailureOf('largerThanDescribed')).toBe('unreadable');
     });
 
-    it.each(['unauthenticated', 'unauthorized', 'unavailable'] as const)(
+    it.each(['unauthenticated', 'unauthorized', 'missing', 'unavailable'] as const)(
         'reports %s as the failure that word already names on this surface',
         (outcome) => {
             expect(deliveryFailureOf(outcome)).toBe(outcome);
@@ -156,6 +156,7 @@ describe('showingFailureOf', () => {
     it.each([
         ['unauthenticated', 'unauthenticated'],
         ['unauthorized', 'unauthorized'],
+        ['missing', 'missing'],
         ['unavailable', 'unavailable'],
         ['largerThanDescribed', 'unreadable'],
     ] as const)('reports a %s refusal as the failure a download reports it as', (refusal, reported) => {
@@ -177,6 +178,7 @@ describe('takingFailureOf', () => {
     it.each([
         ['unauthenticated', 'unauthenticated'],
         ['unauthorized', 'unauthorized'],
+        ['missing', 'missing'],
         ['unavailable', 'unavailable'],
         ['largerThanDescribed', 'unreadable'],
         ['abandoned', null],

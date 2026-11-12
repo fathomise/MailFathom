@@ -129,7 +129,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         var names = this.Tools(MailFathomPermission.MailRead).Create().Select(static tool => tool.Name);
 
         // Assert
-        Assert.Equal(["suggest_follow_ups", "rate_confidence", "search_mail", "search_message", "list_mail", "count_mail", "read_thread", "read_message", "read_attachment", "show_thread_state"], names);
+        Assert.Equal(["suggest_follow_ups", "rate_confidence", "search_mail", "search_message", "list_mail", "count_mail", "read_thread", "read_message", "read_attachment", "offer_attachment", "show_thread_state"], names);
     }
 
     /// <summary>The calendar and the task list are each read under a grant of their own, so holding both reading grants offers both reading tools and no way to propose onto either.</summary>
@@ -1534,11 +1534,121 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         Assert.Equal("a\uD83D\uDE00b"[expectedStart..], page.Value);
     }
 
+    /// <summary>A file a conversation reading named is handed over as a block naming its message and its position, and nothing of its content.</summary>
+    [Fact]
+    public async Task OfferAttachment_TheSecondFileAConversationReadingNamed_PlacesThatFileCitingItsMessage()
+    {
+        // Arrange
+        var (reader, message) = ReadingOneMessage("The lease and its schedule.", Pdf("lease.pdf"), Pdf("schedule.pdf"));
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            contentReader: reader);
+        await this.CreatedTool(AgentConversationTools.ReadThreadToolName)
+            .InvokeAsync(ReadingThreadOf(message.ToString()), TestContext.Current.CancellationToken);
+
+        // Act
+        var answer = await this.CreatedTool(AgentConversationTools.OfferAttachmentToolName)
+            .InvokeAsync(OfferingAttachment(message, 1), TestContext.Current.CancellationToken);
+
+        // Assert
+        var block = Assert.IsType<FileBlock>(Assert.Single(this.written.OfType<AgentBlockComposed>()).Block);
+        var cited = Assert.Single(this.written.OfType<AgentCitationDeclared>()).Citation;
+
+        Assert.StartsWith("Offered.", answer?.ToString(), StringComparison.Ordinal);
+        Assert.Equal(
+            (cited.Id, 1, "schedule.pdf", "application/pdf", 48_213L),
+            (block.Source, block.AttachmentPosition, block.Name?.Value, block.MediaType.Value, block.SizeOctets));
+        Assert.Equal([cited.Id], block.Evidence.Citations);
+        Assert.Equal(message, Assert.IsType<EmailCitationTarget>(cited.Target).Email);
+    }
+
+    /// <summary>A file read on its own is shown as surely as one a conversation reading named, so it may be handed over too.</summary>
+    [Fact]
+    public async Task OfferAttachment_AFileTheRunRead_PlacesIt()
+    {
+        // Arrange
+        var (reader, message) = ReadingOneMessage("See the attached contract.", Pdf("contract.pdf"));
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            contentReader: reader,
+            attachmentTexts: StoredAttachmentTexts.None.Holding(message, ReadInto(0, "Page one.")));
+        await this.CreatedTool(AgentConversationTools.ReadAttachmentToolName)
+            .InvokeAsync(ReadingAttachment(message, 0), TestContext.Current.CancellationToken);
+
+        // Act
+        await this.CreatedTool(AgentConversationTools.OfferAttachmentToolName)
+            .InvokeAsync(OfferingAttachment(message, 0), TestContext.Current.CancellationToken);
+
+        // Assert
+        var block = Assert.IsType<FileBlock>(Assert.Single(this.written.OfType<AgentBlockComposed>()).Block);
+
+        Assert.Equal("contract.pdf", block.Name?.Value);
+    }
+
+    /// <summary>
+    /// A message the run never read, and a position on a read message that names no file, were never shown to the model,
+    /// so neither is handed over: a guessed identifier or position reaches nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 1)]
+    public async Task OfferAttachment_AFileTheRunWasNotShown_IsRefusedAndPlacesNothing(bool readFirst, int attachment)
+    {
+        // Arrange
+        var (reader, message) = ReadingOneMessage("See the attached contract.", Pdf("contract.pdf"));
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            contentReader: reader);
+
+        if (readFirst)
+        {
+            await this.CreatedTool(AgentConversationTools.ReadThreadToolName)
+                .InvokeAsync(ReadingThreadOf(message.ToString()), TestContext.Current.CancellationToken);
+        }
+
+        // Act
+        var answer = await this.CreatedTool(AgentConversationTools.OfferAttachmentToolName)
+            .InvokeAsync(OfferingAttachment(message, attachment), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.StartsWith("That file is not one this conversation has shown you.", answer?.ToString(), StringComparison.Ordinal);
+        Assert.Empty(this.written.OfType<AgentBlockComposed>());
+    }
+
+    /// <summary>A file already in the answer is not placed a second time, which would only draw the same card twice.</summary>
+    [Fact]
+    public async Task OfferAttachment_TheSameFileTwice_PlacesOneCard()
+    {
+        // Arrange
+        var (reader, message) = ReadingOneMessage("See the attached contract.", Pdf("contract.pdf"));
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            contentReader: reader);
+        await this.CreatedTool(AgentConversationTools.ReadThreadToolName)
+            .InvokeAsync(ReadingThreadOf(message.ToString()), TestContext.Current.CancellationToken);
+        var tool = this.CreatedTool(AgentConversationTools.OfferAttachmentToolName);
+        await tool.InvokeAsync(OfferingAttachment(message, 0), TestContext.Current.CancellationToken);
+
+        // Act
+        var answer = await tool.InvokeAsync(OfferingAttachment(message, 0), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("That file is already in your answer.", answer?.ToString());
+        Assert.Single(this.written.OfType<AgentBlockComposed>());
+    }
+
     private static AIFunctionArguments ReadingMessage(StoredEmailId message, int? from = null) =>
         new(new Dictionary<string, object?> { ["messageId"] = message.ToString(), ["from"] = from });
 
     private static AIFunctionArguments ReadingAttachment(StoredEmailId message, int attachment, int? page = null, int? from = null) =>
         new(new Dictionary<string, object?> { ["messageId"] = message.ToString(), ["attachment"] = attachment, ["page"] = page, ["from"] = from });
+
+    private static AIFunctionArguments OfferingAttachment(StoredEmailId message, int attachment) =>
+        new(new Dictionary<string, object?> { ["messageId"] = message.ToString(), ["attachment"] = attachment });
 
     private static ExtractedEmailAttachment Pdf(string fileName) => new(
         AttachmentFileName.TryNormalize(fileName, out var normalized) ? normalized : null,

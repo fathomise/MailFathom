@@ -13,7 +13,7 @@ import type { IconName } from '../controls/icons';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { AnswerableBlock } from './AnswerableBlock';
-import { ranDeep, type Answer } from './threadTurns';
+import { ranDeep, type Answer, type AnsweredBlock } from './threadTurns';
 
 const scopes: Readonly<Record<AgentMessageScope['kind'], MessageKey>> = {
     mailbox: 'agent.scope.mailbox',
@@ -98,6 +98,10 @@ export function AnswerScope({ scope, ranIn = null }: { readonly scope: MessageKe
  * It carries no card of its own. The thread is flat and the blocks are the only cards in it, so the separation between
  * one answer and the next is carried by them.
  *
+ * The files it hands over stand under everything else it wrote, in one row that wraps, whichever turn of the run
+ * placed them: the design draws an answer's files after its words, and a file placed before the words were composed
+ * would otherwise stand above the sentence that says why it is there.
+ *
  * @param settledThrough What was already there when the conversation was opened, which draws without animating in.
  * @param onFollowSource What following one of this answer's sources does, which is opening it for checking.
  * @param onAskInDeep Asks this answer's question again in `deep`, about what it was asked about, answering once it was
@@ -135,6 +139,9 @@ export function AgentAnswer({
         [answer.sources, onFollowSource],
     );
 
+    const files = answer.blocks.filter((answered) => answered.block.type === 'file');
+    const written = answer.blocks.filter((answered) => answered.block.type !== 'file');
+
     return (
         <article
             aria-label={translate('agent.answer')}
@@ -160,20 +167,28 @@ export function AgentAnswer({
 
             {answer.blocks.length > 0 ? (
                 <AnswerSourcesContext value={declared}>
-                    <ol aria-label={translate('answerCanvas.blocks')} className="flex flex-col gap-2.75">
-                        {answer.blocks.map((answered) => (
-                            <li
-                                key={answered.sequence}
-                                className={answered.sequence > settledThrough ? 'animate-block-arrival' : undefined}
-                            >
-                                <Containment drawing={String(answered.sequence)} region="answer_block">
-                                    <AnswerableBlock phase={answered.phase} proposedAt={answered.sequence}>
-                                        <DrawnBlock block={answered} renderers={answerBlockRenderers} />
-                                    </AnswerableBlock>
-                                </Containment>
-                            </li>
-                        ))}
-                    </ol>
+                    {written.length > 0 ? (
+                        <ol aria-label={translate('answerCanvas.blocks')} className="flex flex-col gap-2.75">
+                            {written.map((answered) => (
+                                <li key={answered.sequence} className={arrivalOf(answered, settledThrough)}>
+                                    <Drawn answered={answered} />
+                                </li>
+                            ))}
+                        </ol>
+                    ) : null}
+
+                    {files.length > 0 ? (
+                        <ul aria-label={translate('agent.answerFiles')} className="flex flex-wrap gap-2">
+                            {files.map((answered) => (
+                                <li
+                                    key={answered.sequence}
+                                    className={`flex w-full workspace:w-answer-file workspace:max-w-full ${arrivalOf(answered, settledThrough) ?? ''}`}
+                                >
+                                    <Drawn answered={answered} />
+                                </li>
+                            ))}
+                        </ul>
+                    ) : null}
                 </AnswerSourcesContext>
             ) : null}
 
@@ -258,4 +273,20 @@ function AskInDeep({
             {translate('agent.askAgainDeep')}
         </button>
     );
+}
+
+/** One block, contained so a renderer that throws takes only itself down, and answerable where it proposes something. */
+function Drawn({ answered }: { readonly answered: AnsweredBlock }) {
+    return (
+        <Containment drawing={String(answered.sequence)} region="answer_block">
+            <AnswerableBlock phase={answered.phase} proposedAt={answered.sequence}>
+                <DrawnBlock block={answered} renderers={answerBlockRenderers} />
+            </AnswerableBlock>
+        </Containment>
+    );
+}
+
+/** A block written after the conversation was opened arrives animated; one already there when it was opened does not. */
+function arrivalOf(answered: AnsweredBlock, settledThrough: number): string | undefined {
+    return answered.sequence > settledThrough ? 'animate-block-arrival' : undefined;
 }

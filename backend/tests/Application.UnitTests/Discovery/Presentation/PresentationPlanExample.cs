@@ -60,6 +60,7 @@ internal static class PresentationPlanExample
         People(),
         ThreadState(),
         AttachmentGallery(),
+        File(),
         Draft(),
         EventProposal(),
         TaskProposal(),
@@ -148,6 +149,17 @@ internal static class PresentationPlanExample
         new(
             Supported(),
             [new AttachmentEntry(AttachmentCitation, Text("renewal.pdf"), Text("application/pdf"), 128_000L, AttachmentAvailability.Stored)]);
+
+    private static FileBlock File() =>
+        new(
+            Supported(),
+            FirstCitation,
+            attachmentPosition: 0,
+            Text("renewal.pdf"),
+            Text("application/pdf"),
+            128_000L,
+            Text("Ada Bell"),
+            ObservedAt);
 
     private static DraftBlock Draft()
     {

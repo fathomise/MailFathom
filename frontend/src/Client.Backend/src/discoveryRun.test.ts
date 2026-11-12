@@ -618,6 +618,51 @@ describe('readDiscoveryRunTail', () => {
         ]);
     });
 
+    it('reads a file handed over as the message it arrived on, its place there, and what that message said of it', async () => {
+        const answered = await readDiscoveryRunTail(
+            session,
+            answering({
+                status: 200,
+                body: bodyOf([
+                    {
+                        event: 'block',
+                        sequence: 10,
+                        block: {
+                            type: 'file',
+                            version: 1,
+                            evidence: {
+                                support: 'Cited',
+                                citations: ['c-1'],
+                                freshness: { staleness: 'Current', observedAt: '2026-09-20T08:00:00+00:00' },
+                            },
+                            source: 'c-1',
+                            attachmentPosition: 2,
+                            name: 'Master agreement.pdf',
+                            mediaType: 'application/pdf',
+                            sizeOctets: 312000,
+                            sender: 'Ada Bell',
+                            sentAt: '2026-09-19T15:30:00+00:00',
+                        },
+                    },
+                ]),
+            }),
+            runId,
+            0,
+        );
+
+        const event = answered.outcome === 'read' ? answered.value.events[0] : null;
+
+        expect(event?.kind === 'block' && event.block.type === 'file' ? event.block.file : null).toEqual({
+            source: 'c-1',
+            attachmentPosition: 2,
+            name: 'Master agreement.pdf',
+            mediaType: 'application/pdf',
+            sizeOctets: 312000,
+            sender: 'Ada Bell',
+            sentAt: '2026-09-19T15:30:00+00:00',
+        });
+    });
+
     it('reads where a conversation stands off the block that carries it rather than off a member of its own', async () => {
         const answered = await readDiscoveryRunTail(
             session,
