@@ -229,6 +229,7 @@ internal static class ClientApiEndpoints
         api.MapClientCitations();
         api.MapClientDiscoveryRuns();
         api.MapClientAgentConversations();
+        api.MapClientAgentConversationFiles();
         api.MapClientReplyDrafting();
         api.MapClientDrafts();
         api.MapClientOutbox();

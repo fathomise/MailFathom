@@ -5,6 +5,7 @@
 using System.Security.Cryptography;
 using MailFathom.AI.AgentConversations;
 using MailFathom.Application.Access;
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Calendar;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.EmailContent;
@@ -97,12 +98,14 @@ internal static class CorpusReaders
     /// <param name="search">The search the run's lookups reach, whose corpus the run's listings and counts read as well.</param>
     /// <param name="clock">The person's clock, standing at the instant the question is asked, in their zone.</param>
     /// <param name="footers">The footers the person's accounts append, or <see langword="null" /> for a mailbox where none appends one.</param>
+    /// <param name="files">The files of the conversation the question is asked in, or <see langword="null" /> where it holds none.</param>
     /// <returns>The readers.</returns>
     public static AgentConversationReaders For(
         AccessAuthorization authorization,
         CorpusKnowledgeSearch search,
         UserClock clock,
-        MailFootersInForce? footers = null)
+        MailFootersInForce? footers = null,
+        AgentConversationFiles? files = null)
     {
         var scope = ScopeFor(authorization);
         var summaries = new CorpusSummaries();
@@ -152,7 +155,8 @@ internal static class CorpusReaders
                 authorization),
             authorization,
             clock,
-            footers ?? MailFootings.SendingNone());
+            footers ?? MailFootings.SendingNone(),
+            files ?? CorpusConversationFiles.None);
     }
 
     /// <summary>Gives the person a footer of their own on the corpus account, whose text no turn ever carries.</summary>

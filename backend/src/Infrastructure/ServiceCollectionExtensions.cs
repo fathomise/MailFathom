@@ -13,6 +13,7 @@ using MailFathom.Application.Accounts;
 using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Agent.Search;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.AutomaticReplies;
@@ -1370,6 +1371,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAgentConversationSearchIndex, AgentConversationSearchIndex>();
         services.AddScoped<AgentConversationSearch>();
         services.AddScoped<AgentConversationEmbedding>();
+        // Scoped, because a file's octets are written through the scoped stored-file store and its words through the scoped
+        // context, and the intake reads a document with the scoped attachment text reader. The cut is a singleton because
+        // the chunker and the rules it composes are.
+        services.AddScoped<IAgentConversationFileStore, AgentConversationFileStore>();
+        services.AddSingleton<AgentConversationFilePassages>();
+        services.AddScoped<AgentConversationFiles>();
         // Scoped, because an acceptance carries the act out through the drafting and sending use cases under the
         // accepting caller's principal, and a run composes under the principal of the person who asked — both of which
         // are the scope's. The composer is resolved optionally for the reason the Discover run's are: a deployment that

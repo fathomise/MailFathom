@@ -188,6 +188,7 @@ internal sealed class AgentConversationTools
     private readonly AgentConversationReaders readers;
     private readonly SensitiveContentEgressGuard egressGuard;
     private readonly IReadOnlyList<MailAccountId> accounts;
+    private readonly AgentConversationFileTools? fileTools;
     private readonly Dictionary<StoredEmailId, PresentationCitation> cited = [];
     private readonly Dictionary<StoredEmailId, string?> listed = [];
     private readonly List<string> readBodies = [];
@@ -201,26 +202,29 @@ internal sealed class AgentConversationTools
     /// <param name="readers">The use cases every tool reads and proposes through, under the person's own grant.</param>
     /// <param name="egressGuard">Scans every text a tool hands the model.</param>
     /// <param name="accounts">The accounts the person reads, which are the ones a new message may be sent from.</param>
+    /// <param name="fileTools">The tools over the files the person handed to the conversation, or <see langword="null" /> where the run reads none.</param>
     internal AgentConversationTools(
         AgentAnswerJournal journal,
         ScopedMailKnowledgeRetrieval retrieval,
         AgentConversationReaders readers,
         SensitiveContentEgressGuard egressGuard,
-        IReadOnlyList<MailAccountId> accounts)
+        IReadOnlyList<MailAccountId> accounts,
+        AgentConversationFileTools? fileTools = null)
     {
         this.journal = journal;
         this.retrieval = retrieval;
         this.readers = readers;
         this.egressGuard = egressGuard;
         this.accounts = accounts;
+        this.fileTools = fileTools;
     }
 
     /// <summary>Gets every source the run has shown the model, in the order it was first shown.</summary>
     internal IReadOnlyList<PresentationCitation> Cited => [.. this.cited.Values];
 
     /// <summary>Gets the text of every message the run has shown the model, cut where it was cut for the model, which is what an answer's links are traced to.</summary>
-    /// <remarks>Every source the run shows is one its answer cites, so this is the cited mail's text: what a search returned, what a thread reading showed, every page of a body or a file it read, and the subjects a listing showed.</remarks>
-    internal IEnumerable<string> ShownMail => [.. AnswerMarkup.TextOf(this.retrieval.Report.Passages), .. this.readBodies, .. this.listed.Values.OfType<string>()];
+    /// <remarks>Every source the run shows is one its answer cites, so this is the cited mail's text: what a search returned, what a thread reading showed, every page of a body or a file it read, and the subjects a listing showed — and beside it every word of the person's own files the run was given or read, which an answer may link out of as well.</remarks>
+    internal IEnumerable<string> ShownMail => [.. AnswerMarkup.TextOf(this.retrieval.Report.Passages), .. this.readBodies, .. this.listed.Values.OfType<string>(), .. this.fileTools?.Shown ?? []];
 
     /// <summary>Gets whether a proposal is on record from this run, which no later model may be asked to answer beside.</summary>
     internal bool HasProposed { get; private set; }
@@ -260,7 +264,8 @@ internal sealed class AgentConversationTools
     /// <returns>
     /// Each reading tool where the grant reads that record — mail, the calendar, the task list — each of the two that
     /// propose onto the calendar or the task list where the grant writes it, and the ones proposing mail where it
-    /// drafts and sends.
+    /// drafts and sends. The two over the conversation's own files need no grant beyond the one the run was asked
+    /// under, being the person's own files of this conversation, and are offered where it holds a document with words.
     /// </returns>
     internal IReadOnlyList<AITool> Create()
     {
@@ -268,6 +273,7 @@ internal sealed class AgentConversationTools
         [
             AIFunctionFactory.Create(this.SuggestFollowUps, "suggest_follow_ups", $"Suggests up to {AgentConversationBounds.MaximumFollowUps} short questions the person could ask you next, shown under your answer. Each is a question in the person's own voice, never an offer of yours such as \"Would you like…\". Pressing one only asks it; nothing is done."),
             AIFunctionFactory.Create(this.RateConfidence, "rate_confidence", "Rates how settled your answer is, shown beside it: high, moderate, or low."),
+            .. this.fileTools?.Create() ?? [],
         ];
 
         if (this.readers.Authorization.Permits(MailFathomPermission.MailRead))
@@ -892,7 +898,7 @@ internal sealed class AgentConversationTools
             return CeilingReachedStatement;
         }
 
-        var (parts, end) = await this.GuardedPartsAsync(read, start, window.Length, cancellationToken);
+        var (parts, end) = await GuardedPartsAsync(this.egressGuard, read.Text, read.Segments, start, window.Length, cancellationToken);
 
         this.readBodies.Add(read.Text[start..end]);
 
@@ -961,7 +967,7 @@ internal sealed class AgentConversationTools
     }
 
     /// <summary>Reads a start the model wrote, held inside the text and never between the halves of a surrogate pair.</summary>
-    private static int StartWithin(string text, int? from)
+    internal static int StartWithin(string text, int? from)
     {
         var start = Math.Clamp(from ?? 0, 0, text.Length);
 
@@ -980,8 +986,10 @@ internal sealed class AgentConversationTools
     /// the guard dropped and the next page begins at the first character the model has not seen.
     /// </para>
     /// </remarks>
-    private async Task<(IReadOnlyList<GuardedAttachmentPart> Parts, int End)> GuardedPartsAsync(
-        AttachmentTextContent read,
+    internal static async Task<(IReadOnlyList<GuardedAttachmentPart> Parts, int End)> GuardedPartsAsync(
+        SensitiveContentEgressGuard egressGuard,
+        string text,
+        IReadOnlyList<AttachmentTextSegment> segments,
         int start,
         int length,
         CancellationToken cancellationToken)
@@ -990,19 +998,19 @@ internal sealed class AgentConversationTools
         int[] cuts =
         [
             start,
-            .. read.Segments.Select(static segment => segment.StartOffset).Where(offset => offset > start && offset < end),
+            .. segments.Select(static segment => segment.StartOffset).Where(offset => offset > start && offset < end),
             end,
         ];
         List<GuardedAttachmentPart> parts = [];
 
         foreach (var (opens, closes) in cuts.Zip(cuts.Skip(1)))
         {
-            var guarded = await this.egressGuard.GuardWithOmissionAsync(
+            var guarded = await egressGuard.GuardWithOmissionAsync(
                 SensitiveContentEgressPoint.ChatPrompt,
-                read.Text[opens..closes],
+                text[opens..closes],
                 cancellationToken);
 
-            parts.Add(new GuardedAttachmentPart(AttachmentTextSegment.At(read.Segments, opens), guarded.Text));
+            parts.Add(new GuardedAttachmentPart(AttachmentTextSegment.At(segments, opens), guarded.Text));
 
             if (guarded.WasCutAtAnalyzedCeiling)
             {

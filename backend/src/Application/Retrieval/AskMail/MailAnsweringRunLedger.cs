@@ -251,28 +251,17 @@ public sealed class MailAnsweringRunLedger
     /// by name, so the part of it the allowance covers is exactly what it would read first. The caller states the cut,
     /// and the run is recorded as truncated, so an answer resting on the page says it covered less than the whole.
     /// </remarks>
-    public int AdmitPage(StoredEmailId message, int characters)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(characters);
+    public int AdmitPage(StoredEmailId message, int characters) => this.Admit(message, characters);
 
-        lock (this.gate)
-        {
-            var granted = Math.Min(characters, Math.Max(0, this.bounds.MaximumRetrievedCharacters - this.retrievedCharacters));
-
-            if (granted < characters)
-            {
-                this.RetrievalWasTruncated = true;
-            }
-
-            if (granted > 0)
-            {
-                this.retrievedCharacters += granted;
-                this.retrievedMessages.Add(message.Value);
-            }
-
-            return granted;
-        }
-    }
+    /// <summary>Takes as much of the words of a file the person handed to the conversation as this run may still send.</summary>
+    /// <param name="characters">How many characters the turn or the tool would send.</param>
+    /// <returns>How many of them the run may send, exactly as <see cref="AdmitPage" /> answers for a page of mail.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="characters" /> is negative.</exception>
+    /// <remarks>
+    /// One allowance for mail and for the person's own files, because both reach the same provider in the same request
+    /// and the ceiling is what one run may hand it. A file is not mail, so the run counts no message for it.
+    /// </remarks>
+    public int AdmitFileText(int characters) => this.Admit(message: null, characters);
 
     /// <summary>Counts what one passage spends of the run's allowance: its extract, what its files contributed, and the sender written beside it.</summary>
     /// <remarks>
@@ -337,6 +326,33 @@ public sealed class MailAnsweringRunLedger
                 this.tokens,
                 this.retrievedCharacters,
                 this.retrievedMessages.Count);
+        }
+    }
+
+    private int Admit(StoredEmailId? message, int characters)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(characters);
+
+        lock (this.gate)
+        {
+            var granted = Math.Min(characters, Math.Max(0, this.bounds.MaximumRetrievedCharacters - this.retrievedCharacters));
+
+            if (granted < characters)
+            {
+                this.RetrievalWasTruncated = true;
+            }
+
+            if (granted > 0)
+            {
+                this.retrievedCharacters += granted;
+
+                if (message is { } read)
+                {
+                    this.retrievedMessages.Add(read.Value);
+                }
+            }
+
+            return granted;
         }
     }
 }

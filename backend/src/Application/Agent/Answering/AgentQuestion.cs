@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Domain.Access;
 
@@ -27,4 +28,7 @@ public sealed record AgentQuestion(
 {
     /// <summary>Gets how far the run answering it may go, which is <see cref="AgentAnswerMode.Auto" /> where the question named none.</summary>
     public AgentAnswerMode Mode { get; init; } = AgentAnswerMode.Auto;
+
+    /// <summary>Gets the files of the conversation the question carries, each once.</summary>
+    public IReadOnlyList<AgentConversationFileId> Files { get; init; } = [];
 }

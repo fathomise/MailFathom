@@ -314,6 +314,10 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<AgentConversationEmbeddingEntity> AgentConversationEmbeddings => this.Set<AgentConversationEmbeddingEntity>();
 
+    internal DbSet<AgentConversationFileEntity> AgentConversationFiles => this.Set<AgentConversationFileEntity>();
+
+    internal DbSet<AgentConversationFileEmbeddingEntity> AgentConversationFileEmbeddings => this.Set<AgentConversationFileEmbeddingEntity>();
+
     /// <inheritdoc />
     /// <remarks>
     /// The order below is the order the configurations are applied in, and it is not alphabetical: a configuration that
@@ -442,5 +446,7 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new AgentConversationConfiguration());
         modelBuilder.ApplyConfiguration(new AgentConversationEntryConfiguration(this.textSearchConfiguration));
         modelBuilder.ApplyConfiguration(new AgentConversationEmbeddingConfiguration());
+        modelBuilder.ApplyConfiguration(new AgentConversationFileConfiguration());
+        modelBuilder.ApplyConfiguration(new AgentConversationFileEmbeddingConfiguration());
     }
 }

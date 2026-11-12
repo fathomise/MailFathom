@@ -179,6 +179,8 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `PUT /api/client/agent/conversations/{conversationId}/archive` | `mailfathom.assistant.use` |
 | `PUT /api/client/agent/conversations/{conversationId}/read` | `mailfathom.assistant.use` |
 | `DELETE /api/client/agent/conversations/{conversationId}/archive` | `mailfathom.assistant.use` |
+| `GET /api/client/agent/conversations/{conversationId}/files` | `mailfathom.assistant.use` |
+| `POST /api/client/agent/conversations/{conversationId}/files` | `mailfathom.assistant.use` |
 | `POST /api/client/agent/conversations/{conversationId}/messages` | `mailfathom.assistant.use` |
 | `POST /api/client/agent/conversations/{conversationId}/runs/{runId}/messages` | `mailfathom.assistant.use` |
 | `DELETE /api/client/agent/conversations/{conversationId}/runs/{runId}` | `mailfathom.assistant.use` |
@@ -5113,6 +5115,75 @@ while an answer is still being composed is `409`, and so is one into a full conv
 so a running answer can always be stopped —
 and one that would start a conversation for a person already holding 1 000, where deleting one makes room; an empty or
 over-long text, an empty identifier, or a scope naming no subject is `400`.
+
+**A question can carry files the conversation holds.** `files` lists at most 10 identifiers the
+[files route](#a-conversations-files) answered with, each once, and may be left out; one this conversation of this
+person does not hold, or more than 10, is `400`. The question's entry carries them as `files`, so a client reading the
+conversation back shows which files a question was asked about.
+
+#### A conversation's files
+
+A person hands the Agent a file by posting its octets into the conversation, and the Agent answers questions about it
+under the same grant that asks them:
+
+```http
+POST /api/client/agent/conversations/0199a2c4-5e6f-7a1b-8c2d-3e4f5a6b7c8d/files
+Content-Type: application/octet-stream
+Content-Disposition: attachment; filename="quote.pdf"
+
+<the file's octets>
+```
+
+```http
+201 Created
+
+{ "fileId": "0199a2c4-8000-7a1b-8c2d-3e4f5a6b7c8d", "name": "quote.pdf", "kind": "document", "mediaType": "application/pdf",
+  "byteLength": 48211, "addedAt": "2026-11-12T09:00:00+00:00",
+  "text": { "state": "whole", "reason": null, "pageCount": 2, "pageKind": "page", "characters": 3120 } }
+```
+
+The body is the file, and `Content-Disposition` names it — `filename*` in preference to `filename`, so a name outside
+ASCII arrives intact; a name is never what decides what the file is. The kind is read from the octets alone: a `document`
+is a PDF, a Word, Excel, or PowerPoint file, an OpenDocument text, spreadsheet, or presentation, or UTF-8 or UTF-16
+text, which the same attachment reader that reads mail attachments reads before this answers; a `picture` is a PNG,
+JPEG, GIF, or WebP image, which is never read for words. Posting into a conversation that does not exist yet starts it,
+as the first question would.
+
+`text` says what reading a document came to. `whole` is a document of at most 8 000 characters, which a question
+carrying it hands the Agent in full; `long` is a longer one, which the Agent searches and reads a page at a time; and
+`unread` is one nothing could be read out of, with `reason` naming why — `encrypted`, `malformed`, `inputTooLarge`, and
+the attachment reader's other outcomes, or `extracted` for a document that holds no words, such as a scan. A picture
+carries no `text`.
+
+| Refusal | Status |
+|---|---|
+| An empty body | `400` |
+| A file over 16 MB | `413` |
+| Octets that are neither a document nor a picture listed above | `415` |
+| A conversation already holding 20 files | `409` |
+| A conversation that is another person's, or one that cannot be started because the person holds 1 000 | `404` |
+
+`GET` on the same route lists the files the conversation holds, in the order they were taken in, as
+`{ "files": [ ... ] }` of the objects above, and an empty list for a conversation this person does not hold.
+
+**A file is held on the terms mail is.** Its octets are a stored file of the person's, placed by the content storage
+backend the deployment configures and moved by [moving stored content](moving-stored-content.md) like every other; the
+row recording it names the conversation, and a long document's passages are placed in the active embedding space so the
+Agent can find them by meaning as well as by words. What is embedded is bounded as one message's text is, by
+`Embeddings:MaxCharactersPerEmail` spent once across the file's pages; the search by words reaches every page the reader
+took out of it. Nothing a file holds is readable from another conversation or by
+another person. Deleting the conversation deletes its files — the rows, the vectors, and the octets — and erasing the
+person erases them with everything else they hold. No route deletes one file on its own, and the person's mailbox
+export carries no conversation, so it carries no file either.
+
+**What the Agent is given of a file.** Every file the conversation holds is named on each question's turn, so the Agent
+can say which one it means; the words of a short document the question carries are given whole, inside the run's
+retrieved-text ceiling; a long one is searched and read with the `search_files` and `read_file` tools; and a document
+nothing could read is named with the reason, which the Agent passes on rather than guessing at its content. A picture the
+question carries is shown to the model as a picture where the model's declaration takes that many image octets in one
+request (`MaxRequestImageOctets`), and is named as not shown otherwise, so the answer says why it could not look at it.
+Every word handed over passes the sensitive-content egress guard and counts against the run's ceiling, exactly as mail
+does, and the Agent is told that what a file says is data rather than an instruction.
 
 **The answer is composed by the replica that took the question, past the request that asked it.** The run reads the
 person's mail, calendar, and tasks each under the grant that reads it — `mailfathom.mail.read`,

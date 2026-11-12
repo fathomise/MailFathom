@@ -8,6 +8,7 @@ using System.Text.Json.Serialization;
 using MailFathom.Application.Access;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Agent.Search;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Emails.Mailboxes;
@@ -381,24 +382,25 @@ internal static class ClientAgentConversationEndpoints
     /// <summary>Deletes one conversation and everything said in it.</summary>
     /// <param name="conversationId">The conversation to delete.</param>
     /// <param name="scopeResolver">Names the acting user, who is who may delete it.</param>
-    /// <param name="store">Where conversations are held.</param>
+    /// <param name="files">Deletes the conversation with every file it holds.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns><c>204</c> where it was this person's and is gone, <c>404</c> where this person holds no such conversation, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.assistant.use</c>.</returns>
     /// <remarks>
-    /// An answer still being composed goes with it, and the run meets that as the first write the store refuses. A
+    /// An answer still being composed goes with it, and the run meets that as the first write the store refuses. Every
+    /// file the conversation held goes too, from whichever store holds its octets, with every passage placed from it. A
     /// second request for the same conversation answers <c>404</c>, because by then there is none.
     /// </remarks>
     internal static async Task<Results<NoContent, NotFound>> Delete(
         [FromRoute] Guid conversationId,
         [FromServices] MailboxScopeResolver scopeResolver,
-        [FromServices] IAgentConversationStore store,
+        [FromServices] AgentConversationFiles files,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(scopeResolver);
-        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(files);
 
         return conversationId != Guid.Empty
-            && await store.TryDeleteAsync(AgentConversationId.Create(conversationId), scopeResolver.User, cancellationToken)
+            && await files.DeleteConversationAsync(AgentConversationId.Create(conversationId), scopeResolver.User, cancellationToken)
             ? TypedResults.NoContent()
             : TypedResults.NotFound();
     }
@@ -408,6 +410,7 @@ internal static class ClientAgentConversationEndpoints
     /// <param name="request">The question, its identifier, and what it was asked about.</param>
     /// <param name="scopeResolver">Names the acting user, who is whose conversation it is.</param>
     /// <param name="controls">Writes the question, opens its answer, and announces both.</param>
+    /// <param name="files">Reads which of the conversation's files the question carries.</param>
     /// <param name="principals">Names the caller the transport admitted, whom the answer is composed under.</param>
     /// <param name="launcher">Composes the answer past this request.</param>
     /// <param name="timeProvider">Stamps the instant the question was asked at, which the answer is anchored to.</param>
@@ -423,6 +426,7 @@ internal static class ClientAgentConversationEndpoints
         [FromBody] ClientAgentMessageRequest? request,
         [FromServices] MailboxScopeResolver scopeResolver,
         [FromServices] AgentConversationControls controls,
+        [FromServices] AgentConversationFiles files,
         [FromServices] IAuthorizedPrincipalSource principals,
         [FromServices] AgentAnswerLauncher launcher,
         [FromServices] TimeProvider timeProvider,
@@ -430,6 +434,7 @@ internal static class ClientAgentConversationEndpoints
     {
         ArgumentNullException.ThrowIfNull(scopeResolver);
         ArgumentNullException.ThrowIfNull(controls);
+        ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(principals);
         ArgumentNullException.ThrowIfNull(launcher);
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -463,13 +468,20 @@ internal static class ClientAgentConversationEndpoints
             return Refuse("A question is asked by a caller this deployment admitted.");
         }
 
+        if (await files.ResolveCarriedAsync(conversation, scopeResolver.User, request?.Files ?? [], cancellationToken) is not { } carried)
+        {
+            return Refuse(string.Create(
+                CultureInfo.InvariantCulture,
+                $"A question carries at most {AgentConversationFileBounds.MaximumFilesPerQuestion} files, each one this conversation already holds."));
+        }
+
         var askedAt = timeProvider.GetUtcNow();
-        var posting = await controls.AskAsync(conversation, scopeResolver.User, message, text, scope, mode, cancellationToken);
+        var posting = await controls.AskAsync(conversation, scopeResolver.User, message, text, scope, mode, carried, cancellationToken);
 
         if (posting is { Outcome: AgentMessagePostingOutcome.Written, Answer: { } answer })
         {
             _ = launcher.Start(
-                new AgentQuestion(conversation, scopeResolver.User, text, scope, answer, posting.Reached, askedAt) { Mode = mode },
+                new AgentQuestion(conversation, scopeResolver.User, text, scope, answer, posting.Reached, askedAt) { Mode = mode, Files = carried },
                 caller);
         }
 
@@ -659,8 +671,14 @@ internal static class ClientAgentConversationEndpoints
 /// <param name="Text">What the person asked.</param>
 /// <param name="Scope">What the question was asked about, or <see langword="null" /> for one narrowing nothing further.</param>
 /// <param name="Mode">How far the run answering it may go — <c>Auto</c>, <c>Fast</c>, or <c>Deep</c> — or <see langword="null" /> for <c>Auto</c>.</param>
+/// <param name="Files">The files of the conversation the question carries, each taken in through the conversation's files route first, or <see langword="null" /> for none.</param>
 /// <remarks>It names no user: whose conversation it is comes off the credential. Every caller allowed to ask may ask in every mode.</remarks>
-internal sealed record ClientAgentMessageRequest(Guid? MessageId, string? Text, ClientAgentMessageScope? Scope, AgentAnswerMode? Mode = null);
+internal sealed record ClientAgentMessageRequest(
+    Guid? MessageId,
+    string? Text,
+    ClientAgentMessageScope? Scope,
+    AgentAnswerMode? Mode = null,
+    IReadOnlyList<Guid>? Files = null);
 
 /// <summary>What a question was asked about.</summary>
 /// <param name="Kind">Which kind of thing — the mailbox, a thread, a calendar event, or a Discover run.</param>

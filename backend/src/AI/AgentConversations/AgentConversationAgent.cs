@@ -127,7 +127,9 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             effort.Ledger,
             this.egressGuard,
             zone.Reading(brief.Question.AskedAt));
-        var tools = new AgentConversationTools(journal, retrieval, this.readers, this.egressGuard, scope.AccountIds);
+        var files = await AgentTurnFiles.ReadAsync(this.readers.Files, this.egressGuard, effort.Ledger, brief.Question, cancellationToken);
+        var fileTools = new AgentConversationFileTools(journal, this.readers.Files, this.egressGuard, effort.Ledger, brief.Question, files);
+        var tools = new AgentConversationTools(journal, retrieval, this.readers, this.egressGuard, scope.AccountIds, fileTools);
         var accounts = await tools.NameAccountsAsync(cancellationToken);
         var languages = MailboxLanguages.Of(accounts.Select(static account => account.Id), this.accountLanguages);
         var stickySession = StickySessionOf(brief.Question.Conversation);
@@ -135,7 +137,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         var answer = await ChatModelFallThrough.RunAsync(
             this.plan,
             this.logger,
-            (model, attemptToken) => this.AskAsync(model, brief, accounts, languages, zone, tools, journal, effort, stickySession, attemptToken),
+            (model, attemptToken) => this.AskAsync(model, brief, accounts, languages, zone, files, tools, journal, effort, stickySession, attemptToken),
             () => !tools.HasProposed,
             cancellationToken);
 
@@ -197,13 +199,17 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     /// <param name="accounts">The accounts the turn names, which are the ones a tool the model is offered takes.</param>
     /// <param name="languages">The languages those accounts are kept in, each once, which the turn names.</param>
     /// <param name="zone">The zone the person's own days are read in, which the turn names.</param>
-    /// <returns>The conversation, oldest turn first.</returns>
+    /// <param name="files">What the turn is given of the files the conversation holds, or <see langword="null" /> where it holds none.</param>
+    /// <param name="maximumImageOctets">The image octets the answering model takes in one request, which decides which pictures the question carries it is shown.</param>
+    /// <returns>The conversation, oldest turn first, with one turn per picture shown just before the question's own.</returns>
     internal static IReadOnlyList<ChatMessage> ComposeMessages(
         AgentAnswerBrief brief,
         IReadOnlyList<AgentNamedAccount> accounts,
         IReadOnlyList<MailAccountLanguage> languages,
-        UserTimeZone zone) =>
-        ComposeMessages(brief, accounts, languages, zone, brief.History, brief.Question.Text.Value);
+        UserTimeZone zone,
+        AgentTurnFiles? files = null,
+        int maximumImageOctets = 0) =>
+        ComposeMessages(brief, accounts, languages, zone, files ?? AgentTurnFiles.None, maximumImageOctets, brief.History, brief.Question.Text.Value);
 
     /// <summary>Composes the conversation from a history and a question standing in for the ones the brief carries.</summary>
     private static IReadOnlyList<ChatMessage> ComposeMessages(
@@ -211,10 +217,13 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         IReadOnlyList<AgentNamedAccount> accounts,
         IReadOnlyList<MailAccountLanguage> languages,
         UserTimeZone zone,
+        AgentTurnFiles files,
+        int maximumImageOctets,
         IReadOnlyList<AgentHistoryTurn> history,
         string question) =>
     [
         .. history.Select(AgentHistoryDocument.MessageOf),
+        .. files.Pictures(maximumImageOctets),
         new ChatMessage(
             ChatRole.User,
             AgentConversationComposition.ComposeTurn(
@@ -224,7 +233,8 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
                 languages,
                 brief.Question.Scope,
                 brief.NamedEmails,
-                question)),
+                question,
+                document => files.Write(document, maximumImageOctets))),
     ];
 
     /// <summary>Derives the sticky session every request of one conversation is routed by.</summary>
@@ -249,13 +259,15 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     /// <summary>Scans every text the person or the Agent wrote, which is what leaves this deployment on each call, and composes the conversation from what the scan let through.</summary>
     /// <remarks>
     /// Each text is scanned as the value it is, before the question's turn is written around it, so no redaction can
-    /// reach into the elements the turn is composed of.
+    /// reach into the elements the turn is composed of. The files' names and words were guarded as they were read.
     /// </remarks>
     private async Task<IReadOnlyList<ChatMessage>> GuardAsync(
         AgentAnswerBrief brief,
         IReadOnlyList<AgentNamedAccount> accounts,
         IReadOnlyList<MailAccountLanguage> languages,
         UserTimeZone zone,
+        AgentTurnFiles files,
+        int maximumImageOctets,
         CancellationToken cancellationToken)
     {
         var history = await AgentHistoryDocument.GuardAsync(this.egressGuard, brief.History, cancellationToken);
@@ -264,7 +276,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             brief.Question.Text.Value,
             cancellationToken);
 
-        return ComposeMessages(brief, accounts, languages, zone, history, question);
+        return ComposeMessages(brief, accounts, languages, zone, files, maximumImageOctets, history, question);
     }
 
     private async Task<PresentationText> AskAsync(
@@ -273,6 +285,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         IReadOnlyList<AgentNamedAccount> accounts,
         IReadOnlyList<MailAccountLanguage> languages,
         UserTimeZone zone,
+        AgentTurnFiles files,
         AgentConversationTools tools,
         AgentAnswerJournal journal,
         AgentRunEffort effort,
@@ -280,10 +293,10 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         CancellationToken cancellationToken)
     {
         // Against this model's own bounds, and before the scan, so a conversation refused by a ceiling costs no scan.
-        ChatRequestBounds.RequireForAttempt(ComposeMessages(brief, accounts, languages, zone), model);
+        ChatRequestBounds.RequireForAttempt(ComposeMessages(brief, accounts, languages, zone, files, model.MaximumRequestImageOctets), model);
         tools.ForgetEndingReports();
 
-        var guarded = await this.GuardAsync(brief, accounts, languages, zone, cancellationToken);
+        var guarded = await this.GuardAsync(brief, accounts, languages, zone, files, model.MaximumRequestImageOctets, cancellationToken);
 
         var endpoint = model.Endpoint;
 

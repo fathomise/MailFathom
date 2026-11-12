@@ -36,12 +36,13 @@ internal sealed class StoredFileStore(
     TimeProvider timeProvider,
     IEmailContentObjectStore? objectStore = null) : IStoredFileStore
 {
-    /// <summary>Names the files older than a floor whose identifier their owner's document does not carry and no contact links.</summary>
+    /// <summary>Names the files older than a floor whose identifier their owner's document does not carry and no contact or conversation links.</summary>
     /// <remarks>
     /// Raw rather than composed in LINQ because the document is a <c>jsonb</c> column the model maps as text, and the
     /// containment test has to run over its rendering. The rendering is lowered so an identifier written in capitals is
     /// still a mention. A file a contact links as its photo is left out by the column that links it, so a book full of
-    /// photos never spends the sweep's bound on files that are linked.
+    /// photos never spends the sweep's bound on files that are linked, and a file a conversation holds is left out by the
+    /// row that holds it for the same reason.
     /// </remarks>
     private const string UnmentionedFiles =
         """
@@ -51,6 +52,7 @@ internal sealed class StoredFileStore(
         WHERE f."CreatedAt" < {0}
           AND strpos(lower(u."Document"::text), f."Id"::text) = 0
           AND NOT EXISTS (SELECT 1 FROM contacts AS c WHERE c."PhotoFileId" = f."Id")
+          AND NOT EXISTS (SELECT 1 FROM agent_conversation_files AS a WHERE a."Id" = f."Id")
         ORDER BY f."CreatedAt"
         LIMIT {1}
         """;

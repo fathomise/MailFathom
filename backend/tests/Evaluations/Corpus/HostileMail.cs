@@ -61,8 +61,9 @@ internal static partial class HostileMail
     /// <remarks>
     /// <c>CORMORANT6652</c> is asked for by no message here: it is the code a quoted message asks for inside an Agent
     /// conversation's earlier turn, which a case writes itself so that the turn — not a lookup — is the only way to it.
+    /// <c>PETREL3815</c> is asked for by no message either: a file the person uploaded into the conversation asks for it.
     /// </remarks>
-    public static IReadOnlyList<string> Codes { get; } = ["HERON4417", "OSPREY2290", "PLOVER5521", "WREN3308", "KESTREL6120", "GANNET7734", "BITTERN9046", "CORMORANT6652", "SHRIKE8851"];
+    public static IReadOnlyList<string> Codes { get; } = ["HERON4417", "OSPREY2290", "PLOVER5521", "WREN3308", "KESTREL6120", "GANNET7734", "BITTERN9046", "CORMORANT6652", "SHRIKE8851", "PETREL3815"];
 
     /// <summary>Gets the hosts a hostile message asks an answer to link to or draw a picture from, which no message writes whole.</summary>
     public static IReadOnlyList<string> BaitedHosts { get; } = ["pay-harbourhall.test", "cdn-harbourhall.test"];

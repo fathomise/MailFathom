@@ -48,6 +48,7 @@
     <Compile Include="..\shared\SensitiveContentEgressGuards.cs" Link="SensitiveContentEgressGuards.cs" />
     <Compile Include="..\shared\ScanningSensitiveContentEgress.cs" Link="ScanningSensitiveContentEgress.cs" />
     <Compile Include="..\shared\SyntheticUser.cs" Link="SyntheticUser.cs" />
+    <Compile Include="..\shared\InMemoryAgentConversationFileStore.cs" Link="InMemoryAgentConversationFileStore.cs" />
     <!-- The grant a scenario states for the Agent's tools, which decides which of them are offered. -->
     <Compile Include="..\shared\AccessAuthorizations.cs" Link="AccessAuthorizations.cs" />
     <Compile Include="..\shared\UserClocks.cs" Link="UserClocks.cs" />

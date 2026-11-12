@@ -210,7 +210,8 @@ internal sealed class EmbeddingGenerationStore(MailFathomDbContext dbContext, Ti
             .AsNoTracking()
             .Where(candidate => candidate.LifecycleState == EmbeddingProfileLifecycleState.Superseded)
             .Where(candidate => candidate.Embeddings.Any()
-                || dbContext.AgentConversationEmbeddings.Any(vector => vector.EmbeddingProfileId == candidate.Id))
+                || dbContext.AgentConversationEmbeddings.Any(vector => vector.EmbeddingProfileId == candidate.Id)
+                || dbContext.AgentConversationFileEmbeddings.Any(vector => vector.EmbeddingProfileId == candidate.Id))
             .OrderBy(candidate => candidate.SupersededAt)
             .Select(candidate => (Guid?)candidate.Id)
             .FirstOrDefaultAsync(cancellationToken);
@@ -235,10 +236,10 @@ internal sealed class EmbeddingGenerationStore(MailFathomDbContext dbContext, Ti
     /// PostgreSQL evaluates it once for the statement rather than per row.
     /// </para>
     /// <para>
-    /// The Agent's history vectors of the same generation go first, a batch at a time under the same re-check and by the
-    /// same <c>ctid</c> shape, since a deployment serving several people holds all of their conversations in one table.
-    /// A call that removed any of them removes no mail vector, so one call is one batch, and the upkeep keeps calling
-    /// until both tables hold nothing of the generation.
+    /// The Agent's vectors of the same generation go first — those of conversations' files, then those of their
+    /// history — a batch at a time under the same re-check and by the same <c>ctid</c> shape, since a deployment serving
+    /// several people holds all of their conversations in one table. A call that removed any of them removes nothing
+    /// further, so one call is one batch, and the upkeep keeps calling until every table holds nothing of the generation.
     /// </para>
     /// </remarks>
     public async Task<int> RemoveVectorsAsync(
@@ -252,6 +253,25 @@ internal sealed class EmbeddingGenerationStore(MailFathomDbContext dbContext, Ti
         var sessionContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
         var supersededProfileId = profileId.Value;
         var supersededState = nameof(EmbeddingProfileLifecycleState.Superseded);
+
+        var fileVectors = await sessionContext.Database.ExecuteSqlAsync(
+            $"""
+             DELETE FROM agent_conversation_file_embeddings
+             WHERE ctid IN (
+                 SELECT vector.ctid FROM agent_conversation_file_embeddings AS vector
+                 WHERE vector."EmbeddingProfileId" = {supersededProfileId}
+                   AND EXISTS (
+                       SELECT 1 FROM embedding_profiles AS generation
+                       WHERE generation."Id" = {supersededProfileId}
+                         AND generation."LifecycleState" = {supersededState})
+                 LIMIT {batchSize})
+             """,
+            cancellationToken);
+
+        if (fileVectors > 0)
+        {
+            return fileVectors;
+        }
 
         var conversationVectors = await sessionContext.Database.ExecuteSqlAsync(
             $"""

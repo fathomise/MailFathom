@@ -5,12 +5,17 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Agent.Search;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Discovery.Presentation;
+using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Embeddings;
+using MailFathom.Application.Emails.Embeddings.Limits;
+using MailFathom.Application.Emails.Extraction.Attachments;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
@@ -42,6 +47,8 @@ public sealed class ClientAgentConversationEndpointTests
     private static readonly Guid Run = Guid.CreateVersion7(Now);
 
     private readonly IAgentConversationStore store = Substitute.For<IAgentConversationStore>();
+
+    private IReadOnlyList<AgentConversationFile> held = [];
 
     /// <summary>The paths a client composes from constants of its own, pinned so a rename is a decision rather than an accident.</summary>
     [Fact]
@@ -110,6 +117,43 @@ public sealed class ClientAgentConversationEndpointTests
         Assert.Equal(written, question?.Mode);
     }
 
+    /// <summary>A question carries only files the conversation holds, and no more than a question may, or it is refused before anything is written.</summary>
+    [Theory]
+    [InlineData(AgentConversationFileBounds.MaximumFilesPerQuestion + 1, true)]
+    [InlineData(1, false)]
+    public async Task Ask_FilesPastTheBoundOrNotHeld_RefusesItWithoutWriting(int named, bool held)
+    {
+        // Arrange
+        Guid[] files = [.. Enumerable.Range(0, named).Select(index => Guid.CreateVersion7(Now.AddSeconds(index)))];
+        this.held = held ? [.. files.Select(HeldFile)] : [];
+
+        // Act
+        var answered = await this.AskAsync(Conversation, new ClientAgentMessageRequest(Guid.CreateVersion7(Now), "What does the contract say?", null, Files: files));
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(answered.Result).StatusCode);
+        Assert.Empty(this.store.ReceivedCalls());
+    }
+
+    /// <summary>The files a question carries are the ones its record names, so the run reading it is handed them.</summary>
+    [Fact]
+    public async Task Ask_AQuestionCarryingAHeldFile_WritesTheFileIntoTheQuestion()
+    {
+        // Arrange
+        var file = Guid.CreateVersion7(Now);
+        this.held = [HeldFile(file)];
+        AgentMessageWritten? question = null;
+        this.store
+            .AskAsync(Arg.Any<AgentConversationId>(), SyntheticUser.Deployment, Arg.Do<AgentMessageWritten>(entry => question = entry), Arg.Any<AgentMessageId>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(new AgentMessagePosting(AgentMessagePostingOutcome.Written, 2, AgentMessageId.New()));
+
+        // Act
+        await this.AskAsync(Conversation, new ClientAgentMessageRequest(Guid.CreateVersion7(Now), "What does the contract say?", null, Files: [file]));
+
+        // Assert
+        Assert.Equal([AgentConversationFileId.Create(file)], question?.Files);
+    }
+
     /// <summary>A request missing what a question needs is refused before anything reaches the store.</summary>
     [Theory]
     [MemberData(nameof(MalformedQuestions))]
@@ -140,6 +184,7 @@ public sealed class ClientAgentConversationEndpointTests
             new ClientAgentMessageRequest(Guid.CreateVersion7(Now), "What did the supplier quote?", null),
             Resolver(),
             this.Controls(),
+            this.Files(),
             principals,
             this.Launcher(),
             new FakeTimeProvider(Now),
@@ -485,7 +530,7 @@ public sealed class ClientAgentConversationEndpointTests
             .Returns(deleted);
 
         // Act
-        var answered = await ClientAgentConversationEndpoints.Delete(Conversation, Resolver(), this.store, TestContext.Current.CancellationToken);
+        var answered = await ClientAgentConversationEndpoints.Delete(Conversation, Resolver(), this.Files(), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.IsType(expected, answered.Result);
@@ -577,6 +622,9 @@ public sealed class ClientAgentConversationEndpointTests
                 textEmbeddingGenerator: null),
             index);
 
+    private static AgentConversationFile HeldFile(Guid id) =>
+        new(AgentConversationFileId.Create(id), "contract.txt", AgentConversationFileKind.Document, "text/plain", 5, Now, Reading: null);
+
     private static int? StatusOf(IResult result) => (result as IStatusCodeHttpResult)?.StatusCode;
 
     private static MailboxScopeResolver Resolver() =>
@@ -590,6 +638,25 @@ public sealed class ClientAgentConversationEndpointTests
 
     private AgentConversationControls Controls() =>
         new(this.store, ClientSignalPublishers.ReachingNobody, Substitute.For<IUserLanguages>(), new FakeTimeProvider(Now));
+
+    private AgentConversationFiles Files()
+    {
+        var fileStore = Substitute.For<IAgentConversationFileStore>();
+        fileStore.ListAsync(Arg.Any<AgentConversationId>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>()).Returns(this.held);
+
+        return new AgentConversationFiles(
+            this.store,
+            fileStore,
+            Substitute.For<IStoredFileStore>(),
+            Substitute.For<IAttachmentTextExtractor>(),
+            new AgentConversationFilePassages(Substitute.For<IEmailTextChunker>(), EmailChunkingRules.Current, EmbeddingInputBound.Default),
+            new ActiveEmbeddingSpace(
+                Substitute.For<IActiveEmbeddingProfileReader>(),
+                Substitute.For<IAiProviderHealthReader>(),
+                new FakeTimeProvider(Now),
+                textEmbeddingGenerator: null),
+            new FakeTimeProvider(Now));
+    }
 
     private AgentProposalAcceptance Acceptance() =>
         new(
@@ -612,6 +679,7 @@ public sealed class ClientAgentConversationEndpointTests
             request,
             Resolver(),
             this.Controls(),
+            this.Files(),
             principals,
             this.Launcher(),
             new FakeTimeProvider(Now),

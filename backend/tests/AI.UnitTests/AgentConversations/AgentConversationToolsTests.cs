@@ -2443,7 +2443,8 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             ResponseAuthoring: responseAuthoring!,
             authorization,
             clock ?? UserClocks.Reading(Now, "Europe/Warsaw"),
-            footers ?? MailFootings.SendingNone());
+            footers ?? MailFootings.SendingNone(),
+            ConversationFiles.None);
 
         return new AgentConversationTools(this.journal, retrieval, readers, egressGuard, [Primary]);
     }
