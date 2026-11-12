@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.AgentConversations;
+using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Application.Emails.Provenance;
@@ -123,6 +124,74 @@ public sealed class CorpusReadersTests
 
         // Assert
         Assert.True(page.Emails.Single(summary => summary.StoredEmailId == reply.Id).Flags.IsDraft);
+    }
+
+    /// <summary>The count reads the corpus through the deployment's own composition, so the total a counting case expects is the total the tool reports.</summary>
+    [Fact]
+    public async Task Census_ATotal_CountsEveryMessageTheRunReads()
+    {
+        // Act
+        var census = await Readers().Census.CountAsync(
+            new CountEmailsRequest { Reader = MailboxReaderKind.ConversationAgent },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(AgentConversationScenario.Mailbox.Count, census!.Total);
+    }
+
+    /// <summary>
+    /// The ranking a counting case grades is the corpus's own: the person's sent mail first, then Wiebke Jankowski and
+    /// her organisation ahead of the rest, and more sender addresses than one reading leads with.
+    /// </summary>
+    [Fact]
+    public async Task Census_BySenderAndByDomain_LeadsWithThePersonAndThenHarbourline()
+    {
+        // Arrange
+        var distinctSenders = AgentConversationScenario.Mailbox
+            .Select(static message => CorpusMailbox.NormalizedAddressOf(message.Sender))
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+
+        // Act
+        var senders = await Readers().Census.CountAsync(
+            new CountEmailsRequest { Reader = MailboxReaderKind.ConversationAgent, Dimension = MailCensusDimension.SenderAddress },
+            TestContext.Current.CancellationToken);
+        var domains = await Readers().Census.CountAsync(
+            new CountEmailsRequest { Reader = MailboxReaderKind.ConversationAgent, Dimension = MailCensusDimension.SenderDomain },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            ("OWNER@EXAMPLE.TEST", "WIEBKE.JANKOWSKI@HARBOURLINE.TEST", distinctSenders, true),
+            (senders!.Groups[0].Key, senders.Groups[1].Key, senders.GroupCount, senders.GroupsBeyond > 0));
+        Assert.Equal(["EXAMPLE.TEST", "HARBOURLINE.TEST", "QUIETFJORD.TEST"], domains!.Groups.Take(3).Select(static group => group.Key));
+    }
+
+    /// <summary>A day is read on the person's clock, where a message sent late in the UTC evening of 7 September arrived on the 8th.</summary>
+    [Fact]
+    public async Task Census_ByDayOnAClockAheadOfUtc_CountsWhatArrivedThereRatherThanInUtc()
+    {
+        // Arrange
+        Assert.True(UserTimeZone.TryRead("Europe/Warsaw", out var warsaw));
+        var seventh = new DateOnly(2026, 9, 7);
+        var arrivedInWarsaw = AgentConversationScenario.Mailbox.Count(message => DateOnly.FromDateTime(warsaw.Reading(message.ReceivedAt).DateTime) == seventh);
+        var arrivedInUtc = AgentConversationScenario.Mailbox.Count(message => DateOnly.FromDateTime(message.ReceivedAt.UtcDateTime) == seventh);
+
+        // Act
+        var census = await Readers().Census.CountAsync(
+            new CountEmailsRequest
+            {
+                Reader = MailboxReaderKind.ConversationAgent,
+                Dimension = MailCensusDimension.Day,
+                Zone = warsaw,
+                MaximumGroups = MailboxCensusReader.MaximumLeadingGroups,
+            },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var counted = census!.Groups.Single(static group => group.Key == "2026-09-07").Count;
+
+        Assert.Equal((arrivedInWarsaw, true), (counted, arrivedInWarsaw != arrivedInUtc));
     }
 
     [Fact]

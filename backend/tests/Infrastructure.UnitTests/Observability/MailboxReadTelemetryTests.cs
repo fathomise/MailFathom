@@ -27,6 +27,7 @@ public sealed class MailboxReadTelemetryTests : IDisposable
         MailboxReadTelemetry.EmailContentSpanName,
         MailboxReadTelemetry.EmailThreadSpanName,
         MailboxReadTelemetry.SearchRankingSpanName,
+        MailboxReadTelemetry.MailboxCensusSpanName,
     ];
 
     private readonly ConcurrentBag<Activity> published = [];
@@ -80,6 +81,7 @@ public sealed class MailboxReadTelemetryTests : IDisposable
     [InlineData(MailboxReadOperation.SearchMailbox, "search_mailbox")]
     [InlineData(MailboxReadOperation.ReadEmailContent, "read_email_content")]
     [InlineData(MailboxReadOperation.ReadEmailThread, "read_email_thread")]
+    [InlineData(MailboxReadOperation.CountMailbox, "count_mailbox")]
     public void BeginRead_EachOperation_PublishesItUnderTheNameOfTheUseCase(
         MailboxReadOperation operation,
         string expectedSpanName)

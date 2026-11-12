@@ -179,6 +179,21 @@ public sealed class AgentConversationInstructionsTests
         Assert.Contains("say how many messages you read and that more exist", text, StringComparison.Ordinal);
     }
 
+    /// <summary>No sample of mail is the mailbox, so a figure or a census is counted, a figure one message states is still searched, and an answer resting on a count says what it covers and cites no message.</summary>
+    [Fact]
+    public void TextFor_TheInstruction_CountsAFigureAndSaysWhatItCovers()
+    {
+        // Act
+        var text = string.Join(' ', AgentConversationInstructions.TextFor(UserLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains($"is answered by counting with {AgentConversationTools.CountMailToolName}", text, StringComparison.Ordinal);
+        Assert.Contains("Never count what a search or a listing returned", text, StringComparison.Ordinal);
+        Assert.Contains("A figure inside one message, such as how many boxes a courier collects, is still searched for.", text, StringComparison.Ordinal);
+        Assert.Contains("Say what a figure covers", text, StringComparison.Ordinal);
+        Assert.Contains("an answer resting on a count alone cites no message", text, StringComparison.Ordinal);
+    }
+
     /// <summary>A later message correcting a date seldom repeats the words the first was found by, so the Agent reads the whole conversation first.</summary>
     [Fact]
     public void TextFor_TheInstruction_ReadsTheConversationForALaterCorrection()

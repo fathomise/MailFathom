@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Chat;
+using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Domain.Emails;
 
@@ -17,9 +18,9 @@ namespace MailFathom.Application.Retrieval.AskMail;
 /// both halves of a check-then-take have to happen together.
 /// </para>
 /// <para>
-/// The two kinds of refusal are deliberately unequal. Retrieval — a lookup's passages or a listed page — is trimmed to
-/// what the run may still send and the run continues, because a question with some mail already retrieved is answerable
-/// and the model is told there is no more.
+/// The two kinds of refusal are deliberately unequal. Retrieval — a lookup's passages, a listed page, or a census's
+/// groups — is trimmed to what the run may still send and the run continues, because a question with some mail already
+/// retrieved is answerable and the model is told there is no more.
 /// A provider call is refused outright, because a run with no allowance for another call has no answer to trim.
 /// </para>
 /// <para>
@@ -56,7 +57,7 @@ public sealed class MailAnsweringRunLedger
     /// <summary>Gets what this run may send, call, and consume, which is what its counts are read against.</summary>
     public MailAnsweringRunBounds Bounds { get; }
 
-    /// <summary>Gets whether a lookup or a listed page found mail this run's ceiling would not let it send.</summary>
+    /// <summary>Gets whether a lookup, a listed page, or a census found mail this run's ceiling would not let it send.</summary>
     /// <remarks>The setter is written only from inside this type's lock, which is why it does not take one of its own; the getter does, because a reader outside the run holds nothing.</remarks>
     public bool RetrievalWasTruncated
     {
@@ -105,7 +106,25 @@ public sealed class MailAnsweringRunLedger
         return this.Admit(listed, static summary => summary.StoredEmailId, ListedCharactersOf);
     }
 
-    private List<T> Admit<T>(IReadOnlyList<T> found, Func<T, StoredEmailId> messageOf, Func<T, int> charactersOf)
+    /// <summary>Takes the groups of one census reading that still fit inside what this run may send.</summary>
+    /// <param name="counted">The groups, in the order the census leads with them.</param>
+    /// <returns>The leading groups that fit, which is every one of them until the ceiling is approached and none once it is reached.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="counted" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// A census spends the same allowance for the reason a listing does: a sender's address and its domain are what
+    /// somebody else wrote, and a run that could count beside the ceiling on reading would hand a provider text without
+    /// one. A group spends its key, whatever the grouping — an address, a domain, a category's name, or a period's date —
+    /// because each is text the provider is handed, and its figure spends nothing. A group names no message, so a census
+    /// adds nothing to how many messages the run read.
+    /// </remarks>
+    public IReadOnlyList<MailCensusGroup> AdmitCensusGroups(IReadOnlyList<MailCensusGroup> counted)
+    {
+        ArgumentNullException.ThrowIfNull(counted);
+
+        return this.Admit(counted, static _ => null, static group => group.Key?.Length ?? 0);
+    }
+
+    private List<T> Admit<T>(IReadOnlyList<T> found, Func<T, StoredEmailId?> messageOf, Func<T, int> charactersOf)
     {
         lock (this.gate)
         {
@@ -126,7 +145,12 @@ public sealed class MailAnsweringRunLedger
                 }
 
                 this.retrievedCharacters += characters;
-                this.retrievedMessages.Add(messageOf(item).Value);
+
+                if (messageOf(item) is { } message)
+                {
+                    this.retrievedMessages.Add(message.Value);
+                }
+
                 admitted.Add(item);
             }
 

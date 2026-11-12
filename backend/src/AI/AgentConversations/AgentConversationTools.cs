@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.Retrieval;
@@ -12,6 +13,7 @@ using MailFathom.Application.Answers;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Presentation.Citations;
+using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Application.Emails.Mailboxes;
@@ -87,6 +89,28 @@ internal sealed class AgentConversationTools
         + "to find mail about a subject. Narrow with the filters for what the question states, as you would a search. "
         + "A page whose mailbox element says more=\"true\" is not the whole of what matches: call again with its cursor "
         + "and the same filters to read the next page. Read a listed message's body with read_thread.";
+
+    /// <summary>Names the tool that counts the mailbox, in total or grouped.</summary>
+    internal const string CountMailToolName = "count_mail";
+
+    /// <summary>What the model is told the count does, what one reading carries, and when it is the tool to reach for.</summary>
+    private static readonly string CountMailDescription =
+        "Counts the mailbox exactly, in the database, without reading any message: how many messages match the filters, "
+        + "and, when you group them, how many each sender address, each sender domain, each day, week, or month of arrival "
+        + "on the person's clock, or each category counts. Use it for any question about how many or how often, or about which "
+        + "senders, organisations, periods, or categories the mail falls into — how many invoices came in October, who "
+        + "writes most, which organisations the person corresponds with — rather than estimating from what a search or a "
+        + "listing returned, which is never the whole mailbox. It takes the filters "
+        + "list_mail takes. "
+        + string.Create(
+            CultureInfo.InvariantCulture,
+            $"A reading leads with at most {MailboxCensusReader.MaximumLeadingGroups} groups, {MailboxCensusReader.DefaultLeadingGroups} unless you ask for another number: ")
+        + "senders, domains, and categories by how many they count, the largest first, and periods by how recent they are, "
+        + "the latest first. It says how many groups and how many messages lie beyond the ones it shows, and the total; a "
+        + "group marked none=\"true\" counts the mail carrying no sender address or no arrival date. A message sorted into "
+        + "several categories counts in each, so counted-in-groups may differ from the total. "
+        + "Each sender or domain it names spends the same reading allowance a search does. A count cites no message: to "
+        + "quote or cite mail, search or list it.";
 
     /// <summary>What both proposing tools say of the send time they take, which only a person's own ask may supply.</summary>
     private const string SendAtDescription =
@@ -183,6 +207,7 @@ internal sealed class AgentConversationTools
         {
             tools.Add(new ReportingFunction(this.retrieval.CreateSearchTool(), this.journal, AgentActivity.SearchingMail));
             tools.Add(AIFunctionFactory.Create(this.ListMailAsync, ListMailToolName, ListMailDescription));
+            tools.Add(AIFunctionFactory.Create(this.CountMailAsync, CountMailToolName, CountMailDescription));
             tools.Add(AIFunctionFactory.Create(this.ReadThreadAsync, "read_thread", $"Reads the email conversation a message belongs to, up to its {MaximumThreadMessages} newest messages: each one's sender, date, subject, and body. Pass the id of any message in it, or of the conversation; where the message is older than those, the reading ends at it instead. The reading says how many earlier or later messages it left out. A conversation past {IEmailThreadReader.MaximumAssembledEmails} messages is read from its first {IEmailThreadReader.MaximumAssembledEmails} only."));
             tools.Add(AIFunctionFactory.Create(this.ShowThreadStateAsync, "show_thread_state", "Shows the person where the conversation a message belongs to stands — what was agreed, what is still open, what somebody owes — exactly as it was already derived. Use it only when the person asks where a conversation stands or what is open in it; to read, summarise, or retell a conversation, use read_thread. The reading is placed in the conversation for them; do not restate it."));
         }
@@ -363,6 +388,124 @@ internal sealed class AgentConversationTools
             page.HasMore || ceilingReached,
             ceilingReached ? null : page.NextCursor,
             ceilingReached);
+    }
+
+    [Description("Counts mail, in total or grouped.")]
+    private async Task<string> CountMailAsync(
+        [Description("What to group the mail by: sender (the sender's address), domain (the domain of the sender's address, which is the organisation), day, week, or month (when it arrived, on the person's clock), or category. Omit for one total.")] string? groupBy = null,
+        [Description("How many groups the reading shows at most. Omit for the default.")] int? groups = null,
+        [Description("Count only mail sent from this whole mail address, without regard to case. Omit to match any sender.")] string? senderAddress = null,
+        [Description("Count only mail addressed to this whole mail address in its To or Cc header. Omit to match any recipient.")] string? recipientAddress = null,
+        [Description("Count only mail whose subject contains this text, without regard to case. Omit to match any subject.")] string? subjectFragment = null,
+        [Description("Count only mail received at or after this moment, written as yyyy-MM-ddTHH:mm against the date and time the turn states, with no zone and no Z. Omit for no lower bound.")] string? receivedOnOrAfter = null,
+        [Description("Count only mail received strictly before this moment, written as yyyy-MM-ddTHH:mm against the date and time the turn states, with no zone and no Z. Omit for no upper bound.")] string? receivedBefore = null,
+        [Description("Count only mail this mailbox has opened (true) or not opened (false). Mail whose state nobody has observed yet counts as not opened. Omit to match either.")] bool? isMarkedSeen = null,
+        [Description("Count only mail flagged (true) or unflagged (false). Omit to match either.")] bool? isFlagged = null,
+        [Description("Count only mail carrying this keyword, a flag a mail client or server set such as $Junk or a label. Omit to match any keyword.")] string? keyword = null,
+        [Description("Count only mail that carries attachments (true) or carries none (false). Omit to match either.")] bool? hasAttachments = null,
+        [Description("Count only mail sorted into this category, under the same rule a search's category follows. Omit to match any category.")] string? category = null,
+        [Description("Count only mail in the folder playing this role in each account: Inbox, Sent, Archive, Drafts, Trash, Flagged, or Important. Omit to count every folder.")] string? folder = null,
+        CancellationToken cancellationToken = default)
+    {
+        await this.ReportAsync(AgentActivity.CountingMail, cancellationToken);
+
+        if (DimensionOf(groupBy) is not { } dimension)
+        {
+            return "Give groupBy as sender, domain, day, week, month, or category, or leave it out for one total.";
+        }
+
+        if (this.ListingRequestOf(direction: null, receivedOnOrAfter, receivedBefore, folder, out var listing) is { } refusal)
+        {
+            return refusal;
+        }
+
+        var request = new CountEmailsRequest
+        {
+            Reader = listing.Reader,
+            Folders = listing.Folders,
+            SenderAddress = senderAddress,
+            RecipientAddress = recipientAddress,
+            SubjectFragment = subjectFragment,
+            ReceivedOnOrAfter = listing.ReceivedOnOrAfter,
+            ReceivedBefore = listing.ReceivedBefore,
+            IsMarkedSeen = isMarkedSeen,
+            IsFlagged = isFlagged,
+            Keyword = keyword,
+            HasAttachments = hasAttachments,
+            Category = category,
+            Dimension = dimension,
+            MaximumGroups = groups,
+            Zone = this.readers.Clock.Zone(),
+        };
+
+        MailCensus? census;
+
+        try
+        {
+            census = await this.readers.Census.CountAsync(request, cancellationToken);
+        }
+        catch (MailFathomException refused) when (refused is MailboxQueryFilterInvalidException or MailboxQueryPageSizeOutOfRangeException)
+        {
+            // Told rather than raised, for the reason a listing's refusals are: the model can write a usable value.
+            return refused.Message;
+        }
+
+        if (census is null)
+        {
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"The count did not finish within {MailboxCensusReader.MaximumDuration.TotalSeconds:0} seconds. Narrow it — a shorter received period, one sender, one folder — and count again.");
+        }
+
+        var admitted = this.retrieval.RunLedger.AdmitCensusGroups(census.Groups);
+
+        return AgentConversationReadings.Census(
+            dimension,
+            census with { Groups = await this.GuardedGroupsAsync(admitted, dimension, cancellationToken) },
+            ceilingReached: admitted.Count < census.Groups.Count);
+    }
+
+    /// <summary>Reads what the model named to group by, or nothing where it named something no census groups by.</summary>
+    private static MailCensusDimension? DimensionOf(string? groupBy) => groupBy?.Trim().ToUpperInvariant() switch
+    {
+        null or "" or "NONE" or "TOTAL" => MailCensusDimension.Total,
+        "SENDER" => MailCensusDimension.SenderAddress,
+        "DOMAIN" => MailCensusDimension.SenderDomain,
+        "DAY" => MailCensusDimension.Day,
+        "WEEK" => MailCensusDimension.Week,
+        "MONTH" => MailCensusDimension.Month,
+        "CATEGORY" => MailCensusDimension.Category,
+        _ => null,
+    };
+
+    /// <summary>Guards every key somebody else wrote — a sender's address or its domain — before the reading is written around it.</summary>
+    /// <remarks>
+    /// A period is this deployment's own date and a category is a name the account declared, so neither is guarded. An
+    /// address is counted in the case-folded form it is compared in, which is written in capitals; it is shown in lower
+    /// case, the form a person reads and writes an address in, which loses nothing the folded form still held.
+    /// </remarks>
+    [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "Shown to a model to write back to a person, never compared; the comparison form stays the upper-case one.")]
+    private async Task<IReadOnlyList<MailCensusGroup>> GuardedGroupsAsync(
+        IReadOnlyList<MailCensusGroup> groups,
+        MailCensusDimension dimension,
+        CancellationToken cancellationToken)
+    {
+        if (dimension is not (MailCensusDimension.SenderAddress or MailCensusDimension.SenderDomain))
+        {
+            return groups;
+        }
+
+        List<MailCensusGroup> guarded = [];
+
+        foreach (var group in groups)
+        {
+            guarded.Add(group with
+            {
+                Key = await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, group.Key?.ToLowerInvariant(), cancellationToken),
+            });
+        }
+
+        return guarded;
     }
 
     /// <summary>Reads the arguments a listing takes in a form of the model's own, or says which one to write again.</summary>

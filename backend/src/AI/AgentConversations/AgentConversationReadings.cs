@@ -5,6 +5,7 @@
 using System.Globalization;
 using MailFathom.AI.Orchestration;
 using MailFathom.Application.Discovery.Presentation.Citations;
+using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
@@ -141,6 +142,39 @@ internal static class AgentConversationReadings
     /// <summary>Names the attribute carrying the day a task is due.</summary>
     internal const string DueAttributeName = "due";
 
+    /// <summary>Names the element one census reading occupies.</summary>
+    internal const string CensusElementName = "census";
+
+    /// <summary>Names the attribute carrying what the census grouped the mail by.</summary>
+    internal const string GroupedByAttributeName = "grouped-by";
+
+    /// <summary>Names the attribute carrying how many messages the scope and the filters hold.</summary>
+    internal const string TotalAttributeName = "total";
+
+    /// <summary>Names the attribute carrying how many groups the mail falls into in all.</summary>
+    internal const string GroupsAttributeName = "groups";
+
+    /// <summary>Names the attribute carrying how many messages every group counts between them.</summary>
+    internal const string CountedInGroupsAttributeName = "counted-in-groups";
+
+    /// <summary>Names the attribute carrying how many groups lie beyond the ones shown.</summary>
+    internal const string GroupsBeyondAttributeName = "groups-beyond";
+
+    /// <summary>Names the attribute carrying how many messages the groups beyond the ones shown count.</summary>
+    internal const string MessagesBeyondAttributeName = "messages-beyond";
+
+    /// <summary>Names the element one group of a census occupies.</summary>
+    internal const string GroupElementName = "group";
+
+    /// <summary>Names the attribute carrying what a group is keyed by.</summary>
+    internal const string KeyAttributeName = "key";
+
+    /// <summary>Names the attribute marking the group of mail that carries no key: no sender address, or no arrival date.</summary>
+    internal const string NoneAttributeName = "none";
+
+    /// <summary>Names the attribute carrying how many messages a group counts.</summary>
+    internal const string CountAttributeName = "count";
+
     /// <summary>Writes one conversation, or the stretch of it a reading shows.</summary>
     /// <param name="messages">The messages shown, in the conversation's order.</param>
     /// <param name="threadId">The conversation, or <see langword="null" /> where the messages belong to none.</param>
@@ -244,6 +278,47 @@ internal static class AgentConversationReadings
         return document.Complete();
     }
 
+    /// <summary>Writes one census reading: the total, and the leading groups with how much lies beyond them.</summary>
+    /// <param name="dimension">What the mail was grouped by.</param>
+    /// <param name="census">The census, its groups the ones the run may show and every key among them already guarded.</param>
+    /// <param name="ceilingReached">Whether groups were left out because the run may read no more.</param>
+    /// <returns>The document.</returns>
+    /// <remarks>
+    /// How much lies beyond the groups shown is written on the reading, because a model handed twenty senders with nothing
+    /// saying more exist names them as everybody who writes. A group carries no message identifier, so nothing in a
+    /// census can become a citation.
+    /// </remarks>
+    internal static string Census(MailCensusDimension dimension, MailCensus census, bool ceilingReached)
+    {
+        ArgumentNullException.ThrowIfNull(census);
+
+        using var document = new AgentTurnDocument();
+
+        document.StartElement(CensusElementName);
+        document.WriteAttribute(TotalAttributeName, census.Total.ToString(CultureInfo.InvariantCulture));
+
+        if (dimension is not MailCensusDimension.Total)
+        {
+            document.WriteAttribute(GroupedByAttributeName, GroupedBy(dimension));
+            document.WriteAttribute(GroupsAttributeName, census.GroupCount.ToString(CultureInfo.InvariantCulture));
+            document.WriteAttribute(CountedInGroupsAttributeName, census.CountedInGroups.ToString(CultureInfo.InvariantCulture));
+            WriteOptional(document, GroupsBeyondAttributeName, Count(census.GroupsBeyond));
+            WriteOptional(document, MessagesBeyondAttributeName, Count(census.CountedBeyond));
+            WriteTrue(document, CeilingReachedAttributeName, ceilingReached);
+        }
+
+        foreach (var group in census.Groups)
+        {
+            document.StartElement(GroupElementName);
+            WriteOptional(document, KeyAttributeName, group.Key);
+            WriteTrue(document, NoneAttributeName, group.Key is null);
+            document.WriteAttribute(CountAttributeName, group.Count.ToString(CultureInfo.InvariantCulture));
+            document.EndElement();
+        }
+
+        return document.Complete();
+    }
+
     /// <summary>Writes one window of the calendar.</summary>
     /// <param name="opens">Where the window opens.</param>
     /// <param name="closes">Where the window closes.</param>
@@ -322,6 +397,17 @@ internal static class AgentConversationReadings
             document.WriteAttribute(attributeName, "true");
         }
     }
+
+    private static string GroupedBy(MailCensusDimension dimension) => dimension switch
+    {
+        MailCensusDimension.SenderAddress => "sender",
+        MailCensusDimension.SenderDomain => "domain",
+        MailCensusDimension.Day => "day",
+        MailCensusDimension.Week => "week",
+        MailCensusDimension.Month => "month",
+        MailCensusDimension.Category => "category",
+        _ => throw new ArgumentOutOfRangeException(nameof(dimension), dimension, "A total is grouped by nothing."),
+    };
 
     private static string Instant(DateTimeOffset instant) => instant.ToString("O", CultureInfo.InvariantCulture);
 

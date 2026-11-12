@@ -11,6 +11,7 @@ using MailFathom.Application.EmailContent;
 using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.EmailContent.Repair;
 using MailFathom.Application.EmailContent.Storage;
+using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.ListEmails;
@@ -92,7 +93,7 @@ internal static class CorpusReaders
 
     /// <summary>Composes the readers a deployment would hand one person's run, under the grant they hold.</summary>
     /// <param name="authorization">The grant the run acts under.</param>
-    /// <param name="search">The search the run's lookups reach, whose corpus the run's listings read as well.</param>
+    /// <param name="search">The search the run's lookups reach, whose corpus the run's listings and counts read as well.</param>
     /// <param name="clock">The person's clock, standing at the instant the question is asked, in their zone.</param>
     /// <param name="footers">The footers the person's accounts append, or <see langword="null" /> for a mailbox where none appends one.</param>
     /// <returns>The readers.</returns>
@@ -119,6 +120,13 @@ internal static class CorpusReaders
                 new UnrecordedReads(),
                 authorization,
                 StubMailCategories.OfferingNothing),
+            new MailboxCensusReader(
+                search.Census,
+                scope,
+                new UnrecordedReads(),
+                authorization,
+                StubMailCategories.OfferingNothing,
+                TimeProvider.System),
             ContentReaderOver(scope, authorization),
             Provenance.Value,
             new MailThreadStateBrowser(PersonalAgenda.ThreadStateReader(), scope, SensitiveContentEgressGuards.Inactive(), authorization),

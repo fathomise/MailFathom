@@ -499,6 +499,7 @@ entrypoint over the same use case is work of the same kind:
 | `read_email_content` | The stored content of the emails one call named |
 | `read_email_thread` | One bounded page of the conversation one call named |
 | `list_email_threads` | One bounded page of the mail list grouped by conversation the client endpoint serves |
+| `count_mailbox` | One count of the stored emails a scope and its filters hold, in total or grouped, which the Agent's `count_mail` reads; its result count is the number of groups the reading carried |
 | `correlate_contact_mail` | The conversations and the documents the local copy holds about one contact's addresses |
 | `answer_mail_question` | One answering run, described in full [below](#what-a-run-records) |
 

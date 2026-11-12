@@ -276,7 +276,7 @@ provider call rather than reported after the run.
 
 | Ceiling | Key | Default | What happens when it is reached |
 | --- | --- | --- | --- |
-| Retrieved characters per run | `MailAnswering:MaxRetrievedCharactersPerRun` | 20 000 | The lookup or the listed page is cut and the run continues, told there is no more mail |
+| Retrieved characters per run | `MailAnswering:MaxRetrievedCharactersPerRun` | 20 000 | The lookup, the listed page, or the census is cut and the run continues, told there is no more mail |
 | Provider calls per run | `MailAnswering:MaxProviderCallsPerRun` | 8 | The run stops with `57001` |
 | Tokens per run | `MailAnswering:MaxTokensPerRun` | 80 000 | The run stops with `57001` |
 
@@ -290,7 +290,10 @@ Three numbers because they fail in three different ways. The retrieved-character
 amount of somebody's mail that may leave the process to answer one question, whatever the model asks for. It counts
 each passage's extract and the sender's name and address written beside it, and each message an Agent's `list_mail`
 page shows by its subject and its sender, so a run cannot page through a mailbox beside the ceiling on searching it. A
-page the ceiling cut keeps the messages that fit, says more mail matches, and offers no cursor to continue from. The token
+page the ceiling cut keeps the messages that fit, says more mail matches, and offers no cursor to continue from. An
+Agent's `count_mail` reading spends it by the key of each group it names — a sender address, a domain, a category's
+name, or a period's date — and nothing for the figures, and one the ceiling cut keeps the groups that fit and says so; a count names no
+message, so it adds nothing to how many messages the run read and nothing an answer may cite. The token
 ceiling is the cost one, and the only one stated in the unit a provider bills by. The call ceiling is the one that
 always works: a token count is what the provider *reported*, and an endpoint that reports none would leave the cost
 ceiling unreachable while a tool loop went round.
@@ -552,7 +555,7 @@ written here for the same reason `search_emails` publishes the mode in every res
 Nothing a message contains can end an element or open one. The turns and tool results that carry text somebody else
 wrote on this path are composed by one writer, `AgentTurnDocument` in `backend/src/AI/Orchestration/`: `ask_mail`'s
 question turn, the `<retrieved-mail>` envelope, the relevance judgement below, the Agent's question turn and its
-`list_mail`, `read_thread`, `read_calendar`, and `read_tasks` results, the Agent's earlier turns where they are not plain text the
+`list_mail`, `count_mail`, `read_thread`, `read_calendar`, and `read_tasks` results, the Agent's earlier turns where they are not plain text the
 person or the Agent wrote, the turn a compaction of an Agent conversation reads,
 [reply drafting](reply-drafting.md#what-reaches-the-provider-and-what-does-not)'s turn, and the turns of enrichment, a
 conversation's state, contact relationships, calendar-event extraction, the day layout, and Discover's composition. Only

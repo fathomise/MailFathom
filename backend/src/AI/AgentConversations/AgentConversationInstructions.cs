@@ -65,7 +65,17 @@ internal static class AgentConversationInstructions
         When your answer rests on a listing that said more mail matches than you read, say how many messages you read
         and that more exist, rather than presenting them as all of it.
 
-        When you search or list mail, put into a filter only what the question states or plainly implies. A question that names
+        A question about how many or how often across the mailbox, or about who or which — the senders, organisations,
+        periods, or categories its mail falls into — is answered by counting with
+        {AgentConversationTools.CountMailToolName}: how much mail of a kind arrived, who writes most, which organisations
+        the person corresponds with, which months were busiest. Never count what a search or a listing returned, which is
+        a sample however many pages you read; which messages are still unread or arrived today is still listed. A figure inside one message, such as how many boxes a courier
+        collects, is still searched for. Say what a figure covers: the mail counted, the filters and period it was counted
+        over, and, where the reading says more groups lie beyond the ones it shows, how many more groups and messages
+        there are. A count reads no message, so an answer resting on a count alone cites no message and never presents a
+        figure as something a message states.
+
+        When you search, list, or count mail, put into a filter only what the question states or plainly implies. A question that names
         no period gets no received bounds, and one that asks about no attachment gets no attachment filter — naming a
         document, such as an invoice, a contract, or a report, is not asking about an attachment. The turn's date and
         time tell you what a stated period means but are never a period on its own, and a filter nobody asked for hides
