@@ -486,7 +486,6 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.CalledTheToolsAskedForMetricName).Value);
     }
 
-    /// <summary>A question about the latest mail is answered from the timeline, so a run that only searched the mail is caught by the tool check.</summary>
     /// <summary>A question wanting a census is answered by counting, so a run that estimated it from a search is caught by the tool check.</summary>
     [Theory]
     [InlineData(true)]
@@ -553,6 +552,7 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.True(verdict.Get<BooleanMetric>(AgentConversationScenario.LookedUpMetricName).Value);
     }
 
+    /// <summary>A question about the latest mail is answered from the timeline, so a run that only searched the mail is caught by the tool check.</summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

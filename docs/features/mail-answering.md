@@ -291,8 +291,8 @@ amount of somebody's mail that may leave the process to answer one question, wha
 each passage's extract and the sender's name and address written beside it, and each message an Agent's `list_mail`
 page shows by its subject and its sender, so a run cannot page through a mailbox beside the ceiling on searching it. A
 page the ceiling cut keeps the messages that fit, says more mail matches, and offers no cursor to continue from. An
-Agent's `count_mail` reading spends it by each sender address or domain it names — a period or a category is this
-deployment's own and spends nothing — and one the ceiling cut keeps the groups that fit and says so; a count names no
+Agent's `count_mail` reading spends it by the key of each group it names — a sender address, a domain, a category's
+name, or a period's date — and nothing for the figures, and one the ceiling cut keeps the groups that fit and says so; a count names no
 message, so it adds nothing to how many messages the run read and nothing an answer may cite. The token
 ceiling is the cost one, and the only one stated in the unit a provider bills by. The call ceiling is the one that
 always works: a token count is what the provider *reported*, and an endpoint that reports none would leave the cost

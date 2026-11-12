@@ -94,6 +94,17 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
     /// <summary>Gets the corpus as the stored mail a census counts, through the deployment's own composition of the count.</summary>
     public IStoredEmailCensusReader Census => this.index;
 
+    /// <summary>Counts the whole corpus by the deployment's own statement, with every group rather than one reading's leaders.</summary>
+    /// <param name="dimension">What the mail is grouped by.</param>
+    /// <param name="zone">The clock a period is read on.</param>
+    /// <returns>The census of every message in <see cref="Scope" />.</returns>
+    /// <remarks>Synchronous because the corpus is in memory, so a case states the figure it expects from the statement a count runs rather than from a second reading of the rule.</remarks>
+    public MailCensus CountWhole(MailCensusDimension dimension, UserTimeZone zone) =>
+        this.index.Count(
+            MailboxEmailSelection.Create(Scope, null, null, null, null, null, null, null, null, null),
+            new MailCensusGrouping(dimension, zone, new Dictionary<MailAccountId, IReadOnlyList<string>>()),
+            int.MaxValue);
+
     /// <summary>Gets the scope every lookup of a run is answered from: the one inbox, admitted as a deployment's folder mapping admits it.</summary>
     public static MailboxScope Scope { get; } = MailboxScope.Create([Account], [InboxFolder.Id]).RestrictedTo([InboxIdentity]);
 
@@ -353,14 +364,17 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
             MailboxEmailSelection selection,
             MailCensusGrouping grouping,
             int leadingGroups,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken) => Task.FromResult(this.Count(selection, grouping, leadingGroups));
+
+        /// <summary>Counts the rows a selection admits through the statics the deployment's census statement is composed of.</summary>
+        public MailCensus Count(MailboxEmailSelection selection, MailCensusGrouping grouping, int leadingGroups)
         {
             ArgumentNullException.ThrowIfNull(selection);
             ArgumentNullException.ThrowIfNull(grouping);
 
             var matching = this.SelectedRows(selection).ToArray().AsQueryable();
 
-            var census = grouping.Dimension switch
+            return grouping.Dimension switch
             {
                 MailCensusDimension.Total => MailCensus.Empty with { Total = matching.Count() },
                 MailCensusDimension.Category => StoredEmailCensusReader.CategoryCensusOf(
@@ -372,8 +386,6 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
                     ? StoredEmailCensusReader.CensusOf(rows, grouping.Dimension)
                     : MailCensus.Empty with { Total = matching.Count() },
             };
-
-            return Task.FromResult(census);
         }
 
         /// <summary>Reads the mail a selection admits, through the predicate a deployment's query narrows by.</summary>

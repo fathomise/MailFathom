@@ -15,6 +15,7 @@ using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
+using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.Signals;
@@ -1532,22 +1533,33 @@ internal sealed record AgentConversationScenario(
     private static IReadOnlyList<string> CensusSubject =>
         ["mail", "email", "message", "count", "how many", "total", "sender", "month", "week", "period", "most", "who"];
 
-    /// <summary>Gets how many messages the mailbox the run reads holds.</summary>
-    private static string MailboxTotal => Mailbox.Count.ToString(CultureInfo.InvariantCulture);
+    /// <summary>Gets how many messages the mailbox the run reads holds, as a count of it answers.</summary>
+    private static string MailboxTotal =>
+        CensusOfTheMailbox(MailCensusDimension.Total, UserTimeZone.Coordinated).Total.ToString(CultureInfo.InvariantCulture);
 
-    /// <summary>Gets how many sender addresses the mailbox the run reads holds mail from, read as a deployment normalizes them.</summary>
+    /// <summary>Gets how many sender addresses the mailbox the run reads holds mail from, as a count by sender answers.</summary>
     private static string SenderAddressesInTheMailbox =>
-        Mailbox.Select(static message => CorpusMailbox.NormalizedAddressOf(message.Sender)).Distinct(StringComparer.Ordinal).Count().ToString(CultureInfo.InvariantCulture);
+        CensusOfTheMailbox(MailCensusDimension.SenderAddress, UserTimeZone.Coordinated).GroupCount.ToString(CultureInfo.InvariantCulture);
 
-    /// <summary>Counts the messages the mailbox received on one day of a person's clock.</summary>
+    /// <summary>Gets how many messages the mailbox received on one day of a person's clock, as a count by day answers.</summary>
     private static string ArrivedOn(DateOnly day, string zone)
     {
-        var clock = TimeZoneInfo.FindSystemTimeZoneById(zone);
+        if (!UserTimeZone.TryRead(zone, out var clock))
+        {
+            throw new ArgumentException($"'{zone}' names no time zone.", nameof(zone));
+        }
 
-        return Mailbox
-            .Count(message => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(message.ReceivedAt, clock).DateTime) == day)
+        var key = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+        return CensusOfTheMailbox(MailCensusDimension.Day, clock).Groups
+            .Single(group => group.Key == key)
+            .Count
             .ToString(CultureInfo.InvariantCulture);
     }
+
+    /// <summary>Counts the mailbox the run reads with the deployment's own census statement, run over the corpus in memory.</summary>
+    private static MailCensus CensusOfTheMailbox(MailCensusDimension dimension, UserTimeZone zone) =>
+        new CorpusKnowledgeSearch(Mailbox).CountWhole(dimension, zone);
 
     private static IReadOnlyList<string> TimelineSubject =>
         ["mail", "email", "message", "inbox", "latest", "recent", "newest", "today", "morning", "unread", "opened", "sender", "earlier", "more"];
