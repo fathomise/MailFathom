@@ -11,6 +11,7 @@ using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Emails.Extraction.Attachments;
+using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.Signals;
 using MailFathom.Application.StoredFiles;
@@ -36,6 +37,8 @@ public sealed class AgentConversationFileToolsTests : IAsyncDisposable
     private static readonly AgentConversationFileId Picture = AgentConversationFileId.Create(new Guid("019a0000-0000-7000-8000-0000000000a3"));
 
     private static readonly AgentConversationFileId Scan = AgentConversationFileId.Create(new Guid("019a0000-0000-7000-8000-0000000000a4"));
+
+    private static readonly AgentConversationFileId Wide = AgentConversationFileId.Create(new Guid("019a0000-0000-7000-8000-0000000000a5"));
 
     private static readonly byte[] PictureOctets = SyntheticImages.Png(8, 8);
 
@@ -73,6 +76,7 @@ public sealed class AgentConversationFileToolsTests : IAsyncDisposable
             Conversation,
             SyntheticUser.Deployment,
             new AgentConversationFileText(FileOf(Scan, "scan.pdf", AgentConversationFileKind.Document, new AgentConversationFileReading(AttachmentTextExtractionOutcome.Encrypted, 0, null, 0)), string.Empty, []));
+        this.store.Hold(Conversation, SyntheticUser.Deployment, Document(Wide, "wide.txt", "\U0001F600 The lamps cost forty euros."));
         this.storedFiles
             .ReadAsync(SyntheticUser.Deployment, Picture.StoredFile, Arg.Any<CancellationToken>())
             .Returns((ReadOnlyMemory<byte>?)PictureOctets);
@@ -163,6 +167,35 @@ public sealed class AgentConversationFileToolsTests : IAsyncDisposable
         Assert.Contains($"{AgentConversationFileReadings.FoundByAttributeName}=\"words\"", answer, StringComparison.Ordinal);
     }
 
+    /// <summary>A query past what a mail search takes is refused before it reaches a provider or a scan.</summary>
+    [Fact]
+    public async Task SearchFiles_AQueryLongerThanAMailSearchTakes_RefusesItWithoutSearching()
+    {
+        // Arrange
+        var searchFiles = Tool(this.Tools(await this.ReadAsync([], new MailAnsweringRunLedger(MailAnsweringRunBounds.Default))), AgentConversationFileTools.SearchFilesToolName);
+
+        // Act
+        var answer = (await searchFiles.InvokeAsync(new AIFunctionArguments { ["query"] = new string('k', EmailSearchQueryText.MaximumLength + 1) }, TestContext.Current.CancellationToken))?.ToString();
+
+        // Assert
+        Assert.Contains($"at most {EmailSearchQueryText.MaximumLength} characters", answer, StringComparison.Ordinal);
+    }
+
+    /// <summary>What is left of the ceiling can be narrower than the first character, which answers as a spent ceiling rather than as an empty page.</summary>
+    [Fact]
+    public async Task ReadFile_ACeilingNarrowerThanTheFirstCharacter_AnswersThatTheCeilingIsSpent()
+    {
+        // Arrange
+        var ledger = new MailAnsweringRunLedger(new MailAnsweringRunBounds(maximumRetrievedCharacters: 1, maximumProviderCalls: 8, maximumTokens: 160_000));
+        var readFile = Tool(this.Tools(await this.ReadAsync([], ledger), ledger), AgentConversationFileTools.ReadFileToolName);
+
+        // Act
+        var answer = (await readFile.InvokeAsync(new AIFunctionArguments { ["fileId"] = Wide.ToString() }, TestContext.Current.CancellationToken))?.ToString();
+
+        // Assert
+        Assert.Contains("ceiling on retrieved text is spent", answer, StringComparison.Ordinal);
+    }
+
     /// <summary>A conversation holding no document with words is offered neither file tool, so the model is not asked to choose one that answers nothing.</summary>
     [Fact]
     public async Task Create_AConversationHoldingOnlyAPictureAndAnUnreadFile_OffersNoFileTool()
@@ -221,12 +254,12 @@ public sealed class AgentConversationFileToolsTests : IAsyncDisposable
     private Task<AgentTurnFiles> ReadAsync(IReadOnlyList<AgentConversationFileId> carried, MailAnsweringRunLedger ledger) =>
         AgentTurnFiles.ReadAsync(ConversationFiles.Over(this.store, this.storedFiles), SensitiveContentEgressGuards.Inactive(), ledger, Question(carried), TestContext.Current.CancellationToken);
 
-    private IReadOnlyList<AIFunction> Tools(AgentTurnFiles turnFiles) =>
+    private IReadOnlyList<AIFunction> Tools(AgentTurnFiles turnFiles, MailAnsweringRunLedger? ledger = null) =>
         new AgentConversationFileTools(
             this.journal,
             ConversationFiles.Over(this.store, this.storedFiles),
             SensitiveContentEgressGuards.Inactive(),
-            new MailAnsweringRunLedger(MailAnsweringRunBounds.Default),
+            ledger ?? new MailAnsweringRunLedger(MailAnsweringRunBounds.Default),
             Question([]),
             turnFiles).Create();
 }

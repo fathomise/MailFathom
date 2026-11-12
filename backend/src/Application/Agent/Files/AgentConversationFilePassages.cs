@@ -101,12 +101,13 @@ public sealed class AgentConversationFilePassages
 
             remaining -= end - start;
 
-            passages.AddRange(cut.Chunks.Select(chunk => new AgentConversationFilePassage(
+            passages.AddRange(cut.Chunks.Select((chunk, index) => new AgentConversationFilePassage(
                 document.File.Id,
-                ordinal++,
+                ordinal + index,
                 start + chunk.StartOffset,
                 start + chunk.EndOffset,
                 segment)));
+            ordinal += cut.Chunks.Count;
         }
 
         return passages;

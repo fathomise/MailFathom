@@ -84,9 +84,11 @@ public sealed class AgentConversationFiles
     /// <param name="cancellationToken">Cancels the intake.</param>
     /// <returns>The file it became, or why it was not taken.</returns>
     /// <remarks>
-    /// The refusals are checked cheapest first — the octets, then what they are, then whether the conversation has room —
-    /// so a file that cannot be taken is never parsed. A conversation that cannot be started, because the person already
-    /// holds as many as they may, answers as one that is not theirs, which is what it is.
+    /// The empty, oversize, untaken-kind, and full-conversation refusals come before the file is read, so none of those
+    /// files is parsed. Whose conversation it is decides the record step, after the read and the stored write: a
+    /// conversation that is somebody else's, or one that cannot be started because the person already holds as many as
+    /// they may, is refused there and the stored file removed. That costs a refused caller what taking a file into a
+    /// conversation of their own would, and nothing more.
     /// </remarks>
     public async Task<AgentConversationFileIntake> TakeAsync(
         AgentConversationId conversation,

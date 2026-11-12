@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Globalization;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Files;
+using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Emails;
@@ -120,6 +121,13 @@ internal sealed class AgentConversationFileTools
             return "A search names what to look for.";
         }
 
+        // The same ceiling a mail search is held to: the query is model-written, reaches the embedding provider whole,
+        // and is scanned term by term against every passage of every file.
+        if (query.Length > EmailSearchQueryText.MaximumLength)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"A search is at most {EmailSearchQueryText.MaximumLength} characters; ask again in the few words a passage that answers would use.");
+        }
+
         var found = await this.files.SearchAsync(this.question.Conversation, this.question.User, query, MaximumSearchPassages, cancellationToken);
         List<GuardedFilePassage> passages = [];
 
@@ -133,6 +141,12 @@ internal sealed class AgentConversationFileTools
             }
 
             var window = MailTextBounds.TruncateAtTextElementBoundary(finding.Text, granted);
+
+            if (window.Length is 0)
+            {
+                break;
+            }
+
             var guarded = await this.egressGuard.GuardWithOmissionAsync(SensitiveContentEgressPoint.ChatPrompt, window, cancellationToken);
             var name = await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, finding.FileName, cancellationToken);
 
@@ -195,6 +209,13 @@ internal sealed class AgentConversationFileTools
         }
 
         var window = granted < whole.Length ? MailTextBounds.TruncateAtTextElementBoundary(whole, granted) : whole;
+
+        // What is left of the ceiling can be narrower than the first text element, and an empty page would point its
+        // next at the place it started from.
+        if (window.Length is 0)
+        {
+            return "This run may read no more: its ceiling on retrieved text is spent. Answer from what you have read, and say how much of the file that covers.";
+        }
         var (parts, end) = await AgentConversationTools.GuardedPartsAsync(
             this.egressGuard,
             document.Text,
