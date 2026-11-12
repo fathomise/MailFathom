@@ -19,9 +19,11 @@
 //
 // **A raised segment is a segmented control rather than a choice drawn in the accent**: the chosen one stands on the
 // panel above the pill the group draws, which is how the design draws a switch between two halves of one screen and
-// every group of views under a finger.
+// every group of views under a finger. **The effort a question is asked with is a raised segment drawn smaller**, under
+// the Agent's field: each segment as wide as its words, sharing the track's width only on the phone, where it stands
+// on a line of its own.
 
-export type SegmentShape = 'row' | 'section' | 'raised' | 'compact' | 'chip' | 'filter';
+export type SegmentShape = 'row' | 'section' | 'raised' | 'effort' | 'compact' | 'chip' | 'filter';
 
 interface SegmentLook {
     /** What the segment measures, whichever of the group is chosen. */
@@ -42,6 +44,11 @@ export const segmentShapes: Readonly<Record<SegmentShape, SegmentLook>> = {
     section: { shape: 'flex-1 rounded-md px-2 py-1.5 text-center text-base', chosen: accented, unchosen: quiet },
     raised: {
         shape: 'touch-extended flex flex-1 items-center justify-center rounded-md px-2.5 py-1.5 text-base whitespace-nowrap',
+        chosen: 'bg-panel font-semibold text-text shadow-raised',
+        unchosen: 'text-muted hover:text-text',
+    },
+    effort: {
+        shape: 'touch-extended flex h-7 items-center justify-center gap-1.5 rounded-md px-2.75 text-base whitespace-nowrap pointer-coarse:px-3.5 max-workspace:flex-1',
         chosen: 'bg-panel font-semibold text-text shadow-raised',
         unchosen: 'text-muted hover:text-text',
     },

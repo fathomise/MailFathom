@@ -113,6 +113,7 @@ const answeredEntries = [
             author: 'Person',
             text: 'How many bays were confirmed?',
             scope: { kind: 'Mailbox', subject: null },
+            mode: 'Auto',
         },
     },
     { sequence: 2, entry: { entry: 'answerStarted', messageId: answeredQuestionId } },
@@ -263,6 +264,7 @@ const composingEntries = [
             author: 'Person',
             text: 'What is waiting on me today?',
             scope: null,
+            mode: 'Auto',
         },
     },
     { sequence: 2, entry: { entry: 'answerStarted', messageId: composingQuestionId } },
@@ -271,6 +273,9 @@ const composingEntries = [
         entry: { entry: 'status', messageId: composingQuestionId, status: 'Looking through today’s mail' },
     },
 ];
+
+/** Where an answer asked in `Fast` stopped: the ceiling its ending names, with how many messages it had read. */
+export const fastAnswerCeiling = { messagesRead: 20 };
 
 /** The answered conversation, read from its beginning. */
 export const answeredConversation = {

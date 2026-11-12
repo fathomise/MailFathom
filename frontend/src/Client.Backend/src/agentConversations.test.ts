@@ -282,6 +282,7 @@ describe('readAgentConversation', () => {
                         author: 'Person',
                         text: 'How many bays?',
                         scope: { kind: 'CalendarEvent', subject: 'event-1' },
+                        mode: 'Fast',
                     }),
                     entryOf(2, { entry: 'answerStarted', messageId: question }),
                     entryOf(3, { entry: 'status', messageId: question, status: 'Reading' }),
@@ -289,6 +290,13 @@ describe('readAgentConversation', () => {
                     entryOf(5, { entry: 'proposal', messageId: question, block: answerBlock, act: {} }),
                     entryOf(6, { entry: 'answerEnded', messageId: question, outcome: 'Stopped' }),
                     entryOf(7, { entry: 'resolution', proposedAt: 5, state: 'Declined' }),
+                    entryOf(9, { entry: 'answerDeepened', messageId: question, reason: 'It reaches back a year.' }),
+                    entryOf(10, {
+                        entry: 'answerEnded',
+                        messageId: question,
+                        outcome: 'Completed',
+                        ceiling: { messagesRead: 20 },
+                    }),
                     entryOf(8, {
                         entry: 'citation',
                         messageId: question,
@@ -313,13 +321,16 @@ describe('readAgentConversation', () => {
                 author: 'person',
                 text: 'How many bays?',
                 scope: { kind: 'calendarEvent', subject: 'event-1' },
+                mode: 'fast',
             },
             { kind: 'answerStarted', sequence: 2, run: question },
             { kind: 'status', sequence: 3, run: question, status: 'Reading' },
             { kind: 'block', sequence: 4, run: question, block: { type: 'answer' } },
             { kind: 'proposal', sequence: 5, run: question, block: { type: 'answer' } },
-            { kind: 'answerEnded', sequence: 6, run: question, outcome: 'stopped' },
+            { kind: 'answerEnded', sequence: 6, run: question, outcome: 'stopped', ceiling: null },
             { kind: 'resolution', sequence: 7, proposedAt: 5, state: 'declined' },
+            { kind: 'answerDeepened', sequence: 9, run: question, reason: 'It reaches back a year.' },
+            { kind: 'answerEnded', sequence: 10, run: question, outcome: 'completed', ceiling: { messagesRead: 20 } },
             {
                 kind: 'citation',
                 sequence: 8,
@@ -327,6 +338,67 @@ describe('readAgentConversation', () => {
                 source: { id: 'c-1', target: { kind: 'email', email: 'email-1' }, label: 'The confirmation' },
             },
         ]);
+    });
+
+    it('reads a question in a mode this build has no name for, or in none, as one carrying no mode', async () => {
+        const answered = await readAgentConversation(
+            session,
+            answering({
+                status: 200,
+                body: pageOf([
+                    entryOf(1, {
+                        entry: 'message',
+                        messageId: question,
+                        author: 'Person',
+                        text: 'Bays?',
+                        mode: 'Ultra',
+                    }),
+                    entryOf(2, { entry: 'message', messageId: question, author: 'Person', text: 'Bays?' }),
+                ]),
+            }),
+            conversation,
+            0,
+        );
+
+        expect(answered).toMatchObject({
+            value: {
+                events: [
+                    { kind: 'message', mode: null },
+                    { kind: 'message', mode: null },
+                ],
+            },
+        });
+    });
+
+    it.each([
+        ['a ceiling that names no count', { ceiling: {} }],
+        ['a ceiling with a negative count', { ceiling: { messagesRead: -1 } }],
+        ['a ceiling with a fractional count', { ceiling: { messagesRead: 1.5 } }],
+    ])('refuses an ending naming %s, which the service never writes', async (_, written) => {
+        const answered = await readAgentConversation(
+            session,
+            answering({
+                status: 200,
+                body: pageOf([
+                    entryOf(1, { entry: 'answerEnded', messageId: question, outcome: 'Completed', ...written }),
+                ]),
+            }),
+            conversation,
+            0,
+        );
+
+        expect(answered).toMatchObject({ outcome: 'failed', failure: { reason: 'unreadable' } });
+    });
+
+    it('refuses a move to deep that gives no reason', async () => {
+        const answered = await readAgentConversation(
+            session,
+            answering({ status: 200, body: pageOf([entryOf(1, { entry: 'answerDeepened', messageId: question })]) }),
+            conversation,
+            0,
+        );
+
+        expect(answered).toMatchObject({ outcome: 'failed', failure: { reason: 'unreadable' } });
     });
 
     it('reads an ending this build has no name for as a failed one', async () => {
@@ -513,8 +585,19 @@ describe('askAgent', () => {
         expect(requests[0]).toMatchObject({
             method: 'POST',
             path: `${base}/${conversation}/messages`,
-            body: JSON.stringify({ messageId: question, text: 'How many bays?' }),
+            body: JSON.stringify({ messageId: question, text: 'How many bays?', mode: 'Auto' }),
         });
+    });
+
+    it('asks in the mode it was given, in the service’s own spelling of it', async () => {
+        const { transport, requests } = recording({
+            status: 202,
+            body: JSON.stringify({ messageId: question, runId: question, sequence: 1 }),
+        });
+
+        await askAgent(session, transport, conversation, question, 'Every invoice this year', null, 'deep');
+
+        expect(JSON.parse(requests[0]?.body ?? '{}')).toMatchObject({ mode: 'Deep' });
     });
 
     it('names the thing the question is about in the service’s own spelling of its kind', async () => {
@@ -534,6 +617,7 @@ describe('askAgent', () => {
                 messageId: question,
                 text: 'Who owes what?',
                 scope: { kind: 'CalendarEvent', subject: event },
+                mode: 'Auto',
             }),
         );
     });

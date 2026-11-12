@@ -694,6 +694,32 @@ describe('AgentSpace', () => {
         expect(JSON.parse(posted?.body ?? '{}')).toMatchObject({ text: 'How many bays?' });
     });
 
+    it('asks in auto where nobody chose a mode', async () => {
+        const { transport, asked } = deploymentAnswering();
+        screenOf(transport);
+
+        expect(await sent(asked, 'How many bays?')).toMatchObject({ mode: 'Auto' });
+    });
+
+    it('asks in the mode chosen under the field', async () => {
+        const { transport, asked } = deploymentAnswering();
+        screenOf(transport);
+
+        fireEvent.click(screen.getByRole('radio', { name: /^Deep - / }));
+
+        expect(await sent(asked, 'Every invoice this year')).toMatchObject({ mode: 'Deep' });
+    });
+
+    it('puts the mode back on auto for a new conversation', () => {
+        const { transport } = deploymentAnswering();
+        screenOf(transport);
+
+        fireEvent.click(screen.getByRole('radio', { name: /^Fast - / }));
+        fireEvent.click(screen.getByRole('button', { name: 'New conversation' }));
+
+        expect(screen.getByRole('radio', { name: /^Auto - / })).toHaveProperty('checked', true);
+    });
+
     it('opens a new conversation carrying what another space handed over, and asks under it', async () => {
         const { transport, asked } = deploymentAnswering();
         const { rerender } = render(drawn(transport));

@@ -136,7 +136,7 @@ interface Conversation {
     readonly reads: 'answered' | 'composing';
 
     /** What a conversation started here was asked, and `null` for one the corpus states. */
-    readonly asked: { readonly text: unknown; readonly scope: unknown } | null;
+    readonly asked: { readonly text: unknown; readonly scope: unknown; readonly mode: unknown } | null;
 
     readonly added: { sequence: number; entry: Readonly<Record<string, unknown>> }[];
     readsTaken: number;
@@ -1756,7 +1756,7 @@ export class FakeDeployment {
                     startedAt: new Date().toISOString(),
                     archived: false,
                     reads: 'answered',
-                    asked: { text, scope: recordIn(body)?.['scope'] ?? null },
+                    asked: { text, scope: recordIn(body)?.['scope'] ?? null, mode: recordIn(body)?.['mode'] ?? 'Auto' },
                     added: [],
                     readsTaken: 0,
                     startsRunning: this.takeRunning(),
@@ -1869,7 +1869,8 @@ export class FakeDeployment {
      *
      * One started here opens with the question it was actually asked, under the scope it was asked in, and nothing in
      * its answer has been decided yet — so the corpus's own resolutions stay with the corpus's own conversation, and
-     * every proposal in a new one waits on the person who asked.
+     * every proposal in a new one waits on the person who asked. One asked in `Fast` stops at its ceiling, which its
+     * ending names, as the service's does where a fast run reaches one.
      */
     private written(
         conversation: Conversation,
@@ -1885,8 +1886,10 @@ export class FakeDeployment {
             .filter(({ entry }) => entry.entry !== 'resolution')
             .map((held) =>
                 held.entry.entry === 'message'
-                    ? { ...held, entry: { ...held.entry, text: asked.text, scope: asked.scope } }
-                    : held,
+                    ? { ...held, entry: { ...held.entry, text: asked.text, scope: asked.scope, mode: asked.mode } }
+                    : held.entry.entry === 'answerEnded' && asked.mode === 'Fast'
+                      ? { ...held, entry: { ...held.entry, ceiling: agent.fastAnswerCeiling } }
+                      : held,
             );
     }
 

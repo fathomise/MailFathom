@@ -44,6 +44,9 @@ const mostFollowUps = 3;
 const longestFollowUp = 120;
 const longestWriteAnswer = 4 * 1024;
 
+// The agent's sentence on why a run went deep, which the service bounds as it bounds any line it presents.
+const longestReason = 4000;
+
 // A hundred summaries, each an identifier, a title, a status line and two instants, with room to spare — so a listing
 // that is not one is refused before it is read.
 const longestListing = 512 * 1024;
@@ -81,6 +84,17 @@ export interface AgentMessageScope {
     readonly subject: string | null;
 }
 
+/**
+ * How far the run answering a question may go: `fast` under the deployment's per-run ceilings, `deep` under its deep
+ * ones, and `auto` — what a question that names none is asked in — starting fast and moving to deep at most once.
+ */
+export type AgentAnswerMode = 'auto' | 'fast' | 'deep';
+
+/** Where a completed answer stopped because a ceiling of its mode was reached: how many messages it had read by then. */
+export interface AgentRunCeiling {
+    readonly messagesRead: number;
+}
+
 /** How an answer ended. An ending this build has no name for is read as `failed`. */
 export type AgentAnswerOutcome = 'completed' | 'stopped' | 'failed';
 
@@ -104,11 +118,17 @@ export type AgentConversationEntry =
           readonly author: 'person' | 'agent';
           readonly text: string;
           readonly scope: AgentMessageScope | null;
+
+          /** The mode a question was asked in, and `null` for anything else or a question asked before one carried it. */
+          readonly mode: AgentAnswerMode | null;
       }
     | { readonly kind: 'answerStarted'; readonly sequence: number; readonly run: string }
     | { readonly kind: 'status'; readonly sequence: number; readonly run: string; readonly status: string }
     | { readonly kind: 'citation'; readonly sequence: number; readonly run: string; readonly source: DeclaredSource }
     | { readonly kind: 'block'; readonly sequence: number; readonly run: string; readonly block: AnswerBlock }
+
+    /** An `auto` answer moved to the deep ceilings, written the moment it moved, with the agent's sentence on why. */
+    | { readonly kind: 'answerDeepened'; readonly sequence: number; readonly run: string; readonly reason: string }
     | { readonly kind: 'proposal'; readonly sequence: number; readonly run: string; readonly block: AnswerBlock }
     | {
           readonly kind: 'answerEnded';
@@ -118,6 +138,9 @@ export type AgentConversationEntry =
 
           /** What the agent suggests asking next, each posted as it reads when pressed; empty where it suggested none. */
           readonly followUps: readonly string[];
+
+          /** The ceiling a completed answer reached and answered at, and `null` where it reached none. */
+          readonly ceiling: AgentRunCeiling | null;
       }
     | {
           readonly kind: 'resolution';
@@ -223,6 +246,7 @@ export function readAgentConversation(
  * @param conversationId The conversation, which the client names itself when it starts one.
  * @param messageId The question's own identifier, so a retry of the same post is the same question.
  * @param scope What the question is about, where it was carried in from a screen, and `null` for one narrowing nothing.
+ * @param mode How far the run answering it may go.
  * @returns The answer it opened, or why it was not asked.
  */
 export function askAgent(
@@ -232,13 +256,16 @@ export function askAgent(
     messageId: string,
     text: string,
     scope: AgentMessageScope | null = null,
+    mode: AgentAnswerMode = 'auto',
 ): Promise<ClientResult<AgentMessagePosted>> {
     return spanned('POST /agent/conversations/{conversationId}/messages', () =>
         posted(
             session,
             transport,
             `${agentConversationRoute(conversationId)}/messages`,
-            scope === null ? { messageId, text } : { messageId, text, scope: wireScopeOf(scope) },
+            scope === null
+                ? { messageId, text, mode: wireModes[mode] }
+                : { messageId, text, scope: wireScopeOf(scope), mode: wireModes[mode] },
         ),
     );
 }
@@ -400,7 +427,7 @@ async function posted(
     session: ClientSession,
     transport: MailFathomTransport,
     route: string,
-    message: { readonly messageId: string; readonly text: string; readonly scope?: WireScope },
+    message: { readonly messageId: string; readonly text: string; readonly scope?: WireScope; readonly mode?: string },
 ): Promise<ClientResult<AgentMessagePosted>> {
     const response = await send(transport, {
         method: 'POST',
@@ -553,6 +580,19 @@ const resolutions: Readonly<Record<string, AgentProposalState | undefined>> = {
     Declined: 'declined',
 };
 
+// A mode this build has no name for is read as no mode at all, which draws an answer as one from before modes existed.
+const modes: Readonly<Record<string, AgentAnswerMode | undefined>> = {
+    Auto: 'auto',
+    Fast: 'fast',
+    Deep: 'deep',
+};
+
+const wireModes: Readonly<Record<AgentAnswerMode, string>> = {
+    auto: 'Auto',
+    fast: 'Fast',
+    deep: 'Deep',
+};
+
 const authors: Readonly<Record<string, 'person' | 'agent' | undefined>> = {
     Person: 'person',
     Agent: 'agent',
@@ -589,7 +629,15 @@ function parseEntry(value: unknown): AgentConversationEntry | null {
                 text.length > longestText ||
                 scope === undefined
                 ? null
-                : { kind: 'message', sequence, messageId: run, author, text, scope };
+                : {
+                      kind: 'message',
+                      sequence,
+                      messageId: run,
+                      author,
+                      text,
+                      scope,
+                      mode: modes[String(entry['mode'])] ?? null,
+                  };
         }
 
         case 'answerStarted':
@@ -616,10 +664,19 @@ function parseEntry(value: unknown): AgentConversationEntry | null {
             return run === null || block === null ? null : { kind: entry['entry'], sequence, run, block };
         }
 
+        case 'answerDeepened': {
+            const reason = entry['reason'];
+
+            return run === null || typeof reason !== 'string' || reason.length > longestReason
+                ? null
+                : { kind: 'answerDeepened', sequence, run, reason };
+        }
+
         case 'answerEnded': {
             const followUps = parseFollowUps(entry['followUps']);
+            const ceiling = parseCeiling(entry['ceiling']);
 
-            return run === null || followUps === null
+            return run === null || followUps === null || ceiling === undefined
                 ? null
                 : {
                       kind: 'answerEnded',
@@ -627,6 +684,7 @@ function parseEntry(value: unknown): AgentConversationEntry | null {
                       run,
                       outcome: outcomes[String(entry['outcome'])] ?? 'failed',
                       followUps,
+                      ceiling,
                   };
         }
 
@@ -684,6 +742,19 @@ function parseFollowUps(value: unknown): readonly string[] | null {
     );
 
     return followUps.length === value.length ? followUps : null;
+}
+
+/** The ceiling an ending names, `null` where it names none, and `undefined` where what arrived is not one. */
+function parseCeiling(value: unknown): AgentRunCeiling | null | undefined {
+    if (value === undefined || value === null) {
+        return null;
+    }
+
+    const messagesRead = asRecord(value)?.['messagesRead'];
+
+    return typeof messagesRead === 'number' && Number.isSafeInteger(messagesRead) && messagesRead >= 0
+        ? { messagesRead }
+        : undefined;
 }
 
 /** The scope a question carries, `null` where it carries none, and `undefined` where what arrived is not one. */

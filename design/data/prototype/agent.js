@@ -410,21 +410,29 @@
         },
         { role: "user", text: "Summarise everything Contoso and I agreed since January.", ts: atToday(11, 14) },
         {
-          role: "bot", ts: atToday(11, 20), scope: "86 messages · 9 attachments", mode: { asked: "auto", ran: "deep", took: "5 min 40 s", why: "It reaches back eight months and 86 messages - more than a fast answer reads, so it went deep on its own." },
+          role: "bot", ts: atToday(11, 20), scope: "86 messages · 9 attachments", mode: { asked: "auto", ran: "deep", why: "It reaches back eight months and 86 messages - more than a fast answer reads, so it went deep on its own." },
           text: "Four things were agreed and one is still open.\n\n1. **The rollout** moved from June to September, agreed on 14 May.\n2. **The SLA** for critical incidents drops to 2 hours, agreed in the addendum on 18 August.\n3. **Invoices** are paid in 30 days instead of 14, agreed on 3 March.\n4. **The trade-show stand** is shared, agreed on 22 July.\n\nStill open: *the CPI cap*. Contoso has not answered the 5% proposal.",
           blocks: [],
         },
       ],
     },
-    /* A fast answer that stopped at its ceiling says so, with how much it read, and offers the same question in deep. */
+    /* A fast answer that stopped at its ceiling says so, with how much it read, and offers the same question in deep; the
+       same question asked again in deep stopped at the deep ceiling, which says so and offers nothing further. */
     {
       id: "c-ceiling", title: "Every invoice Fabrikam sent this year", when: "09:05",
       msgs: [
         { role: "user", text: "List every invoice Fabrikam sent this year, with what is still unpaid.", ts: atToday(9, 4) },
         {
           role: "bot", ts: atToday(9, 5), scope: "Fabrikam · 200 messages", mode: { asked: "fast", ran: "fast" },
-          ceiling: { read: "200", of: "612", said: "January to April" },
+          ceiling: { read: "200" },
           text: "From what I read, Fabrikam sent **11 invoices** between January and April, and two of them are unpaid: *02/2026* and *04/2026*.",
+          blocks: [],
+        },
+        { role: "user", text: "List every invoice Fabrikam sent this year, with what is still unpaid.", ts: atToday(9, 12) },
+        {
+          role: "bot", ts: atToday(9, 19), scope: "Fabrikam · 1,000 messages", mode: { asked: "deep", ran: "deep" },
+          ceiling: { read: "1,000" },
+          text: "From what I read, Fabrikam sent **31 invoices** between January and October, and three of them are unpaid: *02/2026*, *04/2026* and *09/2026*.",
           blocks: [],
         },
       ],
@@ -433,12 +441,12 @@
        works, that the conversation can be left and come back to, and that Cancel beside Send is how it is stopped. */
     {
       id: "c-deep", title: "Supplier price changes this year", when: "now",
-      running: "Deep · reading 312 of 1,240 messages",
-      deep: { said: "Reading supplier mail from January onwards", read: 312, of: 1240, started: "13:02", ran: "4 min" },
+      running: "Reading supplier mail from January onwards",
+      deep: { said: "Reading supplier mail from January onwards" },
       msgs: [
         { role: "user", text: "Which suppliers changed their prices last quarter?", ts: atToday(12, 40) },
         {
-          role: "bot", ts: atToday(12, 47), scope: "418 messages · 3 accounts", mode: { asked: "deep", ran: "deep", took: "6 min 10 s" },
+          role: "bot", ts: atToday(12, 47), scope: "418 messages · 3 accounts", mode: { asked: "deep", ran: "deep" },
           text: "Three suppliers changed prices last quarter: **Northwind** (+4% on licences from July), **Fabrikam** (+2.5% on deliveries from August), and **Tailspin** (a new minimum order, not a price).",
           blocks: [],
         },

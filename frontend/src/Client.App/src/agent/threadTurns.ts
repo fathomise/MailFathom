@@ -3,10 +3,12 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import type {
+    AgentAnswerMode,
     AgentAnswerOutcome,
     AgentConversationEntry,
     AgentMessageScope,
     AgentProposalState,
+    AgentRunCeiling,
     AnswerBlock,
     DeclaredSource,
 } from '@mailfathom/client-backend';
@@ -45,6 +47,18 @@ export type ThreadTurn =
           /** What the question this answers was about, and `null` where it was about the whole of the mail. */
           readonly scope: AgentMessageScope | null;
 
+          /** What the question this answers asked, which is what asking it again in another mode sends. */
+          readonly question: string | null;
+
+          /** The mode that question was asked in, and `null` for one asked before a question carried its mode. */
+          readonly mode: AgentAnswerMode | null;
+
+          /** Why an `auto` run moved to deep, from the moment it moved, and `null` while it has not. */
+          readonly deepened: string | null;
+
+          /** The ceiling a completed answer stopped at, and `null` where it reached none or has not ended. */
+          readonly ceiling: AgentRunCeiling | null;
+
           readonly blocks: readonly AnsweredBlock[];
           readonly sources: ReadonlyMap<string, DeclaredSource>;
 
@@ -78,6 +92,8 @@ export function threadOf(entries: readonly AgentConversationEntry[]): readonly T
     const phases = new Map<number, AgentProposalState>();
 
     let lastScope: AgentMessageScope | null = null;
+    let lastQuestion: string | null = null;
+    let lastMode: AgentAnswerMode | null = null;
     let lastEnding: AgentAnswerOutcome | null = null;
 
     for (const entry of entries) {
@@ -100,6 +116,8 @@ export function threadOf(entries: readonly AgentConversationEntry[]): readonly T
             case 'message':
                 if (entry.author === 'person') {
                     lastScope = entry.scope;
+                    lastQuestion = entry.text;
+                    lastMode = entry.mode;
                     turns.push({ kind: 'question', sequence: entry.sequence, text: entry.text });
                 } else {
                     turns.push({
@@ -119,6 +137,10 @@ export function threadOf(entries: readonly AgentConversationEntry[]): readonly T
                     sequence: entry.sequence,
                     run: entry.run,
                     scope: lastScope,
+                    question: lastQuestion,
+                    mode: lastMode,
+                    deepened: null,
+                    ceiling: null,
                     blocks: [],
                     sources: new Map(),
                     status: null,
@@ -130,6 +152,11 @@ export function threadOf(entries: readonly AgentConversationEntry[]): readonly T
 
             case 'status':
                 revise(entry.run, (answer) => ({ ...answer, status: entry.status }));
+
+                break;
+
+            case 'answerDeepened':
+                revise(entry.run, (answer) => ({ ...answer, deepened: entry.reason }));
 
                 break;
 
@@ -162,6 +189,7 @@ export function threadOf(entries: readonly AgentConversationEntry[]): readonly T
                 revise(entry.run, (answer) => ({
                     ...answer,
                     ending: entry.outcome,
+                    ceiling: entry.ceiling,
                     followUps: { sequence: entry.sequence, questions: entry.followUps },
                 }));
 
@@ -174,6 +202,11 @@ export function threadOf(entries: readonly AgentConversationEntry[]): readonly T
     }
 
     return turns;
+}
+
+/** Whether an answer runs or ran under the deep ceilings: asked in `deep`, or asked in `auto` and moved there. */
+export function ranDeep(answer: Answer): boolean {
+    return answer.mode === 'deep' || answer.deepened !== null;
 }
 
 /**

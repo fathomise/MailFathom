@@ -3,7 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useId, useRef, useState, type RefObject } from 'react';
+import type { AgentAnswerMode } from '@mailfathom/client-backend';
+import { ChoiceSegment } from '../controls/ChoiceSegment';
 import { Icon } from '../controls/Icon';
+import type { IconName } from '../controls/icons';
 import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
@@ -13,6 +16,18 @@ import { useWriteRefusal } from '../shell/useWriteRefusal';
 // What a new conversation offers to start with. The design's prototype opens a seeded conversation from each;
 // a client has none to open, so each asks its question exactly as typing it would.
 const starters: readonly MessageKey[] = ['agent.starter.day', 'agent.starter.slipped'];
+
+// The three modes a question may be asked in, in the order the control draws them, each with what it says it does.
+const modes: readonly {
+    readonly mode: AgentAnswerMode;
+    readonly icon: IconName;
+    readonly label: MessageKey;
+    readonly says: MessageKey;
+}[] = [
+    { mode: 'auto', icon: 'auto_mode', label: 'agent.mode.auto', says: 'agent.modeSays.auto' },
+    { mode: 'fast', icon: 'bolt', label: 'agent.mode.fast', says: 'agent.modeSays.fast' },
+    { mode: 'deep', icon: 'manage_search', label: 'agent.mode.deep', says: 'agent.modeSays.deep' },
+];
 
 /**
  * Where the reader tells the agent what to do: the field, Send, and Cancel beside it, which is drawn at all times and
@@ -30,6 +45,7 @@ const starters: readonly MessageKey[] = ['agent.starter.day', 'agent.starter.sli
  * @param context What the next question is asked about, already worded for the chip, and `null` where it is about
  * nothing narrower — which draws no chip rather than an empty one.
  * @param onClearContext Drops that context, so the next question is asked about everything again.
+ * @param mode The mode the next question is asked in, which the screen holds because asking again in `deep` sets it.
  */
 export function AgentComposer({
     running,
@@ -41,6 +57,8 @@ export function AgentComposer({
     onSend,
     onCancel,
     onClearContext,
+    mode,
+    onMode,
     dock,
 }: {
     readonly running: boolean;
@@ -52,6 +70,8 @@ export function AgentComposer({
     readonly onSend: (text: string) => Promise<string | null>;
     readonly onCancel: () => void;
     readonly onClearContext: () => void;
+    readonly mode: AgentAnswerMode;
+    readonly onMode: (mode: AgentAnswerMode) => void;
 
     /** Takes the field's column, which a draft's rewrite bar docks across under a finger. */
     readonly dock?: RefObject<HTMLDivElement | null>;
@@ -59,6 +79,8 @@ export function AgentComposer({
     const { translate } = useLocalization();
     const wide = useWideWorkspace();
     const field = useId();
+    const modeGroup = useId();
+    const says = modes.find((offered) => offered.mode === mode)?.says ?? 'agent.modeSays.auto';
     const [text, setText] = useState('');
     const [sending, setSending] = useState(false);
     const [writtenFor, setWrittenFor] = useState(conversation);
@@ -233,6 +255,40 @@ export function AgentComposer({
                     </button>
                     {wide && cancels ? null : cancelName.tip}
                 </form>
+
+                <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 max-workspace:gap-x-3">
+                    <fieldset className="flex items-center gap-0.5 rounded-field bg-rail p-0.75 pointer-coarse:p-1 max-workspace:basis-full">
+                        <legend className="sr-only">{translate('agent.modes')}</legend>
+                        {modes.map((offered) => (
+                            <ChoiceSegment
+                                key={offered.mode}
+                                shape="effort"
+                                name={modeGroup}
+                                value={offered.mode}
+                                chosen={offered.mode === mode}
+                                onChoose={() => {
+                                    onMode(offered.mode);
+                                }}
+                            >
+                                <Icon
+                                    name={offered.icon}
+                                    className={`size-icon-sm ${offered.mode === mode ? 'text-accent-deep' : ''}`}
+                                />
+                                <span aria-hidden="true">{translate(offered.label)}</span>
+                                <span className="sr-only">
+                                    {translate('agent.modeName', {
+                                        mode: translate(offered.label),
+                                        says: translate(offered.says),
+                                    })}
+                                </span>
+                            </ChoiceSegment>
+                        ))}
+                    </fieldset>
+                    {/* Each segment's name already says what its mode does, so the sentence is said once, to the eye. */}
+                    <p aria-hidden="true" className="min-w-0 text-sm text-muted max-workspace:basis-full">
+                        {translate(says)}
+                    </p>
+                </div>
 
                 {notSent === null ? null : (
                     <p role="alert" className="flex items-start gap-1.75 text-sm text-warning-text text-pretty">
