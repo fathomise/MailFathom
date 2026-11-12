@@ -282,6 +282,10 @@ export function AgentSpace({
     const turns = useMemo(() => threadOf(followed.entries), [followed.entries]);
     const carried = useMemo(() => turns.flatMap((turn) => (turn.kind === 'question' ? turn.files : [])), [turns]);
     const conversationFiles = useConversationFiles(session, transport, current, carried);
+    const answerDownloads = useMemo(
+        () => (session === null ? null : { session, conversation: current }),
+        [session, current],
+    );
 
     // Let go during render rather than hide, so coming back to the conversation opens the answer and not the panel.
     if (checking !== null && checking.conversation !== current) {
@@ -690,7 +694,7 @@ export function AgentSpace({
                 >
                     <ProposalAnswersContext value={{ answer: answerProposal, askAnotherTime, look: onLook }}>
                         <RewriteDockContext value={fieldColumn}>
-                            <AnswerDownloadsContext value={session}>
+                            <AnswerDownloadsContext value={answerDownloads}>
                                 <ConversationThread
                                     turns={turns}
                                     reading={followed.reading}

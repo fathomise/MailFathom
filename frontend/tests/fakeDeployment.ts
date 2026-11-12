@@ -1769,6 +1769,14 @@ export class FakeDeployment {
             return null;
         }
 
+        // The one file of a conversation the corpus holds is the report its answer wrote, and it answers with octets
+        // wherever it is asked for, as every conversation the corpus does not name reads as the answered one.
+        if (part === 'files' && parameter !== undefined && rest === undefined && method === 'GET') {
+            return parameter === agent.writtenReportId
+                ? { status: 200, body: agent.writtenReportOctets, contentType: 'application/pdf' }
+                : { status: 404, body: '' };
+        }
+
         if (part === 'files' && parameter === undefined) {
             return method === 'POST'
                 ? this.fileTaken(id, octets, contentDisposition)

@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import { readFile } from 'node:fs/promises';
+
 import { expect, type Page } from '@playwright/test';
 
 import { holdTheClock, openSignedIn, silentAnswerInterval, test } from './client.harness';
@@ -312,4 +314,56 @@ test('takes a file attached to a question into its conversation, sends the quest
     await expect(
         threadOf(page).getByRole('list', { name: 'Files sent with the question' }).getByText('Offer v3.pdf'),
     ).toBeVisible();
+});
+
+/** The card the answered conversation's report is drawn as, which is one control named for the file and its size. */
+const reportCard = (page: Page) =>
+    threadOf(page)
+        .getByRole('list', { name: 'Files it hands over' })
+        .getByRole('button', { name: /^Download Offer comparison\.pdf, /u });
+
+test('downloads the report the agent wrote from the conversation that holds it, as the file it was written as', async ({
+    page,
+    deployment,
+}) => {
+    await openSignedIn(page, '/#/agent');
+    await conversations(page)
+        .getByRole('option', { name: /^How many bays were confirmed/u })
+        .click();
+
+    await expect(reportCard(page)).toContainText('Report the agent wrote · 3 pages');
+
+    const offered = page.waitForEvent('download');
+    await reportCard(page).click();
+    const download = await offered;
+
+    // The file reaches the person as a file, under the name the answer gave it, and holds what the conversation held.
+    expect(download.suggestedFilename()).toBe(agent.writtenReportName);
+    expect((await readFile(await download.path())).toString('utf8')).toBe(agent.writtenReportOctets);
+    expect(
+        deployment.requests(
+            'GET',
+            `/agent/conversations/${agent.answeredConversationId}/files/${agent.writtenReportId}`,
+        ),
+    ).toHaveLength(1);
+    await expect(page.getByText('File downloaded')).toBeVisible();
+});
+
+test('lets go of a report the conversation no longer holds, and says to ask for it again', async ({ page }) => {
+    await openSignedIn(page, '/#/agent');
+    await conversations(page)
+        .getByRole('option', { name: /^How many bays were confirmed/u })
+        .click();
+
+    // Registered after the deployment's own routes so this one wins: the file was let go of since the answer was read.
+    await page.route('**/api/client/agent/conversations/*/files/*', async (route) => {
+        await route.fulfill({ status: 404, body: '' });
+    });
+
+    await reportCard(page).click();
+
+    const handedOver = threadOf(page).getByRole('list', { name: 'Files it hands over' });
+
+    await expect(handedOver.getByText('No longer held - ask the agent to write it again')).toBeVisible();
+    await expect(reportCard(page)).toHaveCount(0);
 });
