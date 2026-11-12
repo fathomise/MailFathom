@@ -11,6 +11,8 @@ import {
     restoreAgentConversation,
     steerAgentRun,
     stopAgentRun,
+    type AgentAnswerMode,
+    type AgentMessageScope,
     type AgentProposalDecision,
     type ClientFailureReason,
     type ClientResult,
@@ -41,7 +43,7 @@ import {
     startingHistoryWidth,
     widestHistory,
 } from './historyWidth';
-import { answerInFlight, threadOf } from './threadTurns';
+import { answerInFlight, ranDeep, threadOf } from './threadTurns';
 import { newIdentifier } from './newIdentifier';
 import { ProposalAnswersContext } from './proposalAnswers';
 import type { ConversationHistory as History } from './useConversationHistory';
@@ -166,6 +168,10 @@ export function AgentSpace({
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [following, setFollowing] = useState(0);
     const [composerFocusAsked, setComposerFocusAsked] = useState(0);
+
+    // The mode the next question is asked in. It stays as chosen across the questions that follow, and a new
+    // conversation puts it back on `auto`, the value nobody chose.
+    const [mode, setMode] = useState<AgentAnswerMode>('auto');
 
     // The source somebody is checking, held with the conversation it was cited in: a source belongs to the answer that
     // cited it, so opening another conversation leaves it behind rather than standing beside answers it backs nothing in.
@@ -332,6 +338,7 @@ export function AgentSpace({
 
     function startNew(): void {
         setCurrent(null);
+        setMode('auto');
         setUnsent(null);
         drawer.current?.close();
     }
@@ -351,7 +358,11 @@ export function AgentSpace({
         }
     }
 
-    async function send(text: string): Promise<string | null> {
+    async function send(
+        text: string,
+        asked: AgentAnswerMode = mode,
+        scope: AgentMessageScope | null = context?.scope ?? null,
+    ): Promise<string | null> {
         if (session === null) {
             return null;
         }
@@ -361,7 +372,7 @@ export function AgentSpace({
 
         const posted =
             current === null || inFlight === null
-                ? await askAgent(session, transport, conversation, message, text, context?.scope ?? null)
+                ? await askAgent(session, transport, conversation, message, text, scope, asked)
                 : await steerAgentRun(session, transport, conversation, inFlight.run, message, text);
 
         if (posted.outcome === 'failed') {
@@ -435,6 +446,14 @@ export function AgentSpace({
         }
 
         return refused;
+    }
+
+    // The same question again in `deep`, about what it was asked about rather than what the field carries now, which
+    // leaves the control on `deep` for the questions after it as well.
+    function askInDeep(question: string, scope: AgentMessageScope | null): Promise<string | null> {
+        setMode('deep');
+
+        return send(question, 'deep', scope);
     }
 
     function cancel(): void {
@@ -642,10 +661,11 @@ export function AgentSpace({
                                 turns={turns}
                                 reading={followed.reading}
                                 failure={followed.failure}
-                                status={inFlight === null ? undefined : inFlight.status}
+                                status={inFlight === null || ranDeep(inFlight) ? undefined : inFlight.status}
                                 settledThrough={followed.settledThrough}
                                 following={following}
                                 onAsk={send}
+                                onAskInDeep={inFlight === null ? askInDeep : null}
                                 onFollowSource={followSource}
                             />
                         </RewriteDockContext>
@@ -679,6 +699,8 @@ export function AgentSpace({
                         onClearContext={() => {
                             setContext(null);
                         }}
+                        mode={mode}
+                        onMode={setMode}
                         dock={fieldColumn}
                     />
                 </div>

@@ -138,6 +138,38 @@ export const pl: Catalogue = {
     'agent.cancel': 'Anuluj',
     'agent.cancelRunning': 'Zatrzymaj to, co robi agent',
     'agent.cancelIdle': 'Anuluj – nic nie jest w toku',
+    'agent.modes': 'Jak dokładnie agent zajmuje się pytaniem',
+    'agent.mode.auto': 'Auto',
+    'agent.mode.fast': 'Szybko',
+    'agent.mode.deep': 'Dogłębnie',
+    'agent.modeSays.auto': 'Zaczyna szybko i sięga głębiej, gdy pytanie tego wymaga.',
+    'agent.modeSays.fast': 'Odpowiada w niecałą minutę na podstawie tego, co w tym czasie przeczyta.',
+    'agent.modeSays.deep': 'Czyta wszystko, czego wymaga pytanie – to może potrwać kilka minut.',
+    'agent.modeName': '{mode} – {says}',
+    'agent.lineSeparator': '·',
+    'agent.ranIn.fast': 'Szybko',
+    'agent.ranIn.deep': 'Dogłębnie',
+    'agent.ranIn.autoFast': 'Auto · szybko',
+    'agent.ranIn.autoDeep': 'Auto · sięgnął głębiej',
+    'agent.deepLeave':
+        'Możesz opuścić tę rozmowę: agent pracuje dalej, a Historia oznaczy ją, gdy odpowiedź będzie gotowa. Anuluj zatrzymuje pracę – to, co już znalazł, zostaje.',
+    'agent.ceilingFast.one':
+        'Zatrzymał się na limicie trybu szybkiego: przeczytał {count} wiadomość. Reszta może zmienić odpowiedź.',
+    'agent.ceilingFast.few':
+        'Zatrzymał się na limicie trybu szybkiego: przeczytał {count} wiadomości. Reszta może zmienić odpowiedź.',
+    'agent.ceilingFast.many':
+        'Zatrzymał się na limicie trybu szybkiego: przeczytał {count} wiadomości. Reszta może zmienić odpowiedź.',
+    'agent.ceilingFast.other':
+        'Zatrzymał się na limicie trybu szybkiego: przeczytane wiadomości: {count}. Reszta może zmienić odpowiedź.',
+    'agent.ceilingDeep.one':
+        'Zatrzymał się na limicie trybu dogłębnego: przeczytał {count} wiadomość. Reszta może zmienić odpowiedź.',
+    'agent.ceilingDeep.few':
+        'Zatrzymał się na limicie trybu dogłębnego: przeczytał {count} wiadomości. Reszta może zmienić odpowiedź.',
+    'agent.ceilingDeep.many':
+        'Zatrzymał się na limicie trybu dogłębnego: przeczytał {count} wiadomości. Reszta może zmienić odpowiedź.',
+    'agent.ceilingDeep.other':
+        'Zatrzymał się na limicie trybu dogłębnego: przeczytane wiadomości: {count}. Reszta może zmienić odpowiedź.',
+    'agent.askAgainDeep': 'Zapytaj ponownie dogłębnie',
     'agent.footer': 'Agent proponuje działania – nic nie zostanie wysłane bez Twojej zgody.',
     'agent.notSent.unauthenticated': 'Sesja wygasła przed wysłaniem. Zaloguj się ponownie i wyślij to jeszcze raz.',
     'agent.notSent.unauthorized': 'To konto nie ma uprawnień do rozmowy z agentem.',

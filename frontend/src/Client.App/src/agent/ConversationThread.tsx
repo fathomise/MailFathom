@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ClientFailureReason, DeclaredSource } from '@mailfathom/client-backend';
+import type { AgentMessageScope, ClientFailureReason, DeclaredSource } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
@@ -23,12 +23,15 @@ const readFailures: Readonly<Record<ClientFailureReason, MessageKey>> = {
  * The conversation in front: the reader's own questions on the right, everything the agent wrote on the left, and one
  * status line under the answer still being composed, which stands until nothing is left to load.
  *
- * @param status What the answer in flight said it was doing last, `undefined` where nothing is in flight, and `null`
- * where one is and has said nothing yet.
+ * @param status What the answer in flight said it was doing last, `undefined` where nothing is in flight or where the
+ * answer draws its own — a deep run says what it is doing in its own place — and `null` where one is and has said
+ * nothing yet.
  * @param settledThrough What was already there when the conversation was opened, which draws without animating in.
  * @param following Changed whenever the reader asks something or opens a conversation, which pins the thread to its
  * bottom again.
  * @param onAsk Asks a question the last answer suggested, exactly as sending it from the field would.
+ * @param onAskInDeep Asks an answer's question again in `deep`, about what it was asked about, and `null` while an
+ * answer is being composed.
  * @param onFollowSource Opens a source an answer cites, so the fact it backs can be checked against it.
  */
 export function ConversationThread({
@@ -39,6 +42,7 @@ export function ConversationThread({
     settledThrough,
     following,
     onAsk,
+    onAskInDeep,
     onFollowSource,
 }: {
     readonly turns: readonly ThreadTurn[];
@@ -48,6 +52,7 @@ export function ConversationThread({
     readonly settledThrough: number;
     readonly following: number;
     readonly onAsk: (question: string) => Promise<unknown>;
+    readonly onAskInDeep: ((question: string, scope: AgentMessageScope | null) => Promise<unknown>) | null;
     readonly onFollowSource: (source: DeclaredSource) => void;
 }) {
     const { translate } = useLocalization();
@@ -102,6 +107,7 @@ export function ConversationThread({
                             answer={turn}
                             settledThrough={settledThrough}
                             onFollowSource={onFollowSource}
+                            onAskInDeep={onAskInDeep}
                         />
                     ),
                 )}

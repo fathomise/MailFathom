@@ -729,6 +729,25 @@ test('opens a conversation started here on the question it was asked, with nothi
     });
 });
 
+test('records the mode a conversation started here was asked in, and stops a fast answer at its ceiling', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const fast = '/agent/conversations/0198f4a1-0000-7000-8000-00000000b002';
+    const deep = '/agent/conversations/0198f4a1-0000-7000-8000-00000000b003';
+    const entriesOf = (conversation: string) =>
+        (ask(deployment, 'GET', conversation) as { entries: { entry: Record<string, unknown> }[] }).entries.map(
+            ({ entry }) => entry,
+        );
+
+    ask(deployment, 'POST', `${fast}/messages`, { messageId: agent.answeredQuestionId, text: 'Bays?', mode: 'Fast' });
+    ask(deployment, 'POST', `${deep}/messages`, { messageId: agent.answeredQuestionId, text: 'Bays?', mode: 'Deep' });
+
+    expect(entriesOf(fast)[0]).toMatchObject({ entry: 'message', mode: 'Fast' });
+    expect(entriesOf(fast).find((entry) => entry['entry'] === 'answerEnded')).toMatchObject({
+        ceiling: agent.fastAnswerCeiling,
+    });
+    expect(entriesOf(deep).find((entry) => entry['entry'] === 'answerEnded')).not.toHaveProperty('ceiling');
+});
+
 test('answers the centre and the bell with every notification raised, marked, and erased since', () => {
     const deployment = new FakeDeployment('0.0.0');
     const centre = () =>

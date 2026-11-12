@@ -233,3 +233,32 @@ test('archives a conversation and restores it, and the history agrees after each
     expect(deployment.requests('PUT', archiveRoute)).toHaveLength(1);
     expect(deployment.requests('DELETE', archiveRoute)).toHaveLength(1);
 });
+
+test('asks in the mode chosen under the field, and asks a fast answer that stopped at its ceiling again in deep', async ({
+    page,
+    deployment,
+}) => {
+    await openSignedIn(page, '/#/agent');
+
+    await page.getByRole('radio', { name: /^Fast - / }).press('Space');
+    await ask(page, 'Every invoice Fabrikam sent this year');
+
+    const answer = threadOf(page).getByRole('article', { name: 'The agent’s answer' });
+
+    await expect(answer.getByText('Fast', { exact: true })).toBeVisible();
+    await expect(
+        answer.getByText(
+            `Stopped at the fast limit: it read ${String(agent.fastAnswerCeiling.messagesRead)} messages. The rest may change the answer.`,
+        ),
+    ).toBeVisible();
+
+    await answer.getByRole('button', { name: 'Ask again in Deep' }).click();
+
+    await expect
+        .poll(() => asked(deployment))
+        .toStrictEqual([
+            expect.objectContaining({ text: 'Every invoice Fabrikam sent this year', mode: 'Fast' }),
+            expect.objectContaining({ text: 'Every invoice Fabrikam sent this year', mode: 'Deep' }),
+        ]);
+    await expect(page.getByRole('radio', { name: /^Deep - / })).toBeChecked();
+});

@@ -190,6 +190,7 @@ export {
     restoreAgentConversation,
     steerAgentRun,
     stopAgentRun,
+    type AgentAnswerMode,
     type AgentAnswerOutcome,
     type AgentConversationEntry,
     type AgentConversationPage,
@@ -198,6 +199,7 @@ export {
     type AgentMessageScope,
     type AgentProposalDecision,
     type AgentProposalState,
+    type AgentRunCeiling,
 } from './agentConversations';
 export { reportingRefusedCredential } from './credentialRefusal';
 export {

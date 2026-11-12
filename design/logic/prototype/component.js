@@ -3743,7 +3743,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.startAgentPin();
       this._askT = setTimeout(() => {
         const hit = AGENT_REPLIES.find(r => r.match.test(q)) || AGENT_FALLBACK;
-        const ceiling = asked === "fast" && wide ? { read: "200", of: "1,240", said: "the newest 200" } : null;
+        const ceiling = asked === "fast" && wide ? { read: "200" } : null;
         this.setState(s2 => {
           const out = Object.assign(
             { agentThinking: false },
@@ -3760,13 +3760,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     /* A deep run lives on its conversation, not on the screen: `running` is what History shows for it, `deep` what the
        thread shows, so the person can leave, come back, and find it where it was. Cancel beside Send stops it. */
     startDeepRun = (userMsg, asked) => {
-      const now = new Date();
-      const started = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
       this.setState(s2 => {
         const out = this.pushMsg(s2, [userMsg, { role: "bot", anim: true, scope: "all your mail · deep", mode: { asked, ran: "deep" }, working: true, text: "", blocks: [] }]);
         out.convs = out.convs.map(c => c.id !== out.convId ? c : Object.assign({}, c, {
-          running: "Deep · reading 0 of 860 messages",
-          deep: { said: asked === "auto" ? "This needs more than a fast answer - reading all of the mail it reaches" : "Reading all of the mail the question reaches", read: 0, of: 860, started, ran: "under a minute" },
+          running: asked === "auto" ? "This needs more than a fast answer - reading all of the mail it reaches" : "Reading all of the mail the question reaches",
+          deep: { said: asked === "auto" ? "This needs more than a fast answer - reading all of the mail it reaches" : "Reading all of the mail the question reaches", read: 0, of: 860 },
         }));
         return Object.assign(out, { screen: "agent", agentInput: "", agentTray: [], agentRefused: [], agentMode: asked });
       }, () => this.deepTick(this.state.convId, asked));
@@ -3776,22 +3774,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     deepTick = (id, asked) => {
       this._deepT = this._deepT || {};
       clearInterval(this._deepT[id]);
-      let ticks = 0;
       this._deepT[id] = setInterval(() => {
-        ticks++;
         this.setState(s2 => {
           const c = (s2.convs || []).find(x => x.id === id);
           if (!c || !c.deep) { clearInterval(this._deepT[id]); return null; }
           const read = Math.min(c.deep.of, c.deep.read + 43);
-          if (read < c.deep.of) return { convs: s2.convs.map(x => x.id !== id ? x : Object.assign({}, x, {
-            running: "Deep · reading " + read.toLocaleString("en-US") + " of " + c.deep.of.toLocaleString("en-US") + " messages",
-            deep: Object.assign({}, c.deep, { read, ran: ticks < 6 ? "under a minute" : Math.floor(ticks / 6) + " min" }),
-          })) };
+          if (read < c.deep.of) return { convs: s2.convs.map(x => x.id !== id ? x : Object.assign({}, x, { deep: Object.assign({}, c.deep, { read }) })) };
           clearInterval(this._deepT[id]);
           const hit = AGENT_FALLBACK;
           const fin = {
             role: "bot", ts: Date.now(), anim: true, scope: "860 messages · 3 accounts",
-            mode: { asked, ran: "deep", took: "5 min 10 s", why: asked === "auto" ? "It reaches across all of your mail - more than a fast answer reads, so it went deep on its own." : "" },
+            mode: { asked, ran: "deep", why: asked === "auto" ? "It reaches across all of your mail - more than a fast answer reads, so it went deep on its own." : "" },
             text: hit.text, bullets: [], blocks: hit.blocks || [], next: NEXT_DEFAULT,
           };
           return { convs: s2.convs.map(x => x.id !== id ? x : Object.assign({}, x, {
@@ -3961,8 +3954,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
     };
 
-    /* What an answer says about the effort it ran with, and - for a fast answer that stopped at its ceiling - where it
-       stopped, with the same question offered in deep. */
+    /* What an answer says about the effort it ran with, and - for an answer that stopped at its ceiling - how much it read,
+       with the same question offered in deep where it ran fast. */
     agentMsgModeView = (m, conv, mi, msgs, touch) => {
       const md = m.mode;
       const deepNow = !!(m.working && conv && conv.deep);
@@ -3972,18 +3965,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       return {
         hasMode: !!md,
         modeIcon: !md ? "" : md.ran === "deep" ? "manage_search" : md.asked === "auto" ? "auto_mode" : "bolt",
-        modeText: label + (md && md.took && !m.working ? " · " + md.took : ""),
+        modeText: label,
         modeStyle: "display:inline-flex;align-items:center;gap:4px;color:" + (md && md.ran === "deep" ? "var(--accent-d)" : "var(--muted)"),
         modeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:14px;line-height:1",
         hasDeepWhy: !!(md && md.why && !m.working),
         deepWhy: md && md.why ? md.why : "",
         deepNow,
         deepSaid: d ? d.said : "",
-        deepCount: d ? d.read.toLocaleString("en-US") + " of " + d.of.toLocaleString("en-US") + " messages read" : "",
-        deepMeta: d ? "started " + d.started + " · running for " + d.ran : "",
-        deepBarStyle: "height:100%;border-radius:2px;background:var(--accent);width:" + (d ? Math.max(2, Math.round(d.read / d.of * 100)) : 0) + "%",
         hasCeiling: !!m.ceiling,
-        ceilingText: m.ceiling ? "Stopped at the fast limit: it read " + m.ceiling.read + " of the " + m.ceiling.of + " messages that match, " + m.ceiling.said + ". The rest may change the answer." : "",
+        ceilingText: m.ceiling ? "Stopped at the " + (md && md.ran === "deep" ? "deep" : "fast") + " limit: it read " + m.ceiling.read + " messages. The rest may change the answer." : "",
+        offersDeep: !!(m.ceiling && !(md && md.ran === "deep")),
         askDeep: () => ask && this.agentAsk(ask, "deep"),
         askDeepKey: (e) => { if ((e.key === "Enter" || e.key === " ") && ask) { e.preventDefault(); this.agentAsk(ask, "deep"); } },
         askDeepStyle: "display:inline-flex;align-items:center;gap:6px;box-sizing:border-box;align-self:flex-start;font-size:13px;font-weight:600;color:var(--accent-d);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:8px;white-space:nowrap;" + (touch ? "min-height:44px;padding:0 14px" : "height:32px;padding:0 12px"),
