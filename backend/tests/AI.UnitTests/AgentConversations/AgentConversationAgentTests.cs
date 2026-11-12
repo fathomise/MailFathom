@@ -200,6 +200,73 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
         Assert.Null(completion.Ceiling);
     }
 
+    /// <summary>An automatic run whose reading the fast limit cut is told at its next call to go deep rather than answer with a caveat, and is told nothing once it has moved.</summary>
+    [Fact]
+    public async Task ComposeAsync_AnAutomaticRunWhoseReadingWasCutAtTheFastLimit_IsToldToGoDeepUntilItMoves()
+    {
+        // Arrange
+        const string Told = "A reading above was cut at the limit of a quick answer.";
+        var search = new RecordingEmailKnowledgeSearch()
+            .Returning("invoices", KnowledgePassages.Create("Invoice 14 is due.", subject: "Invoice"));
+        using var provider = new ScriptedProvider(
+            answering: [Searching("invoices"), GoingDeep("It needs every invoice this year."), Answering("Nine invoices arrived.")],
+            standby: []);
+        var bounds = new AgentRunBounds(MailAnsweringRunBounds.Create(5, 10, 160_000), AgentRunBounds.DefaultDeep);
+
+        // Act
+        await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000), search, bounds: bounds)
+            .ComposeAsync(this.Brief(AgentAnswerMode.Auto), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [false, true, false],
+            provider.SentBodies.Select(static body => body.Contains(Told, StringComparison.Ordinal)));
+        Assert.Single(this.Written<AgentAnswerDeepened>());
+    }
+
+    /// <summary>A fast run never moves on its own, so a reading the limit cut tells it nothing about going deep.</summary>
+    [Fact]
+    public async Task ComposeAsync_AFastRunWhoseReadingWasCutAtItsLimit_IsNotToldToGoDeep()
+    {
+        // Arrange
+        var search = new RecordingEmailKnowledgeSearch()
+            .Returning("invoices", KnowledgePassages.Create("Invoice 14 is due.", subject: "Invoice"));
+        using var provider = new ScriptedProvider(
+            answering: [Searching("invoices"), Answering("I stopped at the limit.")],
+            standby: []);
+        var bounds = new AgentRunBounds(MailAnsweringRunBounds.Create(5, 10, 160_000), AgentRunBounds.DefaultDeep);
+
+        // Act
+        await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000), search, bounds: bounds)
+            .ComposeAsync(this.Brief(AgentAnswerMode.Fast), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.DoesNotContain(provider.SentBodies, static body => body.Contains("cut at the limit of a quick answer", StringComparison.Ordinal));
+    }
+
+    /// <summary>The last call offers no tool, the rating among them, so an answer written on it is drawn low rather than at a band nobody chose.</summary>
+    [Fact]
+    public async Task ComposeAsync_AnAnswerWrittenOnTheLastCallWithoutARating_IsComposedAtLowConfidence()
+    {
+        // Arrange
+        var search = new RecordingEmailKnowledgeSearch()
+            .Returning("invoices", KnowledgePassages.Create("Invoice 14 is due.", subject: "Invoice"));
+        using var provider = new ScriptedProvider(
+            answering: [Searching("invoices"), Answering("Invoice 14 is due; I stopped at the limit.")],
+            standby: []);
+        var bounds = new AgentRunBounds(MailAnsweringRunBounds.Create(20_000, 2, 160_000), AgentRunBounds.DefaultDeep);
+
+        // Act
+        await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000), search, bounds: bounds)
+            .ComposeAsync(this.Brief(AgentAnswerMode.Fast), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        var block = Assert.IsType<AnswerBlock>(this.ComposedBlock());
+        Assert.Equal(
+            (PresentationSupport.Cited, PresentationConfidence.Low),
+            (block.Evidence.Support, block.Confidence));
+    }
+
     /// <summary>An answer that rests on nothing is low whatever the model rated it, because the band is capped by its support.</summary>
     [Fact]
     public async Task ComposeAsync_AModelRatingHighOverNoSource_ComposesAnUnsupportedAnswerAtLowConfidence()

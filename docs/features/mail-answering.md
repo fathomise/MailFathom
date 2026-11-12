@@ -342,7 +342,9 @@ tells the Agent to write one only where a report or a document was asked for, to
 person's language with mail quoted in its own, to say in the report where it covers only part of what was asked, and to
 say in its answer that it wrote it, what it covers, and what it leaves out, rather than repeating it.
 
-**What of the Markdown is interpreted.** Headings, paragraphs, bulleted and numbered lists three levels deep, pipe
+**What of the Markdown is interpreted.** Headings, paragraphs, bulleted and numbered lists three levels deep — the
+Agent is told a list nests by indenting an item four spaces, and to set a nested list and a quotation as those
+structures where the person named them rather than as headings and quotation marks — pipe
 tables, quotations, bold, italics, code, and a thematic break are set as the template draws them; `#` and `##` both open
 a section, since the title is the page's own. A table that runs past a page repeats its header row on the next. A
 quotation's last paragraph opening with `— ` names who wrote it and when, and is set as that line. Raw HTML is printed
@@ -469,7 +471,9 @@ fast or a deep run is never offered it.
 call is the last the ceilings leave room for — by count, and by tokens where the costliest call so far made once more
 would reach the token ceiling, which is the one forecast the ledger makes — and makes that call with no tool on offer
 and an instruction to answer from what it has read and say it stopped there. An automatic run that has not moved is
-offered `go_deep` alone one call earlier, so a question that proves to need more reading moves instead of stopping. An
+offered `go_deep` alone one call earlier, so a question that proves to need more reading moves instead of stopping, and
+from the moment a reading comes back cut at the fast limit it is told at every call, with all its tools still on offer,
+to move and repeat that reading where the question needs what was left out rather than answer with a caveat. An
 answer written on that last call, or one whose reading the retrieved-character ceiling cut, is recorded as completed at
 a ceiling, naming how many messages it read; a fast run never moves on its own, and that record is what a client offers
 asking again in deep from. The client's half is [the client endpoint § The Agent conversation

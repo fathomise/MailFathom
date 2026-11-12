@@ -161,8 +161,10 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         var evidence = cited.Length is 0
             ? PresentationEvidence.Unsupported(PresentationFreshness.Unknown)
             : new PresentationEvidence(PresentationSupport.Cited, cited, PresentationFreshness.Unknown);
+        // An answer written on the last call could not be rated, because that call offers no tool: it rests on a
+        // reading the run could not finish, which is what low says, rather than on a band nobody chose.
         var confidence = PresentationConfidenceCeiling.Cap(
-            tools.ReportedConfidence ?? PresentationConfidence.Moderate,
+            tools.ReportedConfidence ?? (effort.AnsweredAtLastCall ? PresentationConfidence.Low : PresentationConfidence.Moderate),
             evidence.Support);
 
         await journal.ComposeAsync(new AnswerBlock(evidence, answer, confidence, LinksIn(answer, tools)), cancellationToken);

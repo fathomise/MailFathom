@@ -109,7 +109,9 @@ internal static partial class WrittenLanguage
     private static List<string> WordsOf(string? text) =>
         [.. Word().Matches(text ?? string.Empty).Select(static match => match.Value)];
 
-    [GeneratedRegex(@"\p{L}+")]
+    // An apostrophe inside a word joins it, so a possessive is one word rather than a name and a stray letter that
+    // would count towards the words an answer needs before it can be told to be in no language.
+    [GeneratedRegex(@"\p{L}+(?:['’]\p{L}+)*")]
     private static partial Regex Word();
 
     [GeneratedRegex("[\"“„«][^\"“”„«»]*[\"”»]")]
