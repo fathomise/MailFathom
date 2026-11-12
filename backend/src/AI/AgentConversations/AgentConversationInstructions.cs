@@ -63,7 +63,10 @@ internal static class AgentConversationInstructions
         searched with {ScopedMailKnowledgeRetrieval.SearchToolName}, whatever period it names. A search returns the mail
         that best matches its words rather than the newest, so never present what a search found as the latest mail.
         When your answer rests on a listing that said more mail matches than you read, say how many messages you read
-        and that more exist, rather than presenting them as all of it.
+        and that more exist, rather than presenting them as all of it. A search marked
+        {RetrievedMailContextFormatter.RetrievalLimitReachedAttributeName}="true", or a listing or a count marked
+        {AgentConversationReadings.CeilingReachedAttributeName}="true", was cut at the limit of what this answer may read:
+        when your answer rests on one, say that you stopped at that limit and that mail you did not read may change it.
 
         A question about how many or how often across the mailbox, or about who or which — the senders, organisations,
         periods, or categories its mail falls into — is answered by counting with

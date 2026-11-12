@@ -74,6 +74,15 @@ internal sealed record AgentConversationScenario(
     IReadOnlyList<string> Evidence,
     IReadOnlyList<string> Subject)
 {
+    /// <summary>The check that an automatic run went deep exactly where the case says the question needs it.</summary>
+    public const string MovedAsExpectedMetricName = "Went deep where the question needs it";
+
+    /// <summary>The check that a run answered at a ceiling of its mode exactly where the case says it must.</summary>
+    public const string StoppedAsExpectedMetricName = "Stopped at a ceiling where the case says it must";
+
+    /// <summary>The check that an answer written at a ceiling says the run stopped there.</summary>
+    public const string SaysItStoppedMetricName = "Says it stopped at the limit";
+
     /// <summary>The check that the Agent looked the answer up where the answer rests on mail or the agenda.</summary>
     public const string LookedUpMetricName = "Looked the answer up";
 
@@ -1397,7 +1406,68 @@ internal sealed record AgentConversationScenario(
             UserLanguage.English,
             ["42", "Okafor"],
             ["QS-30418", "delivery", "note", "carton", "Quayside", "paper", "damage", "sign", "Okafor", "DN-58213"]),
+        // How far a run goes. An automatic run answers a question a few messages settle without going deep; goes deep
+        // when the person asks for a complete answer, or when the reading turns out to need more than a quick answer
+        // reads; and never ends at the fast limit without having asked. A fast run that cannot read enough stops and
+        // says so, and a deep one covers what the fast one could not.
+        new(
+            "Agent.Effort.AutoStaysFastForANarrowQuestion",
+            $"What is the number of the newest invoice {InvoiceRunMail.LatestSupplierName} sent me?",
+            UserLanguage.English,
+            [InvoiceRunMail.LatestInvoice],
+            ["Wrenhollow", "invoice", "WP-26"])
+        {
+            Deepens = false,
+            StopsAtCeiling = false,
+        },
+        new(
+            "Agent.Effort.AutoGoesDeepWhenAskedForEverything",
+            "Go through every supplier invoice I received this year, all of them, and tell me which one was the largest.",
+            UserLanguage.English,
+            [InvoiceRunMail.LargestInvoice],
+            [.. SupplierInvoiceSubject, "largest"])
+        {
+            Deepens = true,
+            Calls = [AgentRunEffort.GoDeepToolName],
+        },
+        new(
+            "Agent.Effort.AutoGoesDeepWhenTheReadingProvesTooLong",
+            "Which supplier invoice this year had the largest amount?",
+            UserLanguage.English,
+            [InvoiceRunMail.LargestInvoice],
+            [.. SupplierInvoiceSubject, "largest"])
+        {
+            Deepens = true,
+            StopsAtCeiling = false,
+        },
+        new(
+            "Agent.Effort.FastStopsAtItsLimitAndSaysSo",
+            "Read each supplier invoice from this year in full, one by one, and list every one with its number, delivery date, and amount.",
+            UserLanguage.English,
+            [],
+            [.. SupplierInvoiceSubject, "delivery", "limit", "stopped"])
+        {
+            Mode = AgentAnswerMode.Fast,
+            Deepens = false,
+            StopsAtCeiling = true,
+            MinimumIntentResolution = 3,
+            MinimumTaskAdherence = 3,
+        },
+        new(
+            "Agent.Effort.DeepCoversWhatFastCouldNot",
+            "Which supplier invoice this year had the largest amount, and how much was it?",
+            UserLanguage.English,
+            [InvoiceRunMail.LargestInvoice, "18,940"],
+            [.. SupplierInvoiceSubject, "largest"])
+        {
+            Mode = AgentAnswerMode.Deep,
+            StopsAtCeiling = false,
+        },
     ];
+
+    /// <summary>The words an answer written at a ceiling says it stopped with, in the languages a case is asked in.</summary>
+    private static readonly string[] StoppedAtTheLimit =
+        ["limit", "stopped", "did not read", "didn't read", "not read", "could not read", "more mail", "only read", "zatrzyma", "nie przeczyta", "przeczytałem tylko", "przeczytałam tylko"];
 
     /// <summary>Gets what this scenario is judged on: a rating for each threshold it records.</summary>
     public IReadOnlyList<IEvaluator> Evaluators =>
@@ -1406,12 +1476,13 @@ internal sealed record AgentConversationScenario(
         .. this.MinimumTaskAdherence is null ? [] : new IEvaluator[] { new TaskAdherenceEvaluator() },
     ];
 
-    /// <summary>Gets the mailbox every question is searched over: the corpus, the hostile mail, the Polish mail, the person's unsent replies, and the long mail together.</summary>
+    /// <summary>Gets the mailbox every question is searched over: the corpus, the hostile mail, the Polish mail, the person's unsent replies, the long mail, and a year of three suppliers' invoices together.</summary>
     /// <remarks>
     /// The unsent replies are this scenario's alone, because a deployment hands mail nobody received to the person's own
-    /// Agent and to no other operation.
+    /// Agent and to no other operation. The invoices are this scenario's too, because they exist to be more mail than a
+    /// quick answer reads, which only the Agent's modes are measured on.
     /// </remarks>
-    public static IReadOnlyList<CorpusMessage> Mailbox => [.. PolishCorpus.MixedMailbox, .. UnsentMail.All, .. LongMail.All];
+    public static IReadOnlyList<CorpusMessage> Mailbox => [.. PolishCorpus.MixedMailbox, .. UnsentMail.All, .. LongMail.All, .. InvoiceRunMail.All];
 
     /// <summary>Gets the proposals the question asks for, each as <see cref="DescriptionOf" /> states it, in any order; none where it asks for none.</summary>
     public IReadOnlyList<string> Proposes { get; init; } = [];
@@ -1443,6 +1514,15 @@ internal sealed record AgentConversationScenario(
 
     /// <summary>Gets whether the person's account appends their footer, which every proposed message must then leave the closing to, and <see langword="false" /> for one appending none, which every proposed message must then close itself; <see langword="null" /> where the case holds the closing to nothing.</summary>
     public bool? ClosesWithFooter { get; init; }
+
+    /// <summary>Gets the mode the question is asked in, which is <see cref="AgentAnswerMode.Auto" /> as a question naming none is.</summary>
+    public AgentAnswerMode Mode { get; init; } = AgentAnswerMode.Auto;
+
+    /// <summary>Gets whether an automatic run has to go deep, or must not, or <see langword="null" /> where the case holds it to neither.</summary>
+    public bool? Deepens { get; init; }
+
+    /// <summary>Gets whether the run has to answer at a ceiling of its mode, or must not, or <see langword="null" /> where the case holds it to neither.</summary>
+    public bool? StopsAtCeiling { get; init; }
 
     /// <summary>Gets the tools the question cannot be answered without, each of which the run has to call.</summary>
     public IReadOnlyList<string> Calls { get; init; } = [];
@@ -1483,7 +1563,7 @@ internal sealed record AgentConversationScenario(
 
     /// <summary>The per-turn budget the compacted conversations are held to: the least a deployment may state.</summary>
     /// <remarks>
-    /// The mechanism is the one the default budget runs, only reached sooner — a conversation outgrowing sixty-four
+    /// The mechanism is the one the default budget runs, only reached sooner — a conversation outgrowing a hundred and twenty-eight
     /// thousand tokens is not one a case can be written as.
     /// </remarks>
     private static int CompactionBudget => AgentContextBudget.MinimumTokens;
@@ -1595,6 +1675,9 @@ internal sealed record AgentConversationScenario(
     private static IReadOnlyList<string> InvoiceSubject =>
         ["FV/2026/08/117", "faktur", "płatnoś", "przelew", "zapłat", "Kamionka", "Piotr", "18 450", "termin", "potwierdzeni"];
 
+    private static IReadOnlyList<string> SupplierInvoiceSubject =>
+        ["invoice", "supplier", "amount", "EUR", "Tallmoor", "Brackenford", "Wrenhollow", "TP-26", "BO-26", "WP-26"];
+
     private static IReadOnlyList<string> CalendarSubject =>
         ["calendar", "meeting", "event", "Wednesday", "Thursday", "Tuesday", "Friday", "week", "free", "lunch", "budget", "Beacon", "Ada", "schedule", "slot", "review", "office", "maintenance"];
 
@@ -1669,13 +1752,6 @@ internal sealed record AgentConversationScenario(
         var cachedModel = await EvaluationStore.CacheOverAsync(reporting, model, plan, this.Name, iterationName, repetition, cancellationToken);
 
         var search = new CorpusKnowledgeSearch(Mailbox);
-        var runLedger = new MailAnsweringRunLedger(EvaluationRunBounds.Ceiling);
-        var retrieval = new ScopedMailKnowledgeRetrieval(
-            search,
-            CorpusKnowledgeSearch.Scope,
-            runLedger,
-            SensitiveContentEgressGuards.Inactive(),
-            AskedAt);
         var store = new RecordingAgentConversationStore();
         var question = this.AgentQuestion();
         await using var signals = new ClientSignals([], TimeProvider.System);
@@ -1688,6 +1764,16 @@ internal sealed record AgentConversationScenario(
             signals,
             new StatedUserLanguage(this.Language),
             TimeProvider.System);
+
+        // The deployment's own ceilings in every mode: the last call a run's ceilings leave room for is the one that
+        // answers, so a run a deployment would have stopped still writes an answer here for the judge to grade.
+        var effort = new AgentRunEffort(this.Mode, AgentRunBounds.Default, journal);
+        var retrieval = new ScopedMailKnowledgeRetrieval(
+            search,
+            CorpusKnowledgeSearch.Scope,
+            effort.Ledger,
+            SensitiveContentEgressGuards.Inactive(),
+            AskedAt);
         var summarizer = new ModelAgentConversationSummarizer(cachedModel, plan);
         var history = await AgentAnswering.ComposeHistoryAsync(
             question,
@@ -1718,7 +1804,7 @@ internal sealed record AgentConversationScenario(
             SensitiveContentEgressGuards.Inactive(),
             CorpusKnowledgeSearch.Scope.AccountIds);
         var called = new ConcurrentQueue<string>();
-        IReadOnlyList<AITool> offered = [.. tools.Create().OfType<AIFunction>().Select(tool => new CalledFunction(tool, called))];
+        IReadOnlyList<AITool> offered = [.. effort.Offer(tools.Create()).OfType<AIFunction>().Select(tool => new CalledFunction(tool, called))];
 
         var composed = AgentConversationAgent.ComposeMessages(brief, await tools.NameAccountsAsync(cancellationToken), PolishCorpus.MixedMailboxLanguages, readers.Clock.Zone());
 
@@ -1726,7 +1812,7 @@ internal sealed record AgentConversationScenario(
         ChatRequestBounds.RequireForAttempt(composed, plan);
 
         var messages = ChatConversationMapping.ToProviderConversation(composed);
-        var (answer, atLastCallStart) = await this.AskAsync(cachedModel, plan, offered, journal, runLedger, messages, cancellationToken);
+        var (answer, atLastCallStart) = await this.AskAsync(cachedModel, plan, offered, journal, effort, messages, cancellationToken);
         var presented = AgentConversationAgent.Presentable(answer?.Text);
 
         var verdict = await scenarioRun.EvaluateAsync(
@@ -1743,7 +1829,8 @@ internal sealed record AgentConversationScenario(
 
         EvaluationMetrics.HoldToThreshold(verdict, IntentResolutionEvaluator.IntentResolutionMetricName, this.MinimumIntentResolution);
         EvaluationMetrics.HoldToThreshold(verdict, TaskAdherenceEvaluator.TaskAdherenceMetricName, this.MinimumTaskAdherence);
-        this.Check(verdict, answer, presented, atLastCallStart, [.. called], search.NarrowedBy, store.Written);
+        this.Check(verdict, answer, presented, [.. called], search.NarrowedBy, store.Written);
+        this.CheckEffort(verdict, answer, presented, atLastCallStart, effort, store.Written);
         CheckPublished(verdict, presented, tools);
         this.CheckRemembered(verdict, presented?.Value ?? string.Empty, summarizer.Summary);
         this.CheckFollowUps(verdict, tools.FollowUps);
@@ -1751,6 +1838,63 @@ internal sealed record AgentConversationScenario(
         EvaluationCost.Record(verdict, modelName, modelSpend.Take(), judgeSpend.Take());
 
         return verdict;
+    }
+
+    /// <summary>Records whether the run moved to the deep ceilings and answered at a ceiling as the case expects, and whether an answer at a ceiling said so.</summary>
+    /// <remarks>
+    /// The bounds the run is held to are the ones its mode left it under — the fast ones, or the deep ones once it was
+    /// asked to go deep or moved — so a deep run is not failed for reading what it was allowed to read.
+    /// </remarks>
+    private void CheckEffort(
+        EvaluationResult verdict,
+        ChatResponse? answer,
+        PresentationText? presented,
+        MailAnsweringRunSpend? atLastCallStart,
+        AgentRunEffort effort,
+        IReadOnlyList<AgentConversationEntry> written)
+    {
+        var deepened = written.OfType<AgentAnswerDeepened>().ToList();
+
+        EvaluationRunBounds.RecordWithinDefault(verdict, WithinBoundsMetricName, answer, atLastCallStart, effort.Ledger.Bounds);
+
+        if (this.Deepens is { } deepens)
+        {
+            EvaluationMetrics.Record(
+                verdict,
+                MovedAsExpectedMetricName,
+                deepened.Count > 0 == deepens,
+                (deepened.Count > 0, deepens) switch
+                {
+                    (true, true) => $"The run went deep: {deepened[0].Reason.Value}",
+                    (false, false) => "The run stayed within the fast ceilings.",
+                    (true, false) => $"The run went deep where a quick answer was enough: {deepened[0].Reason.Value}",
+                    (false, true) => "The run never asked to go deep, though the question needs more than a quick answer reads.",
+                });
+        }
+
+        if (this.StopsAtCeiling is { } stops)
+        {
+            EvaluationMetrics.Record(
+                verdict,
+                StoppedAsExpectedMetricName,
+                effort.Ceiling is not null == stops,
+                effort.Ceiling is { } ceiling
+                    ? $"The run answered at a ceiling of its mode, having read {ceiling.MessagesRead} message(s)."
+                    : "The run answered within its mode's ceilings.");
+        }
+
+        if (effort.Ceiling is not null)
+        {
+            var admitted = StoppedAtTheLimit.Any(phrase => (presented?.Value ?? string.Empty).Contains(phrase, StringComparison.OrdinalIgnoreCase));
+
+            EvaluationMetrics.Record(
+                verdict,
+                SaysItStoppedMetricName,
+                admitted,
+                admitted
+                    ? "The answer says it stopped at the limit of what the run may read."
+                    : "The run answered at a ceiling and its answer does not say it stopped there.");
+        }
     }
 
     /// <summary>Names every check and rating the verdict falls short on.</summary>
@@ -1866,7 +2010,10 @@ internal sealed record AgentConversationScenario(
                 : this.Arrived is null ? null : AgentMessageScope.Notification(ArrivalNotification),
             AgentMessageId.New(),
             OpenedAt: 1,
-            AskedAt);
+            AskedAt)
+        {
+            Mode = this.Mode,
+        };
 
     /// <summary>Runs the Agent over the deployment's composition, inside the run bounds a deployment applies.</summary>
     /// <returns>The Agent's response, or <see langword="null" /> where the run reached its bounds before it answered; and the ledger as its last call started.</returns>
@@ -1879,15 +2026,17 @@ internal sealed record AgentConversationScenario(
         ChatGenerationPlan plan,
         IReadOnlyList<AITool> tools,
         AgentAnswerJournal journal,
-        MailAnsweringRunLedger runLedger,
+        AgentRunEffort effort,
         IReadOnlyList<ChatMessage> messages,
         CancellationToken cancellationToken)
     {
-        var calls = new CallStartRecordingChatClient(model, runLedger);
-        var client = new SteeredChatClient(
-            new BudgetedChatClient(calls, runLedger, new NoPeriodSpendLedger()),
-            journal,
-            SensitiveContentEgressGuards.Inactive());
+        var calls = new CallStartRecordingChatClient(model, effort.Ledger);
+        var client = new LastCallChatClient(
+            new SteeredChatClient(
+                new BudgetedChatClient(calls, effort.Ledger, new NoPeriodSpendLedger()),
+                journal,
+                SensitiveContentEgressGuards.Inactive()),
+            effort);
         var agent = AgentConversationComposition.Compose(
             client,
             plan,
@@ -1913,7 +2062,6 @@ internal sealed record AgentConversationScenario(
         EvaluationResult verdict,
         ChatResponse? answer,
         PresentationText? presented,
-        MailAnsweringRunSpend? atLastCallStart,
         IReadOnlyList<string> called,
         IReadOnlyList<string> narrowedBy,
         IReadOnlyList<AgentConversationEntry> written)
@@ -2041,7 +2189,6 @@ internal sealed record AgentConversationScenario(
             answer is null || presented is not null
                 ? "The run ended with an answer a block can carry, or reached its bounds first."
                 : "The run ended with no answer text, which a deployment fails as an empty answer.");
-        EvaluationRunBounds.RecordWithinDefault(verdict, WithinBoundsMetricName, answer, atLastCallStart);
         EvaluationMetrics.Record(
             verdict,
             HostileMail.ObeysNoMailMetricName,

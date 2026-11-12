@@ -357,6 +357,129 @@ public sealed class MailAnsweringRunLedgerTests
         Assert.Throws<ArgumentOutOfRangeException>(() => ledger.AdmitPage(StoredEmailId.Create(Guid.CreateVersion7()), -1));
     }
 
+    /// <summary>A run has room for at most as many calls as its call ceiling leaves, and a run with none left has room for none.</summary>
+    [Theory]
+    [InlineData(2, 1, false)]
+    [InlineData(3, 1, true)]
+    [InlineData(2, 2, true)]
+    [InlineData(1, 2, false)]
+    [InlineData(4, 1, false)]
+    public void HasRoomForAtMost_CallsMadeAgainstACeilingOfFour_IsTrueOnlyWithThatManyOrFewerLeft(int callsMade, int calls, bool expected)
+    {
+        // Arrange
+        var ledger = LedgerAllowing(providerCalls: 4);
+
+        foreach (var _ in Enumerable.Range(0, callsMade))
+        {
+            ledger.RequireAllowanceForNextCall();
+        }
+
+        // Act
+        var hasRoom = ledger.HasRoomForAtMost(calls);
+
+        // Assert
+        Assert.Equal(expected, hasRoom);
+    }
+
+    /// <summary>A run whose costliest call, made that many times more, would reach its token ceiling has room for no more calls than that, however many its call ceiling leaves.</summary>
+    [Theory]
+    [InlineData(400, 1, true)]
+    [InlineData(300, 1, false)]
+    [InlineData(300, 2, true)]
+    public void HasRoomForAtMost_TheCostliestCallMadeAgain_ForecastsAgainstTheTokenCeiling(int inputTokens, int calls, bool expected)
+    {
+        // Arrange
+        var ledger = LedgerAllowing(providerCalls: 8, tokens: 1_000);
+        ledger.RequireAllowanceForNextCall();
+        ledger.RecordSpend(new ChatTokenUsage(inputTokens, 100));
+
+        // Act
+        var hasRoom = ledger.HasRoomForAtMost(calls);
+
+        // Assert
+        Assert.Equal(expected, hasRoom);
+    }
+
+    /// <summary>A run already past its token ceiling has no last call to make: the next one is refused.</summary>
+    [Fact]
+    public void HasRoomForAtMost_ARunPastItsTokenCeiling_IsFalse()
+    {
+        // Arrange
+        var ledger = LedgerAllowing(providerCalls: 8, tokens: 1_000);
+        ledger.RequireAllowanceForNextCall();
+        ledger.RecordSpend(new ChatTokenUsage(900, 200));
+
+        // Act
+        var hasRoom = ledger.HasRoomForAtMost(1);
+
+        // Assert
+        Assert.False(hasRoom);
+    }
+
+    /// <summary>Asking about fewer than one further call is refused, because no run can be on fewer than its next call.</summary>
+    [Fact]
+    public void HasRoomForAtMost_NoCalls_IsRefused()
+    {
+        // Arrange
+        var ledger = LedgerAllowing();
+
+        // Act, Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => ledger.HasRoomForAtMost(0));
+    }
+
+    /// <summary>Raising the ceilings keeps what was spent counted, lets the run read and call past where it stopped, and forgets that a lookup was cut.</summary>
+    [Fact]
+    public void Widen_TheFirstTime_WidensWhatTheRestOfTheRunMayAddAndForgetsTheCut()
+    {
+        // Arrange
+        var ledger = LedgerAllowing(retrievedCharacters: 150, providerCalls: 1);
+        ledger.RequireAllowanceForNextCall();
+        ledger.AdmitPassages(PassagesOf(100, 100));
+
+        // Act
+        var raised = ledger.Widen(MailAnsweringRunBounds.Create(1_000, 4, 160_000));
+        var admitted = ledger.AdmitPassages(PassagesOf(100));
+        ledger.RequireAllowanceForNextCall();
+
+        // Assert
+        Assert.True(raised);
+        Assert.Single(admitted);
+        Assert.False(ledger.RetrievalWasTruncated);
+        Assert.Equal((2, 200), (ledger.Read().ProviderCalls, ledger.Read().RetrievedCharacters));
+    }
+
+    /// <summary>A run raises its ceilings once: a second raise leaves them where the first put them.</summary>
+    [Fact]
+    public void Widen_ASecondTime_LeavesTheCeilingsAsTheFirstRaiseSetThem()
+    {
+        // Arrange
+        var ledger = LedgerAllowing();
+        var first = MailAnsweringRunBounds.Create(40_000, 16, 160_000);
+        ledger.Widen(first);
+
+        // Act
+        var raisedAgain = ledger.Widen(MailAnsweringRunBounds.Create(80_000, 32, 320_000));
+
+        // Assert
+        Assert.False(raisedAgain);
+        Assert.Equal(first, ledger.Bounds);
+    }
+
+    /// <summary>Bounds lowering any one ceiling while raising the other two are refused, because a run's ceilings only widen.</summary>
+    [Theory]
+    [InlineData(10_000, 16, 160_000)]
+    [InlineData(40_000, 4, 160_000)]
+    [InlineData(40_000, 16, 40_000)]
+    public void Widen_BoundsLoweringOneCeiling_IsRefused(int retrievedCharacters, int providerCalls, long tokens)
+    {
+        // Arrange
+        var ledger = LedgerAllowing();
+
+        // Act, Assert
+        Assert.Throws<ArgumentException>(
+            () => ledger.Widen(MailAnsweringRunBounds.Create(retrievedCharacters, providerCalls, tokens)));
+    }
+
     [Fact]
     public void Constructor_WithoutBounds_IsRefused()
     {

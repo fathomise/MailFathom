@@ -29,7 +29,7 @@ internal static class EvaluationRunBounds
     public static MailAnsweringRunBounds Ceiling { get; } = MailAnsweringRunBounds.Create(
         MailAnsweringRunBounds.Default.MaximumRetrievedCharacters,
         maximumProviderCalls: 16,
-        maximumTokens: 160_000);
+        maximumTokens: MailAnsweringRunBounds.Default.MaximumTokens * 2);
 
     /// <summary>Records whether a run answered within the bounds a deployment applies by default, naming each ceiling a call started past.</summary>
     /// <param name="verdict">The verdict the metric is recorded on.</param>
@@ -38,6 +38,10 @@ internal static class EvaluationRunBounds
     /// <param name="atLastCallStart">
     /// The run's ledger as its last call started, counting that call among the calls and none of its tokens, or
     /// <see langword="null" /> where the run made no call.
+    /// </param>
+    /// <param name="production">
+    /// The bounds a deployment holds this run to, or <see langword="null" /> for <see cref="MailAnsweringRunBounds.Default" />:
+    /// an Agent run is held to the ceilings of the mode it ended in, which a deep one sets wider.
     /// </param>
     /// <remarks>
     /// <see cref="MailAnsweringRunLedger.RequireAllowanceForNextCall" /> refuses a call once the run has made every call it
@@ -48,9 +52,10 @@ internal static class EvaluationRunBounds
         EvaluationResult verdict,
         string metricName,
         ChatResponse? answer,
-        MailAnsweringRunSpend? atLastCallStart)
+        MailAnsweringRunSpend? atLastCallStart,
+        MailAnsweringRunBounds? production = null)
     {
-        var production = MailAnsweringRunBounds.Default;
+        production ??= MailAnsweringRunBounds.Default;
         var lastCall = atLastCallStart ?? MailAnsweringRunSpend.Nothing;
         List<string> refused = [];
 
@@ -70,7 +75,7 @@ internal static class EvaluationRunBounds
             answer is not null && refused.Count is 0,
             (answer, refused.Count) switch
             {
-                (null, _) => $"The run reached {Ceiling} before it answered.",
+                (null, _) => "The run reached its bounds before it answered.",
                 (_, 0) => $"The run stayed within {production}.",
                 _ => $"A deployment would have refused {string.Join(" and ", refused)}.",
             });

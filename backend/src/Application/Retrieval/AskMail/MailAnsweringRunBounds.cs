@@ -56,11 +56,12 @@ public sealed record MailAnsweringRunBounds
     /// <summary>Gets the bounds a deployment that states none receives.</summary>
     /// <remarks>
     /// Deliberately conservative. Twenty thousand characters is a little over two full lookups under the default
-    /// retrieval bounds, eight calls is a tool loop that asked for mail several times and then wrote an answer, and
-    /// eighty thousand tokens is what those eight calls cost when each carries everything the ones before it retrieved.
+    /// retrieval bounds, and eight calls is a tool loop that asked for mail several times and then wrote an answer. A
+    /// hundred and sixty thousand tokens is those eight calls when each carries everything the ones before it
+    /// retrieved, with room above the default context an Agent turn may send on its first call, which the run counts.
     /// An operator who wants a question to range further raises them knowing what each buys.
     /// </remarks>
-    public static MailAnsweringRunBounds Default { get; } = new(20_000, 8, 80_000);
+    public static MailAnsweringRunBounds Default { get; } = new(20_000, 8, 160_000);
 
     /// <summary>Gets the greatest number of characters of retrieved mail one run may send.</summary>
     public int MaximumRetrievedCharacters { get; }

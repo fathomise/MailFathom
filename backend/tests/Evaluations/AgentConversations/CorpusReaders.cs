@@ -67,7 +67,7 @@ internal static class CorpusReaders
     private static readonly OutgoingEmailBounds DeploymentBounds = new MailDeliveryOptions().ToOutgoingEmailBounds();
 
     private static readonly Lazy<IReadOnlyList<IReadOnlyList<CorpusMessage>>> Exchanges = new(static () =>
-        [.. CorpusMessage.Exchanges, .. HostileMail.Exchanges, .. FalseClaimMail.Exchanges, .. PolishCorpus.Exchanges, .. UnsentMail.Exchanges, .. LongMail.Exchanges]);
+        [.. CorpusMessage.Exchanges, .. HostileMail.Exchanges, .. FalseClaimMail.Exchanges, .. PolishCorpus.Exchanges, .. UnsentMail.Exchanges, .. LongMail.Exchanges, .. InvoiceRunMail.Exchanges]);
 
     private static readonly Lazy<StubEmailProvenanceReader> Provenance = new(static () => StubEmailProvenanceReader.Answering(
         Exchanges.Value.SelectMany(static exchange => exchange).ToDictionary(static message => message.Id, static message => message.Provenance)));

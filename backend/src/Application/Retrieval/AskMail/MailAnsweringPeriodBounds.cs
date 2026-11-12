@@ -45,10 +45,11 @@ public sealed record MailAnsweringPeriodBounds
     /// <summary>Gets the bounds a deployment that states none receives.</summary>
     /// <remarks>
     /// An hour rather than a day, because a ceiling an operator only meets once a day is one they meet after the spend
-    /// has happened. Thirty questions and three hundred thousand tokens an hour is a person using their own mailbox
-    /// heavily and is well below a client in a loop, which is exactly the line these are drawn at.
+    /// has happened. Thirty questions and two million tokens an hour is a person using their own mailbox heavily — room
+    /// for two deep Agent runs, or a dozen long fast turns — and is well below a client in a loop, which is exactly the
+    /// line these are drawn at.
     /// </remarks>
-    public static MailAnsweringPeriodBounds Default { get; } = new(TimeSpan.FromHours(1), 30, 300_000);
+    public static MailAnsweringPeriodBounds Default { get; } = new(TimeSpan.FromHours(1), 30, 2_000_000);
 
     /// <summary>Gets how long one period lasts before what was spent in it is forgotten.</summary>
     public TimeSpan Period { get; }

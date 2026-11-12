@@ -78,7 +78,7 @@ public sealed class MailAnsweringScenarioTests : IDisposable
         using var model = new ScriptedAnsweringChatClient(
             LumenfieldLookup,
             $"It needed 42 Lantern Way [{LumenfieldInvoice.Id}].",
-            inputTokensPerReply: 90_000);
+            inputTokensPerReply: 170_000);
 
         // Act
         var verdict = await this.RunAsync(KeywordTrap, model, executionName: "only");
@@ -87,7 +87,7 @@ public sealed class MailAnsweringScenarioTests : IDisposable
         var withinBounds = verdict.Get<BooleanMetric>(MailAnsweringScenario.WithinBoundsMetricName);
         Assert.True(verdict.Get<BooleanMetric>(MailAnsweringScenario.AnsweredMetricName).Value);
         Assert.False(withinBounds.Value);
-        Assert.Contains("started at 90005 tokens", withinBounds.Reason, StringComparison.Ordinal);
+        Assert.Contains("started at 170005 tokens", withinBounds.Reason, StringComparison.Ordinal);
     }
 
     [Fact]

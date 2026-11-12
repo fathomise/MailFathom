@@ -438,6 +438,7 @@ internal static class ClientAgentConversationEndpoints
         AgentMessageId message;
         PresentationText text;
         AgentMessageScope? scope;
+        var mode = request?.Mode ?? AgentAnswerMode.Auto;
         try
         {
             conversation = AgentConversationId.Create(conversationId);
@@ -452,18 +453,23 @@ internal static class ClientAgentConversationEndpoints
                 + $"{PresentationText.MaxLength}-character bound, and names a declared scope with the object it narrows to.");
         }
 
+        if (!Enum.IsDefined(mode))
+        {
+            return Refuse("A question that names a mode asks in Auto, Fast, or Deep.");
+        }
+
         if (principals.Current is not { } caller)
         {
             return Refuse("A question is asked by a caller this deployment admitted.");
         }
 
         var askedAt = timeProvider.GetUtcNow();
-        var posting = await controls.AskAsync(conversation, scopeResolver.User, message, text, scope, cancellationToken);
+        var posting = await controls.AskAsync(conversation, scopeResolver.User, message, text, scope, mode, cancellationToken);
 
         if (posting is { Outcome: AgentMessagePostingOutcome.Written, Answer: { } answer })
         {
             _ = launcher.Start(
-                new AgentQuestion(conversation, scopeResolver.User, text, scope, answer, posting.Reached, askedAt),
+                new AgentQuestion(conversation, scopeResolver.User, text, scope, answer, posting.Reached, askedAt) { Mode = mode },
                 caller);
         }
 
@@ -652,8 +658,9 @@ internal static class ClientAgentConversationEndpoints
 /// <param name="MessageId">The question's identifier, which the client generates so a retried post writes nothing twice.</param>
 /// <param name="Text">What the person asked.</param>
 /// <param name="Scope">What the question was asked about, or <see langword="null" /> for one narrowing nothing further.</param>
-/// <remarks>It names no user: whose conversation it is comes off the credential.</remarks>
-internal sealed record ClientAgentMessageRequest(Guid? MessageId, string? Text, ClientAgentMessageScope? Scope);
+/// <param name="Mode">How far the run answering it may go — <c>Auto</c>, <c>Fast</c>, or <c>Deep</c> — or <see langword="null" /> for <c>Auto</c>.</param>
+/// <remarks>It names no user: whose conversation it is comes off the credential. Every caller allowed to ask may ask in every mode.</remarks>
+internal sealed record ClientAgentMessageRequest(Guid? MessageId, string? Text, ClientAgentMessageScope? Scope, AgentAnswerMode? Mode = null);
 
 /// <summary>What a question was asked about.</summary>
 /// <param name="Kind">Which kind of thing — the mailbox, a thread, a calendar event, or a Discover run.</param>

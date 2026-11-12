@@ -155,14 +155,28 @@ public sealed class AgentAnswerJournal : IDisposable
     public Task<bool> EndAsync(AgentAnswerOutcome outcome, CancellationToken cancellationToken) =>
         this.WriteEndingAsync(new AgentAnswerEnded(this.answer, outcome), cancellationToken);
 
-    /// <summary>Ends the answer as completed, with the questions the agent suggests asking next.</summary>
-    /// <param name="followUps">The suggestions, and empty where the agent made none.</param>
+    /// <summary>Ends the answer as completed, with the questions the agent suggests asking next and the ceiling it answered at.</summary>
+    /// <param name="completion">The suggestions, and the ceiling the run reached where it reached one.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns><see langword="true" /> when the ending was written; <see langword="false" /> when the answer had already ended.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="completion" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when a suggestion is not one an answer may carry.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when more are suggested than an answer may carry.</exception>
-    public Task<bool> CompleteAsync(IReadOnlyList<PresentationText> followUps, CancellationToken cancellationToken) =>
-        this.WriteEndingAsync(new AgentAnswerEnded(this.answer, AgentAnswerOutcome.Completed, followUps), cancellationToken);
+    public Task<bool> CompleteAsync(AgentCompletion completion, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(completion);
+
+        return this.WriteEndingAsync(
+            new AgentAnswerEnded(this.answer, AgentAnswerOutcome.Completed, completion.FollowUps, completion.Ceiling),
+            cancellationToken);
+    }
+
+    /// <summary>Records that the run moved from the fast ceilings to the deep ones, and why.</summary>
+    /// <param name="reason">Why it moved, as the agent stated it.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><see langword="true" /> when the move was recorded; <see langword="false" /> when the answer is no longer being composed.</returns>
+    public Task<bool> RecordDeepeningAsync(PresentationText reason, CancellationToken cancellationToken) =>
+        this.WriteAsync(new AgentAnswerDeepened(this.answer, reason), cancellationToken);
 
     /// <summary>Records a tool the model asked for, so the input its next call is composed from can be rebuilt from the record.</summary>
     /// <param name="callId">What the model named the call.</param>

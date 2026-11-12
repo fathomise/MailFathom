@@ -20,7 +20,7 @@ public sealed class MailAnsweringPeriodBoundsTests
         // Assert
         Assert.Equal(TimeSpan.FromHours(1), bounds.Period);
         Assert.Equal(30, bounds.MaximumRuns);
-        Assert.Equal(300_000L, bounds.MaximumTokens);
+        Assert.Equal(2_000_000L, bounds.MaximumTokens);
     }
 
     [Theory]

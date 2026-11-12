@@ -118,6 +118,38 @@ public sealed class AgentConversationEntryTests
     }
 
     [Fact]
+    public void Constructor_AQuestionAskedInAModeTheSetDoesNotDeclare_IsRefused()
+    {
+        // Arrange
+        var message = AgentMessageId.New();
+
+        // Act, Assert
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new AgentMessageWritten(message, AgentMessageAuthor.Person, PresentationText.Create("Anything."), null, (AgentAnswerMode)42));
+    }
+
+    [Fact]
+    public void Constructor_AMoveToTheDeepCeilingsSayingNothing_IsRefused()
+    {
+        // Arrange
+        var message = AgentMessageId.New();
+
+        // Act, Assert
+        Assert.Throws<ArgumentException>(() => new AgentAnswerDeepened(message, default));
+    }
+
+    /// <summary>Only a run that answered can have answered at a ceiling; a stopped or failed one wrote no answer to qualify.</summary>
+    [Theory]
+    [InlineData(AgentAnswerOutcome.Stopped)]
+    [InlineData(AgentAnswerOutcome.Failed)]
+    public void Constructor_AnAnswerThatDidNotCompleteNamingACeiling_IsRefused(AgentAnswerOutcome outcome)
+    {
+        // Act, Assert
+        Assert.Throws<ArgumentException>(
+            () => new AgentAnswerEnded(AgentMessageId.New(), outcome, Ceiling: new AgentRunCeiling(3)));
+    }
+
+    [Fact]
     public void Constructor_AnAnswerEndingInAnOutcomeTheSetDoesNotDeclare_IsRefused()
     {
         // Arrange

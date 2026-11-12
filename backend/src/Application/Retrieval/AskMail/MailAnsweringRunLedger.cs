@@ -26,7 +26,9 @@ namespace MailFathom.Application.Retrieval.AskMail;
 /// <para>
 /// A token ceiling is checked before a call and can only be checked against what earlier calls reported, so the call
 /// that crosses it is paid for. That is inherent rather than an oversight: what a call will cost is not knowable until
-/// the provider has answered, and the alternative — estimating it — would refuse calls on a guess.
+/// the provider has answered, and the alternative — estimating it — would refuse calls on a guess. So no refusal here
+/// rests on an estimate. The one forecast the ledger makes is <see cref="HasRoomForAtMost" />, which refuses nothing: it
+/// tells a run that its next call is likely its last, so the run can make that call the one that answers.
 /// </para>
 /// <para>
 /// It is in this layer rather than beside the agent that first used it because a Discover run is orchestrated here and
@@ -40,9 +42,12 @@ public sealed class MailAnsweringRunLedger
 {
     private readonly Lock gate = new();
     private readonly HashSet<Guid> retrievedMessages = [];
+    private MailAnsweringRunBounds bounds;
+    private bool raised;
     private int retrievedCharacters;
     private int providerCalls;
     private long tokens;
+    private long costliestCall;
 
     /// <summary>Initializes a ledger for one run, with nothing spent.</summary>
     /// <param name="bounds">What this run may send, call, and consume.</param>
@@ -51,11 +56,88 @@ public sealed class MailAnsweringRunLedger
     {
         ArgumentNullException.ThrowIfNull(bounds);
 
-        this.Bounds = bounds;
+        this.bounds = bounds;
     }
 
     /// <summary>Gets what this run may send, call, and consume, which is what its counts are read against.</summary>
-    public MailAnsweringRunBounds Bounds { get; }
+    public MailAnsweringRunBounds Bounds
+    {
+        get
+        {
+            lock (this.gate)
+            {
+                return this.bounds;
+            }
+        }
+    }
+
+    /// <summary>Reports whether the run's ceilings leave room for at most a given number of further calls.</summary>
+    /// <param name="calls">How many further calls to ask about, at least one.</param>
+    /// <returns><see langword="true" /> when the run may still call and has room for no more than <paramref name="calls" /> further calls; <see langword="false" /> when it has room for more, or for none.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="calls" /> is below one.</exception>
+    /// <remarks>
+    /// <para>
+    /// By count where that many calls are left, and by tokens where the costliest call so far, made that many times
+    /// more, would reach the token ceiling. The second is a forecast rather than a measure — what a call costs is known
+    /// only once it is answered — and it is the one estimate this ledger makes, because the alternative is a run that
+    /// learns it had no room left only when its next call is refused, with nothing written for the person.
+    /// </para>
+    /// <para>
+    /// Asked with one, it says the next call is the last, and a run told so makes that call without tools, so it answers
+    /// from what it has read rather than reading on. A run already past either ceiling has room for none: the next call
+    /// is refused.
+    /// </para>
+    /// </remarks>
+    public bool HasRoomForAtMost(int calls)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(calls, 1);
+
+        lock (this.gate)
+        {
+            var callsLeft = this.bounds.MaximumProviderCalls - this.providerCalls;
+
+            return callsLeft > 0
+                && this.tokens < this.bounds.MaximumTokens
+                && (callsLeft <= calls || this.tokens + (calls * this.costliestCall) >= this.bounds.MaximumTokens);
+        }
+    }
+
+    /// <summary>Raises this run's ceilings once, keeping everything it has already spent counted against the new ones.</summary>
+    /// <param name="wider">The ceilings the run is held to from here on.</param>
+    /// <returns><see langword="true" /> when the ceilings were raised; <see langword="false" /> when this run had already raised them, which leaves them as they are.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="wider" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when any of <paramref name="wider" />'s ceilings is below the one it would replace.</exception>
+    /// <remarks>
+    /// Once, because a run that could raise its own ceilings repeatedly would have none. Nothing already spent is
+    /// forgotten: the move widens what the rest of the run may add. What it does forget is that a lookup was cut,
+    /// because the mail that lookup left out is what a run raises its ceilings to read, and a run that reads it under
+    /// the new ones was not cut at all.
+    /// </remarks>
+    public bool Widen(MailAnsweringRunBounds wider)
+    {
+        ArgumentNullException.ThrowIfNull(wider);
+
+        lock (this.gate)
+        {
+            if (wider.MaximumRetrievedCharacters < this.bounds.MaximumRetrievedCharacters
+                || wider.MaximumProviderCalls < this.bounds.MaximumProviderCalls
+                || wider.MaximumTokens < this.bounds.MaximumTokens)
+            {
+                throw new ArgumentException("A run's ceilings are raised, never lowered.", nameof(wider));
+            }
+
+            if (this.raised)
+            {
+                return false;
+            }
+
+            this.raised = true;
+            this.bounds = wider;
+            this.RetrievalWasTruncated = false;
+
+            return true;
+        }
+    }
 
     /// <summary>Gets whether a lookup, a listed page, or a census found mail this run's ceiling would not let it send, or a page of a message or of a file it carries was cut to what the run could still send.</summary>
     /// <remarks>The setter is written only from inside this type's lock, which is why it does not take one of its own; the getter does, because a reader outside the run holds nothing.</remarks>
@@ -134,7 +216,7 @@ public sealed class MailAnsweringRunLedger
             {
                 var characters = charactersOf(item);
 
-                if (this.retrievedCharacters + characters > this.Bounds.MaximumRetrievedCharacters)
+                if (this.retrievedCharacters + characters > this.bounds.MaximumRetrievedCharacters)
                 {
                     // Stopping at the first item that does not fit rather than searching the rest for a smaller one:
                     // the items arrived in relevance or timeline order, and skipping ahead would silently prefer short
@@ -175,7 +257,7 @@ public sealed class MailAnsweringRunLedger
 
         lock (this.gate)
         {
-            var granted = Math.Min(characters, Math.Max(0, this.Bounds.MaximumRetrievedCharacters - this.retrievedCharacters));
+            var granted = Math.Min(characters, Math.Max(0, this.bounds.MaximumRetrievedCharacters - this.retrievedCharacters));
 
             if (granted < characters)
             {
@@ -214,7 +296,7 @@ public sealed class MailAnsweringRunLedger
     {
         lock (this.gate)
         {
-            if (this.providerCalls >= this.Bounds.MaximumProviderCalls || this.tokens >= this.Bounds.MaximumTokens)
+            if (this.providerCalls >= this.bounds.MaximumProviderCalls || this.tokens >= this.bounds.MaximumTokens)
             {
                 throw MailAnsweringBudgetExhaustedException.RunSpent();
             }
@@ -232,7 +314,10 @@ public sealed class MailAnsweringRunLedger
 
         lock (this.gate)
         {
-            this.tokens += usage.InputTokens + usage.OutputTokens;
+            var spent = usage.InputTokens + usage.OutputTokens;
+
+            this.tokens += spent;
+            this.costliestCall = Math.Max(this.costliestCall, spent);
         }
     }
 

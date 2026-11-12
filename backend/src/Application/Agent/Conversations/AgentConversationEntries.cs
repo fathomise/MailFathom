@@ -13,6 +13,7 @@ namespace MailFathom.Application.Agent.Conversations;
 /// <param name="Author">Who wrote it.</param>
 /// <param name="Text">What they wrote.</param>
 /// <param name="Scope">What the question was asked about, and <see langword="null" /> for a message of the agent's own.</param>
+/// <param name="Mode">How far the run answering a question may go, and <see langword="null" /> for anything but a question — an instruction, a message of the agent's own, or a question asked before a question carried one.</param>
 /// <remarks>
 /// <para>
 /// One entry for both authors, because a message is the same record whoever wrote it: a line of text placed in the
@@ -30,13 +31,14 @@ namespace MailFathom.Application.Agent.Conversations;
 /// why this entry carries text and no blocks.
 /// </para>
 /// </remarks>
-/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="Author" /> is not a declared member.</exception>
+/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="Author" /> or <paramref name="Mode" /> is not a declared member.</exception>
 /// <exception cref="ArgumentException">Thrown when <paramref name="Text" /> is the unspecified struct default.</exception>
 public sealed record AgentMessageWritten(
     AgentMessageId MessageId,
     AgentMessageAuthor Author,
     PresentationText Text,
-    AgentMessageScope? Scope)
+    AgentMessageScope? Scope,
+    AgentAnswerMode? Mode = null)
     : AgentConversationEntry
 {
     /// <summary>The value the type discriminator carries on the wire.</summary>
@@ -47,6 +49,9 @@ public sealed record AgentMessageWritten(
 
     /// <summary>Gets what was written, which is always something.</summary>
     public PresentationText Text { get; } = Requirement.Spoken(Text, nameof(Text));
+
+    /// <summary>Gets how far the run answering this question may go, and <see langword="null" /> where this is no question that carried one.</summary>
+    public AgentAnswerMode? Mode { get; } = Requirement.Chosen(Mode, nameof(Mode));
 
     /// <inheritdoc />
     [JsonIgnore]
@@ -233,10 +238,47 @@ public sealed record AgentActionProposed(AgentMessageId MessageId, PresentationB
     public override AgentMessageId? ComposedInto => this.MessageId;
 }
 
+/// <summary>A run asked in <see cref="AgentAnswerMode.Auto" /> moved from the fast ceilings to the deep ones, and this says why.</summary>
+/// <param name="MessageId">The answer whose run moved.</param>
+/// <param name="Reason">Why it moved, in the person's language, as the agent stated it when it asked to.</param>
+/// <remarks>
+/// <para>
+/// Written the moment the run moves rather than inferred from its ending, so a client following a running answer can
+/// say it went deep while it still reads, and a conversation read later tells a run somebody asked to go deep from one
+/// that went deep on its own. A run moves at most once, so an answer carries at most one of these.
+/// </para>
+/// <para>
+/// The reason is the agent's own sentence about the question and the mail it found, so it is sensitive exactly as the
+/// rest of the record is.
+/// </para>
+/// </remarks>
+/// <exception cref="ArgumentException">Thrown when <paramref name="Reason" /> is the unspecified struct default.</exception>
+public sealed record AgentAnswerDeepened(AgentMessageId MessageId, PresentationText Reason) : AgentConversationEntry
+{
+    /// <summary>The value the type discriminator carries on the wire.</summary>
+    public const string Kind = "answerDeepened";
+
+    /// <summary>Gets why the run moved, which is always something.</summary>
+    public PresentationText Reason { get; } = Requirement.Spoken(Reason, nameof(Reason));
+
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string EntryName => Kind;
+
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override AgentConversationHistory History => AgentConversationHistory.Visible;
+
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override AgentMessageId? ComposedInto => this.MessageId;
+}
+
 /// <summary>The answer stopped being composed, and this says how.</summary>
 /// <param name="MessageId">The answer that has ended.</param>
 /// <param name="Outcome">How it stopped.</param>
 /// <param name="FollowUps">The questions the agent suggests asking next, and <see langword="null" /> or empty where it suggested none.</param>
+/// <param name="Ceiling">The ceiling a completed run reached and answered at, and <see langword="null" /> where it answered within its mode or did not complete.</param>
 /// <remarks>
 /// <para>
 /// Recorded rather than inferred from nothing further arriving, because a conversation read later has no other way to
@@ -251,11 +293,12 @@ public sealed record AgentActionProposed(AgentMessageId MessageId, PresentationB
 /// </para>
 /// </remarks>
 /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="Outcome" /> is not a declared member, or when more follow-ups are suggested than an answer may carry.</exception>
-/// <exception cref="ArgumentException">Thrown when an answer that did not complete suggests follow-ups, or when one is empty, longer than a line allows, or more than one line.</exception>
+/// <exception cref="ArgumentException">Thrown when an answer that did not complete suggests follow-ups or names a ceiling, or when a follow-up is empty, longer than a line allows, or more than one line.</exception>
 public sealed record AgentAnswerEnded(
     AgentMessageId MessageId,
     AgentAnswerOutcome Outcome,
-    IReadOnlyList<PresentationText>? FollowUps = null)
+    IReadOnlyList<PresentationText>? FollowUps = null,
+    AgentRunCeiling? Ceiling = null)
     : AgentConversationEntry
 {
     /// <summary>The value the type discriminator carries on the wire.</summary>
@@ -267,6 +310,10 @@ public sealed record AgentAnswerEnded(
     /// <summary>Gets the questions the agent suggests asking next, in the order it suggested them, and empty where it suggested none.</summary>
     /// <remarks>An ending written before an answer could suggest anything carries no member at all, and reads as having suggested none.</remarks>
     public IReadOnlyList<PresentationText> FollowUps { get; } = Requirement.Suggested(FollowUps, Outcome, nameof(FollowUps));
+
+    /// <summary>Gets the ceiling the run reached and answered at, and <see langword="null" /> where it reached none.</summary>
+    /// <remarks>What a client offers the same question in a deeper mode from. An ending written before a run could reach one carries no member, and reads as having reached none.</remarks>
+    public AgentRunCeiling? Ceiling { get; } = Requirement.Answered(Ceiling, Outcome, nameof(Ceiling));
 
     /// <inheritdoc />
     [JsonIgnore]
@@ -553,6 +600,16 @@ file static class Requirement
         Enum.IsDefined(outcome)
             ? outcome
             : throw new ArgumentOutOfRangeException(parameter, outcome, "An answer ends in a declared outcome.");
+
+    internal static AgentAnswerMode? Chosen(AgentAnswerMode? mode, string parameter) =>
+        mode is not { } chosen || Enum.IsDefined(chosen)
+            ? mode
+            : throw new ArgumentOutOfRangeException(parameter, mode, "A question is asked in a declared mode.");
+
+    internal static AgentRunCeiling? Answered(AgentRunCeiling? ceiling, AgentAnswerOutcome outcome, string parameter) =>
+        ceiling is null || outcome is AgentAnswerOutcome.Completed
+            ? ceiling
+            : throw new ArgumentException("Only an answer that completed answered at a ceiling.", parameter);
 
     internal static IReadOnlyList<PresentationText> Suggested(
         IReadOnlyList<PresentationText>? followUps,

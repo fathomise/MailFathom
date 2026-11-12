@@ -68,6 +68,7 @@ public sealed class AgentConversationControls
     /// <param name="message">The question's identifier, which the client generated so a retried post writes nothing twice.</param>
     /// <param name="text">What the person asked.</param>
     /// <param name="scope">What the question was asked about, or <see langword="null" /> for a question narrowing nothing further.</param>
+    /// <param name="mode">How far the run answering it may go, which the question carries into the record.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>What became of the question, and the answer — the run — it opened.</returns>
     /// <remarks>
@@ -80,12 +81,13 @@ public sealed class AgentConversationControls
         AgentMessageId message,
         PresentationText text,
         AgentMessageScope? scope,
+        AgentAnswerMode mode,
         CancellationToken cancellationToken)
     {
         var posting = await this.store.AskAsync(
             conversation,
             user,
-            new AgentMessageWritten(message, AgentMessageAuthor.Person, text, scope),
+            new AgentMessageWritten(message, AgentMessageAuthor.Person, text, scope, mode),
             AgentMessageId.New(),
             this.timeProvider.GetUtcNow(),
             cancellationToken);

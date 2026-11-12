@@ -23,4 +23,8 @@ public sealed record AgentQuestion(
     AgentMessageScope? Scope,
     AgentMessageId Answer,
     long OpenedAt,
-    DateTimeOffset AskedAt);
+    DateTimeOffset AskedAt)
+{
+    /// <summary>Gets how far the run answering it may go, which is <see cref="AgentAnswerMode.Auto" /> where the question named none.</summary>
+    public AgentAnswerMode Mode { get; init; } = AgentAnswerMode.Auto;
+}

@@ -20,7 +20,7 @@ namespace MailFathom.Application.Agent.Answering;
 public sealed record AgentContextBudget
 {
     /// <summary>What a deployment that states nothing lets one turn send.</summary>
-    public const int DefaultTokens = 64_000;
+    public const int DefaultTokens = 128_000;
 
     /// <summary>The least a deployment may state, below which a summary and the question would not fit together.</summary>
     public const int MinimumTokens = 1_000;

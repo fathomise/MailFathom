@@ -5056,7 +5056,7 @@ conversation starts it and a post retried over a dropped connection writes nothi
 POST /api/client/agent/conversations/0199a2c4-5e6f-7a1b-8c2d-3e4f5a6b7c8d/messages
 Content-Type: application/json
 
-{ "messageId": "0199a2c4-6000-7a1b-8c2d-3e4f5a6b7c8d", "text": "What did the supplier quote?", "scope": { "kind": "Thread", "subject": "0199a2c4-7000-7a1b-8c2d-3e4f5a6b7c8d" } }
+{ "messageId": "0199a2c4-6000-7a1b-8c2d-3e4f5a6b7c8d", "text": "What did the supplier quote?", "scope": { "kind": "Thread", "subject": "0199a2c4-7000-7a1b-8c2d-3e4f5a6b7c8d" }, "mode": "Auto" }
 ```
 
 ```http
@@ -5071,7 +5071,12 @@ answer's. A repeated `messageId` answers with what the first post wrote. `scope`
 `Thread`, `CalendarEvent`, `DiscoveryRun`, or `Notification` naming the one it was asked about, and may be left out. A
 `Notification` scope is a merged arrival: the Agent is handed the messages that row stands for, read under the asker's
 own identity, and a notification the asker does not hold — or one that stands for none — hands it nothing, exactly as
-one that never existed. A question asked
+one that never existed. `mode` is how far the answer may read: `Fast` under the deployment's per-run ceilings,
+`Deep` under its deep ones, and `Auto` — what a question that leaves it out is asked in — starting fast and moving to
+deep at most once, where the agent judges the question needs it. Every person who may ask may ask in every mode; the
+question entry records the mode it was asked in as `mode`, and one written before the member existed carries none.
+[`MailAnswering`](configuration-ai.md#mailanswering) holds both sets of ceilings. A mode the contract does not name is
+`400`. A question asked
 while an answer is still being composed is `409`, and so is one into a full conversation — 5 000 visible entries, or
 50 000 entries of the whole record, the last two of each kept for an answer's ending and the agent's note after a stop,
 so a running answer can always be stopped —
@@ -5099,6 +5104,26 @@ The agent composes them on the same run, under the same bounds and the same ceil
 answer that suggested nothing carries an empty list — as does every stopped or failed one, and an ending written before
 the member existed carries none at all. Each is text and never an act: a client that offers one posts it as an ordinary
 question into the same conversation, exactly as though it had been typed, and nothing else happens when it is pressed.
+
+**An automatic answer that moved to deep says so the moment it moves**, in an `answerDeepened` entry carrying the
+agent's one sentence on why, in the person's language — the history shows it where the move was made:
+
+```json
+{"sequence":5,"entry":{"entry":"answerDeepened","messageId":"0199a2c4-6a7b-7c8d-9e0f-1a2b3c4d5e6f","reason":"The question covers every invoice of the year, more than a quick answer reads."}}
+```
+
+**An answer that stopped at a ceiling still completes, and its ending says where it stopped.** A run whose next call
+would be the last its ceilings leave room for makes that call without tools, so it answers from what it read rather
+than ending with nothing, and an answer whose reading a ceiling cut is recorded the same way. Its `answerEnded` then
+carries `ceiling`, naming how many messages it read:
+
+```json
+{"sequence":14,"entry":{"entry":"answerEnded","messageId":"0199a2c4-6a7b-7c8d-9e0f-1a2b3c4d5e6f","outcome":"Completed","followUps":[],"ceiling":{"messagesRead":20}}}
+```
+
+A fast answer never moves on its own, so its `ceiling` is what a client offers asking again in `Deep` from; an answer
+that read what it needed within its ceilings carries no `ceiling` member at all, and neither does a stopped or a failed
+one.
 
 **Steering adds to a running answer; stopping ends it.** They are different routes because they are different acts:
 

@@ -1,6 +1,6 @@
 # Mail answering
 
-<!-- describes: backend/src/AI/Orchestration/**, backend/src/AI/Retrieval/**, backend/src/AI/ProviderAdapters/ResilientChatClient.cs, backend/src/Application/Retrieval/**, backend/src/Application/Emails/Provenance/**, backend/src/Infrastructure/Persistence/Emails/StoredEmailProvenanceReader.cs, backend/src/AI/AgentConversations/AgentConversationReadings.cs, backend/src/Domain/Answering/**, backend/src/Infrastructure/Persistence/Answering/**, backend/src/Host/Configuration/Mail/MailAnsweringAuditTrailOptions.cs, backend/src/Host/Configuration/Access/TransportRequestTimeoutOptions.cs -->
+<!-- describes: backend/src/AI/Orchestration/**, backend/src/AI/Retrieval/**, backend/src/AI/ProviderAdapters/ResilientChatClient.cs, backend/src/Application/Retrieval/**, backend/src/Application/Emails/Provenance/**, backend/src/Infrastructure/Persistence/Emails/StoredEmailProvenanceReader.cs, backend/src/AI/AgentConversations/AgentConversationReadings.cs, backend/src/Domain/Answering/**, backend/src/Infrastructure/Persistence/Answering/**, backend/src/Host/Configuration/Mail/MailAnsweringAuditTrailOptions.cs, backend/src/Host/Configuration/Access/TransportRequestTimeoutOptions.cs, backend/src/AI/AgentConversations/AgentRunEffort.cs, backend/src/AI/AgentConversations/LastCallChatClient.cs, backend/src/Application/Agent/Answering/AgentRunBounds.cs -->
 
 A question about the mailbox, answered from the mail the model looks up while answering. This page describes the
 composition that does it: what the model may reach, when it reaches it, how much of it leaves the process, and what an
@@ -301,7 +301,7 @@ provider call rather than reported after the run.
 | --- | --- | --- | --- |
 | Retrieved characters per run | `MailAnswering:MaxRetrievedCharactersPerRun` | 20 000 | The lookup, the listed page, the census, or the page of a message or a file is cut and the run continues, told there is no more mail |
 | Provider calls per run | `MailAnswering:MaxProviderCallsPerRun` | 8 | The run stops with `57001` |
-| Tokens per run | `MailAnswering:MaxTokensPerRun` | 80 000 | The run stops with `57001` |
+| Tokens per run | `MailAnswering:MaxTokensPerRun` | 160 000 | The run stops with `57001` |
 
 **The same three bound a [Discover run](discovery-run.md#what-bounds-a-run)**, and so does the period ceiling below.
 They are one deployment's answer to what a question may cost rather than this surface's, so a run started from the
@@ -365,7 +365,35 @@ mailbox, and only saying so keeps the two distinguishable.
 
 A run with no allowance for another call is different, and is a failure rather than a cut: the model was stopped before
 it wrote anything, so there is no answer to trim down to. Nothing is published, and `57001` says the run reached what
-one question may spend.
+one question may spend. An Agent question is the exception, below.
+
+### The Agent's modes
+
+An Agent question is asked in one of three modes, and the mode decides which ceilings its run is held to. **Fast** runs
+under the three ceilings above. **Deep** runs under a second set, `MailAnswering:MaxRetrievedCharactersPerDeepRun`,
+`MaxProviderCallsPerDeepRun`, and `MaxTokensPerDeepRun` — 100 000 characters, 24 calls, and 1 000 000 tokens by default
+— on the same model and plan, and each is refused at start below its fast counterpart, so going deep never reads less.
+**Auto**, what a question names when it names none, starts under the fast ceilings and may move to the deep ones
+**once**. Nothing in the service judges the question for it: an automatic run is offered one tool more than the
+others, `go_deep`, whose description says when to call it — the person asked for everything of a correspondence, a
+period, or a sender, or a reading came back cut by the run's limit and the question needs what it left out. Calling it
+raises the run's ceilings in place, keeping everything already spent counted, and writes the move into the
+conversation at that moment, with the model's one sentence on why. A second call is answered as already deep, and a
+fast or a deep run is never offered it.
+
+**An Agent run that reaches its ceiling answers rather than failing.** Before each call it asks its ledger whether that
+call is the last the ceilings leave room for — by count, and by tokens where the costliest call so far made once more
+would reach the token ceiling, which is the one forecast the ledger makes — and makes that call with no tool on offer
+and an instruction to answer from what it has read and say it stopped there. An automatic run that has not moved is
+offered `go_deep` alone one call earlier, so a question that proves to need more reading moves instead of stopping. An
+answer written on that last call, or one whose reading the retrieved-character ceiling cut, is recorded as completed at
+a ceiling, naming how many messages it read; a fast run never moves on its own, and that record is what a client offers
+asking again in deep from. The client's half is [the client endpoint § The Agent conversation
+routes](../operations/client-endpoint.md#the-agent-conversation-routes).
+
+**The period counts deep spend as it counts fast spend.** A deep run is admitted against the period ceilings below like
+any other and charged what it consumed, so `MaxTokensPerDeepRun` is refused above `MaxTokensPerPeriod`: at the defaults
+one deep run may take half of a period's tokens, and a fast one about a twelfth.
 
 ### And a ceiling over every run of a period
 
@@ -376,7 +404,7 @@ enthusiastic its client is rather than of what its operator agreed to.
 | Ceiling | Key | Default |
 | --- | --- | --- |
 | Runs per period | `MailAnswering:MaxRunsPerPeriod` | 30 |
-| Tokens per period | `MailAnswering:MaxTokensPerPeriod` | 300 000 |
+| Tokens per period | `MailAnswering:MaxTokensPerPeriod` | 2 000 000 |
 | The period itself | `MailAnswering:AggregatePeriod` | 1 hour |
 
 Two ceilings for the reason a run has three: the run count always works, and the token count is stated in what a

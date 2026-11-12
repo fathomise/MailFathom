@@ -8,13 +8,14 @@ namespace MailFathom.Application.Retrieval.AskMail;
 
 /// <summary>Every ceiling one question about the mailbox is subject to, from what a lookup hands over to what a period may spend.</summary>
 /// <param name="Retrieval">What one lookup may draw out of the mailbox.</param>
-/// <param name="Run">What one run may send, call, and consume.</param>
+/// <param name="Run">What one run may send, call, and consume, which is what every answering run is held to and what a fast Agent run is.</param>
+/// <param name="DeepRun">What one Agent run asked to go deep may send, call, and consume, which is never below <paramref name="Run" />.</param>
 /// <param name="Period">What the runs of one period may add up to.</param>
 /// <param name="Answer">How much of a run's outcome one response publishes.</param>
 /// <param name="Context">What one turn of an Agent conversation may send before its earlier part is compacted.</param>
 /// <remarks>
 /// <para>
-/// The five are declared together because an operator reads them together — they are one decision about how much
+/// They are declared together because an operator reads them together — they are one decision about how much
 /// answering costs and how much mail leaves — and they are separate values because they are enforced in five places:
 /// where the passages are built, where a provider call is about to be made, where a question is admitted, where a
 /// response is written, and where an Agent turn is composed from the conversation before it. A composition root maps the declaration onto this and registers the parts; nothing downstream
@@ -29,6 +30,7 @@ namespace MailFathom.Application.Retrieval.AskMail;
 public sealed record MailAnsweringBudget(
     EmailKnowledgeBounds Retrieval,
     MailAnsweringRunBounds Run,
+    MailAnsweringRunBounds DeepRun,
     MailAnsweringPeriodBounds Period,
     MailAnswerBounds Answer,
     AgentContextBudget Context)
@@ -37,6 +39,7 @@ public sealed record MailAnsweringBudget(
     public static MailAnsweringBudget Default { get; } = new(
         EmailKnowledgeBounds.Default,
         MailAnsweringRunBounds.Default,
+        AgentRunBounds.DefaultDeep,
         MailAnsweringPeriodBounds.Default,
         MailAnswerBounds.Default,
         AgentContextBudget.Default);

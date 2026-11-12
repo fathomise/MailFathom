@@ -173,6 +173,14 @@
         ],
         "type": "object"
       },
+      "AgentAnswerMode": {
+        "enum": [
+          "Auto",
+          "Fast",
+          "Deep",
+          null
+        ]
+      },
       "AgentScopeKind": {
         "enum": [
           "Mailbox",
@@ -1160,6 +1168,16 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "mode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AgentAnswerMode"
+              }
             ]
           },
           "scope": {
