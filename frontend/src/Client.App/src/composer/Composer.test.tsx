@@ -3397,7 +3397,7 @@ describe('Composer, rewriting a selected part of the message', () => {
         expect(screen.getByRole('textbox', { name: 'Message' }).getAttribute('contenteditable')).toBe('true');
     });
 
-    it('says a request that failed failed, and leaves the words as they were', async () => {
+    it('says a request that failed failed, and leaves the words as they were with the keyboard back in them', async () => {
         drawRewriting(() => Promise.resolve({ outcome: 'failed', failure: { reason: 'unavailable', status: 503 } }));
         writeWords(written);
         rewriteShorter('the price');
@@ -3407,6 +3407,7 @@ describe('Composer, rewriting a selected part of the message', () => {
         ).toBeDefined();
         expect(wordsWritten()).toBe(written);
         expect(screen.getByRole('button', { name: 'Send' })).toBeDefined();
+        expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
     });
 
     it('hands the keyboard back to the message when the bar is closed', () => {

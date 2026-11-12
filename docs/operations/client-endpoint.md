@@ -3852,7 +3852,7 @@ for the client to show beside the passage it would replace and the person to kee
 the draft, sent, or stored here. Each text is one paragraph, trimmed, and at most 8 000 characters.
 `rewritten: false` with no passages is what a deployment drafting no reply answers, and what this one answers while
 its provider is unreachable or answered anything but one text per passage; a client leaves the draft as it was and
-reports nothing. A spend ceiling answers `429`, as a drafting does. The read above answers for this route too: a
+says that nothing was rewritten. A spend ceiling answers `429`, as a drafting does. The read above answers for this route too: a
 deployment that drafts replies rewrites passages, under the same switch and the same allowance.
 
 **All three routes are published under `mailfathom.assistant.use`** rather than under the reading grant, because that

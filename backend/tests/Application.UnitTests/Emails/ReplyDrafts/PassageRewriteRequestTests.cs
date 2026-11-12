@@ -21,7 +21,7 @@ public sealed class PassageRewriteRequestTests
         { new string('a', PassageRewriteRequest.MaximumTextLength + 1), [new DraftPassage(0, 5)], "Shorter" },
         { Draft, null, "Shorter" },
         { Draft, [], "Shorter" },
-        { Draft, [.. Enumerable.Range(0, PassageRewriteRequest.MaximumPassages + 1).Select(static start => new DraftPassage(start, 1))], "Shorter" },
+        { new string('a', 40), [.. Enumerable.Range(0, PassageRewriteRequest.MaximumPassages + 1).Select(static start => new DraftPassage(start, 1))], "Shorter" },
         { Draft, [new DraftPassage(0, 0)], "Shorter" },
         { Draft, [new DraftPassage(-1, 3)], "Shorter" },
         { Draft, [new DraftPassage(20, 20)], "Shorter" },

@@ -485,7 +485,7 @@ public sealed class ClientReplyDraftingEndpointTests
         ["no passages"] = new(RewritingDraft, null, "Shorter"),
         ["an empty list of passages"] = new(RewritingDraft, [], "Shorter"),
         ["passages past their bound"] = new(
-            RewritingDraft,
+            new string('a', 40),
             [.. Enumerable.Range(0, PassageRewriteRequest.MaximumPassages + 1).Select(static start => new ClientDraftPassage(start, 1))],
             "Shorter"),
         ["an empty passage"] = new(RewritingDraft, [new ClientDraftPassage(11, 0)], "Shorter"),

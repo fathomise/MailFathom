@@ -160,6 +160,9 @@ export function useSelectedPassage(
 
         return () => {
             clearTimeout(waiting);
+            // A selection read before the words were written over would come back at offsets naming other words.
+            setSelected(null);
+            setOpen(false);
             document.removeEventListener('selectionchange', selectionChanged);
             document.removeEventListener('pointerdown', pointer, true);
             document.removeEventListener('pointerup', pointer, true);

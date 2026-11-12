@@ -1044,6 +1044,8 @@ export function Composer({
         if (rewritten === null) {
             putTheWordsBack();
             beforeTheRewrite.current = null;
+            // The note that held the focus goes with the rewrite.
+            words.focus();
 
             return;
         }

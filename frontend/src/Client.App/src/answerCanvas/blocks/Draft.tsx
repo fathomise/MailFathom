@@ -15,7 +15,7 @@ import { useReadingZone } from '../../localization/useReadingZone';
 import { PassageRewriteBar } from '../../rewriting/PassageRewriteBar';
 import { RewriteNote } from '../../rewriting/RewriteNote';
 import { usePassageRewriter, useRewriteDock } from '../../rewriting/passageRewriting';
-import { linePoint, passagesTouched, withPassagesRewritten } from '../../rewriting/passages';
+import { linePoint, passagesTouched, withPassagesRewritten, type TouchedPassage } from '../../rewriting/passages';
 import { usePassageChange, type PassageChange, type RewriteHow } from '../../rewriting/usePassageChange';
 import { useSelectedPassage } from '../../rewriting/useSelectedPassage';
 import { UnrecognisedAnswerBlock } from '../AnswerBlockCard';
@@ -146,6 +146,7 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
     const dock = useRewriteDock();
     const letter = useRef<HTMLParagraphElement>(null);
     const rewriting = usePassageChange(rewriter);
+    const rewriteAsked = useRef(0);
     // The text a rewrite left the letter holding, so the meta and the toast's *Undo* each ask whether it still does.
     const [keptAs, setKeptAs] = useState<string | null>(null);
     const coarse = useCoarsePointer();
@@ -180,8 +181,24 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
         selection.close();
 
         if (passages.length > 0) {
-            void rewriting.rewrite(lines, passages, how);
+            rewriteParts(lines, passages, how, false);
         }
+    }
+
+    /** Asks for a rewrite, and gives the focus back to the card where nothing comes of it, since the note had it. */
+    function rewriteParts(
+        lines: readonly string[],
+        passages: readonly TouchedPassage[],
+        how: RewriteHow,
+        again: boolean,
+    ): void {
+        const ask = ++rewriteAsked.current;
+
+        void rewriting.rewrite(lines, passages, how, again).then((rewritten) => {
+            if (rewritten === null && ask === rewriteAsked.current) {
+                letter.current?.closest('article')?.focus();
+            }
+        });
     }
 
     function keepTheChange(kept: PassageChange): void {
@@ -217,12 +234,7 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                             said: translate('rewrite.again'),
                             name: translate('rewrite.againName'),
                             run: () => {
-                                void rewriting.rewrite(
-                                    body.split('\n'),
-                                    change.passages,
-                                    rewriting.howAgain(change),
-                                    true,
-                                );
+                                rewriteParts(body.split('\n'), change.passages, rewriting.howAgain(change), true);
                             },
                         },
                         {

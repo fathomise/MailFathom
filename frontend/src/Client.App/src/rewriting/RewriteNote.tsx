@@ -27,7 +27,7 @@ export function RewriteNote({ said, busy }: { readonly said: string; readonly bu
             tabIndex={-1}
             role="status"
             aria-live="polite"
-            className="flex min-w-0 grow basis-55 items-center gap-2 text-base text-accent-deep text-pretty outline-none pointer-coarse:grow-0 pointer-coarse:basis-auto"
+            className="flex min-w-0 grow basis-55 items-center gap-2 text-base text-accent-deep text-pretty pointer-coarse:grow-0 pointer-coarse:basis-auto"
         >
             <Icon
                 name={busy ? 'progress_activity' : 'auto_awesome'}

@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
     AgentProposalDecision,
@@ -693,7 +693,7 @@ describe('Draft, rewriting a selected part', () => {
         expect(screen.getByText(twoSentences)).toBeDefined();
     });
 
-    it('says the allowance is spent rather than rewriting, and leaves the text', async () => {
+    it('says the allowance is spent rather than rewriting, and leaves the text with the keyboard back on the card', async () => {
         renderDraft(
             withTwoSentences(),
             inConversation('pending'),
@@ -705,6 +705,21 @@ describe('Draft, rewriting a selected part', () => {
 
         expect(await screen.findByText(/has spent what it allows its writer for now/)).toBeDefined();
         expect(screen.getByText(twoSentences)).toBeDefined();
+        await waitFor(() => {
+            expect(document.activeElement).toBe(screen.getByText(twoSentences).closest('article'));
+        });
+    });
+
+    it('forgets a selection the text was edited under, rather than raising the button over other words', () => {
+        renderDraft(withTwoSentences(), inConversation('pending'), new Map(), answeringWith().rewriter);
+        select('signed addendum');
+
+        expect(screen.getByRole('button', { name: 'Rewrite this part with AI' })).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: /^Edit here/ }));
+        fireEvent.click(screen.getByRole('button', { name: /^Stop editing/ }));
+
+        expect(screen.queryByRole('button', { name: 'Rewrite this part with AI' })).toBeNull();
     });
 
     it('says a request that failed failed, and leaves the text', async () => {

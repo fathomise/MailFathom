@@ -68,8 +68,9 @@ export const mostRewrittenPassages = 16;
 /** The greatest instruction one rewriting takes, on the same terms as the text above. */
 export const longestRewriteInstruction = 4_000;
 
-// Each part comes back at most the length of the text it was written in, and the array around them is small.
-const longestRewriteAnswer = 128 * 1024;
+// The service may answer every part at the longest it accepts, and its serializer writes each non-ASCII character as a
+// six-byte escape, so a long Polish rewrite is far larger than its text. The array around the parts is small.
+const longestRewriteAnswer = mostRewrittenPassages * longestRewrittenDraft * 6 + 1024;
 
 /**
  * Rewrites the parts of a draft a person selected.
