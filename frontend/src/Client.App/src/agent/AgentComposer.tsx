@@ -11,6 +11,7 @@ import type { IconName } from '../controls/icons';
 import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { useReadingZone } from '../localization/useReadingZone';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { acceptedFiles, type QuestionFiles } from './questionFiles';
@@ -50,13 +51,15 @@ const heldFailed: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     other: 'agent.sendHeld.failed.other',
 };
 
-// What a picture pasted with no name of its own is called: the hour and minute it was pasted, joined by a point rather
-// than the locale's own separator, since a colon is no character a file name may carry everywhere.
-function pastedAt(locale: string): string {
+// What a picture pasted with no name of its own is called: the hour and minute it was pasted in the reader's own zone,
+// joined by a point rather than the locale's own separator, since a colon is no character a file name may carry
+// everywhere.
+function pastedAt(locale: string, timeZone: string | null): string {
     const parts = new Intl.DateTimeFormat(locale, {
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23',
+        ...(timeZone === null ? {} : { timeZone }),
     }).formatToParts(new Date());
 
     return ['hour', 'minute'].map((unit) => parts.find((part) => part.type === unit)?.value ?? '').join('.');
@@ -114,6 +117,7 @@ export function AgentComposer({
     readonly dock?: RefObject<HTMLDivElement | null>;
 }) {
     const { locale, translate } = useLocalization();
+    const timeZone = useReadingZone();
     const wide = useWideWorkspace();
     const field = useId();
     const modeGroup = useId();
@@ -290,10 +294,14 @@ export function AgentComposer({
                         onPaste={(event) => {
                             const pasted = [...event.clipboardData.files];
 
-                            // A file pasted into the field is attached rather than typed; words pasted are typed.
-                            if (pasted.length > 0) {
+                            // A file pasted into the field is attached rather than typed, and words pasted are typed —
+                            // including words that came with a picture of them, as cells copied out of a spreadsheet do.
+                            if (pasted.length > 0 && event.clipboardData.getData('text/plain') === '') {
                                 event.preventDefault();
-                                files.add(pasted, translate('agent.files.pastedName', { time: pastedAt(locale) }));
+                                files.add(
+                                    pasted,
+                                    translate('agent.files.pastedName', { time: pastedAt(locale, timeZone) }),
+                                );
                             }
                         }}
                     />

@@ -88,8 +88,11 @@ export interface QuestionFiles {
     readonly retry: (key: number) => void;
     readonly dismissRefusals: () => void;
 
-    /** Lets go of every waiting file once a question has left with them. */
-    readonly sent: () => void;
+    /**
+     * Lets go of the files a question left with, and of the last refusals; a file it did not carry — one still on its
+     * way, or one taken in while it was being posted — keeps waiting for the next.
+     */
+    readonly sent: (carried: readonly string[]) => void;
 }
 
 /**
@@ -232,9 +235,14 @@ export function useQuestionFiles(session: ClientSession | null, conversation: st
         dismissRefusals: () => {
             setRefusals([]);
         },
-        sent: () => {
-            handedOver.current.clear();
-            setWaiting([]);
+        sent: (carried) => {
+            const left = (file: WaitingFile): boolean => file.fileId !== null && carried.includes(file.fileId);
+
+            for (const file of waiting.filter(left)) {
+                handedOver.current.delete(file.key);
+            }
+
+            setWaiting((before) => before.filter((file) => !left(file)));
             setRefusals([]);
         },
     };

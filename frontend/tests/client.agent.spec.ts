@@ -297,10 +297,8 @@ test('takes a file attached to a question into its conversation, sends the quest
     const taken = deployment.issued.filter(
         ({ method, route }) => method === 'POST' && /^\/agent\/conversations\/[^/]+\/files$/u.test(route),
     );
-    const [question] = asked(deployment) as { files?: unknown }[];
-
     expect(taken).toHaveLength(1);
-    expect(question?.files).toHaveLength(1);
+    expect(asked(deployment)).toStrictEqual([expect.objectContaining({ files: [expect.any(String)] })]);
 
     const carried = threadOf(page).getByRole('list', { name: 'Files sent with the question' });
 

@@ -16,6 +16,7 @@ import { newsletterId } from '../../../../tests/fixtures/messages';
 import type { ProposalLook } from '../answerCanvas/proposalAnswering';
 import { AttachmentUploadContext, type AttachmentUpload } from '../deployment/attachmentUpload';
 import { LocalizationProvider } from '../localization/Localization';
+import { ReadingZoneContext } from '../localization/useReadingZone';
 import type { AgentHandOver } from '../routing/agentHandOver';
 import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
@@ -1441,18 +1442,65 @@ describe('AgentSpace files', () => {
         expect(await sent(asked, 'Compare')).not.toHaveProperty('files');
     });
 
-    it('attaches a picture pasted into the field under the time it was pasted, rather than typing it', async () => {
+    it('asks a suggestion without a file still on its way, which keeps waiting for the next question', async () => {
+        const { transport, asked } = deploymentAnswering();
+        render(drawn(transport, null, null, { upload: () => new Promise(() => undefined) }));
+
+        await opened('How many bays were confirmed');
+        chosen(fileOf('Offer v3.pdf'));
+        expect(await screen.findByText('Uploading…')).toBeDefined();
+
+        const suggested = await screen.findByRole('list', { name: 'Proposed next' });
+        fireEvent.click(within(suggested).getByRole('button', { name: 'Ask the agent to: Who confirmed the bays?' }));
+
+        await waitFor(() => {
+            expect(asked.filter((request) => request.method === 'POST')).toHaveLength(1);
+        });
+
+        const [posted] = asked.filter((request) => request.method === 'POST');
+
+        expect(JSON.parse(posted?.body ?? '{}')).not.toHaveProperty('files');
+        expect(
+            within(await screen.findByRole('list', { name: 'Files for your question' })).getByText('Offer v3.pdf'),
+        ).toBeDefined();
+    });
+
+    it('attaches a picture pasted into the field under the time it was pasted in the reader’s zone, rather than typing it', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-11-12T08:05:00+00:00'));
+
+        try {
+            const { transport } = deploymentAnswering();
+            render(<ReadingZoneContext value="Europe/Warsaw">{drawn(transport)}</ReadingZoneContext>);
+            const field = screen.getByRole('textbox', { name: 'Tell the agent what to do' });
+
+            fireEvent.paste(field, {
+                clipboardData: { files: [fileOf('image.png', 380_000, 'image/png')], getData: () => '' },
+            });
+
+            const cards = await screen.findByRole('list', { name: 'Files for your question' });
+
+            expect(within(cards).getByText('Pasted image 09.05.png')).toBeDefined();
+            expect(await within(cards).findByText('Pasted · 380 kB')).toBeDefined();
+            expect(field).toHaveProperty('value', '');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('types the words of a paste that carries a picture of them, as cells copied out of a spreadsheet do', () => {
         const { transport } = deploymentAnswering();
         screenOf(transport);
-        const field = screen.getByRole('textbox', { name: 'Tell the agent what to do' });
 
-        fireEvent.paste(field, { clipboardData: { files: [fileOf('image.png', 380_000, 'image/png')] } });
+        const typed = fireEvent.paste(screen.getByRole('textbox', { name: 'Tell the agent what to do' }), {
+            clipboardData: {
+                files: [fileOf('image.png', 380_000, 'image/png')],
+                getData: (kind: string) => (kind === 'text/plain' ? 'Q3\t120 000' : ''),
+            },
+        });
 
-        const cards = await screen.findByRole('list', { name: 'Files for your question' });
-
-        expect(within(cards).getByText(/^Pasted image \d\d\.\d\d\.png$/u)).toBeDefined();
-        expect(await within(cards).findByText('Pasted · 380 kB')).toBeDefined();
-        expect(field).toHaveProperty('value', '');
+        expect(typed).toBe(true);
+        expect(waitingCards()).toBeNull();
     });
 
     it('raises the drop surface for a drag carrying files, and attaches what is dropped onto the conversation', async () => {

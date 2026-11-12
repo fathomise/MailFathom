@@ -370,7 +370,9 @@ export function AgentSpace({
         }
     }
 
-    // A question carries every file waiting under the field, and asking one again carries what it carried before. An
+    // A question carries every file waiting under the field or none of them, and asking one again carries what it carried
+    // before. One asked from elsewhere than the field — a suggested follow-up, *another time* — while a file is still on
+    // its way or failed therefore leaves with none, and the files keep waiting for the next. An
     // instruction steering an answer in flight carries none: the run takes words, and the files wait for the next question.
     async function send(
         text: string,
@@ -386,10 +388,11 @@ export function AgentSpace({
         const message = newIdentifier();
         const steered = current === null ? null : inFlight;
         const waiting = questionFiles.waiting.flatMap((file) => (file.fileId === null ? [] : [file.fileId]));
+        const carried = files ?? (waiting.length === questionFiles.waiting.length ? waiting : []);
 
         const posted =
             steered === null
-                ? await askAgent(session, transport, conversation, message, text, scope, asked, files ?? waiting)
+                ? await askAgent(session, transport, conversation, message, text, scope, asked, carried)
                 : await steerAgentRun(session, transport, conversation, steered.run, message, text);
 
         if (posted.outcome === 'failed') {
@@ -409,7 +412,7 @@ export function AgentSpace({
 
         if (inFront) {
             if (steered === null && files === null) {
-                questionFiles.sent();
+                questionFiles.sent(carried);
             }
 
             setUnsent(null);
