@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
@@ -11,7 +11,7 @@ namespace MailFathom.Application.Emails.Census;
 
 /// <summary>What a caller asks for when counting the local mailbox copy.</summary>
 /// <remarks>
-/// The filters are a listing's, read the way <see cref="ListEmails.ListEmailsRequest" /> reads them, so a count and a
+/// The filters are a listing's, read the way <see cref="ListEmailsRequest" /> reads them, so a count and a
 /// listing given the same filters count and list the same mail. Nothing here has been validated:
 /// <see cref="MailboxCensusReader" /> does that.
 /// </remarks>
