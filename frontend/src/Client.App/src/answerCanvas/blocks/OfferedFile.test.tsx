@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type {
     AnswerBlock,
     AnswerFile,
+    AnswerReport,
     BlockEvidence,
     ClientRequest,
     ClientSession,
@@ -20,9 +21,9 @@ import {
 import { LocalizationProvider } from '../../localization/Localization';
 import { ReadingZoneContext } from '../../localization/useReadingZone';
 import { ToastContext, type ToastSurface } from '../../toasts/useToasts';
-import { AnswerDownloadsContext } from '../answerDownloads';
+import { AnswerDownloadsContext, type AnswerDownloads } from '../answerDownloads';
 import { AnswerSourcesContext } from '../answerSources';
-import { OfferedFile } from './OfferedFile';
+import { OfferedFile, WrittenReport } from './OfferedFile';
 
 const session: ClientSession = {
     baseAddress: 'https://mail.example.invalid',
@@ -30,6 +31,10 @@ const session: ClientSession = {
 };
 
 const messageId = '0198f4a1-0000-7000-8000-000000000001';
+
+const conversationId = '0198f4a1-0000-7000-8000-00000000c0a1';
+
+const inTheConversation: AnswerDownloads = { session, conversation: conversationId };
 
 const carried: DeclaredSource = {
     id: 'm1',
@@ -59,6 +64,20 @@ const certificate: AnswerFile = {
 
 function offered(file: AnswerFile = certificate): AnswerBlock {
     return { type: 'file', named: 'file', evidence: cited, file };
+}
+
+const comparison: AnswerReport = {
+    fileId: '0198f4a1-0000-7000-8000-00000000f11e',
+    title: 'Offer comparison',
+    name: 'Offer comparison - Contoso.pdf',
+    mediaType: 'application/pdf',
+    sizeOctets: 212_000,
+    pageCount: 3,
+    writtenAt: '2026-11-12T09:30:00+00:00',
+};
+
+function written(report: AnswerReport = comparison): AnswerBlock {
+    return { type: 'report', named: 'report', evidence: cited, report };
 }
 
 /** An exchange whose delivery records what it was asked and answers when the test says so, never on its own. */
@@ -98,9 +117,9 @@ function drawing(
     block: AnswerBlock,
     exchange: AttachmentExchange,
     {
-        downloadsAs = session,
+        downloadsAs = inTheConversation,
         sources = [carried],
-    }: { downloadsAs?: ClientSession | null; sources?: readonly DeclaredSource[] } = {},
+    }: { downloadsAs?: AnswerDownloads | null; sources?: readonly DeclaredSource[] } = {},
 ) {
     return render(
         <LocalizationProvider>
@@ -111,7 +130,11 @@ function drawing(
                             <AnswerSourcesContext
                                 value={{ sources: new Map(sources.map((source) => [source.id, source])), follow: null }}
                             >
-                                <OfferedFile block={block} />
+                                {block.type === 'report' ? (
+                                    <WrittenReport block={block} />
+                                ) : (
+                                    <OfferedFile block={block} />
+                                )}
                             </AnswerSourcesContext>
                         </AnswerDownloadsContext>
                     </AttachmentExchangeContext>
@@ -190,5 +213,86 @@ describe('OfferedFile', () => {
         expect(screen.getByRole('button', { name: 'Download Unnamed file, 3.6 kB' }).textContent).toContain(
             'From an unnamed sender · 3.6 kB',
         );
+    });
+});
+
+describe('WrittenReport', () => {
+    it('names the report, its kind, its pages, and its size as one control that downloads it', () => {
+        drawing(written(), deliveryHeldOpen().exchange);
+
+        const card = screen.getByRole('button', { name: 'Download Offer comparison - Contoso.pdf, 212 kB' });
+
+        expect(card.textContent).toContain('pdf');
+        expect(card.textContent).toContain('Report the agent wrote · 3 pages · 212 kB');
+    });
+
+    it('counts a report set on one page as one page', () => {
+        drawing(written({ ...comparison, pageCount: 1 }), deliveryHeldOpen().exchange);
+
+        expect(screen.getByRole('button', { name: /^Download/u }).textContent).toContain(
+            'Report the agent wrote · 1 page · 212 kB',
+        );
+    });
+
+    it('asks for the conversation’s file it was stored as, bounded by the size the answer said', () => {
+        const held = deliveryHeldOpen();
+        drawing(written(), held.exchange);
+
+        fireEvent.click(screen.getByRole('button', { name: /^Download/u }));
+
+        expect(held.asked[0]?.path).toBe(
+            `https://mail.example.invalid/api/client/agent/conversations/${conversationId}/files/${comparison.fileId}`,
+        );
+        expect(held.asked[0]?.longestAnswer).toBe(212_000);
+    });
+
+    it('asks once while the report is on its way, however often it is pressed', () => {
+        const held = deliveryHeldOpen();
+        drawing(written(), held.exchange);
+
+        const card = screen.getByRole('button', { name: /^Download/u });
+        fireEvent.click(card);
+        fireEvent.click(card);
+
+        expect(held.asked).toHaveLength(1);
+    });
+
+    it('lets go of a report the conversation no longer holds, asking for it to be written again', async () => {
+        const held = deliveryHeldOpen();
+        drawing(written(), held.exchange);
+
+        fireEvent.click(screen.getByRole('button', { name: /^Download/u }));
+
+        await act(async () => {
+            held.answer('missing');
+            await Promise.resolve();
+        });
+
+        expect(screen.queryByRole('button')).toBeNull();
+        expect(screen.getByText('No longer held - ask the agent to write it again')).toBeDefined();
+    });
+
+    it('keeps offering a report whose download the server did not answer', async () => {
+        const held = deliveryHeldOpen();
+        drawing(written(), held.exchange);
+
+        fireEvent.click(screen.getByRole('button', { name: /^Download/u }));
+
+        await act(async () => {
+            held.answer('unavailable');
+            await Promise.resolve();
+        });
+
+        expect(screen.getByRole('button', { name: /^Download/u })).toBeDefined();
+    });
+
+    it.each([
+        ['a surface that offers no download', null],
+        ['a surface that draws no conversation', { session, conversation: null }],
+    ] as const)('names the report and offers nothing to press on %s', (_, downloadsAs) => {
+        drawing(written(), deliveryHeldOpen().exchange, { downloadsAs });
+
+        expect(screen.queryByRole('button')).toBeNull();
+        expect(screen.getByText('Offer comparison - Contoso.pdf')).toBeDefined();
     });
 });

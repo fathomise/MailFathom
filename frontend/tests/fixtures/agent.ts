@@ -12,8 +12,8 @@ import { attachedOctets, newsletterId } from './messages';
 // **The answered conversation cites a message this corpus already holds**, so following its citation reaches the
 // reading pane rather than a message nothing can read. It also proposes an event, a task, a reply and a step in the
 // mailbox — every kind of proposal the client draws — the task already accepted, so the proposal cards are looked at
-// both waiting on somebody and answered — and it hands over the one file that message carries, so the card an answer's
-// file is drawn as can be looked at and pressed. The one still composing has said what it is doing and drawn nothing yet, which
+// both waiting on somebody and answered — and it hands over the one file that message carries and a report it wrote, so
+// the card an answer's file is drawn as can be looked at and pressed for either origin. The one still composing has said what it is doing and drawn nothing yet, which
 // is the state the status line exists for and none of the other screens can show.
 //
 // **Its answer is Markdown, and part of it is somebody else's.** A model writes structure — a list, an emphasis — and it
@@ -32,6 +32,15 @@ export const answeredQuestionId = '0198f4a1-0000-7000-8000-00000000a9f1';
 
 /** The question the composing conversation is answering, which is the run a steer or a stop names. */
 export const composingQuestionId = '0198f4a1-0000-7000-8000-00000000a9f2';
+
+/** The conversation's file the answered conversation's report was stored as, which its download names. */
+export const writtenReportId = '0198f4a1-0000-7000-8000-00000000a9a1';
+
+/** What the report downloads as: a few octets standing for a PDF, which a check can compare with what arrived. */
+export const writtenReportOctets = '%PDF-1.7\n% Offer comparison\n%%EOF\n';
+
+/** The name the report is downloaded under. */
+export const writtenReportName = 'Offer comparison.pdf';
 
 /**
  * The history, the conversations being worked in first and then the one put away, each group newest activity first.
@@ -265,13 +274,31 @@ const answeredEntries = [
     {
         sequence: 11,
         entry: {
+            entry: 'block',
+            messageId: answeredQuestionId,
+            block: {
+                type: 'report',
+                evidence: { support: 'Cited', citations: ['c-1'], freshness: current },
+                fileId: writtenReportId,
+                title: 'Offer comparison',
+                name: writtenReportName,
+                mediaType: 'application/pdf',
+                sizeOctets: writtenReportOctets.length,
+                pageCount: 3,
+                writtenAt: '2026-08-31T10:05:00+00:00',
+            },
+        },
+    },
+    {
+        sequence: 12,
+        entry: {
             entry: 'answerEnded',
             messageId: answeredQuestionId,
             outcome: 'Completed',
             followUps: ['Who confirmed the bays?', 'Draft a reply asking to hold them another week'],
         },
     },
-    { sequence: 12, entry: { entry: 'resolution', proposedAt: 7, state: 'Accepted' } },
+    { sequence: 13, entry: { entry: 'resolution', proposedAt: 7, state: 'Accepted' } },
 ];
 
 const composingEntries = [

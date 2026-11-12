@@ -9,7 +9,7 @@ import { Draft } from './blocks/Draft';
 import { EventProposal } from './blocks/EventProposal';
 import { EvidenceList } from './blocks/EvidenceList';
 import { FactTable } from './blocks/FactTable';
-import { OfferedFile } from './blocks/OfferedFile';
+import { OfferedFile, WrittenReport } from './blocks/OfferedFile';
 import { People } from './blocks/People';
 import { SuggestedAction } from './blocks/SuggestedAction';
 import { SynthesizedAnswer } from './blocks/SynthesizedAnswer';
@@ -51,6 +51,7 @@ export const answerBlockRenderers: AnswerBlockRenderers = {
     threadState: ThreadState,
     attachmentGallery: AttachmentGallery,
     file: OfferedFile,
+    report: WrittenReport,
     draft: Draft,
     suggestedAction: SuggestedAction,
     eventProposal: EventProposal,

@@ -178,6 +178,40 @@ describe('AgentAnswer', () => {
         expect(files.textContent).toContain('Hall lease.pdf');
         expect(words.compareDocumentPosition(files) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
+
+    it('draws a report the Agent wrote among the files it hands over, under its words', () => {
+        drawnAnswer({
+            ...answered,
+            blocks: [
+                ...answered.blocks,
+                {
+                    sequence: 9,
+                    phase: null,
+                    block: {
+                        type: 'report',
+                        named: 'report',
+                        evidence: {
+                            support: 'Cited',
+                            citations: [lease.id],
+                            freshness: { staleness: 'Unknown', observedAt: null },
+                            conflictingClaims: [],
+                        },
+                        report: {
+                            fileId: '0198f4a1-0000-7000-8000-00000000f11e',
+                            title: 'Lease summary',
+                            name: 'Lease summary.pdf',
+                            mediaType: 'application/pdf',
+                            sizeOctets: 4_096,
+                            pageCount: 2,
+                            writtenAt: '2026-11-12T09:30:00+00:00',
+                        },
+                    },
+                },
+            ],
+        });
+
+        expect(screen.getByRole('list', { name: 'Files it hands over' }).textContent).toContain('Lease summary.pdf');
+    });
 });
 
 function inLocalization(

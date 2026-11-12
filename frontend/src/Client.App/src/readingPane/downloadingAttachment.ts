@@ -82,6 +82,13 @@ export interface AttachmentDownloads {
     readonly start: (attachment: MailAttachment) => Promise<AttachmentDeliveryOutcome | null>;
 }
 
+/** Puts one file's download on the wire through the exchange, under the way out, and answers what became of it. */
+export type FileDelivery = (
+    attachment: MailAttachment,
+    exchange: AttachmentExchange,
+    abandoned: AbortSignal,
+) => Promise<AttachmentDeliveryOutcome>;
+
 /**
  * Holds the downloads of one message's files and reports each of them as a task.
  *
@@ -89,6 +96,20 @@ export interface AttachmentDownloads {
  * @param storedEmailId The message the files belong to.
  */
 export function useAttachmentDownloads(session: ClientSession, storedEmailId: string): AttachmentDownloads {
+    return useFileDownloads((attachment, exchange, abandoned) =>
+        downloadAttachment(session, storedEmailId, attachment, exchange, abandoned),
+    );
+}
+
+/**
+ * Holds the downloads of a surface's files and reports each of them as a task, whatever route a file is asked for on.
+ *
+ * It is what a message's files and an Agent conversation's files share: the same notices, the same way out, and the
+ * same refusal of a second press, so a file an answer hands over downloads exactly as one under a message does.
+ *
+ * @param deliver How one file is asked for, which is read at the press rather than when the surface is drawn.
+ */
+export function useFileDownloads(deliver: FileDelivery): AttachmentDownloads {
     const { translate } = useLocalization();
     const exchange = useAttachmentExchange();
     const toasts = useToasts();
@@ -158,7 +179,7 @@ export function useAttachmentDownloads(session: ClientSession, storedEmailId: st
                 },
             });
 
-            const outcome = await downloadAttachment(session, storedEmailId, attachment, exchange, abandoning.signal);
+            const outcome = await deliver(attachment, exchange, abandoning.signal);
 
             running.current.delete(attachment.position);
             record(attachment.position, false);
