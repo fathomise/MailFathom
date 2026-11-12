@@ -17,6 +17,7 @@ const asked: AgentConversationEntry = {
     text: 'How many bays?',
     scope: { kind: 'thread', subject: 't-1' },
     mode: 'auto',
+    files: ['f-1'],
 };
 
 const started: AgentConversationEntry = { kind: 'answerStarted', sequence: 2, run: 'q-1' };
@@ -33,7 +34,7 @@ describe('threadOf', () => {
         ]);
 
         expect(turns).toMatchObject([
-            { kind: 'question', text: 'How many bays?' },
+            { kind: 'question', text: 'How many bays?', files: ['f-1'] },
             {
                 kind: 'answer',
                 run: 'q-1',
@@ -45,7 +46,7 @@ describe('threadOf', () => {
         ]);
     });
 
-    it('carries the question an answer answers, the mode it was asked in, the move to deep, and the ceiling', () => {
+    it('carries the question an answer answers, the mode and the files it was asked with, the move to deep, and the ceiling', () => {
         const [, answer] = threadOf([
             asked,
             started,
@@ -63,6 +64,7 @@ describe('threadOf', () => {
         expect(answer).toMatchObject({
             question: 'How many bays?',
             mode: 'auto',
+            files: ['f-1'],
             deepened: 'It reaches back a year.',
             ceiling: { messagesRead: 120 },
         });
@@ -96,6 +98,7 @@ describe('threadOf', () => {
                 text: 'Stopped.',
                 scope: null,
                 mode: null,
+                files: [],
             },
         ]);
 
@@ -145,6 +148,7 @@ describe('proposedNext', () => {
                 text: 'Draft a reply',
                 scope: null,
                 mode: null,
+                files: [],
             },
         ]);
 

@@ -175,6 +175,7 @@ export const iconNames = [
     'unarchive',
     'undo',
     'update',
+    'upload_file',
     'verified_user',
     'visibility',
     'warning',

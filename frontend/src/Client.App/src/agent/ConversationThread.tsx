@@ -2,13 +2,19 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { AgentMessageScope, ClientFailureReason, DeclaredSource } from '@mailfathom/client-backend';
+import type {
+    AgentConversationFile,
+    AgentMessageScope,
+    ClientFailureReason,
+    DeclaredSource,
+} from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { AgentAnswer, AnswerScope } from './AgentAnswer';
 import { ProposedNext } from './ProposedNext';
 import { proposedNext, type ThreadTurn } from './threadTurns';
+import { CarriedFiles } from './CarriedFiles';
 import { usePinnedToBottom } from './usePinnedToBottom';
 
 const readFailures: Readonly<Record<ClientFailureReason, MessageKey>> = {
@@ -33,6 +39,7 @@ const readFailures: Readonly<Record<ClientFailureReason, MessageKey>> = {
  * @param onAskInDeep Asks an answer's question again in `deep`, about what it was asked about, and `null` while an
  * answer is being composed.
  * @param onFollowSource Opens a source an answer cites, so the fact it backs can be checked against it.
+ * @param files The files the conversation holds, which is where a question's files are named from.
  */
 export function ConversationThread({
     turns,
@@ -44,6 +51,7 @@ export function ConversationThread({
     onAsk,
     onAskInDeep,
     onFollowSource,
+    files,
 }: {
     readonly turns: readonly ThreadTurn[];
     readonly reading: boolean;
@@ -52,8 +60,10 @@ export function ConversationThread({
     readonly settledThrough: number;
     readonly following: number;
     readonly onAsk: (question: string) => Promise<unknown>;
-    readonly onAskInDeep: ((question: string, scope: AgentMessageScope | null) => Promise<unknown>) | null;
+    readonly onAskInDeep:
+        ((question: string, scope: AgentMessageScope | null, files: readonly string[]) => Promise<unknown>) | null;
     readonly onFollowSource: (source: DeclaredSource) => void;
+    readonly files: ReadonlyMap<string, AgentConversationFile>;
 }) {
     const { translate } = useLocalization();
     const { attachScroller, onScroll, onGesture } = usePinnedToBottom(turns, following);
@@ -83,14 +93,15 @@ export function ConversationThread({
 
                 {turns.map((turn) =>
                     turn.kind === 'question' ? (
-                        <p
+                        <div
                             key={turn.sequence}
-                            className={`max-w-agent-question-narrow self-end rounded-md bg-accent-soft px-3.5 py-2.75 text-lg text-text text-pretty whitespace-pre-wrap workspace:max-w-agent-question ${
+                            className={`max-w-agent-question-narrow self-end rounded-md bg-accent-soft px-3.5 py-2.75 workspace:max-w-agent-question ${
                                 turn.sequence > settledThrough ? 'animate-arrival' : ''
                             }`}
                         >
-                            {turn.text}
-                        </p>
+                            <p className="text-lg text-text text-pretty whitespace-pre-wrap">{turn.text}</p>
+                            <CarriedFiles carried={turn.files} files={files} />
+                        </div>
                     ) : turn.kind === 'note' ? (
                         <div
                             key={turn.sequence}

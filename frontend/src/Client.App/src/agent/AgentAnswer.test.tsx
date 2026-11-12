@@ -24,6 +24,7 @@ const answered: Answer = {
     scope: null,
     question: 'When does the lease renew?',
     mode: null,
+    files: [],
     deepened: null,
     ceiling: null,
     sources: new Map([[lease.id, lease]]),
@@ -104,10 +105,13 @@ describe('AgentAnswer', () => {
         expect(screen.queryByText('The agent is going through your mail…')).toBeNull();
     });
 
-    it('offers a fast answer that stopped at its ceiling the same question in deep, about what it was asked about', async () => {
+    it('offers a fast answer that stopped at its ceiling the same question in deep, about what it was asked about and with its files', async () => {
         const asked = vi.fn(() => Promise.resolve());
         const thread: AgentMessageScope = { kind: 'thread', subject: '0198f4a1-0000-7000-8000-00000000b001' };
-        drawnAnswer({ ...answered, scope: thread, mode: 'fast', ceiling: { messagesRead: 200 } }, asked);
+        drawnAnswer(
+            { ...answered, scope: thread, mode: 'fast', files: ['f-1'], ceiling: { messagesRead: 200 } },
+            asked,
+        );
 
         expect(
             screen.getByText('Stopped at the fast limit: it read 200 messages. The rest may change the answer.'),
@@ -116,7 +120,7 @@ describe('AgentAnswer', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Ask again in Deep' }));
 
         await waitFor(() => {
-            expect(asked).toHaveBeenCalledWith('When does the lease renew?', thread);
+            expect(asked).toHaveBeenCalledWith('When does the lease renew?', thread, ['f-1']);
         });
     });
 
@@ -178,7 +182,9 @@ describe('AgentAnswer', () => {
 
 function inLocalization(
     answer: Answer,
-    onAskInDeep: ((question: string, scope: AgentMessageScope | null) => Promise<unknown>) | null = null,
+    onAskInDeep:
+        | ((question: string, scope: AgentMessageScope | null, files: readonly string[]) => Promise<unknown>)
+        | null = null,
 ) {
     return (
         <LocalizationProvider>
@@ -189,7 +195,9 @@ function inLocalization(
 
 function drawnAnswer(
     answer: Answer,
-    onAskInDeep: ((question: string, scope: AgentMessageScope | null) => Promise<unknown>) | null = null,
+    onAskInDeep:
+        | ((question: string, scope: AgentMessageScope | null, files: readonly string[]) => Promise<unknown>)
+        | null = null,
 ) {
     return render(inLocalization(answer, onAskInDeep));
 }

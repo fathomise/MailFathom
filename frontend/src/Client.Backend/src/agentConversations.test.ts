@@ -379,6 +379,51 @@ describe('readAgentConversation', () => {
         });
     });
 
+    it('reads the files a question carried by identifier, and a question that carried none as carrying none', async () => {
+        const answered = await readAgentConversation(
+            session,
+            answering({
+                status: 200,
+                body: pageOf([
+                    entryOf(1, {
+                        entry: 'message',
+                        messageId: question,
+                        author: 'Person',
+                        text: 'Compare these',
+                        files: ['file-1', 'file-2'],
+                    }),
+                    entryOf(2, { entry: 'message', messageId: question, author: 'Person', text: 'And?', files: null }),
+                ]),
+            }),
+            conversation,
+            0,
+        );
+
+        expect(answered).toMatchObject({
+            value: { events: [{ files: ['file-1', 'file-2'] }, { files: [] }] },
+        });
+    });
+
+    it.each([
+        ['more files than a question may carry', Array.from({ length: 11 }, (_, at) => `file-${String(at)}`)],
+        ['a file named by something other than an identifier', [7]],
+        ['files that are not a list', 'file-1'],
+    ])('refuses a question naming %s, which the service never writes', async (_, files) => {
+        const answered = await readAgentConversation(
+            session,
+            answering({
+                status: 200,
+                body: pageOf([
+                    entryOf(1, { entry: 'message', messageId: question, author: 'Person', text: 'Bays?', files }),
+                ]),
+            }),
+            conversation,
+            0,
+        );
+
+        expect(answered.outcome).toBe('failed');
+    });
+
     it.each([
         ['a ceiling that names no count', { ceiling: {} }],
         ['a ceiling with a negative count', { ceiling: { messagesRead: -1 } }],
@@ -625,6 +670,19 @@ describe('askAgent', () => {
         await askAgent(session, transport, conversation, question, 'Every invoice this year', null, 'deep');
 
         expect(JSON.parse(requests[0]?.body ?? '{}')).toMatchObject({ mode: 'Deep' });
+    });
+
+    it('names the files the question carries, and names none where it carries none', async () => {
+        const { transport, requests } = recording({
+            status: 202,
+            body: JSON.stringify({ messageId: question, runId: question, sequence: 1 }),
+        });
+
+        await askAgent(session, transport, conversation, question, 'Compare these', null, 'auto', ['file-1', 'file-2']);
+        await askAgent(session, transport, conversation, question, 'And?', null, 'auto', []);
+
+        expect(JSON.parse(requests[0]?.body ?? '{}')).toMatchObject({ files: ['file-1', 'file-2'] });
+        expect(JSON.parse(requests[1]?.body ?? '{}')).not.toHaveProperty('files');
     });
 
     it('names the thing the question is about in the service’s own spelling of its kind', async () => {

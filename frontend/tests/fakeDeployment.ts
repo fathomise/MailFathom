@@ -78,6 +78,9 @@ export interface FakeRequest {
 
     /** The credential the request presented, which is what tells a renewal from a sign-in at the one route both reach. */
     readonly authorization?: string;
+
+    /** What the request said its body is called, which is where a file taken into an Agent conversation is named. */
+    readonly contentDisposition?: string;
 }
 
 /** What the fake answers one request with, as the route fulfils it. */
@@ -104,6 +107,9 @@ export interface IssuedRequest {
 
     /** What the request declared its body to be, or `null` where it declared nothing. */
     readonly contentType: string | null;
+
+    /** What the request said its body is called, or `null` where it said nothing. */
+    readonly contentDisposition: string | null;
 }
 
 /** One change the fake wrote down, read back the way the records route publishes one. */
@@ -136,7 +142,12 @@ interface Conversation {
     readonly reads: 'answered' | 'composing';
 
     /** What a conversation started here was asked, and `null` for one the corpus states. */
-    readonly asked: { readonly text: unknown; readonly scope: unknown; readonly mode: unknown } | null;
+    readonly asked: {
+        readonly text: unknown;
+        readonly scope: unknown;
+        readonly mode: unknown;
+        readonly files: unknown;
+    } | null;
 
     readonly added: { sequence: number; entry: Readonly<Record<string, unknown>> }[];
     readsTaken: number;
@@ -311,6 +322,12 @@ export class FakeDeployment {
     private readonly conversationsRead = new Set<string>();
 
     /**
+     * The files taken into each conversation, by its identifier. Held apart from the conversations themselves because a
+     * file is taken into a conversation the client names before its first question starts it, as the service does.
+     */
+    private readonly conversationFiles = new Map<string, Readonly<Record<string, unknown>>[]>();
+
+    /**
      * Events written or amended here, by identity, which every window they fall in answers with.
      *
      * An amended corpus event is held here under its own identity too, because the corpus places its entries against
@@ -368,12 +385,14 @@ export class FakeDeployment {
             const request = route.request();
             const contentType = request.headers()['content-type'];
             const authorization = request.headers()['authorization'];
+            const contentDisposition = request.headers()['content-disposition'];
             const asked: FakeRequest = {
                 method: request.method(),
                 url: request.url(),
                 body: request.postData(),
                 ...(contentType === undefined ? {} : { contentType }),
                 ...(authorization === undefined ? {} : { authorization }),
+                ...(contentDisposition === undefined ? {} : { contentDisposition }),
             };
 
             // Refused as a network refuses it rather than answered with a status, because a deployment that stopped
@@ -1740,11 +1759,22 @@ export class FakeDeployment {
     }
 
     /** One conversation with the Agent: reading it, asking in it, steering and stopping it, and the proposals in it. */
-    private agentAnswer({ method, query, body }: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
+    private agentAnswer(
+        { method, query, body, text: octets, contentDisposition }: IssuedRequest,
+        segments: readonly string[],
+    ): FakeAnswer | null {
         const [space, conversations, id = '', part, parameter, rest] = segments;
 
         if (space !== 'agent' || conversations !== 'conversations' || segments.length < 3) {
             return null;
+        }
+
+        if (part === 'files' && parameter === undefined) {
+            return method === 'POST'
+                ? this.fileTaken(id, octets, contentDisposition)
+                : method === 'GET'
+                  ? answering({ files: this.conversationFiles.get(id) ?? [] })
+                  : null;
         }
 
         if (method === 'POST' && part === 'messages' && parameter === undefined) {
@@ -1756,7 +1786,12 @@ export class FakeDeployment {
                     startedAt: new Date().toISOString(),
                     archived: false,
                     reads: 'answered',
-                    asked: { text, scope: recordIn(body)?.['scope'] ?? null, mode: recordIn(body)?.['mode'] ?? 'Auto' },
+                    asked: {
+                        text,
+                        scope: recordIn(body)?.['scope'] ?? null,
+                        mode: recordIn(body)?.['mode'] ?? 'Auto',
+                        files: recordIn(body)?.['files'] ?? null,
+                    },
                     added: [],
                     readsTaken: 0,
                     startsRunning: this.takeRunning(),
@@ -1816,6 +1851,39 @@ export class FakeDeployment {
         }
 
         return null;
+    }
+
+    /**
+     * Takes a file into a conversation as the service does: by the name its `Content-Disposition` gives, refusing an
+     * empty body and a conversation already holding as many files as one may. What a file is, the service reads from
+     * its octets; the fake reads it from the name, which is all a check can choose.
+     */
+    private fileTaken(conversation: string, octets: string | null, disposition: string | null): FakeAnswer {
+        const held = this.conversationFiles.get(conversation) ?? [];
+        const encoded = /filename\*=UTF-8''([^;]*)/u.exec(disposition ?? '')?.[1];
+        const name = encoded === undefined ? null : decodeURIComponent(encoded);
+
+        if (octets === null || octets.length === 0) {
+            return { status: 400, body: '' };
+        }
+
+        if (held.length >= 20) {
+            return { status: 409, body: '' };
+        }
+
+        const file = {
+            fileId: `0198f4a1-0000-7000-8000-0000000f${String(held.length + 1).padStart(4, '0')}`,
+            name,
+            kind: /\.(png|jpe?g|gif|webp)$/iu.test(name ?? '') ? 'picture' : 'document',
+            mediaType: /\.pdf$/iu.test(name ?? '') ? 'application/pdf' : 'text/plain',
+            byteLength: octets.length,
+            addedAt: new Date().toISOString(),
+            text: null,
+        };
+
+        this.conversationFiles.set(conversation, [...held, file]);
+
+        return { ...answering(file), status: 201 };
     }
 
     /** The history, conversations started here first, then the corpus's own, each with what was done to it since. */
@@ -1886,7 +1954,16 @@ export class FakeDeployment {
             .filter(({ entry }) => entry.entry !== 'resolution')
             .map((held) =>
                 held.entry.entry === 'message'
-                    ? { ...held, entry: { ...held.entry, text: asked.text, scope: asked.scope, mode: asked.mode } }
+                    ? {
+                          ...held,
+                          entry: {
+                              ...held.entry,
+                              text: asked.text,
+                              scope: asked.scope,
+                              mode: asked.mode,
+                              files: asked.files,
+                          },
+                      }
                     : held.entry.entry === 'answerEnded' && asked.mode === 'Fast'
                       ? { ...held, entry: { ...held.entry, ceiling: agent.fastAnswerCeiling } }
                       : held,
@@ -2576,6 +2653,7 @@ function issuedFrom(request: FakeRequest): IssuedRequest {
         body: parsedBody(request.body),
         text: request.body,
         contentType: request.contentType ?? null,
+        contentDisposition: request.contentDisposition ?? null,
     };
 }
 

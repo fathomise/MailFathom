@@ -734,22 +734,26 @@ MailFathomDesign.data.agentModes = [
   { key: "deep", label: "Deep", icon: "manage_search", says: "Reads everything the question needs - it can take several minutes." },
 ];
 
-// What a question can carry, and the three reasons the service refuses a file. The kinds are matched on the file's
-// extension here; the service decides on what the file is.
+// What a question can carry - the service's own bounds: 16 MB a file, 10 files a question, 20 a conversation. The kinds
+// are matched on the file's extension here, before anything is sent; the service decides on what the file is, so a
+// file whose name passed can still be refused for what it holds.
 MailFathomDesign.data.agentFileLimits = {
   maxFiles: 10,
-  maxBytes: 20 * 1024 * 1024,
-  maxSaid: "20 MB",
-  kinds: ["pdf", "docx", "xlsx", "pptx", "odt", "ods", "txt", "csv", "md", "eml", "png", "jpg", "jpeg", "webp", "gif"],
+  maxBytes: 16 * 1024 * 1024,
+  maxSaid: "16 MB",
+  maxHeld: 20,
+  kinds: ["pdf", "docx", "xlsx", "pptx", "odt", "ods", "odp", "txt", "csv", "md", "eml", "png", "jpg", "jpeg", "webp", "gif"],
   kindsSaid: "PDF, Office, OpenDocument and text files, saved messages, and pictures",
 };
 
 // The files waiting under the field when the artboard's `agentFiles` property is `waiting`: one sent up, one on its
-// way, one that failed, and a refusal for each of the three reasons.
+// way, one that failed for want of the server, which can be tried again, and a line for each of the ten reasons a file
+// is not attached - four the field refuses before sending, two only the service can give, and four uploads no retry can
+// mend.
 MailFathomDesign.data.agentFileSamples = {
   tray: [
     { name: "Offer v3 - rollout.pdf", kind: "PDF", size: "1.2 MB", state: "done" },
-    { name: "Site photo.jpg", kind: "JPEG", size: "2.4 MB", state: "uploading", pct: 42, image: true },
+    { name: "Site photo.jpg", kind: "JPEG", size: "2.4 MB", state: "uploading", image: true },
     { name: "Price list 2027.xlsx", kind: "XLSX", size: "310 kB", state: "failed" },
     { name: "Pasted image 13.42.png", kind: "PNG", size: "380 kB", state: "done", image: true, pasted: true },
   ],
@@ -757,5 +761,12 @@ MailFathomDesign.data.agentFileSamples = {
     { reason: "large", name: "Board pack - full.pdf", size: "48 MB" },
     { reason: "kind", name: "Floor plan.dwg" },
     { reason: "many", count: 3 },
+    { reason: "empty", name: "Notes.txt" },
+    { reason: "unread", name: "Scan 0412.pdf" },
+    { reason: "full", name: "Minutes - March.docx" },
+    { reason: "session", name: "Agenda.pdf" },
+    { reason: "grant", name: "Budget.xlsx" },
+    { reason: "gone", name: "Contract.pdf" },
+    { reason: "garbled", name: "Quote.pdf" },
   ],
 };

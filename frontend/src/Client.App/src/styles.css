@@ -529,6 +529,9 @@
     /* An answer's file: the design's card, as wide as one line of its name and origin needs and never wider, which on
        the phone is the whole column instead. */
     --container-answer-file: 25rem;
+    /* A file waiting under the field: the design's card, which stops a little narrower on the phone. */
+    --container-waiting-file: 16.25rem;
+    --container-waiting-file-narrow: 15rem;
     --container-agent-thread: 83.875rem;
     --container-agent-tab: 13.75rem;
     --container-agent-deep-run: 35rem;

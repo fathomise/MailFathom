@@ -31,6 +31,9 @@ export type ThreadTurn =
           readonly kind: 'question';
           readonly sequence: number;
           readonly text: string;
+
+          /** The conversation's files it carried, by identifier. */
+          readonly files: readonly string[];
       }
     | {
           /** A line the agent wrote on its own account rather than as an answer, which is the note a stop leaves. */
@@ -52,6 +55,9 @@ export type ThreadTurn =
 
           /** The mode that question was asked in, and `null` for one asked before a question carried its mode. */
           readonly mode: AgentAnswerMode | null;
+
+          /** The conversation's files that question carried, which asking it again carries too. */
+          readonly files: readonly string[];
 
           /** Why an `auto` run moved to deep, from the moment it moved, and `null` while it has not. */
           readonly deepened: string | null;
@@ -94,6 +100,7 @@ export function threadOf(entries: readonly AgentConversationEntry[]): readonly T
     let lastScope: AgentMessageScope | null = null;
     let lastQuestion: string | null = null;
     let lastMode: AgentAnswerMode | null = null;
+    let lastFiles: readonly string[] = [];
     let lastEnding: AgentAnswerOutcome | null = null;
 
     for (const entry of entries) {
@@ -118,7 +125,8 @@ export function threadOf(entries: readonly AgentConversationEntry[]): readonly T
                     lastScope = entry.scope;
                     lastQuestion = entry.text;
                     lastMode = entry.mode;
-                    turns.push({ kind: 'question', sequence: entry.sequence, text: entry.text });
+                    lastFiles = entry.files;
+                    turns.push({ kind: 'question', sequence: entry.sequence, text: entry.text, files: entry.files });
                 } else {
                     turns.push({
                         kind: 'note',
@@ -139,6 +147,7 @@ export function threadOf(entries: readonly AgentConversationEntry[]): readonly T
                     scope: lastScope,
                     question: lastQuestion,
                     mode: lastMode,
+                    files: lastFiles,
                     deepened: null,
                     ceiling: null,
                     blocks: [],
