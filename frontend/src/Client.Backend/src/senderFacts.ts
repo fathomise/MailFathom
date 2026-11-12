@@ -31,7 +31,21 @@ export type MailDeploymentTrust = 'Unknown' | 'Trusted' | 'Known';
 export type MailSignatureOutcome = 'NotSigned' | 'Verified' | 'Failed' | 'NotVerifiable';
 
 /**
- * What a row publishes about who sent its message: enough to choose the sender mark, and nothing more.
+ * What recognized a trusted author: one of the owner's own addresses, a domain of the owner's own accounts, a contact in
+ * the receiving account's organization's book or in a reader's own, or the signature of the receiving account's
+ * organization, which proves the author a member of it.
+ */
+export type MailTrustSource =
+    | 'OwnAccountDomain'
+    | 'OrganizationMember'
+    | 'OrganizationDirectory'
+    | 'OwnAccountAddress'
+    | 'OrganizationContact'
+    | 'PersonalContact';
+
+/**
+ * What a row publishes about who sent its message: enough to choose the sender mark and the External chip, and nothing
+ * more.
  *
  * The evidence each fact was reached from stays on the message route, which is what a details surface reads.
  */
@@ -40,6 +54,12 @@ export interface MailListedSender {
     readonly deploymentTrust: MailDeploymentTrust;
     readonly signatureOutcome: MailSignatureOutcome;
     readonly signerMatchesAuthor: boolean;
+
+    /** What recognized the author, or `null` where nothing did; `OrganizationMember` is the receiving organization's signature. */
+    readonly trustSource: MailTrustSource | null;
+
+    /** The colleague's current name, which only `OrganizationDirectory` ever carries. */
+    readonly trustMember: string | null;
 }
 
 export const authorAuthentications: readonly MailAuthorAuthentication[] = ['NotEstablished', 'Failed', 'Authenticated'];
@@ -47,6 +67,15 @@ export const authorAuthentications: readonly MailAuthorAuthentication[] = ['NotE
 export const deploymentTrusts: readonly MailDeploymentTrust[] = ['Unknown', 'Trusted', 'Known'];
 
 export const signatureOutcomes: readonly MailSignatureOutcome[] = ['NotSigned', 'Verified', 'Failed', 'NotVerifiable'];
+
+export const trustSources: readonly MailTrustSource[] = [
+    'OwnAccountDomain',
+    'OrganizationMember',
+    'OrganizationDirectory',
+    'OwnAccountAddress',
+    'OrganizationContact',
+    'PersonalContact',
+];
 
 /** The sender facts one row carries, or `null` where what arrived is not them. */
 export function parseListedSender(value: unknown): MailListedSender | null {
@@ -59,6 +88,8 @@ export function parseListedSender(value: unknown): MailListedSender | null {
     const deploymentTrust = record['deploymentTrust'];
     const signatureOutcome = record['signatureOutcome'];
     const signerMatchesAuthor = record['signerMatchesAuthor'];
+    const trustSource = record['trustSource'] ?? null;
+    const trustMember = record['trustMember'] ?? null;
 
     if (!isOneOf(authorAuthentication, authorAuthentications) || !isOneOf(deploymentTrust, deploymentTrusts)) {
         return null;
@@ -68,7 +99,16 @@ export function parseListedSender(value: unknown): MailListedSender | null {
         return null;
     }
 
-    return { authorAuthentication, deploymentTrust, signatureOutcome, signerMatchesAuthor };
+    if (trustSource !== null && !isOneOf(trustSource, trustSources)) {
+        return null;
+    }
+
+    // Only the directory source names a colleague, so a name beside any other is not what the service sent.
+    if (trustMember !== null && (typeof trustMember !== 'string' || trustSource !== 'OrganizationDirectory')) {
+        return null;
+    }
+
+    return { authorAuthentication, deploymentTrust, signatureOutcome, signerMatchesAuthor, trustSource, trustMember };
 }
 
 /** Whether the value is one of the members of a closed set this package parses. */

@@ -83,6 +83,26 @@ async function openTheInvoice(): Promise<void> {
     await screen.findByText('A drawn message.');
 }
 
+/**
+ * A deployment drawing one message on the work account, in a session that names the reader's organization, and saying
+ * whether that account's organization marks external mail.
+ */
+function deploymentMarkingExternalMail(marksExternalMail: boolean): DeploymentTransport {
+    const inOrganization: Answer = {
+        status: 200,
+        body: JSON.stringify({
+            ...(JSON.parse(accepted.body) as Record<string, unknown>),
+            organizationName: 'Nordwind',
+        }),
+    };
+    const otherwise = deploymentDrawingAMessage(inOrganization);
+
+    return (signal) => (request) =>
+        request.path.endsWith('/accounts')
+            ? Promise.resolve(complete(directory(true, [{ ...workAccount, marksExternalMail }])))
+            : otherwise(signal)(request);
+}
+
 describe('App', () => {
     it('says it is reaching the deployment while nothing has answered', () => {
         renderApp(servedFrom, heldSession, () => () => new Promise<ClientResponse>(() => undefined));
@@ -612,5 +632,32 @@ describe('App', () => {
         expect([...new Set(asked.map((request) => request.headers['Authorization']))]).toEqual([
             typedSession.authorization,
         ]);
+    });
+});
+
+// The frame is the one place an account's switch and the session's organization meet, so the chip is proven from both
+// answers rather than from a context a test supplies.
+describe('App, the External chip', () => {
+    const reason = /External - not signed by Nordwind\./;
+
+    it('draws the chip on a received row of an account whose organization marks external mail', async () => {
+        openingAt('#/mail');
+        renderApp(servedFrom, heldSession, deploymentMarkingExternalMail(true));
+
+        const list = await screen.findByRole('listbox', { name: 'Messages' });
+
+        await waitFor(() => {
+            expect(within(list).getByRole('option', { name: /Quarterly invoice/ }).textContent).toMatch(reason);
+        });
+    });
+
+    it('draws none where the account’s organization does not mark it', async () => {
+        openingAt('#/mail');
+        renderApp(servedFrom, heldSession, deploymentMarkingExternalMail(false));
+
+        const list = await screen.findByRole('listbox', { name: 'Messages' });
+        const row = await within(list).findByRole('option', { name: /Quarterly invoice/ });
+
+        expect(row.textContent).not.toMatch(reason);
     });
 });

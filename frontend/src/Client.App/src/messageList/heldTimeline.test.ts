@@ -67,6 +67,8 @@ function message(at: number): MailTimelineEntry {
             deploymentTrust: 'Unknown',
             signatureOutcome: 'NotSigned',
             signerMatchesAuthor: false,
+            trustSource: null,
+            trustMember: null,
         },
     };
 }

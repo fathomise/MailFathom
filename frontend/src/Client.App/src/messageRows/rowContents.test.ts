@@ -37,6 +37,8 @@ function message(over: Partial<MailTimelineEntry> = {}): MailTimelineEntry {
             deploymentTrust: 'Unknown',
             signatureOutcome: 'NotSigned',
             signerMatchesAuthor: false,
+            trustSource: null,
+            trustMember: null,
         },
         ...over,
     };

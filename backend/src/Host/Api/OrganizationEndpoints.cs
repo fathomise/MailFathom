@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MailFathom.Host.Api;
 
-/// <summary>Records, lists, renames, and removes organizations, and moves a user or a mail account into or out of one.</summary>
+/// <summary>Records, lists, renames, and removes organizations, switches their External mark, and moves a user or a mail account into or out of one.</summary>
 /// <remarks>
 /// <para>
 /// An organization groups users and mail accounts and scopes a Basic username: a member signs in as
@@ -19,10 +19,10 @@ namespace MailFathom.Host.Api;
 /// mailbox may be assigned to, and nothing about what an assigned user reads.
 /// </para>
 /// <para>
-/// Reading is <see cref="MailFathomPermission.AdminRead" />, recording, renaming, and removing an organization and moving
-/// a mail account are <see cref="MailFathomPermission.AdminConfigurationWrite" />, and changing a short name and moving a
+/// Reading is <see cref="MailFathomPermission.AdminRead" />, recording, renaming, and removing an organization, switching
+/// its External mark, and moving a mail account are <see cref="MailFathomPermission.AdminConfigurationWrite" />, and changing a short name and moving a
 /// user are <see cref="MailFathomPermission.AdminCredentialsWrite" />, for the reasons
-/// <see cref="OrganizationAdministration" /> gives. The listing, the display name, and the user's move name a target
+/// <see cref="OrganizationAdministration" /> gives. The listing, the display name, the External mark, and the user's move name a target
 /// and are admitted at a scope covering it; recording, removing, and changing the short name of an organization are the
 /// deployment's alone.
 /// </para>
@@ -37,6 +37,9 @@ internal static class OrganizationEndpoints
 
     /// <summary>The route one organization's display name is replaced at.</summary>
     internal const string OrganizationDisplayNameRoute = $"{OrganizationRoute}/display-name";
+
+    /// <summary>The route one organization's External mark is turned on or off at.</summary>
+    internal const string OrganizationExternalMarkRoute = $"{OrganizationRoute}/external-mark";
 
     /// <summary>The route one organization's short name is replaced at.</summary>
     internal const string OrganizationShortNameRoute = $"{OrganizationRoute}/short-name";
@@ -66,6 +69,10 @@ internal static class OrganizationEndpoints
             .RequirePermission(MailFathomPermission.AdminConfigurationWrite);
 
         api.MapPut(OrganizationDisplayNameRoute, RenameAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaxRequestBytes))
+            .RequirePermissionOverTarget(MailFathomPermission.AdminConfigurationWrite);
+
+        api.MapPut(OrganizationExternalMarkRoute, SetExternalMarkAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaxRequestBytes))
             .RequirePermissionOverTarget(MailFathomPermission.AdminConfigurationWrite);
 
@@ -168,6 +175,32 @@ internal static class OrganizationEndpoints
         }
 
         var result = await organizations.RenameAsync(organizationId, request!.DisplayName, cancellationToken);
+
+        return result.Outcome == OrganizationWriteOutcome.Written ? TypedResults.NoContent() : NoSuchOrganization();
+    }
+
+    /// <summary>Turns an organization's External mark on or off for every member at once.</summary>
+    /// <param name="organizationId">The organization.</param>
+    /// <param name="request">Whether its members see the mark from now on.</param>
+    /// <param name="organizations">The organization administration.</param>
+    /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
+    /// <returns><c>204</c> once it stands, <c>404</c> when no such organization exists or the caller's scope does not cover it, or <c>400</c> for a body that states no value.</returns>
+    /// <remarks>The value is stated rather than toggled, so a body that carries none — an empty object, or a misspelled field — is refused rather than read as off.</remarks>
+    internal static async Task<Results<NoContent, NotFound<ProblemDetails>, ProblemHttpResult>> SetExternalMarkAsync(
+        Guid organizationId,
+        [FromBody] OrganizationExternalMarkRequest? request,
+        [FromServices] OrganizationAdministration organizations,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(organizations);
+
+        if (request?.MarksExternalMail is not { } marksExternalMail)
+        {
+            return Refused("The request did not say whether the organization's members see the External mark. Send "
+                + "\"marksExternalMail\": true or false.");
+        }
+
+        var result = await organizations.SetExternalMarkAsync(organizationId, marksExternalMail, cancellationToken);
 
         return result.Outcome == OrganizationWriteOutcome.Written ? TypedResults.NoContent() : NoSuchOrganization();
     }

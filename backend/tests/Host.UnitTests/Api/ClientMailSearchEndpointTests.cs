@@ -352,7 +352,7 @@ public sealed class ClientMailSearchEndpointTests
 
         // Assert
         Assert.Equal(
-            new ClientMailListedSenderResponse("Failed", "Unknown", "Failed", false),
+            new ClientMailListedSenderResponse("Failed", "Unknown", "Failed", false, TrustSource: null, TrustMember: null),
             Assert.Single(response.Results).Sender);
     }
 

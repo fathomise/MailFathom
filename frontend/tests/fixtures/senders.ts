@@ -203,7 +203,7 @@ export function messageSenderEvidence(kind: SenderKind) {
     return evidence[kind];
 }
 
-/** What a row of a message of that kind publishes about its sender: the four facts a mark is chosen from. */
+/** What a row of a message of that kind publishes about its sender: the facts a mark and the External chip are chosen from. */
 export function listedSender(kind: SenderKind) {
     const { sender, signature } = evidence[kind];
 
@@ -212,5 +212,7 @@ export function listedSender(kind: SenderKind) {
         deploymentTrust: sender.deploymentTrust,
         signatureOutcome: signature.outcome,
         signerMatchesAuthor: signature.signerMatchesAuthor,
+        trustSource: sender.trustSource,
+        trustMember: sender.trustMember,
     };
 }

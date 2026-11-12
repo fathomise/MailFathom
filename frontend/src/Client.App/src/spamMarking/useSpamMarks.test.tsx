@@ -65,6 +65,7 @@ function directory(filesJunk: boolean): MailFolderDirectory {
                     lastSynchronizedAt: null,
                     behind: false,
                     filesJunk,
+                    marksExternalMail: false,
                     shared: false,
                     synchronizationStateSince: null,
                     behindSince: null,

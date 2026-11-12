@@ -377,6 +377,12 @@ internal static class AdminEndpointRoutes
     internal static string OrganizationDisplayNamePath(Guid organizationId) =>
         $"{OrganizationPath(organizationId)}/display-name";
 
+    /// <summary>Where one organization's External mark is turned on or off.</summary>
+    /// <param name="organizationId">The organization the path names.</param>
+    /// <returns>The path.</returns>
+    internal static string OrganizationExternalMarkPath(Guid organizationId) =>
+        $"{OrganizationPath(organizationId)}/external-mark";
+
     /// <summary>Where the short name one organization's members sign in under is replaced.</summary>
     /// <param name="organizationId">The organization the path names.</param>
     /// <returns>The path.</returns>

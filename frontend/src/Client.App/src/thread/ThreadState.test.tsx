@@ -87,6 +87,8 @@ function message(id: string, position: number): MailThreadMessage {
                 deploymentTrust: 'Unknown',
                 signatureOutcome: 'NotSigned',
                 signerMatchesAuthor: false,
+                trustSource: null,
+                trustMember: null,
             },
         },
         message: null,

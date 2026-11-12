@@ -4,6 +4,7 @@
 
 using System.Security.Cryptography;
 using System.Text;
+using MailFathom.Application.Access.Organizations;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Spam.Actions;
@@ -35,6 +36,8 @@ public sealed class ClientMailFoldersEndpointTests
 
     private static readonly IReadOnlySet<MailAccountId> NoneShared = new HashSet<MailAccountId>();
 
+    private static readonly IReadOnlySet<MailAccountId> NoneMarking = new HashSet<MailAccountId>();
+
     /// <summary>The path a client appends to the address it was configured with, pinned because the client composes it from a constant of its own.</summary>
     [Fact]
     public void MailFoldersRoute_IsThePathAClientComposes() =>
@@ -50,7 +53,7 @@ public sealed class ClientMailFoldersEndpointTests
             Folder("inbox", MailFolderSpecialUse.Inbox, ["INBOX"], storedEmailCount: 12, unreadEmailCount: 3)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         var folder = Assert.Single(Assert.Single(response.Accounts).Folders);
@@ -77,11 +80,11 @@ public sealed class ClientMailFoldersEndpointTests
             []);
 
         // Act
-        var response = ClientMailFoldersResponse.For(Directory(new MailAccountFolders(freshness, [])), NoSpamActions, NoneShared);
+        var response = ClientMailFoldersResponse.For(Directory(new MailAccountFolders(freshness, [])), NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(
-            ClientMailAccountResponse.For(freshness, NoSpamActions, NoneShared),
+            ClientMailAccountResponse.For(freshness, NoSpamActions, NoneShared, NoneMarking),
             Assert.Single(response.Accounts).Account);
     }
 
@@ -98,7 +101,7 @@ public sealed class ClientMailFoldersEndpointTests
             Account(Work, Folder("inbox", MailFolderSpecialUse.Inbox, ["INBOX"], 2, 2)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, SpamActionsFor(filingAccount: Work), NoneShared);
+        var response = ClientMailFoldersResponse.For(directory, SpamActionsFor(filingAccount: Work), NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal([false, true], response.Accounts.Select(account => account.Account.FilesJunk));
@@ -114,7 +117,7 @@ public sealed class ClientMailFoldersEndpointTests
             Folder("2024", role: null, ["Archiwum", "2024"], storedEmailCount: 0, unreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Null(Assert.Single(Assert.Single(response.Accounts).Folders).Role);
@@ -133,7 +136,7 @@ public sealed class ClientMailFoldersEndpointTests
             Folder("inbox", role, ["INBOX"], storedEmailCount: 0, unreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(role.ToString(), Assert.Single(Assert.Single(response.Accounts).Folders).Role);
@@ -159,7 +162,7 @@ public sealed class ClientMailFoldersEndpointTests
                 UnreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(
@@ -189,7 +192,7 @@ public sealed class ClientMailFoldersEndpointTests
                 UnreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(behind, Assert.Single(Assert.Single(response.Accounts).Folders).Behind);
@@ -205,7 +208,7 @@ public sealed class ClientMailFoldersEndpointTests
             new DescribedMailFolder(IdOf("projects"), Freshness: null, Role: null, ["Projects"], 4, 1)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         var folder = Assert.Single(Assert.Single(response.Accounts).Folders);
@@ -224,7 +227,7 @@ public sealed class ClientMailFoldersEndpointTests
             Folder("inbox", MailFolderSpecialUse.Inbox, [], storedEmailCount: 0, unreadEmailCount: 0)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Empty(Assert.Single(Assert.Single(response.Accounts).Folders).Path);
@@ -243,7 +246,7 @@ public sealed class ClientMailFoldersEndpointTests
                 Folder("inbox", MailFolderSpecialUse.Inbox, ["INBOX"], 2, 2)));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal([Private.Id.Value, Work.Id.Value], response.Accounts.Select(account => account.Account.Id));
@@ -260,7 +263,7 @@ public sealed class ClientMailFoldersEndpointTests
         var directory = new MailFolderDirectory(SynchronizationEnabled: true, []);
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Empty(response.Accounts);
@@ -278,7 +281,7 @@ public sealed class ClientMailFoldersEndpointTests
             [Account(Work, Folder("inbox", MailFolderSpecialUse.Inbox, ["INBOX"], 1, 0))]);
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared);
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(synchronizationEnabled, response.SynchronizationEnabled);
@@ -292,7 +295,7 @@ public sealed class ClientMailFoldersEndpointTests
         var directory = Directory(Account(Work), Account(Private));
 
         // Act
-        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, new HashSet<MailAccountId> { Work.Id });
+        var response = ClientMailFoldersResponse.For(directory, NoSpamActions, new HashSet<MailAccountId> { Work.Id }, NoneMarking);
 
         // Assert
         Assert.Equal([true, false], response.Accounts.Select(account => account.Account.Shared));
@@ -315,10 +318,33 @@ public sealed class ClientMailFoldersEndpointTests
             directory,
             NoSpamActions,
             assignments,
+            OrganizationsMarking(),
             TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([true, false], response.Accounts.Select(account => account.Account.Shared));
+    }
+
+    /// <summary>The folder tree's accounts carry the External mark exactly as the account list's do, since a client may draw from either.</summary>
+    [Fact]
+    public async Task ForAsync_AnAccountWhoseOrganizationMarksExternalMail_SaysSoAndAnAccountWhoseOrganizationDoesNotSaysNot()
+    {
+        // Arrange
+        var directory = Directory(Account(Work), Account(Private));
+        var assignments = Substitute.For<IMailAccountAssignments>();
+        assignments.ReadUsersAssignedToAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
+            .Returns([SyntheticUser.Deployment]);
+
+        // Act
+        var response = await ClientMailFoldersResponse.ForAsync(
+            directory,
+            NoSpamActions,
+            assignments,
+            OrganizationsMarking(Work),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([true, false], response.Accounts.Select(account => account.Account.MarksExternalMail));
     }
 
     private static MailFolderDirectory Directory(params MailAccountFolders[] accounts) =>
@@ -365,5 +391,15 @@ public sealed class ClientMailFoldersEndpointTests
         }
 
         return reader;
+    }
+
+    private static IOrganizationStore OrganizationsMarking(params ServedMailAccount[] marking)
+    {
+        var organizations = Substitute.For<IOrganizationStore>();
+        IReadOnlySet<MailAccountId> markingAccounts = marking.Select(static account => account.Id).ToHashSet();
+        organizations.ReadMailAccountsMarkingExternalMailAsync(Arg.Any<IReadOnlyCollection<MailAccountId>>(), Arg.Any<CancellationToken>())
+            .Returns(markingAccounts);
+
+        return organizations;
     }
 }

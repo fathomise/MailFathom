@@ -262,6 +262,8 @@ test('lists each message with the sender facts its own answer states, the Spam f
                             deploymentTrust: string;
                             signatureOutcome: string;
                             signerMatchesAuthor: boolean;
+                            trustSource: string | null;
+                            trustMember: string | null;
                         };
                     }[];
                 }
@@ -271,7 +273,12 @@ test('lists each message with the sender facts its own answer states, the Spam f
     const listedFacts = rows.map((row) => ({ id: row.id, ...row.sender }));
     const answeredFacts = rows.map((row) => {
         const message = ask(deployment, 'GET', `/messages/${row.id}`) as {
-            sender: { authorAuthentication: string; deploymentTrust: string };
+            sender: {
+                authorAuthentication: string;
+                deploymentTrust: string;
+                trustSource: string | null;
+                trustMember: string | null;
+            };
             signature: { outcome: string; signerMatchesAuthor: boolean };
         };
 
@@ -281,6 +288,8 @@ test('lists each message with the sender facts its own answer states, the Spam f
             deploymentTrust: message.sender.deploymentTrust,
             signatureOutcome: message.signature.outcome,
             signerMatchesAuthor: message.signature.signerMatchesAuthor,
+            trustSource: message.sender.trustSource,
+            trustMember: message.sender.trustMember,
         };
     });
 

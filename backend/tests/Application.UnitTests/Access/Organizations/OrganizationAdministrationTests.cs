@@ -371,6 +371,60 @@ public sealed class OrganizationAdministrationTests
         Assert.Empty(harness.Organizations.ReceivedCalls());
     }
 
+    /// <summary>The External mark is one of the organization's settings, so a caller whose scope covers it reaches the store with the value they stated.</summary>
+    [Theory]
+    [MemberData(nameof(ScopesCoveringTheOrganization))]
+    public async Task SetExternalMarkAsync_AnOrganizationTheCallersScopeCovers_ReachesTheStore(AssignmentScope scope)
+    {
+        // Arrange
+        var harness = new AdministrationHarness(
+            AccessAuthorizations.ForAdministratorScopedAt(scope, MailFathomPermission.AdminConfigurationWrite));
+        harness.Organizations.SetExternalMarkAsync(OrganizationId, true, Arg.Any<CancellationToken>())
+            .Returns(OrganizationWriteResult.Of(OrganizationWriteOutcome.Written));
+
+        // Act
+        var result = await harness.Administration.SetExternalMarkAsync(OrganizationId, true, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OrganizationWriteOutcome.Written, result.Outcome);
+        await harness.Organizations.Received(1).SetExternalMarkAsync(OrganizationId, true, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>An organization outside the caller's scope is answered exactly as one this deployment does not hold.</summary>
+    [Theory]
+    [MemberData(nameof(ScopesOutsideTheOrganization))]
+    public async Task SetExternalMarkAsync_AnOrganizationOutsideTheCallersScope_IsAnsweredAsUnknownWithoutTouchingTheStore(AssignmentScope scope)
+    {
+        // Arrange
+        var harness = new AdministrationHarness(
+            AccessAuthorizations.ForAdministratorScopedAt(scope, MailFathomPermission.AdminConfigurationWrite));
+
+        // Act
+        var result = await harness.Administration.SetExternalMarkAsync(OrganizationId, true, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OrganizationWriteOutcome.UnknownOrganization, result.Outcome);
+        Assert.Empty(harness.Organizations.ReceivedCalls());
+    }
+
+    /// <summary>The mark takes the permission every other setting of an organization takes, and reading is not it.</summary>
+    [Fact]
+    public async Task SetExternalMarkAsync_ACallerHoldingTheConfigurationWriteAtNoScope_IsRefusedWithoutTouchingTheStore()
+    {
+        // Arrange
+        var harness = new AdministrationHarness(AccessAuthorizations.ForAdministratorScopedAt(
+            AssignmentScope.Organization(OrganizationId),
+            MailFathomPermission.AdminRead));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
+            harness.Administration.SetExternalMarkAsync(OrganizationId, true, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomPermission.AdminConfigurationWrite, refusal.RequiredPermission);
+        Assert.Empty(harness.Organizations.ReceivedCalls());
+    }
+
     /// <summary>
     /// Recording an organization, deleting one, and changing its short name are the deployment's alone: an organization's
     /// own scope renames it and does none of these, and neither does a scope naming one of its members.

@@ -19,9 +19,11 @@ import {
     deploymentTrusts,
     isOneOf,
     signatureOutcomes,
+    trustSources,
     type MailAuthorAuthentication,
     type MailDeploymentTrust,
     type MailSignatureOutcome,
+    type MailTrustSource,
 } from './senderFacts';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
@@ -52,19 +54,6 @@ export type MailAuthenticationSource = 'ReceivingServer' | 'LocalVerification';
 /** The DMARC result the verdict was reached with. */
 export type MailDmarcOutcome =
     'NotReported' | 'Pass' | 'Fail' | 'NoPolicyPublished' | 'TemporaryError' | 'PermanentError';
-
-/**
- * What recognized a trusted author: one of the owner's own addresses, a domain of the owner's own accounts, a contact in
- * the receiving account's organization's book or in a reader's own, or the signature of the receiving account's
- * organization, which proves the author a member of it.
- */
-export type MailTrustSource =
-    | 'OwnAccountDomain'
-    | 'OrganizationMember'
-    | 'OrganizationDirectory'
-    | 'OwnAccountAddress'
-    | 'OrganizationContact'
-    | 'PersonalContact';
 
 /**
  * What established an authenticated author: the domain's DMARC pass, a DKIM signature aligned with it, or SPF alone —
@@ -340,15 +329,6 @@ const dmarcOutcomes: readonly MailDmarcOutcome[] = [
     'NoPolicyPublished',
     'TemporaryError',
     'PermanentError',
-];
-
-const trustSources: readonly MailTrustSource[] = [
-    'OwnAccountDomain',
-    'OrganizationMember',
-    'OrganizationDirectory',
-    'OwnAccountAddress',
-    'OrganizationContact',
-    'PersonalContact',
 ];
 
 const authorRoutes: readonly MailAuthorRoute[] = ['DmarcPass', 'AlignedDkim', 'AlignedSpf'];

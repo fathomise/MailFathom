@@ -38,4 +38,7 @@ internal sealed class OrganizationEntity
 
     /// <summary>When the organization was recorded.</summary>
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>Whether its members see the External mark on received mail its signature does not prove; off for every organization until an administrator turns it on.</summary>
+    public bool MarksExternalMail { get; set; }
 }

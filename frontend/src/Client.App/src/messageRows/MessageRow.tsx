@@ -34,6 +34,8 @@ import { drawnUnread, useReadMarking } from '../readMarking/useReadMarking';
 import { SpamBadge } from '../spamMarking/SpamBadge';
 import { spamRowName } from '../spamMarking/spamWords';
 import { correspondent } from './rowContents';
+import { RowExternalChip } from '../senderMark/ExternalChip';
+import { externalMarkOf, useExternalMarking } from '../senderMark/externalMark';
 import { senderMarkInk, senderMarkOf, senderMarksDrawn } from '../senderMark/senderMarks';
 import { receiptInk, receiptMarksDrawn, standingOfSummary, wordOf } from '../receipts/receiptMarks';
 import { reportHeadlineOf } from '../receipts/reportWords';
@@ -265,6 +267,7 @@ export function MessageRow({
     const press = useRowPress(onPress);
     const senderPicture = useContactPhoto(email.senderPhoto);
     const swipe = useRowSwipe(press, { leftward: onAnswer, rightward: onArchive });
+    const externalMarking = useExternalMarking();
     // What spam classification concluded, with the person's own mark from this session counted first. A row of spam
     // offers nothing that reads it for the person, so it carries no reading and no AI line.
     const spam = drawnSpam(acts, email);
@@ -282,6 +285,18 @@ export function MessageRow({
                 name={translate(mark.name)}
                 onPress={onSenderDetails}
             />
+        );
+
+    // The External chip stands wherever the sender mark does, on the received mail of an account whose organization
+    // marks it, and opens the same details. A folded spam row draws none: the fold is its cue, and the opened message
+    // carries the chip.
+    const external =
+        onSenderDetails === undefined || foldedSpam
+            ? null
+            : externalMarkOf(externalMarking, email.account, email.sender);
+    const externalChip =
+        external === null || onSenderDetails === undefined ? null : (
+            <RowExternalChip mark={external} onPress={onSenderDetails} />
         );
 
     // What came back for a message the account sent, on a Sent row alone and only where something did: the first of
@@ -619,8 +634,14 @@ export function MessageRow({
                             <ReceivedAt at={email.receivedAt} />
                         </div>
 
-                        <div className={`truncate text-md ${unreadInk(unread)}`}>
-                            {reportHeadline ?? email.subject ?? translate('list.noSubject')}
+                        {/* The chip stands at the end of the subject's line, so the sender's line keeps its whole room and
+                    the subject gives way instead. */}
+                        <div className="flex min-w-0 items-start gap-2">
+                            <div className={`min-w-0 flex-1 truncate text-md ${unreadInk(unread)}`}>
+                                {reportHeadline ?? email.subject ?? translate('list.noSubject')}
+                            </div>
+
+                            {externalChip}
                         </div>
 
                         {/* The reserved line. Hidden from the accessibility tree where it holds nothing, so a row with nothing

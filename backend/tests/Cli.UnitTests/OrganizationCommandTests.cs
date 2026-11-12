@@ -39,7 +39,13 @@ public sealed class OrganizationCommandTests : IDisposable
         // Arrange
         using var deployment = FakeOrganizationDeployment.Holding(
             [User],
-            FakeOrganizationDeployment.Organization(Organization, "ACME", "Acme Corporation", members: 2, mailAccounts: 5));
+            FakeOrganizationDeployment.Organization(
+                Organization,
+                "ACME",
+                "Acme Corporation",
+                members: 2,
+                mailAccounts: 5,
+                marksExternalMail: true));
 
         // Act
         var exitCode = await this.RunAsync(deployment, "organization", "list", "--endpoint", Endpoint);
@@ -48,7 +54,7 @@ public sealed class OrganizationCommandTests : IDisposable
         Assert.Equal(CliExitCode.Success, exitCode);
 
         var listing = DrawnListing.ReadFrom(
-            this.harness.Console.Lines, "Organization", "Short name", "Display name", "Members", "Mail accounts", "Recorded");
+            this.harness.Console.Lines, "Organization", "Short name", "Display name", "Members", "Mail accounts", "External mark", "Recorded");
         var row = Assert.Single(listing.Rows);
 
         Assert.Equal($"{Organization:D}", listing.Cell(row, "Organization"));
@@ -56,6 +62,7 @@ public sealed class OrganizationCommandTests : IDisposable
         Assert.Equal("Acme Corporation", listing.Cell(row, "Display name"));
         Assert.Equal("2", listing.Cell(row, "Members"));
         Assert.Equal("5", listing.Cell(row, "Mail accounts"));
+        Assert.Equal("on", listing.Cell(row, "External mark"));
     }
 
     /// <summary>
@@ -108,7 +115,7 @@ public sealed class OrganizationCommandTests : IDisposable
         Assert.Equal(CliExitCode.Success, exitCode);
 
         var listing = DrawnListing.ReadFrom(
-            this.harness.Console.Lines, "Organization", "Short name", "Display name", "Members", "Mail accounts", "Recorded");
+            this.harness.Console.Lines, "Organization", "Short name", "Display name", "Members", "Mail accounts", "External mark", "Recorded");
 
         Assert.Equal(["ACME", "ZETA"], listing.Rows.Select(row => listing.Cell(row, "Short name")));
         Assert.Contains(this.harness.Console.Lines, line => line.Contains($"{Unreadable:D}", StringComparison.Ordinal));
@@ -378,6 +385,36 @@ public sealed class OrganizationCommandTests : IDisposable
 
         Assert.Equal("Acme Holdings", body.RootElement.GetProperty("displayName").GetString());
         Assert.Empty(deployment.RequestsTo(HttpMethod.Put, AdminEndpointRoutes.OrganizationShortNamePath(Organization)));
+    }
+
+    /// <summary>The External mark is stated rather than toggled, so the value written on the command line is the value sent, to the mark's own route.</summary>
+    [Theory]
+    [InlineData("true", true)]
+    [InlineData("false", false)]
+    public async Task SetExternalMark_AStatedValue_SendsThatValueToTheExternalMarkRoute(string written, bool sent)
+    {
+        // Arrange
+        using var deployment = FakeOrganizationDeployment.Holding([User]);
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "organization",
+            "set-external-mark",
+            "--organization",
+            $"{Organization:D}",
+            "--enabled",
+            written,
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+
+        var change = Assert.Single(deployment.RequestsTo(HttpMethod.Put, AdminEndpointRoutes.OrganizationExternalMarkPath(Organization)));
+        using var body = JsonDocument.Parse(change.ContentAsUtf8String());
+
+        Assert.Equal(sent, body.RootElement.GetProperty("marksExternalMail").GetBoolean());
     }
 
     /// <summary>A short name moves every member's login, so it is sent to its own route and never to the display name's.</summary>

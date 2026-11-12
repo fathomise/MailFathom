@@ -440,13 +440,13 @@ export {
     type MailSigner,
     type MailTrustContact,
     type MailTrustEvidence,
-    type MailTrustSource,
 } from './mailMessage';
 export {
     type MailAuthorAuthentication,
     type MailDeploymentTrust,
     type MailListedSender,
     type MailSignatureOutcome,
+    type MailTrustSource,
 } from './senderFacts';
 export {
     changeMailFlags,

@@ -28,7 +28,8 @@ public sealed class OrganizationEndpointsTests
         OrganizationShortName.Create("ACME"),
         Members: 0,
         MailAccounts: 0,
-        new DateTimeOffset(2026, 9, 13, 12, 0, 0, TimeSpan.Zero));
+        new DateTimeOffset(2026, 9, 13, 12, 0, 0, TimeSpan.Zero),
+        MarksExternalMail: false);
 
     /// <summary>A move into a scope already holding one of the user's usernames is refused naming it, so the administrator knows which credential to rename.</summary>
     [Fact]
@@ -470,7 +471,8 @@ public sealed class OrganizationEndpointsTests
                         OrganizationShortName.Create("ACME"),
                         Members: 3,
                         MailAccounts: 5,
-                        new DateTimeOffset(2026, 9, 13, 12, 0, 0, TimeSpan.Zero)),
+                        new DateTimeOffset(2026, 9, 13, 12, 0, 0, TimeSpan.Zero),
+                        MarksExternalMail: true),
                 ],
                 [],
                 ContinuesAfter: null));
@@ -486,6 +488,71 @@ public sealed class OrganizationEndpointsTests
         var organization = Assert.Single(Assert.IsType<Ok<OrganizationListResponse>>(result.Result).Value!.Organizations);
         Assert.Equal(3, organization.Members);
         Assert.Equal(5, organization.MailAccounts);
+        Assert.True(organization.MarksExternalMail);
+    }
+
+    /// <summary>The mark is stated rather than toggled, so a body naming no value is refused rather than read as off, and nothing is written.</summary>
+    [Fact]
+    public async Task SetExternalMarkAsync_ABodyStatingNoValue_IsRefusedWithoutWritingAnything()
+    {
+        // Arrange
+        var harness = new EndpointHarness(MailFathomPermission.AdminConfigurationWrite);
+
+        // Act
+        var result = await OrganizationEndpoints.SetExternalMarkAsync(
+            OrganizationId,
+            new OrganizationExternalMarkRequest(MarksExternalMail: null),
+            harness.Administration,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var problem = Assert.IsType<ProblemHttpResult>(result.Result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Empty(harness.Organizations.ReceivedCalls());
+    }
+
+    /// <summary>A stated value reaches the organization as it was stated, and its acceptance carries no body.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SetExternalMarkAsync_AStatedValue_WritesItAndAnswersNoContent(bool marksExternalMail)
+    {
+        // Arrange
+        var harness = new EndpointHarness(MailFathomPermission.AdminConfigurationWrite);
+        harness.Organizations.SetExternalMarkAsync(OrganizationId, marksExternalMail, Arg.Any<CancellationToken>())
+            .Returns(OrganizationWriteResult.Of(OrganizationWriteOutcome.Written));
+
+        // Act
+        var result = await OrganizationEndpoints.SetExternalMarkAsync(
+            OrganizationId,
+            new OrganizationExternalMarkRequest(marksExternalMail),
+            harness.Administration,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NoContent>(result.Result);
+        await harness.Organizations.Received(1)
+            .SetExternalMarkAsync(OrganizationId, marksExternalMail, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>An organization the deployment does not hold is answered as one, exactly as a rename of it is.</summary>
+    [Fact]
+    public async Task SetExternalMarkAsync_AnUnknownOrganization_IsNotFound()
+    {
+        // Arrange
+        var harness = new EndpointHarness(MailFathomPermission.AdminConfigurationWrite);
+        harness.Organizations.SetExternalMarkAsync(OrganizationId, true, Arg.Any<CancellationToken>())
+            .Returns(OrganizationWriteResult.Of(OrganizationWriteOutcome.UnknownOrganization));
+
+        // Act
+        var result = await OrganizationEndpoints.SetExternalMarkAsync(
+            OrganizationId,
+            new OrganizationExternalMarkRequest(MarksExternalMail: true),
+            harness.Administration,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NotFound<ProblemDetails>>(result.Result);
     }
 
     /// <summary>A first page with more following answers the cursor the next one is asked with, naming the last organization it held.</summary>

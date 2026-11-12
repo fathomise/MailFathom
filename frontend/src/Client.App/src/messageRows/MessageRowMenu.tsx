@@ -23,6 +23,7 @@ import { spamMenuDetail } from '../spamMarking/spamWords';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { useSpamRefusal, type SpamRefused } from '../spamMarking/useSpamRefusal';
 import { correspondent } from './rowContents';
+import type { ExternalMark } from '../senderMark/externalMark';
 import { senderMarksDrawn, type SenderMark } from '../senderMark/senderMarks';
 import { receiptMarksDrawn, wordOf, type ReceiptStanding } from '../receipts/receiptMarks';
 
@@ -62,6 +63,7 @@ export function MessageRowMenu({
     onAsk,
     onCheckReadings,
     senderMark,
+    external = null,
     onSenderDetails,
     receipt = null,
     onReceiptDetails,
@@ -91,6 +93,9 @@ export function MessageRowMenu({
 
     /** The mark the row draws on its sender, or `null` for a row that draws none — mail the reader wrote. */
     readonly senderMark?: SenderMark | null;
+
+    /** The External chip the row draws beside that mark, or `null` where it draws none. */
+    readonly external?: ExternalMark | null;
 
     /**
      * Opens what was established about who sent the message, which the row's mark opens under a pointer. The row holds
@@ -137,15 +142,19 @@ export function MessageRowMenu({
         <ContextMenu
             header={email.subject ?? translate('list.noSubject')}
             // Who wrote it, which the row folded to a strip of avatars no longer says in words, the spam verdict a folded
-            // row draws no badge for, the mark on the sender, the word of what came back, and that the mail server no
-            // longer holds it, which a finger has no hover to read off the row.
+            // row draws no badge for, the mark on the sender and the External chip beside it, the word of what came
+            // back, and that the mail server no longer holds it, which a finger has no hover to read off the row.
             detail={detailWithMark(
                 detailWithMark(
-                    senderDetail(
-                        spam !== null && marked
-                            ? spamMenuDetail(correspondent(email), spam, translate)
-                            : categoriesDetail(correspondent(email), categories, translate),
-                        senderMark ?? null,
+                    detailWithMark(
+                        senderDetail(
+                            spam !== null && marked
+                                ? spamMenuDetail(correspondent(email), spam, translate)
+                                : categoriesDetail(correspondent(email), categories, translate),
+                            senderMark ?? null,
+                            translate,
+                        ),
+                        external === null ? null : translate(external.short.key, external.short.values),
                         translate,
                     ),
                     receipt === null ? null : wordOf(receipt, translate, locale),

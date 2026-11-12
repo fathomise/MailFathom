@@ -14,11 +14,13 @@ import {
     type MailFathomTransport,
     type MailMessage,
 } from '@mailfathom/client-backend';
+import { workAccount } from '../../../../tests/fixtures/deployment';
 import { newsletterId, newsletterMessage } from '../../../../tests/fixtures/messages';
 import { messageSenderEvidence, type SenderKind } from '../../../../tests/fixtures/senders';
 import { LocalizationProvider } from '../localization/Localization';
 import { storeLocale } from '../localization/locale';
 import { pl } from '../localization/pl';
+import { ExternalMarkingContext, type ExternalMarking } from './externalMark';
 import { MessageSenderDetails, SenderDetails, type AskedSender } from './SenderDetails';
 
 // What the harness's own control says, held as a value rather than written into the markup.
@@ -568,6 +570,60 @@ describe('SenderDetails', () => {
 
         expect(screen.queryByRole('group', { name: 'Add Example to your contacts?' })).toBeNull();
         expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add to contacts' }));
+    });
+});
+
+describe('SenderDetails, on an account whose organization marks external mail', () => {
+    const marking: ExternalMarking = { accounts: new Set([workAccount.id]), organization: 'Nordwind' };
+
+    function explainMarked(transport: MailFathomTransport): void {
+        render(
+            <LocalizationProvider>
+                <ExternalMarkingContext value={marking}>
+                    <Explaining transport={transport} />
+                </ExternalMarkingContext>
+            </LocalizationProvider>,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: opening }));
+    }
+
+    it('says why a message the organization did not sign is External, and fails the organization’s signature', async () => {
+        explainMarked(() => Promise.resolve(answering('verified')));
+
+        const trust = await screen.findByRole('region', { name: 'Trust' });
+
+        expect(screen.getByText('External.')).toBeDefined();
+        expect(within(trust).getByText("Organization's signature")).toBeDefined();
+        expect(
+            within(trust).getByText(
+                'Not signed by Nordwind. It was not sent from a Nordwind mail account through MailFathom. A colleague writing from another mail application is marked the same way.',
+            ),
+        ).toBeDefined();
+    });
+
+    it('passes the organization’s signature on a message it proves, and draws no External box', async () => {
+        explainMarked(() => Promise.resolve(answering('organizationMember')));
+
+        const trust = await screen.findByRole('region', { name: 'Trust' });
+
+        expect(
+            within(trust).getByText(
+                'Signed by Nordwind: the message left one of its mail accounts through MailFathom.',
+            ),
+        ).toBeDefined();
+        expect(screen.queryByText('External.')).toBeNull();
+    });
+
+    it('draws neither the box nor the step where no account marks', async () => {
+        explain(() => Promise.resolve(answering('verified')));
+
+        await screen.findByRole('region', { name: 'Trust' });
+
+        expect([screen.queryByText('External.'), screen.queryByText("Organization's signature")]).toStrictEqual([
+            null,
+            null,
+        ]);
     });
 });
 

@@ -35,6 +35,8 @@ import { ReadReceiptAnswer } from '../receipts/ReadReceiptAnswer';
 import { ReceiptBadge } from '../receipts/ReceiptBadge';
 import { ReceiptDetails, type AskedReceipts } from '../receipts/ReceiptDetails';
 import { readerOf, reportWordsOf } from '../receipts/reportWords';
+import { ExternalBadge } from '../senderMark/ExternalChip';
+import { externalMarkOf, useExternalMarking } from '../senderMark/externalMark';
 import { SenderBadge } from '../senderMark/SenderBadge';
 import { MessageSenderDetails, type AskedSender } from '../senderMark/SenderDetails';
 import { listedSenderOf, marksSender, senderMarkOf } from '../senderMark/senderMarks';
@@ -127,6 +129,7 @@ export function OpenedMessage({
     const categories = readOnly ? [] : drawnCategories(message.categories, translate);
     const details = useRef<HTMLDialogElement>(null);
     const [anchor, setAnchor] = useState<AskedSender['anchor']>(null);
+    const externalMarking = useExternalMarking();
     const receiptDialog = useRef<HTMLDialogElement>(null);
     const [askedReceipts, setAskedReceipts] = useState<AskedReceipts | null>(null);
     const timeZone = useReadingZone();
@@ -143,6 +146,15 @@ export function OpenedMessage({
             spam: message.spam,
         }),
     );
+    const external = externalMarkOf(externalMarking, message.account, message.sender);
+
+    // Placed before they open, so the details never draw for a frame where the last ones stood.
+    function openDetails(at: DOMRect): void {
+        flushSync(() => {
+            setAnchor({ left: at.left, right: at.right, top: at.top, bottom: at.bottom });
+        });
+        details.current?.showModal();
+    }
 
     const storedEmailId = message.storedEmailId;
     const author = message.headers.participants.find((participant) => participant.role === 'From') ?? null;
@@ -240,21 +252,12 @@ export function OpenedMessage({
                                 {/* Who sent it, as far as anything established it, beside the name it claims — the same mark its
                         row carries, and the way to every step that reached it. */}
                                 {marked ? (
-                                    <SenderBadge
-                                        mark={senderMarkOf(listedSenderOf(message))}
-                                        onOpen={(at) => {
-                                            // Placed before it opens, so the details never draw for a frame where the last ones stood.
-                                            flushSync(() => {
-                                                setAnchor({
-                                                    left: at.left,
-                                                    right: at.right,
-                                                    top: at.top,
-                                                    bottom: at.bottom,
-                                                });
-                                            });
-                                            details.current?.showModal();
-                                        }}
-                                    />
+                                    <SenderBadge mark={senderMarkOf(listedSenderOf(message))} onOpen={openDetails} />
+                                ) : null}
+
+                                {/* The External chip, straight after the badge and opening the same details, which say why. */}
+                                {marked && external !== null ? (
+                                    <ExternalBadge mark={external} onOpen={openDetails} />
                                 ) : null}
 
                                 <OpenedCategories categories={categories} />

@@ -13,6 +13,7 @@ using MailFathom.Application.Emails.Summaries;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -556,14 +557,16 @@ internal sealed record ClientMailTimelineEntryResponse(
         email.IsLocalOnly);
 }
 
-/// <summary>What a row publishes about who sent its message: enough to choose the sender mark, and nothing more.</summary>
+/// <summary>What a row publishes about who sent its message: enough to choose the sender mark and the External chip, and nothing more.</summary>
 /// <param name="AuthorAuthentication">What was established about the displayed author, as the outcome's own name.</param>
 /// <param name="DeploymentTrust">Whether this deployment recognizes that author, as the level's own name.</param>
 /// <param name="SignatureOutcome">What verifying the message's own signature concluded — <c>NotSigned</c>, <c>Verified</c>, <c>Failed</c>, or <c>NotVerifiable</c>.</param>
 /// <param name="SignerMatchesAuthor">Whether the signer is the author the message displays.</param>
+/// <param name="TrustSource">What recognized the author, as the message route names it, or <see langword="null" /> where nothing did; <c>OrganizationMember</c> is the receiving organization's signature, which is what decides the External chip.</param>
+/// <param name="TrustMember">The current name of the colleague whose address the author's is, present only where <paramref name="TrustSource" /> is <c>OrganizationDirectory</c> and that member still exists — what the External chip's name says of a colleague's address.</param>
 /// <remarks>
 /// <para>
-/// Four facts side by side and never a combined value, for the reason the message route publishes its verdict that
+/// Six facts side by side and never a combined value, for the reason the message route publishes its verdict that
 /// way: a mark drawn from them is the client's rule, and a value combining them here would be a second copy of it. The
 /// evidence each was reached from — the domains, the DMARC result, the signer — stays on the message route, which is
 /// what a details popup opened from the row reads; a list page carrying it would publish what no row draws.
@@ -577,7 +580,9 @@ internal sealed record ClientMailListedSenderResponse(
     string AuthorAuthentication,
     string DeploymentTrust,
     string SignatureOutcome,
-    bool SignerMatchesAuthor)
+    bool SignerMatchesAuthor,
+    string? TrustSource,
+    string? TrustMember)
 {
     /// <summary>Describes one message's sender facts for a row.</summary>
     /// <param name="verification">The conclusions the read carried.</param>
@@ -591,6 +596,12 @@ internal sealed record ClientMailListedSenderResponse(
             verification.AuthorAuthentication.ToString(),
             verification.DeploymentTrust.ToString(),
             verification.Signature.Outcome.ToString(),
-            verification.Signature.SignerMatchesAuthor);
+            verification.Signature.SignerMatchesAuthor,
+            verification.DeploymentTrustGrantedBy is SenderTrustSource.None
+                ? null
+                : verification.DeploymentTrustGrantedBy.ToString(),
+            verification.DeploymentTrustGrantedBy is SenderTrustSource.OrganizationDirectory
+                ? verification.RecognizingMemberName
+                : null);
     }
 }

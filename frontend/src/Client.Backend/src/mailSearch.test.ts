@@ -52,6 +52,8 @@ const result = {
         deploymentTrust: 'Unknown',
         signatureOutcome: 'NotSigned',
         signerMatchesAuthor: false,
+        trustSource: null,
+        trustMember: null,
     },
     snippets: ['The **quarterly figures** you asked for'],
     matchedBy: 'BothRankings',

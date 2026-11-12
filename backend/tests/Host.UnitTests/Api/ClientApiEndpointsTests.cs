@@ -1034,6 +1034,7 @@ public sealed class ClientApiEndpointsTests
         services.AddSingleton(Options.Create(new MailDeliveryOptions()));
         services.AddSingleton(Substitute.For<ISpamActionSettingsReader>());
         services.AddSingleton(Substitute.For<IMailAccountAssignments>());
+        services.AddSingleton(Substitute.For<IOrganizationStore>());
         services.AddScoped(_ => UnreachedFreshnessReader(granted));
         services.AddScoped(_ => new OwnTasks(
             granted,

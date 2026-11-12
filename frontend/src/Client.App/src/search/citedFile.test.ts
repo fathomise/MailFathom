@@ -57,6 +57,8 @@ function found(carried: Partial<MailSearchResult> = {}): MailSearchResult {
             deploymentTrust: 'Unknown',
             signatureOutcome: 'NotSigned',
             signerMatchesAuthor: false,
+            trustSource: null,
+            trustMember: null,
         },
         snippets: [],
         matchedBy: 'LexicalRanking',

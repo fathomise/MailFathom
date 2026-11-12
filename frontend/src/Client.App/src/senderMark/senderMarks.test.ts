@@ -25,6 +25,8 @@ const everySender: readonly MailListedSender[] = authentications.flatMap((author
                 deploymentTrust,
                 signatureOutcome,
                 signerMatchesAuthor,
+                trustSource: null,
+                trustMember: null,
             })),
         ),
     ),
@@ -110,6 +112,8 @@ describe('senderMarkOf', () => {
                 deploymentTrust: 'Unknown',
                 signatureOutcome: 'Verified',
                 signerMatchesAuthor: false,
+                trustSource: null,
+                trustMember: null,
             }),
         ).toBe('neutral');
     });
@@ -121,6 +125,8 @@ describe('senderMarkOf', () => {
                 deploymentTrust: 'Unknown',
                 signatureOutcome: 'NotVerifiable',
                 signerMatchesAuthor: true,
+                trustSource: null,
+                trustMember: null,
             }),
         ).toBe('neutral');
     });

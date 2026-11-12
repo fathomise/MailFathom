@@ -477,7 +477,8 @@ It answers with the mail accounts the signed-in user owns, and how current the l
       "synchronizationStateSince": "2026-08-15T09:40:00+00:00",
       "behindSince": null,
       "waitingChangeCount": 0,
-      "oldestWaitingChangeCommittedAt": null
+      "oldestWaitingChangeCommittedAt": null,
+      "marksExternalMail": true
     },
     {
       "id": "8e3f1a6b-2c4d-4f7e-a915-7b2d0c6e1f38",
@@ -490,7 +491,8 @@ It answers with the mail accounts the signed-in user owns, and how current the l
       "synchronizationStateSince": "2026-08-14T21:20:00+00:00",
       "behindSince": "2026-08-14T21:05:00+00:00",
       "waitingChangeCount": 3,
-      "oldestWaitingChangeCommittedAt": "2026-08-15T07:31:00+00:00"
+      "oldestWaitingChangeCommittedAt": "2026-08-15T07:31:00+00:00",
+      "marksExternalMail": false
     }
   ]
 }
@@ -566,6 +568,14 @@ because whether a mark will move anything is what decides whether the client ask
 **`shared` says whether the account is assigned to more than one user**, so others read what arrives there. It is read
 from the assignments an administrator made rather than from the mail, counts only users this deployment serves, and
 names none of the others. A client marks a shared mailbox wherever it draws or offers one.
+
+**`marksExternalMail` says whether the account's organization turned the
+[External mark](../features/sender-authentication.md#the-external-mark-for-an-organization-that-turns-it-on) on**, so
+a received message on it that the organization's signature does not prove — one whose `sender.trustSource` is anything
+but `OrganizationMember` — is marked *External*. It is `false` for every account in no organization and for every
+organization that never turned it on, and it is read from the organization as it stands when the accounts are read, so
+an administrator's switch reaches a running client at its next read of this route or the folders route, which nests
+the same account.
 
 **`synchronizationEnabled` is the deployment's switch rather than the user's**, and it is reported beside the accounts
 because no per-account value carries it: a copy that last moved a week ago means one thing where the deployment is still
@@ -916,7 +926,9 @@ continues the list at each end:
         "authorAuthentication": "Authenticated",
         "deploymentTrust": "Unknown",
         "signatureOutcome": "NotSigned",
-        "signerMatchesAuthor": false
+        "signerMatchesAuthor": false,
+        "trustSource": null,
+        "trustMember": null
       },
       "senderPhoto": { "book": "Member", "id": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a93", "photo": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a94" },
       "categories": [
@@ -1031,10 +1043,11 @@ category is a model's reading of a message and never evidence about who sent it.
 messages, and [the message route](#the-message-route) carry the same field, and the rule is the same in every custody
 phase, because the read looks at the stored message alone.
 
-**`sender` is what was established about who sent the message, as four facts side by side**, so a list marks a
-row's sender without a request per row. `authorAuthentication` and `deploymentTrust` are the two states
-[the message route](#the-message-route) publishes under the same names, and `signatureOutcome` and
-`signerMatchesAuthor` are its `signature.outcome` and `signature.signerMatchesAuthor`:
+**`sender` is what was established about who sent the message, as six facts side by side**, so a list marks a
+row's sender, and draws the External chip, without a request per row. `authorAuthentication`, `deploymentTrust`,
+`trustSource`, and `trustMember` are the values [the message route](#the-message-route) publishes under the same names
+in its `sender`, and `signatureOutcome` and `signerMatchesAuthor` are its `signature.outcome` and
+`signature.signerMatchesAuthor`:
 
 | Field | Values |
 | --- | --- |
@@ -1042,8 +1055,10 @@ row's sender without a request per row. `authorAuthentication` and `deploymentTr
 | `deploymentTrust` | `Unknown`, `Trusted`, `Known` |
 | `signatureOutcome` | `NotSigned`, `Verified`, `Failed`, `NotVerifiable` |
 | `signerMatchesAuthor` | `true` where the message's own signer is the author it displays |
+| `trustSource` | What recognized the author, or `null` where nothing did; `OrganizationMember` is the receiving organization's signature, which is what spares a message the External chip |
+| `trustMember` | The colleague's current name, present only where `trustSource` is `OrganizationDirectory` |
 
-The four are never combined into one value here. Which mark a screen draws from them is the client's rule, and a value
+The six are never combined into one value here. Which mark a screen draws from them is the client's rule, and a value
 combining them on the wire would be a second copy of that rule for the two to disagree over. The evidence each fact was
 reached from — the domains that passed, the DMARC result, the signer and every verification step — stays on the
 message route, which is what a surface explaining a mark reads; a list page carrying it would publish what no row draws.
@@ -1212,7 +1227,9 @@ reads like this:
     "authorAuthentication": "Authenticated",
     "deploymentTrust": "Unknown",
     "signatureOutcome": "NotSigned",
-    "signerMatchesAuthor": false
+    "signerMatchesAuthor": false,
+    "trustSource": null,
+    "trustMember": null
   },
   "title": {
     "topic": "The 0.8.0 release",
@@ -1301,7 +1318,9 @@ It answers with one page of the user's mail ranked against what they are looking
         "authorAuthentication": "Authenticated",
         "deploymentTrust": "Trusted",
         "signatureOutcome": "NotSigned",
-        "signerMatchesAuthor": false
+        "signerMatchesAuthor": false,
+        "trustSource": "OrganizationMember",
+        "trustMember": null
       },
       "localOnly": false
     }
@@ -1541,7 +1560,9 @@ It answers with one conversation as a single document — the messages in it, wh
           "authorAuthentication": "Authenticated",
           "deploymentTrust": "Unknown",
           "signatureOutcome": "NotSigned",
-          "signerMatchesAuthor": false
+          "signerMatchesAuthor": false,
+          "trustSource": null,
+          "trustMember": null
         }
       }
     },
@@ -1573,7 +1594,9 @@ It answers with one conversation as a single document — the messages in it, wh
           "authorAuthentication": "Authenticated",
           "deploymentTrust": "Unknown",
           "signatureOutcome": "NotSigned",
-          "signerMatchesAuthor": false
+          "signerMatchesAuthor": false,
+          "trustSource": null,
+          "trustMember": null
         }
       }
     }

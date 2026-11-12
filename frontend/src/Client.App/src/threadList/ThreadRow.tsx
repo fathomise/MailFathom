@@ -11,6 +11,8 @@ import { LocalOnlyMark } from '../controls/MessageMarkers';
 import { ReceivedAt } from '../controls/ReceivedAt';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import { useLocalization } from '../localization/useLocalization';
+import { ExternalPill } from '../senderMark/ExternalChip';
+import { externalMarkOf, useExternalMarking } from '../senderMark/externalMark';
 import { senderMarkInk, senderMarkOf, senderMarksDrawn } from '../senderMark/senderMarks';
 import { newestAuthor, participantsNamed, rowVariantOf, titleStateOf, type ThreadTitleState } from './threadRows';
 
@@ -39,6 +41,7 @@ export function ThreadRow({
     readonly onElement: (element: HTMLLIElement | null) => void;
 }) {
     const { locale, translate } = useLocalization();
+    const externalMarking = useExternalMarking();
     const unread = thread.unreadCount > 0;
     const titled = titleStateOf(thread);
     const people = new Intl.ListFormat(locale, { style: 'short', type: 'unit' }).format(
@@ -55,6 +58,12 @@ export function ThreadRow({
         : { displayName: thread.newest.senderDisplayName, address: thread.newest.senderAddress };
     const mark =
         thread.newestReceivedSender === null ? null : senderMarksDrawn[senderMarkOf(thread.newestReceivedSender)];
+    // The conversation's newest received message earns the chip, on the first line after the mark, because the second
+    // line is the title and holds nothing but the topic.
+    const external =
+        thread.newestReceivedSender === null
+            ? null
+            : externalMarkOf(externalMarking, thread.account, thread.newestReceivedSender);
 
     return (
         <li ref={onElement} data-thread-row={rowVariantOf(titled, categorized)} className="border-b border-b-sunken">
@@ -84,6 +93,8 @@ export function ThreadRow({
                             <span className="sr-only">{translate(mark.name)}</span>
                         </span>
                     )}
+
+                    {external === null ? null : <ExternalPill mark={external} />}
 
                     <span className="ms-auto flex shrink-0 items-center gap-1.75">
                         {thread.newest.localOnly === true ? <LocalOnlyMark tapReveals={false} /> : null}

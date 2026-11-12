@@ -17,6 +17,7 @@ function account(differs: Partial<MailAccount> = {}): MailAccount {
         lastSynchronizedAt: began,
         behind: false,
         filesJunk: false,
+        marksExternalMail: false,
         shared: false,
         synchronizationStateSince: began,
         behindSince: null,

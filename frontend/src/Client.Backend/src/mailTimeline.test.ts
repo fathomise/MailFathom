@@ -55,6 +55,8 @@ const message = {
         deploymentTrust: 'Unknown',
         signatureOutcome: 'NotSigned',
         signerMatchesAuthor: false,
+        trustSource: null,
+        trustMember: null,
     },
 };
 
@@ -297,6 +299,16 @@ describe('readMailTimeline', () => {
             'a signer match that is not a boolean',
             bodyOf([{ ...message, sender: { ...message.sender, signerMatchesAuthor: 'yes' } }]),
         ],
+        [
+            'a trust source this build does not publish',
+            bodyOf([{ ...message, sender: { ...message.sender, trustSource: 'Colleague' } }]),
+        ],
+        [
+            "a colleague's name beside a source that names none",
+            bodyOf([
+                { ...message, sender: { ...message.sender, trustSource: 'PersonalContact', trustMember: 'Marta' } },
+            ]),
+        ],
     ])('refuses %s rather than reading a page with a hole in it', async (_, body) => {
         const result = await readMailTimeline(session, answering({ status: 200, body }), leadingPage);
 
@@ -326,12 +338,14 @@ describe('readMailTimeline', () => {
         expect(result.outcome === 'read' && result.value.emails[0]?.enrichment).toStrictEqual(enrichment);
     });
 
-    it('reads the four facts about who sent a message side by side, as the row carried them', async () => {
+    it('reads the five facts about who sent a message side by side, as the row carried them', async () => {
         const sender = {
             authorAuthentication: 'Failed',
             deploymentTrust: 'Trusted',
             signatureOutcome: 'Verified',
             signerMatchesAuthor: true,
+            trustSource: 'OrganizationMember',
+            trustMember: null,
         };
 
         const transport = answering({ status: 200, body: bodyOf([{ ...message, sender }]) });
@@ -347,6 +361,8 @@ describe('readMailTimeline', () => {
             deploymentTrust: 'Known',
             signatureOutcome: 'NotSigned',
             signerMatchesAuthor: false,
+            trustSource: 'OrganizationDirectory',
+            trustMember: 'Marta Nowak',
         };
 
         const transport = answering({ status: 200, body: bodyOf([{ ...message, sender }]) });

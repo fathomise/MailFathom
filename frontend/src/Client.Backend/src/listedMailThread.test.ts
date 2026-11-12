@@ -17,6 +17,8 @@ const sender = {
     deploymentTrust: 'Unknown',
     signatureOutcome: 'NotSigned',
     signerMatchesAuthor: false,
+    trustSource: null,
+    trustMember: null,
 };
 
 const thread = {

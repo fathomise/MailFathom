@@ -13,11 +13,12 @@ namespace MailFathom.Application.Access.Organizations;
 /// <param name="Members">How many users belong to it, which is one half of what decides whether it may be deleted.</param>
 /// <param name="MailAccounts">How many mail accounts belong to it, which is the other half.</param>
 /// <param name="CreatedAt">When it was recorded.</param>
+/// <param name="MarksExternalMail">Whether its members see the External mark on mail its accounts received without its signature, which is off until an administrator turns it on.</param>
 /// <remarks>
 /// An organization groups users and mail accounts, scopes a Basic username, and keeps an assignment inside itself: an
 /// account in it is assigned only to its members, and an account in none to one user in none — sharing a mailbox is
-/// something an organization does. No setting is declared on it and nothing a request is served by changes because of
-/// it, so what it carries is what an operator needs to tell companies apart.
+/// something an organization does. The External mark is the one switch it holds for every member at once; beside it,
+/// what it carries is what an operator needs to tell companies apart.
 /// </remarks>
 public sealed record Organization(
     Guid Id,
@@ -25,7 +26,8 @@ public sealed record Organization(
     OrganizationShortName ShortName,
     int Members,
     int MailAccounts,
-    DateTimeOffset CreatedAt)
+    DateTimeOffset CreatedAt,
+    bool MarksExternalMail)
 {
     /// <summary>The longest display name an organization is recorded under.</summary>
     public const int MaximumDisplayNameLength = 128;

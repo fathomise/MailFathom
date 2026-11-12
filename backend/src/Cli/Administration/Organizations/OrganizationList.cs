@@ -31,10 +31,12 @@ internal sealed record UnreadableOrganizationEntry(
 /// <param name="Members">How many users belong to it.</param>
 /// <param name="MailAccounts">How many mail accounts belong to it.</param>
 /// <param name="CreatedAt">When it was recorded.</param>
+/// <param name="MarksExternalMail">Whether its members see the External mark on received mail its signature does not prove.</param>
 internal sealed record OrganizationEntry(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("displayName")] string? DisplayName,
     [property: JsonPropertyName("shortName")] string? ShortName,
     [property: JsonPropertyName("members")] int Members,
     [property: JsonPropertyName("mailAccounts")] int MailAccounts,
-    [property: JsonPropertyName("createdAt")] DateTimeOffset CreatedAt);
+    [property: JsonPropertyName("createdAt")] DateTimeOffset CreatedAt,
+    [property: JsonPropertyName("marksExternalMail")] bool MarksExternalMail);

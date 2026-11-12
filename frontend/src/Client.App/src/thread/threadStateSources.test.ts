@@ -44,6 +44,8 @@ function message(
                 deploymentTrust: 'Unknown',
                 signatureOutcome: 'NotSigned',
                 signerMatchesAuthor: false,
+                trustSource: null,
+                trustMember: null,
             },
         },
         message: null,
