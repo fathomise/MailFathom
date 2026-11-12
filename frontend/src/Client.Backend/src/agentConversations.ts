@@ -606,6 +606,14 @@ const scopeKinds: Readonly<Record<string, AgentMessageScope['kind'] | undefined>
     Notification: 'notification',
 };
 
+/**
+ * What a table of the service's names reads a wire value as, and `undefined` for a name it does not hold — an
+ * inherited member such as `constructor` among them, which an ordinary lookup would hand back as a function.
+ */
+function namedIn<T>(table: Readonly<Record<string, T | undefined>>, value: unknown): T | undefined {
+    return typeof value === 'string' && Object.hasOwn(table, value) ? table[value] : undefined;
+}
+
 function parseEntry(value: unknown): AgentConversationEntry | null {
     const record = asRecord(value);
     const sequence = record?.['sequence'];
@@ -619,7 +627,7 @@ function parseEntry(value: unknown): AgentConversationEntry | null {
 
     switch (entry['entry']) {
         case 'message': {
-            const author = authors[String(entry['author'])];
+            const author = namedIn(authors, entry['author']);
             const text = entry['text'];
             const scope = parseScope(entry['scope']);
 
@@ -636,7 +644,7 @@ function parseEntry(value: unknown): AgentConversationEntry | null {
                       author,
                       text,
                       scope,
-                      mode: modes[String(entry['mode'])] ?? null,
+                      mode: namedIn(modes, entry['mode']) ?? null,
                   };
         }
 
@@ -682,7 +690,7 @@ function parseEntry(value: unknown): AgentConversationEntry | null {
                       kind: 'answerEnded',
                       sequence,
                       run,
-                      outcome: outcomes[String(entry['outcome'])] ?? 'failed',
+                      outcome: namedIn(outcomes, entry['outcome']) ?? 'failed',
                       followUps,
                       ceiling,
                   };
@@ -690,7 +698,7 @@ function parseEntry(value: unknown): AgentConversationEntry | null {
 
         case 'resolution': {
             const proposedAt = entry['proposedAt'];
-            const state = resolutions[String(entry['state'])];
+            const state = namedIn(resolutions, entry['state']);
 
             return typeof proposedAt !== 'number' || !Number.isSafeInteger(proposedAt) || state === undefined
                 ? null
@@ -764,7 +772,7 @@ function parseScope(value: unknown): AgentMessageScope | null | undefined {
     }
 
     const record = asRecord(value);
-    const kind = scopeKinds[String(record?.['kind'])];
+    const kind = namedIn(scopeKinds, record?.['kind']);
     const subject = record?.['subject'];
 
     if (kind === undefined || !(subject === undefined || subject === null || identifier(subject) !== null)) {

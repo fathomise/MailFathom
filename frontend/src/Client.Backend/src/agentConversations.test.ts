@@ -341,6 +341,7 @@ describe('readAgentConversation', () => {
     });
 
     it('reads a question in a mode this build has no name for, or in none, as one carrying no mode', async () => {
+        // `constructor` is a member every object inherits, which a lookup not confined to a table's own names returns.
         const answered = await readAgentConversation(
             session,
             answering({
@@ -354,6 +355,13 @@ describe('readAgentConversation', () => {
                         mode: 'Ultra',
                     }),
                     entryOf(2, { entry: 'message', messageId: question, author: 'Person', text: 'Bays?' }),
+                    entryOf(3, {
+                        entry: 'message',
+                        messageId: question,
+                        author: 'Person',
+                        text: 'Bays?',
+                        mode: 'constructor',
+                    }),
                 ]),
             }),
             conversation,
@@ -363,6 +371,7 @@ describe('readAgentConversation', () => {
         expect(answered).toMatchObject({
             value: {
                 events: [
+                    { kind: 'message', mode: null },
                     { kind: 'message', mode: null },
                     { kind: 'message', mode: null },
                 ],
