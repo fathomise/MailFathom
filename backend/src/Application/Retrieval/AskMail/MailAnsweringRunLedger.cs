@@ -57,7 +57,7 @@ public sealed class MailAnsweringRunLedger
     /// <summary>Gets what this run may send, call, and consume, which is what its counts are read against.</summary>
     public MailAnsweringRunBounds Bounds { get; }
 
-    /// <summary>Gets whether a lookup, a listed page, or a census found mail this run's ceiling would not let it send.</summary>
+    /// <summary>Gets whether a lookup, a listed page, or a census found mail this run's ceiling would not let it send, or a page of a message or of a file it carries was cut to what the run could still send.</summary>
     /// <remarks>The setter is written only from inside this type's lock, which is why it does not take one of its own; the getter does, because a reader outside the run holds nothing.</remarks>
     public bool RetrievalWasTruncated
     {

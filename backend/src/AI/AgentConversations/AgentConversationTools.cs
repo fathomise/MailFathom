@@ -809,15 +809,19 @@ internal sealed class AgentConversationTools
             return CeilingReachedStatement;
         }
 
-        this.readBodies.Add(page);
-
+        // The page was spent from the ceiling before the scan so the scanner never sees text the run may not send; a
+        // tail the analyzed ceiling dropped is therefore charged without leaving, which errs towards sending less.
         var guarded = await this.egressGuard.GuardWithOmissionAsync(SensitiveContentEgressPoint.ChatPrompt, page, cancellationToken);
+        var shown = page.Length - guarded.OmittedCharacterCount;
+
+        this.readBodies.Add(page[..shown]);
+
         var citation = await this.CiteAsync(message.StoredEmailId, message.Headers.Subject, cancellationToken);
 
         return AgentConversationReadings.MessagePage(new GuardedMessagePage(
             message.StoredEmailId,
             citation.Id,
-            new PageBounds(body.Length, start, start + page.Length, ceilingReached),
+            new PageBounds(body.Length, start, start + shown, ceilingReached),
             guarded.Text));
     }
 
@@ -867,7 +871,9 @@ internal sealed class AgentConversationTools
             return CeilingReachedStatement;
         }
 
-        this.readBodies.Add(window);
+        var (parts, end) = await this.GuardedPartsAsync(read, start, window.Length, cancellationToken);
+
+        this.readBodies.Add(read.Text[start..end]);
 
         return AgentConversationReadings.AttachmentPage(new GuardedAttachmentPage(
             message.StoredEmailId,
@@ -877,8 +883,8 @@ internal sealed class AgentConversationTools
             read.Reading.Kind,
             read.Reading.PageCount,
             read.Reading.PageKind,
-            new PageBounds(read.Text.Length, start, start + window.Length, ceilingReached),
-            await this.GuardedPartsAsync(read, start, window.Length, cancellationToken)));
+            new PageBounds(read.Text.Length, start, end, ceilingReached),
+            parts));
     }
 
     /// <summary>Reads one message the person may read, with nothing of its conversation, or nothing where it is not one.</summary>
@@ -942,11 +948,18 @@ internal sealed class AgentConversationTools
     }
 
     /// <summary>Cuts a page of a file's words at the places it crosses and guards each part on its own.</summary>
+    /// <returns>The guarded parts, and where in the file's words the last character they show stands.</returns>
     /// <remarks>
+    /// <para>
     /// Each part is guarded as a value rather than the page as a whole, for the reason every other reading guards its
     /// values one by one: a detection running across a page boundary would otherwise take the element between them.
+    /// </para>
+    /// <para>
+    /// A part the guard's analyzed ceiling shortened ends the page there, so the page never claims to have shown what
+    /// the guard dropped and the next page begins at the first character the model has not seen.
+    /// </para>
     /// </remarks>
-    private async Task<IReadOnlyList<GuardedAttachmentPart>> GuardedPartsAsync(
+    private async Task<(IReadOnlyList<GuardedAttachmentPart> Parts, int End)> GuardedPartsAsync(
         AttachmentTextContent read,
         int start,
         int length,
@@ -969,9 +982,14 @@ internal sealed class AgentConversationTools
                 cancellationToken);
 
             parts.Add(new GuardedAttachmentPart(AttachmentTextSegment.At(read.Segments, opens), guarded.Text));
+
+            if (guarded.WasCutAtAnalyzedCeiling)
+            {
+                return (parts, closes - guarded.OmittedCharacterCount);
+            }
         }
 
-        return parts;
+        return (parts, end);
     }
 
     /// <summary>Reads, once per run, which of the person's accounts append their footer to what they send.</summary>

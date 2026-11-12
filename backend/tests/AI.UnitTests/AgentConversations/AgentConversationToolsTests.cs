@@ -1416,11 +1416,129 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         Assert.DoesNotContain(Marker, answer?.ToString(), StringComparison.Ordinal);
     }
 
+    /// <summary>A guard that analyzes less than a page drops the rest, so the page ends where what it shows ends and the next one begins at the first character the model has not seen.</summary>
+    [Fact]
+    public async Task ReadMessage_AGuardAnalyzingLessThanAPage_EndsThePageWhereWhatItShowsEnds()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System, bounds: SensitiveContentScanBounds.Create(100, TimeSpan.FromSeconds(5), 4));
+        using var actingFor = egress.Guard.ActingFor(await egress.ReadUserPostureAsync(TestContext.Current.CancellationToken));
+        var (reader, message) = ReadingOneMessage(new string('a', 3_000));
+        this.tools = this.Tools(AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead), egress.Guard, contentReader: reader);
+
+        // Act
+        var answer = await this.CreatedTool(AgentConversationTools.ReadMessageToolName)
+            .InvokeAsync(ReadingMessage(message), TestContext.Current.CancellationToken);
+
+        // Assert
+        var page = XElement.Parse(answer!.ToString()!);
+
+        Assert.Equal(100, page.Value.Length);
+        Assert.Equal("100", page.Attribute(AgentConversationReadings.PageEndAttributeName)?.Value);
+        Assert.Equal("100", page.Attribute(AgentConversationReadings.NextAttributeName)?.Value);
+    }
+
+    /// <summary>A part the guard shortened ends a file's page there, so the next page does not skip the words the guard dropped.</summary>
+    [Fact]
+    public async Task ReadAttachment_AGuardAnalyzingLessThanAPart_EndsThePageInsideThatPart()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System, bounds: SensitiveContentScanBounds.Create(5, TimeSpan.FromSeconds(5), 4));
+        using var actingFor = egress.Guard.ActingFor(await egress.ReadUserPostureAsync(TestContext.Current.CancellationToken));
+        var (reader, message) = ReadingOneMessage("See the attached contract.", Pdf("contract.pdf"));
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            egress.Guard,
+            contentReader: reader,
+            attachmentTexts: StoredAttachmentTexts.None.Holding(message, ReadInto(0, "Page one. ", "Page two.")));
+
+        // Act
+        var answer = await this.CreatedTool(AgentConversationTools.ReadAttachmentToolName)
+            .InvokeAsync(ReadingAttachment(message, 0), TestContext.Current.CancellationToken);
+
+        // Assert
+        var page = XElement.Parse(answer!.ToString()!);
+
+        Assert.Equal(["Page "], page.Elements(AgentConversationReadings.PartElementName).Select(static part => part.Value));
+        Assert.Equal("5", page.Attribute(AgentConversationReadings.NextAttributeName)?.Value);
+    }
+
+    /// <summary>A place in characters wins over a page number, because it is what the page before handed the model to continue from.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData(3)]
+    public async Task ReadAttachment_FromAPlaceInCharacters_StartsThereWhateverPageIsNamed(int? page)
+    {
+        // Arrange
+        var (reader, message) = ReadingOneMessage("See the attached contract.", Pdf("contract.pdf"));
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            contentReader: reader,
+            attachmentTexts: StoredAttachmentTexts.None.Holding(message, ReadInto(0, "Page one. ", "Page two. ", "Page three.")));
+
+        // Act
+        var answer = await this.CreatedTool(AgentConversationTools.ReadAttachmentToolName)
+            .InvokeAsync(ReadingAttachment(message, 0, page, from: 5), TestContext.Current.CancellationToken);
+
+        // Assert
+        var read = XElement.Parse(answer!.ToString()!);
+
+        Assert.Equal("5", read.Attribute(AgentConversationReadings.PageStartAttributeName)?.Value);
+        Assert.StartsWith("one. ", read.Value, StringComparison.Ordinal);
+    }
+
+    /// <summary>A start at the end of the whole reads nothing again and says so, rather than handing back the last page.</summary>
+    [Theory]
+    [InlineData(AgentConversationTools.ReadMessageToolName, "The body holds 5 characters, so nothing remains to read from 5.")]
+    [InlineData(AgentConversationTools.ReadAttachmentToolName, "The file's words hold 5 characters, so nothing remains to read from 5.")]
+    public async Task Read_FromTheEndOfTheWhole_SaysNothingRemains(string tool, string expected)
+    {
+        // Arrange
+        var (reader, message) = ReadingOneMessage("Short", Pdf("note.pdf"));
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            contentReader: reader,
+            attachmentTexts: StoredAttachmentTexts.None.Holding(message, ReadInto(0, "Brief")));
+        var arguments = tool == AgentConversationTools.ReadMessageToolName ? ReadingMessage(message, from: 5) : ReadingAttachment(message, 0, from: 5);
+
+        // Act
+        var answer = await this.CreatedTool(tool).InvokeAsync(arguments, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(expected, answer?.ToString());
+    }
+
+    /// <summary>A start the model wrote is held inside the body and never between the halves of a character.</summary>
+    [Theory]
+    [InlineData(-10, 0)]
+    [InlineData(2, 1)]
+    public async Task ReadMessage_AStartBeforeTheBodyOrInsideACharacter_StartsAtTheCharacterItNames(int from, int expectedStart)
+    {
+        // Arrange
+        var (reader, message) = ReadingOneMessage("a\uD83D\uDE00b");
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            contentReader: reader);
+
+        // Act
+        var answer = await this.CreatedTool(AgentConversationTools.ReadMessageToolName)
+            .InvokeAsync(ReadingMessage(message, from), TestContext.Current.CancellationToken);
+
+        // Assert
+        var page = XElement.Parse(answer!.ToString()!);
+
+        Assert.Equal(expectedStart.ToString(CultureInfo.InvariantCulture), page.Attribute(AgentConversationReadings.PageStartAttributeName)?.Value);
+        Assert.Equal("a\uD83D\uDE00b"[expectedStart..], page.Value);
+    }
+
     private static AIFunctionArguments ReadingMessage(StoredEmailId message, int? from = null) =>
         new(new Dictionary<string, object?> { ["messageId"] = message.ToString(), ["from"] = from });
 
-    private static AIFunctionArguments ReadingAttachment(StoredEmailId message, int attachment, int? page = null) =>
-        new(new Dictionary<string, object?> { ["messageId"] = message.ToString(), ["attachment"] = attachment, ["page"] = page });
+    private static AIFunctionArguments ReadingAttachment(StoredEmailId message, int attachment, int? page = null, int? from = null) =>
+        new(new Dictionary<string, object?> { ["messageId"] = message.ToString(), ["attachment"] = attachment, ["page"] = page, ["from"] = from });
 
     private static ExtractedEmailAttachment Pdf(string fileName) => new(
         AttachmentFileName.TryNormalize(fileName, out var normalized) ? normalized : null,
