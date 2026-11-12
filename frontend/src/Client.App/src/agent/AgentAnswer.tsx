@@ -117,7 +117,8 @@ export function AgentAnswer({
     readonly answer: Answer;
     readonly settledThrough: number;
     readonly onFollowSource: (source: DeclaredSource) => void;
-    readonly onAskInDeep: ((question: string, scope: AgentMessageScope | null, files: readonly string[]) => Promise<unknown>) | null;
+    readonly onAskInDeep:
+        ((question: string, scope: AgentMessageScope | null, files: readonly string[]) => Promise<unknown>) | null;
 }) {
     const { locale, translate } = useLocalization();
     const deep = ranDeep(answer);
@@ -207,7 +208,12 @@ export function AgentAnswer({
                         )}
                     </p>
                     {deep || answer.question === null ? null : (
-                        <AskInDeep question={answer.question} scope={answer.scope} files={answer.files} onAsk={onAskInDeep} />
+                        <AskInDeep
+                            question={answer.question}
+                            scope={answer.scope}
+                            files={answer.files}
+                            onAsk={onAskInDeep}
+                        />
                     )}
                 </div>
             )}
@@ -250,7 +256,8 @@ function AskInDeep({
     readonly question: string;
     readonly scope: AgentMessageScope | null;
     readonly files: readonly string[];
-    readonly onAsk: ((question: string, scope: AgentMessageScope | null, files: readonly string[]) => Promise<unknown>) | null;
+    readonly onAsk:
+        ((question: string, scope: AgentMessageScope | null, files: readonly string[]) => Promise<unknown>) | null;
 }) {
     const { translate } = useLocalization();
     const [asking, setAsking] = useState(false);

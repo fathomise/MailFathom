@@ -144,12 +144,20 @@ function WaitingFileCard({
             </span>
 
             {failed ? (
-                <SymbolControl label={translate('agent.files.retry', { name: file.name })} className={control} onPress={onRetry}>
+                <SymbolControl
+                    label={translate('agent.files.retry', { name: file.name })}
+                    className={control}
+                    onPress={onRetry}
+                >
                     <Icon name="refresh" className="size-icon-sm" />
                 </SymbolControl>
             ) : null}
 
-            <SymbolControl label={translate('agent.files.remove', { name: file.name })} className={control} onPress={onRemove}>
+            <SymbolControl
+                label={translate('agent.files.remove', { name: file.name })}
+                className={control}
+                onPress={onRemove}
+            >
                 <Icon name="close" className="size-icon-sm" />
             </SymbolControl>
 

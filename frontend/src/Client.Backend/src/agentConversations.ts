@@ -643,7 +643,10 @@ function parseEntry(value: unknown): AgentConversationEntry | null {
             const author = namedIn(authors, entry['author']);
             const text = entry['text'];
             const scope = parseScope(entry['scope']);
-            const files = entry['files'] === undefined || entry['files'] === null ? [] : parseEach(entry['files'], mostCarriedFiles, identifier);
+            const files =
+                entry['files'] === undefined || entry['files'] === null
+                    ? []
+                    : parseEach(entry['files'], mostCarriedFiles, identifier);
 
             return run === null ||
                 author === undefined ||

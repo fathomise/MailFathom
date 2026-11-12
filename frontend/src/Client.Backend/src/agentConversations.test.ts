@@ -413,7 +413,9 @@ describe('readAgentConversation', () => {
             session,
             answering({
                 status: 200,
-                body: pageOf([entryOf(1, { entry: 'message', messageId: question, author: 'Person', text: 'Bays?', files })]),
+                body: pageOf([
+                    entryOf(1, { entry: 'message', messageId: question, author: 'Person', text: 'Bays?', files }),
+                ]),
             }),
             conversation,
             0,

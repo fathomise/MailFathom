@@ -180,7 +180,10 @@ function parseFile(value: unknown): AgentConversationFile | null {
     const record = asRecord(value);
     const fileId = record?.['fileId'];
     const name = record?.['name'];
-    const kind = typeof record?.['kind'] === 'string' && Object.hasOwn(kinds, record['kind']) ? kinds[record['kind']] : undefined;
+    const kind =
+        typeof record?.['kind'] === 'string' && Object.hasOwn(kinds, record['kind'])
+            ? kinds[record['kind']]
+            : undefined;
     const mediaType = record?.['mediaType'];
     const byteLength = record?.['byteLength'];
 

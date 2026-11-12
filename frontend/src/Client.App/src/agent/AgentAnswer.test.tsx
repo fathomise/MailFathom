@@ -108,7 +108,10 @@ describe('AgentAnswer', () => {
     it('offers a fast answer that stopped at its ceiling the same question in deep, about what it was asked about and with its files', async () => {
         const asked = vi.fn(() => Promise.resolve());
         const thread: AgentMessageScope = { kind: 'thread', subject: '0198f4a1-0000-7000-8000-00000000b001' };
-        drawnAnswer({ ...answered, scope: thread, mode: 'fast', files: ['f-1'], ceiling: { messagesRead: 200 } }, asked);
+        drawnAnswer(
+            { ...answered, scope: thread, mode: 'fast', files: ['f-1'], ceiling: { messagesRead: 200 } },
+            asked,
+        );
 
         expect(
             screen.getByText('Stopped at the fast limit: it read 200 messages. The rest may change the answer.'),
@@ -179,7 +182,9 @@ describe('AgentAnswer', () => {
 
 function inLocalization(
     answer: Answer,
-    onAskInDeep: ((question: string, scope: AgentMessageScope | null, files: readonly string[]) => Promise<unknown>) | null = null,
+    onAskInDeep:
+        | ((question: string, scope: AgentMessageScope | null, files: readonly string[]) => Promise<unknown>)
+        | null = null,
 ) {
     return (
         <LocalizationProvider>
@@ -190,7 +195,9 @@ function inLocalization(
 
 function drawnAnswer(
     answer: Answer,
-    onAskInDeep: ((question: string, scope: AgentMessageScope | null, files: readonly string[]) => Promise<unknown>) | null = null,
+    onAskInDeep:
+        | ((question: string, scope: AgentMessageScope | null, files: readonly string[]) => Promise<unknown>)
+        | null = null,
 ) {
     return render(inLocalization(answer, onAskInDeep));
 }

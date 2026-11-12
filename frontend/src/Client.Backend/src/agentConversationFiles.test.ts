@@ -30,11 +30,13 @@ const offer = {
 };
 
 function answering(status: number, body: unknown = ''): MailFathomTransport {
-    return () =>
-        Promise.resolve({ status, body: typeof body === 'string' ? body : JSON.stringify(body), headers: {} });
+    return () => Promise.resolve({ status, body: typeof body === 'string' ? body : JSON.stringify(body), headers: {} });
 }
 
-function delivering(status: number, body: unknown = ''): {
+function delivering(
+    status: number,
+    body: unknown = '',
+): {
     deliver: (request: ClientRequest) => Promise<ClientResponse | null>;
     requests: ClientRequest[];
 } {

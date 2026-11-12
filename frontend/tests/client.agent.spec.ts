@@ -280,7 +280,9 @@ test('takes a file attached to a question into its conversation, sends the quest
     ]);
 
     // The drawing is refused by the field before anything is sent, and the offer waits uploaded under it.
-    await expect(page.getByRole('alert').getByText(/^Floor plan\.dwg was not attached: the agent does not read DWG files\./u)).toBeVisible();
+    await expect(
+        page.getByRole('alert').getByText(/^Floor plan\.dwg was not attached: the agent does not read DWG files\./u),
+    ).toBeVisible();
 
     const waiting = page.getByRole('list', { name: 'Files for your question' });
 
@@ -309,5 +311,7 @@ test('takes a file attached to a question into its conversation, sends the quest
         .getByRole('option', { name: /^Compare this offer with Contoso’s/u })
         .click();
 
-    await expect(threadOf(page).getByRole('list', { name: 'Files sent with the question' }).getByText('Offer v3.pdf')).toBeVisible();
+    await expect(
+        threadOf(page).getByRole('list', { name: 'Files sent with the question' }).getByText('Offer v3.pdf'),
+    ).toBeVisible();
 });

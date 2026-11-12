@@ -60,7 +60,8 @@ export function ConversationThread({
     readonly settledThrough: number;
     readonly following: number;
     readonly onAsk: (question: string) => Promise<unknown>;
-    readonly onAskInDeep: ((question: string, scope: AgentMessageScope | null, files: readonly string[]) => Promise<unknown>) | null;
+    readonly onAskInDeep:
+        ((question: string, scope: AgentMessageScope | null, files: readonly string[]) => Promise<unknown>) | null;
     readonly onFollowSource: (source: DeclaredSource) => void;
     readonly files: ReadonlyMap<string, AgentConversationFile>;
 }) {

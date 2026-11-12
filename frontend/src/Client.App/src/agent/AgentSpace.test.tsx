@@ -107,7 +107,10 @@ function deploymentAnswering(posting: { readonly status: number; readonly body: 
 const offerId = '0198f4a1-0000-7000-8000-00000000f001';
 
 // What the deployment answers a file taken into a conversation with: the file, under the name the upload gave it.
-function fileTaken(request: ClientRequest, file: Blob): { readonly status: number; readonly body: string; readonly headers: Record<string, string> } {
+function fileTaken(
+    request: ClientRequest,
+    file: Blob,
+): { readonly status: number; readonly body: string; readonly headers: Record<string, string> } {
     const named = /filename\*=UTF-8''(.*)$/u.exec(request.headers['Content-Disposition'] ?? '')?.[1] ?? '';
 
     return {
@@ -1286,13 +1289,7 @@ describe('AgentSpace files', () => {
 
         chosen(fileOf('Offer v3.pdf'));
 
-        const cards = await waitFor(() => {
-            const list = waitingCards();
-
-            expect(list).not.toBeNull();
-
-            return list as HTMLElement;
-        });
+        const cards = await screen.findByRole('list', { name: 'Files for your question' });
 
         expect(await within(cards).findByText('1.2 kB')).toBeDefined();
         expect(within(cards).getByRole('button', { name: 'Remove Offer v3.pdf' })).toBeDefined();
@@ -1329,11 +1326,19 @@ describe('AgentSpace files', () => {
 
         const refused = await screen.findByRole('alert');
 
-        expect(within(refused).getByText(/^Floor plan\.dwg was not attached: the agent does not read DWG files\./u)).toBeDefined();
-        expect(within(refused).getByText('Board pack - full.pdf was not attached: at 48 MB it is over the 16 MB a file can be.')).toBeDefined();
+        expect(
+            within(refused).getByText(/^Floor plan\.dwg was not attached: the agent does not read DWG files\./u),
+        ).toBeDefined();
+        expect(
+            within(refused).getByText(
+                'Board pack - full.pdf was not attached: at 48 MB it is over the 16 MB a file can be.',
+            ),
+        ).toBeDefined();
         expect(within(refused).getByText('Notes.txt was not attached: it is empty.')).toBeDefined();
-        expect(within(refused).getByText('3 files were not attached: a question carries at most 10 files.')).toBeDefined();
-        expect(within(waitingCards() as HTMLElement).getAllByRole('listitem')).toHaveLength(10);
+        expect(
+            within(refused).getByText('3 files were not attached: a question carries at most 10 files.'),
+        ).toBeDefined();
+        expect(within(await screen.findByRole('list', { name: 'Files for your question' })).getAllByRole('listitem')).toHaveLength(10);
         expect(uploads).toHaveLength(10);
 
         fireEvent.click(within(refused).getByRole('button', { name: 'Dismiss' }));
@@ -1393,7 +1398,11 @@ describe('AgentSpace files', () => {
         });
         attempts[1]?.(
             fileTaken(
-                { method: 'POST', path: '', headers: { 'Content-Disposition': "attachment; filename*=UTF-8''Offer%20v3.pdf" } },
+                {
+                    method: 'POST',
+                    path: '',
+                    headers: { 'Content-Disposition': "attachment; filename*=UTF-8''Offer%20v3.pdf" },
+                },
                 fileOf('Offer v3.pdf'),
             ),
         );
@@ -1430,13 +1439,7 @@ describe('AgentSpace files', () => {
 
         fireEvent.paste(field, { clipboardData: { files: [fileOf('image.png', 380_000, 'image/png')] } });
 
-        const cards = await waitFor(() => {
-            const list = waitingCards();
-
-            expect(list).not.toBeNull();
-
-            return list as HTMLElement;
-        });
+        const cards = await screen.findByRole('list', { name: 'Files for your question' });
 
         expect(within(cards).getByText(/^Pasted image \d\d\.\d\d\.png$/u)).toBeDefined();
         expect(await within(cards).findByText('Pasted · 380 kB')).toBeDefined();

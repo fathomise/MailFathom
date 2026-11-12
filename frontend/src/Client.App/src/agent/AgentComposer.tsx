@@ -53,9 +53,11 @@ const heldFailed: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
 // What a picture pasted with no name of its own is called: the hour and minute it was pasted, joined by a point rather
 // than the locale's own separator, since a colon is no character a file name may carry everywhere.
 function pastedAt(locale: string): string {
-    const parts = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(
-        new Date(),
-    );
+    const parts = new Intl.DateTimeFormat(locale, {
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+    }).formatToParts(new Date());
 
     return ['hour', 'minute'].map((unit) => parts.find((part) => part.type === unit)?.value ?? '').join('.');
 }
@@ -131,7 +133,9 @@ export function AgentComposer({
     const plural = new Intl.PluralRules(locale);
     const heldByFiles =
         uploading > 0
-            ? translate(heldUploading[plural.select(uploading)], { count: new Intl.NumberFormat(locale).format(uploading) })
+            ? translate(heldUploading[plural.select(uploading)], {
+                  count: new Intl.NumberFormat(locale).format(uploading),
+              })
             : notUploaded > 0
               ? translate(heldFailed[plural.select(notUploaded)], {
                     count: new Intl.NumberFormat(locale).format(notUploaded),
