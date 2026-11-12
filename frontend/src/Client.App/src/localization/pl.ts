@@ -2056,6 +2056,8 @@ export const pl: Catalogue = {
     'senderMark.trust.recognized': 'To konto rozpoznaje adres {address}.',
     'senderMark.trust.organizationSigned':
         'Podpisana przez organizację {organization}: wiadomość wyszła z jednego z jej kont pocztowych przez MailFathom.',
+    'senderMark.trust.organizationSignedDeleted':
+        'Podpisana przez Twoją organizację, która została później usunięta, więc jej nazwa nie jest pokazywana: wiadomość wyszła z jednego z jej kont pocztowych przez MailFathom.',
     'senderMark.trust.organizationUnsigned':
         'Brak podpisu organizacji {organization}. Nie wysłano jej z konta pocztowego organizacji {organization} przez MailFathom. Wiadomość współpracownika napisana w innym programie pocztowym jest oznaczana tak samo.',
     'senderMark.trust.organizationUnsignedColleague':

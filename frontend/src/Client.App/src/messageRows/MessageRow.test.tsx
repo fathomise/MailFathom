@@ -1247,29 +1247,33 @@ describe('MessageRow, the External chip', () => {
     function externalRow({
         marking = nordwindMarks,
         sender = email.sender,
+        spam = email.spam,
         marksSender = true,
         onSenderDetails = vi.fn(),
         onOpen = vi.fn(),
+        onPoint = vi.fn(),
     }: {
         marking?: ExternalMarking;
         sender?: MailTimelineEntry['sender'];
+        spam?: MailTimelineEntry['spam'];
         marksSender?: boolean;
         onSenderDetails?: (anchor: DOMRect) => void;
         onOpen?: () => void;
+        onPoint?: (event: unknown) => void;
     }): HTMLElement {
         render(
             <LocalizationProvider>
                 <ExternalMarkingContext value={marking}>
                     <ul>
                         <MessageRow
-                            email={{ ...email, sender }}
+                            email={{ ...email, sender, spam }}
                             position={1}
                             open={false}
                             selected={false}
                             focusable
                             onSenderDetails={marksSender ? onSenderDetails : undefined}
                             onOpen={onOpen}
-                            onPoint={vi.fn()}
+                            onPoint={onPoint}
                             onElement={() => undefined}
                         />
                     </ul>
@@ -1287,11 +1291,18 @@ describe('MessageRow, the External chip', () => {
     it('opens the sender details and neither opens nor selects the message', () => {
         const asked = vi.fn();
         const opened = vi.fn();
+        const pointed = vi.fn();
 
-        externalRow({ onSenderDetails: asked, onOpen: opened });
-        fireEvent.click(senderMark(name));
+        externalRow({ onSenderDetails: asked, onOpen: opened, onPoint: pointed });
 
-        expect([asked.mock.calls.length, opened.mock.calls.length]).toStrictEqual([1, 0]);
+        const chip = senderMark(name);
+
+        fireEvent.pointerDown(chip, { pointerType: 'mouse', button: 0 });
+        fireEvent.pointerUp(chip, { pointerType: 'mouse', button: 0 });
+        fireEvent.click(chip);
+        fireEvent.doubleClick(chip);
+
+        expect([asked.mock.calls.length, opened.mock.calls.length, pointed.mock.calls.length]).toStrictEqual([1, 0, 0]);
     });
 
     it.each([
@@ -1299,6 +1310,13 @@ describe('MessageRow, the External chip', () => {
         ['an account whose organization did not turn the mark on', externalMarkingOf([], 'Nordwind'), {}],
     ])('is not drawn on %s', (_, marking, facts) => {
         const row = externalRow({ marking, sender: { ...email.sender, ...facts } });
+
+        expect(row.textContent).not.toContain('External');
+    });
+
+    // The fold is a spam row's cue, and its opened message carries the chip instead.
+    it('is not drawn on a spam row folded to one line', () => {
+        const row = externalRow({ spam: spamVerdict() });
 
         expect(row.textContent).not.toContain('External');
     });

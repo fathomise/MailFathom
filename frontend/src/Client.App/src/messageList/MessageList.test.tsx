@@ -24,6 +24,7 @@ import { WorkspaceProvider } from '../workspace/Workspace';
 import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { estimatedRowHeight } from '../messageRows/rowWindow';
 import { openingListing, rowsPerPage } from './listing';
+import { ExternalMarkingContext } from '../senderMark/externalMark';
 import { MessageList } from './MessageList';
 import { rememberedListing, rememberListing } from './rememberedListings';
 import { ListedMailContext, nothingListed, type ListedMailbox } from './useListedMail';
@@ -1857,6 +1858,43 @@ const explainedMessage = JSON.stringify({
     ...newsletterMessage,
     ...messageSenderEvidence('unrecognized'),
     storedEmailId: 'message-1',
+});
+
+// The row menu's header says what the row draws, so a folded spam row — which draws no External chip — names none.
+describe('MessageList, the External chip in the row menu', () => {
+    const chipInHeader = /- External - not signed by Nordwind$/;
+
+    function renderMarking(): void {
+        render(
+            <ExternalMarkingContext value={{ accounts: new Set([work.id]), organization: 'Nordwind' }}>
+                {listUnder(answering(phishingFirst))}
+            </ExternalMarkingContext>,
+        );
+    }
+
+    it('names the chip in the header of a received row that draws it', async () => {
+        renderMarking();
+
+        // Named by its subject and then by the chip's reason, which the row says last.
+        const [, received] = await rows();
+
+        if (received === undefined) {
+            throw new Error('The list drew no second row.');
+        }
+
+        fireEvent.contextMenu(received);
+
+        expect(await screen.findByText(chipInHeader)).toBeDefined();
+    });
+
+    it('names no chip in the header of a spam row folded to one line', async () => {
+        renderMarking();
+
+        fireEvent.contextMenu(await phishingRow());
+
+        expect(await screen.findByRole('menuitem', { name: 'Select messages' })).toBeDefined();
+        expect(screen.queryByText(chipInHeader)).toBeNull();
+    });
 });
 
 function explaining(page: string): { transport: MailFathomTransport; requests: ClientRequest[] } {

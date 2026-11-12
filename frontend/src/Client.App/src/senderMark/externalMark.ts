@@ -108,14 +108,19 @@ export function organizationSignatureStepOf(
         return null;
     }
 
+    // A member whose organization was since deleted was signed by an organization the service no longer names, so the
+    // step says that rather than crediting the reader's own.
     if (sender.trustSource === 'OrganizationMember') {
         return {
             name: 'senderMark.step.organizationSignature',
             result: 'Passed',
-            detail: {
-                key: 'senderMark.trust.organizationSigned',
-                values: { organization: sender.trustOrganization ?? organization },
-            },
+            detail:
+                sender.trustOrganization === null
+                    ? { key: 'senderMark.trust.organizationSignedDeleted' }
+                    : {
+                          key: 'senderMark.trust.organizationSigned',
+                          values: { organization: sender.trustOrganization },
+                      },
             facts: null,
         };
     }

@@ -25,6 +25,7 @@ import { ToastsProvider } from '../toasts/Toasts';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { OpenAttachmentContext } from '../workspace/openAttachment';
 import type { MessageBodyRead } from '../messageBody/useMessageBody';
+import { ExternalMarkingContext, type ExternalMarking } from '../senderMark/externalMark';
 import { OpenedMessage } from './OpenedMessage';
 import { tipRestsFor } from '../controls/useTip';
 
@@ -173,34 +174,37 @@ function drawing(
     onShowFullHtml: () => void = () => undefined,
     acts: MailboxActs = nothingActed,
     shown: { readonly receiptsShown?: boolean; readonly answersReadReceipt?: boolean } = {},
+    externalMarking: ExternalMarking = { accounts: new Set<string>(), organization: null },
 ): void {
     render(
-        <LocalizationProvider>
-            <ToastsProvider>
-                <WorkspaceProvider>
-                    <LinkOpenerContext value={() => Promise.resolve()}>
-                        <MessageViewContext value={view}>
-                            <ReadMarkingContext value={marking}>
-                                <MailboxActsContext value={acts}>
-                                    <AttachmentExchangeContext value={deliversNothing}>
-                                        <OpenAttachmentContext value={() => undefined}>
-                                            <OpenedMessage
-                                                session={session}
-                                                transport={answersNothing}
-                                                message={message}
-                                                body={body}
-                                                onShowFullHtml={onShowFullHtml}
-                                                {...shown}
-                                            />
-                                        </OpenAttachmentContext>
-                                    </AttachmentExchangeContext>
-                                </MailboxActsContext>
-                            </ReadMarkingContext>
-                        </MessageViewContext>
-                    </LinkOpenerContext>
-                </WorkspaceProvider>
-            </ToastsProvider>
-        </LocalizationProvider>,
+        <ExternalMarkingContext value={externalMarking}>
+            <LocalizationProvider>
+                <ToastsProvider>
+                    <WorkspaceProvider>
+                        <LinkOpenerContext value={() => Promise.resolve()}>
+                            <MessageViewContext value={view}>
+                                <ReadMarkingContext value={marking}>
+                                    <MailboxActsContext value={acts}>
+                                        <AttachmentExchangeContext value={deliversNothing}>
+                                            <OpenAttachmentContext value={() => undefined}>
+                                                <OpenedMessage
+                                                    session={session}
+                                                    transport={answersNothing}
+                                                    message={message}
+                                                    body={body}
+                                                    onShowFullHtml={onShowFullHtml}
+                                                    {...shown}
+                                                />
+                                            </OpenAttachmentContext>
+                                        </AttachmentExchangeContext>
+                                    </MailboxActsContext>
+                                </ReadMarkingContext>
+                            </MessageViewContext>
+                        </LinkOpenerContext>
+                    </WorkspaceProvider>
+                </ToastsProvider>
+            </LocalizationProvider>
+        </ExternalMarkingContext>,
     );
 }
 
@@ -471,6 +475,54 @@ describe('OpenedMessage, the mark on who sent it', () => {
 
         expect(screen.queryByRole('button', { name: 'Sender not recognized' })).toBeNull();
         expect(screen.getByText('Billing')).toBeDefined();
+    });
+});
+
+describe('OpenedMessage, the External chip', () => {
+    const marking: ExternalMarking = { accounts: new Set([described.account]), organization: 'Nordwind' };
+    const reason =
+        'External - not signed by Nordwind. It was not sent from a Nordwind mail account through MailFathom. ' +
+        'A colleague writing from another mail application is marked the same way.';
+
+    function drawingMarked(message: MailMessage = described, acts: MailboxActs = nothingActed): void {
+        drawing(message, read, nothingMarkedRead, 'reduced', () => undefined, acts, {}, marking);
+    }
+
+    it('stands beside the sender, named by its reason, and opens the sender details', () => {
+        drawingMarked();
+
+        fireEvent.click(screen.getByRole('button', { name: reason }));
+
+        expect(screen.getByRole('dialog', { name: 'Sender not recognized' })).toBeDefined();
+        expect(screen.getByText('External.')).toBeDefined();
+    });
+
+    it('leaves the sender mark opening the same details', () => {
+        drawingMarked();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Sender not recognized' }));
+
+        expect(screen.getByRole('dialog', { name: 'Sender not recognized' })).toBeDefined();
+    });
+
+    it('is not drawn on a message the organization signed', () => {
+        drawingMarked({
+            ...described,
+            sender: {
+                ...described.sender,
+                deploymentTrust: 'Trusted',
+                trustSource: 'OrganizationMember',
+                trustOrganization: 'Nordwind',
+            },
+        });
+
+        expect(screen.queryByRole('button', { name: reason })).toBeNull();
+    });
+
+    it('is not drawn on a message in Sent, whose writer is the reader', () => {
+        drawingMarked(described, { ...nothingActed, folderRoleOf: () => 'Sent' });
+
+        expect(screen.queryByRole('button', { name: reason })).toBeNull();
     });
 });
 

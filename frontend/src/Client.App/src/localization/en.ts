@@ -2029,6 +2029,8 @@ export const en = {
     'senderMark.trust.recognized': 'This account recognizes {address}.',
     'senderMark.trust.organizationSigned':
         'Signed by {organization}: the message left one of its mail accounts through MailFathom.',
+    'senderMark.trust.organizationSignedDeleted':
+        'Signed by your organization, which has since been deleted, so its name is not shown: the message left one of its mail accounts through MailFathom.',
     'senderMark.trust.organizationUnsigned':
         'Not signed by {organization}. It was not sent from a {organization} mail account through MailFathom. A colleague writing from another mail application is marked the same way.',
     'senderMark.trust.organizationUnsignedColleague':

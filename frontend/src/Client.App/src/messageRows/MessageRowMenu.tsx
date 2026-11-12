@@ -142,8 +142,8 @@ export function MessageRowMenu({
         <ContextMenu
             header={email.subject ?? translate('list.noSubject')}
             // Who wrote it, which the row folded to a strip of avatars no longer says in words, the spam verdict a folded
-            // row draws no badge for, the mark on the sender and the External chip beside it, the word of what came back, and that the mail server no
-            // longer holds it, which a finger has no hover to read off the row.
+            // row draws no badge for, the mark on the sender and the External chip beside it, the word of what came
+            // back, and that the mail server no longer holds it, which a finger has no hover to read off the row.
             detail={detailWithMark(
                 detailWithMark(
                     detailWithMark(

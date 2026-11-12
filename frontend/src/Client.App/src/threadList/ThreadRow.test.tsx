@@ -6,6 +6,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ListedMailThread } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ExternalMarkingContext } from '../senderMark/externalMark';
 import { ThreadRow } from './ThreadRow';
 
 const anna = { address: 'anna@example.invalid', displayName: 'Anna Nowak', reader: false };
@@ -65,6 +66,52 @@ describe('ThreadRow, the newest message local only', () => {
 
     it('draws none on a message the mail server still holds', () => {
         expect(within(drawing(thread())).queryByText('Local only')).toBeNull();
+    });
+});
+
+describe('ThreadRow, the External chip', () => {
+    const reason =
+        'External - not signed by Nordwind. It was not sent from a Nordwind mail account through MailFathom. ' +
+        'A colleague writing from another mail application is marked the same way.';
+    const received = {
+        authorAuthentication: 'Authenticated',
+        deploymentTrust: 'Unknown',
+        signatureOutcome: 'NotSigned',
+        signerMatchesAuthor: false,
+        trustSource: null,
+        trustMember: null,
+    } as const;
+
+    function drawingMarked(listed: ListedMailThread, marked: readonly string[] = ['work']): HTMLElement {
+        render(
+            <LocalizationProvider>
+                <ExternalMarkingContext value={{ accounts: new Set(marked), organization: 'Nordwind' }}>
+                    <ul>
+                        <ThreadRow thread={listed} open={false} onOpen={() => undefined} onElement={() => undefined} />
+                    </ul>
+                </ExternalMarkingContext>
+            </LocalizationProvider>,
+        );
+
+        return screen.getByRole('button');
+    }
+
+    it('says its reason in the row’s name where the newest received message is not the organization’s', () => {
+        const row = drawingMarked(thread({ newestReceivedSender: received }));
+
+        expect(row.textContent).toContain(reason);
+    });
+
+    it.each([
+        [
+            'the organization signed the newest received message',
+            thread({ newestReceivedSender: { ...received, trustSource: 'OrganizationMember' } }),
+            ['work'],
+        ],
+        ['the account does not mark', thread({ newestReceivedSender: received }), []],
+        ['the conversation holds nothing received', thread(), ['work']],
+    ] as const)('draws none where %s', (_, listed, marked) => {
+        expect(drawingMarked(listed, marked).textContent).not.toContain('External');
     });
 });
 

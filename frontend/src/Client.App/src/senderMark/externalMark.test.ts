@@ -89,6 +89,16 @@ describe('organizationSignatureStepOf', () => {
         ]);
     });
 
+    it('names no organization for a member whose organization was since deleted, rather than the reader’s own', () => {
+        expect(
+            organizationSignatureStepOf(marking, 'work', {
+                trustSource: 'OrganizationMember',
+                trustMember: null,
+                trustOrganization: null,
+            })?.detail,
+        ).toStrictEqual({ key: 'senderMark.trust.organizationSignedDeleted' });
+    });
+
     it('adds no step on an account that does not mark, so the group stands as it did', () => {
         expect(organizationSignatureStepOf(marking, 'personal', sender('OrganizationMember'))).toBeNull();
     });

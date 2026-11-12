@@ -1179,7 +1179,12 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
                                 : undefined
                         }
                         senderMark={marksSenderOf(row) ? senderMarkOf(row.sender) : null}
-                        external={marksSenderOf(row) ? externalMarkOf(externalMarking, row.account, row.sender) : null}
+                        external={
+                            // The header says what the row draws, and a folded spam row draws no chip.
+                            marksSenderOf(row) && !(isSpam(drawnSpam(acts, row)) && !inSpamFolder)
+                                ? externalMarkOf(externalMarking, row.account, row.sender)
+                                : null
+                        }
                         onSenderDetails={() => {
                             explainSender(row, null);
                         }}

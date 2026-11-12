@@ -19,6 +19,7 @@ import { AgentHandOverContext, type AgentHandOver } from '../routing/agentHandOv
 import { ToastContext, type Toast } from '../toasts/useToasts';
 import type { ReceiptStanding } from '../receipts/receiptMarks';
 import { MessageRowMenu } from './MessageRowMenu';
+import { externalMarkOf, type ExternalMark } from '../senderMark/externalMark';
 import type { SenderMark } from '../senderMark/senderMarks';
 import { listedSender } from '../../../../tests/fixtures/senders';
 
@@ -78,6 +79,7 @@ function menuUnder({
     handToAgent = null,
     raise = vi.fn(),
     senderMark = null,
+    external = null,
     onSenderDetails,
     receipt = null,
     onReceiptDetails,
@@ -92,6 +94,7 @@ function menuUnder({
     handToAgent?: ((handOver: AgentHandOver) => void) | null;
     raise?: (toast: Toast) => void;
     senderMark?: SenderMark | null;
+    external?: ExternalMark | null;
     onSenderDetails?: () => void;
     receipt?: ReceiptStanding | null;
     onReceiptDetails?: () => void;
@@ -110,6 +113,7 @@ function menuUnder({
                                 onAsk={onAsk}
                                 onCheckReadings={onCheckReadings}
                                 senderMark={senderMark}
+                                external={external}
                                 onSenderDetails={onSenderDetails}
                                 receipt={receipt}
                                 onReceiptDetails={onReceiptDetails}
@@ -166,6 +170,19 @@ describe('MessageRowMenu', () => {
         menuUnder({ senderMark: 'trusted', onSenderDetails: vi.fn() });
 
         expect(screen.getByText('Anna Kowalska - Trusted sender')).toBeDefined();
+    });
+
+    // The External chip answers a pointer alone, so a finger reads it here, after the mark it stands beside.
+    it('names the External chip after the sender mark, on a row that draws one', () => {
+        const external = externalMarkOf(
+            { accounts: new Set([email.account]), organization: 'Nordwind' },
+            email.account,
+            { trustSource: 'PersonalContact', trustMember: null },
+        );
+
+        menuUnder({ senderMark: 'trusted', external, onSenderDetails: vi.fn() });
+
+        expect(screen.getByText('Anna Kowalska - Trusted sender - External - not signed by Nordwind')).toBeDefined();
     });
 
     it('offers the sender’s details last, which is the keyboard’s way to them from a row', () => {
