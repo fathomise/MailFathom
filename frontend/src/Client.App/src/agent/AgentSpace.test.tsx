@@ -1263,6 +1263,13 @@ describe('AgentSpace files', () => {
 
     const waitingCards = () => screen.queryByRole('list', { name: 'Files for your question' });
 
+    // What Send says about why it is held, which is its description rather than its name.
+    const sendSays = (): string | null | undefined => {
+        const send = screen.getByRole('button', { name: /Send/ });
+
+        return document.getElementById(send.getAttribute('aria-describedby') ?? '')?.textContent;
+    };
+
     it('offers the system’s chooser from a control named for what it does', () => {
         const { transport } = deploymentAnswering();
         screenOf(transport);
@@ -1385,12 +1392,12 @@ describe('AgentSpace files', () => {
 
         expect(await screen.findByText('Uploading…')).toBeDefined();
         expect(screen.getByRole('button', { name: /Send/ }).getAttribute('aria-disabled')).toBe('true');
-        expect(screen.getByText('Send - wait for 1 file to finish uploading')).toBeDefined();
+        expect(sendSays()).toBe('Send - wait for 1 file to finish uploading');
 
         attempts[0]?.(null);
 
         expect(await screen.findByText('Did not upload')).toBeDefined();
-        expect(screen.getByText('Send - 1 file did not upload. Try again, or remove it.')).toBeDefined();
+        expect(sendSays()).toBe('Send - 1 file did not upload. Try again, or remove it.');
         fireEvent.click(screen.getByRole('button', { name: /Send/ }));
         expect(asked.filter((request) => request.method === 'POST')).toHaveLength(0);
 

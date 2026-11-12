@@ -144,7 +144,8 @@ export function AgentComposer({
 
     // Sending, steering, and cancelling each ask the server to do something, so while it is out of reach each says so
     // before it is pressed rather than failing after. The field stays open: what is typed waits for the connection.
-    const sendRefused = writeRefused(translate('agent.send')) ?? heldByFiles;
+    const unreachable = writeRefused(translate('agent.send'));
+    const sendRefused = unreachable ?? heldByFiles;
     const cancelRefused = running ? writeRefused(translate('agent.cancel')) : null;
     const clearName = useTip({
         says: translate('agent.clearContext'),
@@ -305,7 +306,10 @@ export function AgentComposer({
                         disabled={sending}
                         aria-disabled={sendRefused === null ? undefined : true}
                         aria-label={wide ? undefined : translate('agent.send')}
-                        className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-base whitespace-nowrap text-on-accent transition hover:opacity-90 disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 workspace:size-auto workspace:px-4.5 workspace:py-2 desktop:px-4"
+                        className={`flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-base whitespace-nowrap text-on-accent transition hover:opacity-90 disabled:opacity-60 aria-disabled:cursor-not-allowed workspace:size-auto workspace:px-4.5 workspace:py-2 desktop:px-4 ${
+                            // The design draws Send held by files fainter than Send with no server behind it.
+                            unreachable === null ? 'aria-disabled:opacity-45' : 'aria-disabled:opacity-60'
+                        }`}
                     >
                         {wide ? (
                             <>
