@@ -58,6 +58,7 @@ public sealed class AgentConversationControlsTests
             PresentationText.Create("What did the supplier quote?"),
             AgentMessageScope.Mailbox(),
             AgentAnswerMode.Deep,
+            [],
             TestContext.Current.CancellationToken);
         var announced = await this.PublishedAsync(signals, channel);
 
@@ -93,6 +94,7 @@ public sealed class AgentConversationControlsTests
             PresentationText.Create("What did the supplier quote?"),
             scope: null,
             AgentAnswerMode.Auto,
+            [],
             TestContext.Current.CancellationToken);
 
         // Assert

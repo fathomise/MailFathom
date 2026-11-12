@@ -67,4 +67,7 @@ public enum ApplicationText
 
     /// <summary>The status line while the Agent counts the person's mail.</summary>
     AgentStatusCountingMail = 19,
+
+    /// <summary>The status line while the Agent searches or reads the files the person handed to the conversation.</summary>
+    AgentStatusReadingFiles = 20,
 }

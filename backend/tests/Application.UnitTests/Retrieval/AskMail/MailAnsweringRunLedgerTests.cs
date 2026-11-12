@@ -332,6 +332,24 @@ public sealed class MailAnsweringRunLedgerTests
         Assert.True(ledger.RetrievalWasTruncated);
     }
 
+    /// <summary>A file's words spend the same allowance mail does, and count no message, because a file is not mail.</summary>
+    [Fact]
+    public void AdmitFileText_WordsPastWhatMailLeft_GrantsTheRestAndCountsNoMessage()
+    {
+        // Arrange
+        var ledger = LedgerAllowing(retrievedCharacters: 250);
+        ledger.AdmitPassages(PassagesOf(100));
+        var messagesBefore = ledger.Read().MessagesRetrieved;
+
+        // Act
+        var granted = ledger.AdmitFileText(400);
+
+        // Assert
+        Assert.Equal(150, granted);
+        Assert.True(ledger.RetrievalWasTruncated);
+        Assert.Equal((250, messagesBefore), (ledger.Read().RetrievedCharacters, ledger.Read().MessagesRetrieved));
+    }
+
     [Fact]
     public void AdmitPage_AfterTheCeilingWasSpent_GrantsNothingAndCountsNoMessage()
     {

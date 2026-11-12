@@ -191,6 +191,100 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("agent_conversation_entries", (string)null);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.AgentConversationFileEmbeddingEntity", b =>
+                {
+                    b.Property<Guid>("FileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("EmbeddingProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Dimension")
+                        .HasColumnType("integer");
+
+                    b.Property<Vector>("Embedding")
+                        .IsRequired()
+                        .HasColumnType("vector");
+
+                    b.Property<int>("EndOffset")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("GeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("StartOffset")
+                        .HasColumnType("integer");
+
+                    b.HasKey("FileId", "Ordinal", "EmbeddingProfileId")
+                        .HasName("pk_agent_conversation_file_embeddings");
+
+                    b.HasIndex("EmbeddingProfileId", "Dimension")
+                        .HasDatabaseName("ix_agent_conversation_file_embeddings_profile");
+
+                    b.ToTable("agent_conversation_file_embeddings", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_agent_conversation_file_embeddings_dimension", "vector_dims(\"Embedding\") = \"Dimension\"");
+                        });
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.AgentConversationFileEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("ByteLength")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("PageCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PageKind")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Segments")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TextOutcome")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id")
+                        .HasName("pk_agent_conversation_files");
+
+                    b.HasIndex("ConversationId", "AddedAt")
+                        .HasDatabaseName("ix_agent_conversation_files_conversation");
+
+                    b.ToTable("agent_conversation_files", (string)null);
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.AttachmentDerivationSpendPeriodEntity", b =>
                 {
                     b.Property<DateTimeOffset>("PeriodStartsAt")
@@ -5380,6 +5474,41 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.AgentConversationFileEmbeddingEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.AgentConversationFileEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_agent_conversation_file_embeddings_files");
+
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.EmbeddingProfileEntity", null)
+                        .WithMany()
+                        .HasForeignKey("EmbeddingProfileId", "Dimension")
+                        .HasPrincipalKey("Id", "Dimension")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_agent_conversation_file_embeddings_embedding_profiles");
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.AgentConversationFileEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.AgentConversationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_agent_conversation_files_agent_conversations");
+
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.StoredFileEntity", null)
+                        .WithOne()
+                        .HasForeignKey("MailFathom.Infrastructure.Persistence.Entities.AgentConversationFileEntity", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_agent_conversation_files_stored_files");
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.AutomaticReplyAnswerEntity", b =>

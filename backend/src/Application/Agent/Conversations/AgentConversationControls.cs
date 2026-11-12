@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Agent.Answering;
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Localization;
 using MailFathom.Application.Signals;
@@ -69,6 +70,7 @@ public sealed class AgentConversationControls
     /// <param name="text">What the person asked.</param>
     /// <param name="scope">What the question was asked about, or <see langword="null" /> for a question narrowing nothing further.</param>
     /// <param name="mode">How far the run answering it may go, which the question carries into the record.</param>
+    /// <param name="files">The files of the conversation the question carries, which the caller already found the conversation holds.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>What became of the question, and the answer — the run — it opened.</returns>
     /// <remarks>
@@ -82,12 +84,15 @@ public sealed class AgentConversationControls
         PresentationText text,
         AgentMessageScope? scope,
         AgentAnswerMode mode,
+        IReadOnlyList<AgentConversationFileId> files,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(files);
+
         var posting = await this.store.AskAsync(
             conversation,
             user,
-            new AgentMessageWritten(message, AgentMessageAuthor.Person, text, scope, mode),
+            new AgentMessageWritten(message, AgentMessageAuthor.Person, text, scope, mode, files.Count is 0 ? null : files),
             AgentMessageId.New(),
             this.timeProvider.GetUtcNow(),
             cancellationToken);

@@ -1,6 +1,6 @@
 # Mail answering
 
-<!-- describes: backend/src/AI/Orchestration/**, backend/src/AI/Retrieval/**, backend/src/AI/ProviderAdapters/ResilientChatClient.cs, backend/src/Application/Retrieval/**, backend/src/Application/Emails/Provenance/**, backend/src/Infrastructure/Persistence/Emails/StoredEmailProvenanceReader.cs, backend/src/AI/AgentConversations/AgentConversationReadings.cs, backend/src/Domain/Answering/**, backend/src/Infrastructure/Persistence/Answering/**, backend/src/Host/Configuration/Mail/MailAnsweringAuditTrailOptions.cs, backend/src/Host/Configuration/Access/TransportRequestTimeoutOptions.cs, backend/src/AI/AgentConversations/AgentRunEffort.cs, backend/src/AI/AgentConversations/LastCallChatClient.cs, backend/src/Application/Agent/Answering/AgentRunBounds.cs -->
+<!-- describes: backend/src/AI/Orchestration/**, backend/src/AI/Retrieval/**, backend/src/AI/ProviderAdapters/ResilientChatClient.cs, backend/src/Application/Retrieval/**, backend/src/Application/Emails/Provenance/**, backend/src/Infrastructure/Persistence/Emails/StoredEmailProvenanceReader.cs, backend/src/AI/AgentConversations/AgentConversationReadings.cs, backend/src/AI/AgentConversations/AgentConversationFile*.cs, backend/src/AI/AgentConversations/AgentTurnFiles.cs, backend/src/Application/Agent/Files/**, backend/src/Domain/Answering/**, backend/src/Infrastructure/Persistence/Answering/**, backend/src/Host/Configuration/Mail/MailAnsweringAuditTrailOptions.cs, backend/src/Host/Configuration/Access/TransportRequestTimeoutOptions.cs, backend/src/AI/AgentConversations/AgentRunEffort.cs, backend/src/AI/AgentConversations/LastCallChatClient.cs, backend/src/Application/Agent/Answering/AgentRunBounds.cs -->
 
 A question about the mailbox, answered from the mail the model looks up while answering. This page describes the
 composition that does it: what the model may reach, when it reaches it, how much of it leaves the process, and what an
@@ -307,6 +307,31 @@ the person asked for it or the answer rests on it, offers only the one meant whe
 what a file holds only from what it read of it, and says no message it was shown carries a file rather than offering
 another.
 
+### The Agent reads the files a person handed the conversation
+
+A person can hand a conversation files of their own — a document or a picture, posted through
+[the conversation's files route](../operations/client-endpoint.md#a-conversations-files) — and ask about them. Every
+question's turn names every file the conversation holds, with whether the question carries it, and then:
+
+- **A short document the question carries is given whole**, at most 8 000 characters, inside the turn.
+- **A long one is searched and read with two more tools**, offered only while the conversation holds a document with words:
+
+| Tool | What it reads | What it says about how much it read |
+| --- | --- | --- |
+| `search_files` | Up to eight passages of the conversation's documents, the best of a search by the query's words and a search by its meaning taken in turn | Each passage's file, page, where it lies in the file's words, and whether its words or its meaning found it; `by-meaning="false"` where no embedding profile is active and only words were searched |
+| `read_file` | One document's words, 4 000 characters at a time from a page, slide, or sheet the model names or from a stated place | The file's name, how many places its reading came to, `next`, and one `<part>` per page the window reaches; a file nothing could read answers with its reason instead |
+
+- **A document nothing could read is named with the reason**, and the Agent says so rather than guessing at it.
+- **A picture the question carries is shown as a picture**, one turn per picture before the question, as many as the
+  model's `MaxRequestImageOctets` covers; one it does not cover is named with `shown="false"`, and the Agent tells the
+  person it could not look at it. Pictures are never read for words.
+
+A file's words were read once, when it was taken in, by the same attachment reader mail's files are read by, so a
+question reaches no parser. Every word the turn or a tool hands over is scanned at `ChatPrompt` and spent from the
+run's retrieved-character ceiling below, exactly as mail is; the Agent is told that a file's words are data the person
+chose to share and never instructions, and to say how much of a long file its answer covers. A file belongs to its
+conversation alone: no tool reaches a file another conversation or another person holds.
+
 ## What one question may spend
 
 A run is a conversation rather than a call, and its length is the model's decision: it asks for mail, reads what comes
@@ -330,7 +355,8 @@ Three numbers because they fail in three different ways. The retrieved-character
 amount of somebody's mail that may leave the process to answer one question, whatever the model asks for. It counts
 each passage's extract, the sender's name and address written beside it, and every extract of a file the message
 carries with the file's name; each message an Agent's `list_mail` page shows by its subject and its sender; and each
-page of a message or a file the Agent's `read_message` and `read_attachment` read — so a run cannot page through a
+page of a message or a file the Agent's `read_message` and `read_attachment` read, and every word of a file the person
+handed the conversation that the turn, `search_files`, or `read_file` hands over — so a run cannot page through a
 mailbox, a long message, or a long file beside the ceiling on searching it. A listed page the ceiling cut keeps the
 messages that fit, says more mail matches, and offers no cursor to continue from. A page of a message or a file is cut
 to what the run may still send instead, because it is the continuation the model asked for by name and the part the

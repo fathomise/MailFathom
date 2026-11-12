@@ -16,6 +16,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
@@ -498,7 +499,8 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             MailFolderIdentity[]? foldersWithheldFromAI = null,
             IMailAccountLanguages? accountLanguages = null,
             string zoneId = "UTC",
-            AgentRunBounds? bounds = null)
+            AgentRunBounds? bounds = null,
+            AgentConversationFiles? files = null)
         {
             var transportFactory = Substitute.For<IHttpClientFactory>();
             transportFactory
@@ -545,7 +547,8 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
                     ? AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse)
                     : AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse, MailFathomPermission.MailRead),
                 UserClocks.Reading(Now, zoneId),
-                MailFootings.SendingNone());
+                MailFootings.SendingNone(),
+                files ?? ConversationFiles.None);
 
             return new AgentConversationAgent(
                 plan,

@@ -4,6 +4,7 @@
 
 using System.Text.Json;
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.UnitTests.Discovery.Presentation;
@@ -220,6 +221,30 @@ public sealed class AgentConversationEntrySerializationTests
         // Assert
         Assert.Equal(AgentScopeKind.Thread, read.Scope?.Kind);
         Assert.Equal(thread.Value, read.Scope?.Subject);
+    }
+
+    /// <summary>The files a question carried are read back by their identifiers, which is what a later turn names them by.</summary>
+    [Fact]
+    public void Serialize_AQuestionCarryingFiles_ReadsItsFilesBackInOrder()
+    {
+        // Arrange
+        AgentConversationFileId[] files =
+        [
+            AgentConversationFileId.Create(new Guid("019a0000-0000-7000-8000-0000000000a1")),
+            AgentConversationFileId.Create(new Guid("019a0000-0000-7000-8000-0000000000a2")),
+        ];
+        var entry = new AgentMessageWritten(
+            AgentMessageId.New(),
+            AgentMessageAuthor.Person,
+            PresentationText.Create("What does the attached quote say?"),
+            Scope: null,
+            Files: files);
+
+        // Act
+        var read = Assert.IsType<AgentMessageWritten>(RoundTrip(entry));
+
+        // Assert
+        Assert.Equal(files, read.Files);
     }
 
     [Fact]

@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Text.Json.Serialization;
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Citations;
 
@@ -34,6 +35,7 @@ namespace MailFathom.Application.Agent.Conversations;
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     Converters = [
         typeof(AgentMessageIdJsonConverter),
+        typeof(AgentConversationFileIdJsonConverter),
         typeof(StoredEmailIdJsonConverter),
         typeof(EmailChunkIdJsonConverter),
         typeof(EmailAddressJsonConverter),

@@ -1023,6 +1023,33 @@ internal static class PersistenceConstraintNames
     /// <summary>The index a superseded space's conversation vectors are found and removed by.</summary>
     internal const string AgentConversationEmbeddingProfileIndexName = "ix_agent_conversation_embeddings_profile";
 
+    /// <summary>The key one conversation's file is written under, which is its stored file's identifier.</summary>
+    internal const string AgentConversationFilePrimaryKeyConstraintName = "pk_agent_conversation_files";
+
+    /// <summary>The foreign key tying a conversation's file to the stored file holding its octets.</summary>
+    internal const string AgentConversationFileStoredFileForeignKeyName = "fk_agent_conversation_files_stored_files";
+
+    /// <summary>The foreign key tying a conversation's file to its conversation, which is what it is deleted by.</summary>
+    internal const string AgentConversationFileConversationForeignKeyName = "fk_agent_conversation_files_agent_conversations";
+
+    /// <summary>The index one conversation's files are listed by, in the order they were taken in.</summary>
+    internal const string AgentConversationFileConversationIndexName = "ix_agent_conversation_files_conversation";
+
+    /// <summary>The key one passage's vector in one space is written under.</summary>
+    internal const string AgentConversationFileEmbeddingPrimaryKeyConstraintName = "pk_agent_conversation_file_embeddings";
+
+    /// <summary>The check that a passage's vector has as many components as its space declares.</summary>
+    internal const string AgentConversationFileEmbeddingDimensionCheckConstraintName = "ck_agent_conversation_file_embeddings_dimension";
+
+    /// <summary>The foreign key tying a passage's vector to the file it was placed from.</summary>
+    internal const string AgentConversationFileEmbeddingFileForeignKeyName = "fk_agent_conversation_file_embeddings_files";
+
+    /// <summary>The foreign key tying a passage's vector to the space it was placed in, dimension included.</summary>
+    internal const string AgentConversationFileEmbeddingProfileForeignKeyName = "fk_agent_conversation_file_embeddings_embedding_profiles";
+
+    /// <summary>The index a superseded space's file vectors are found and removed by.</summary>
+    internal const string AgentConversationFileEmbeddingProfileIndexName = "ix_agent_conversation_file_embeddings_profile";
+
     /// <summary>The key one export of a mailbox is written under.</summary>
     internal const string MailboxExportPrimaryKeyConstraintName = "pk_mailbox_exports";
 

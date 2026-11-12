@@ -46,8 +46,9 @@ internal sealed class RecordingAgentConversationStore : IAgentConversationStore
         Task.FromResult<AgentConversationReading?>(new(Title: null, DateTimeOffset.UnixEpoch, Composing: true, [], MoreFollows: false));
 
     /// <inheritdoc />
+    /// <remarks>Answered as a conversation already there, which is what a file taken into a case's conversation finds.</remarks>
     public Task<bool> TryStartAsync(AgentConversationId id, UserId user, DateTimeOffset now, CancellationToken cancellationToken) =>
-        throw Unasked();
+        Task.FromResult(false);
 
     /// <inheritdoc />
     public Task<long?> StopAsync(
@@ -109,5 +110,5 @@ internal sealed class RecordingAgentConversationStore : IAgentConversationStore
     public Task<bool> TryDeleteAsync(AgentConversationId id, UserId user, CancellationToken cancellationToken) =>
         throw Unasked();
 
-    private static NotSupportedException Unasked() => new("A scenario's run only appends and reads.");
+    private static NotSupportedException Unasked() => new("A scenario's run only appends, reads, and takes files in.");
 }

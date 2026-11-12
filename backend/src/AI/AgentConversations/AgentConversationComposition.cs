@@ -51,6 +51,7 @@ internal static class AgentConversationComposition
     /// <param name="scope">What the question was asked about, where it named something.</param>
     /// <param name="namedEmails">The messages a scope naming a merged arrival notification stands for, and none for any other scope.</param>
     /// <param name="question">The question, already guarded for egress.</param>
+    /// <param name="writeFiles">Writes the files the conversation holds between the statement and the ask, or <see langword="null" /> where it holds none.</param>
     /// <returns>The turn's text.</returns>
     /// <remarks>
     /// The anchor and the accounts ride on the turn rather than in the instruction, for the reason every agent here puts
@@ -69,7 +70,8 @@ internal static class AgentConversationComposition
         IReadOnlyList<MailAccountLanguage> languages,
         AgentMessageScope? scope,
         IReadOnlyList<StoredEmailId> namedEmails,
-        string question)
+        string question,
+        Action<AgentTurnDocument>? writeFiles = null)
     {
         var looking = scope switch
         {
@@ -95,6 +97,7 @@ internal static class AgentConversationComposition
         using var document = new AgentTurnDocument();
 
         document.WriteStatement($"{AgentTimeAnchor.Stated(local)}\n{zoned}{holding}{MailboxLanguages.Stated(languages)}{closing}{looking}\n");
+        writeFiles?.Invoke(document);
         document.WriteAsk(question);
 
         return document.Complete();

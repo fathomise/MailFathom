@@ -1988,6 +1988,38 @@ exact scan of this table against the active profile, with no approximate index â
 from each, and fuses the two rankings as mail search does. A vector is derived from what somebody said about their own
 mail and is classified exactly as `Payload` is.
 
+**A file a person hands a conversation is a row of `agent_conversation_files` beside the stored file holding it.** The
+row's identifier is the [stored file's](#files-a-user-record-links-to), so the octets are held, moved, and released
+exactly as a portrait's are, and the row is what links the file: the sweep of unlinked stored files never takes one a
+conversation holds. The words a document was read into are kept on the row in clear, as the words read out of a mail
+attachment are, and are classified as mail.
+
+| `agent_conversation_files` column | What it records |
+|---|---|
+| `Id` | The stored file's identifier, the primary key, and the foreign key onto `stored_files` with `ON DELETE CASCADE`, so a file erased with its owner takes the row along |
+| `ConversationId` | The conversation, the foreign key onto `agent_conversations` with `ON DELETE CASCADE`. `ix_agent_conversation_files_conversation` over it and `AddedAt` is what a turn lists them by |
+| `Name` | The name the person's machine gave the file, normalized as an attachment's name is, or null where it gave none usable |
+| `Kind`, `MediaType`, `ByteLength`, `AddedAt` | `Document` or `Picture` as text, what the octets proved them to be, how many there are, and when the file was taken in |
+| `TextOutcome`, `PageCount`, `PageKind` | For a document, what the attachment reader's reading came to, how many pages, slides, or sheets it was read into, and which of the three; null for a picture |
+| `Text`, `Segments` | The words, empty for a picture or a document nothing could be read out of, and where each page begins in them as `jsonb` |
+
+A conversation holds at most 20 files, checked in the statement that writes the row while the conversation's own row is
+held, so two uploads at once cannot both take the last place.
+
+**A long document's passages are placed in `agent_conversation_file_embeddings`,** one row per passage and embedding
+profile, written when the file is taken in where a profile is active. A passage is not stored as text: the row records
+where it lies in the file's words, which the same cut reproduces on every read.
+
+| `agent_conversation_file_embeddings` column | What it records |
+|---|---|
+| `FileId`, `Ordinal` | The file and the passage's place in its cut. The foreign key onto `agent_conversation_files` cascades, so deleting the conversation takes the vectors with its files |
+| `EmbeddingProfileId`, `Dimension` | The profile, as the composite foreign key every vector carries, restricted rather than cascaded; `ix_agent_conversation_file_embeddings_profile` is what a superseded generation's vectors are removed by |
+| `Embedding` | The vector, held to `Dimension` by `ck_agent_conversation_file_embeddings_dimension` |
+| `StartOffset`, `EndOffset`, `GeneratedAt` | Where the passage lies in the file's words, and when the vector was written |
+
+The search by meaning reads one conversation's vectors at a time by an exact scan against the active profile. A vector
+is derived from the file and is classified as the file is.
+
 ## The rules an account keeps
 
 Each mail account's rules are rows of that account, in three tables: `mail_rule_sets` holds one row per account that has

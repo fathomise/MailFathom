@@ -5,12 +5,16 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Agent.Search;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Discovery.Presentation;
+using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Embeddings;
+using MailFathom.Application.Emails.Extraction.Attachments;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
+using MailFathom.Application.StoredFiles;
 using MailFathom.Domain.Access;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
@@ -140,6 +144,7 @@ public sealed class ClientAgentConversationEndpointTests
             new ClientAgentMessageRequest(Guid.CreateVersion7(Now), "What did the supplier quote?", null),
             Resolver(),
             this.Controls(),
+            this.Files(),
             principals,
             this.Launcher(),
             new FakeTimeProvider(Now),
@@ -485,7 +490,7 @@ public sealed class ClientAgentConversationEndpointTests
             .Returns(deleted);
 
         // Act
-        var answered = await ClientAgentConversationEndpoints.Delete(Conversation, Resolver(), this.store, TestContext.Current.CancellationToken);
+        var answered = await ClientAgentConversationEndpoints.Delete(Conversation, Resolver(), this.Files(), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.IsType(expected, answered.Result);
@@ -591,6 +596,25 @@ public sealed class ClientAgentConversationEndpointTests
     private AgentConversationControls Controls() =>
         new(this.store, ClientSignalPublishers.ReachingNobody, Substitute.For<IUserLanguages>(), new FakeTimeProvider(Now));
 
+    private AgentConversationFiles Files()
+    {
+        var fileStore = Substitute.For<IAgentConversationFileStore>();
+        fileStore.ListAsync(Arg.Any<AgentConversationId>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>()).Returns([]);
+
+        return new AgentConversationFiles(
+            this.store,
+            fileStore,
+            Substitute.For<IStoredFileStore>(),
+            Substitute.For<IAttachmentTextExtractor>(),
+            new AgentConversationFilePassages(Substitute.For<IEmailTextChunker>(), EmailChunkingRules.Current),
+            new ActiveEmbeddingSpace(
+                Substitute.For<IActiveEmbeddingProfileReader>(),
+                Substitute.For<IAiProviderHealthReader>(),
+                new FakeTimeProvider(Now),
+                textEmbeddingGenerator: null),
+            new FakeTimeProvider(Now));
+    }
+
     private AgentProposalAcceptance Acceptance() =>
         new(
             this.store,
@@ -612,6 +636,7 @@ public sealed class ClientAgentConversationEndpointTests
             request,
             Resolver(),
             this.Controls(),
+            this.Files(),
             principals,
             this.Launcher(),
             new FakeTimeProvider(Now),

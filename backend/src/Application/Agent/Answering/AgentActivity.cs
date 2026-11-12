@@ -38,4 +38,7 @@ public enum AgentActivity
 
     /// <summary>The run is counting the person's mail, in total or grouped.</summary>
     CountingMail = 8,
+
+    /// <summary>The run is searching or reading the files the person handed to the conversation.</summary>
+    ReadingFiles = 9,
 }

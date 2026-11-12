@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Calendar;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Census;
@@ -33,6 +34,7 @@ namespace MailFathom.AI.AgentConversations;
 /// <param name="Authorization">Decides which tools the person's grant allows.</param>
 /// <param name="Clock">Reads the person's own zone and the instant they stand at, which a time they name is read against.</param>
 /// <param name="Footers">Answers whether a message the person sends from an account closes with their footer, and never what the footer says.</param>
+/// <param name="Files">Reads, searches, and shows the files the person handed to the conversation the run answers in.</param>
 internal sealed record AgentConversationReaders(
     MailboxScopeResolver ScopeResolver,
     IEmailKnowledgeSearch KnowledgeSearch,
@@ -47,4 +49,5 @@ internal sealed record AgentConversationReaders(
     StoredEmailResponseAuthoring ResponseAuthoring,
     AccessAuthorization Authorization,
     UserClock Clock,
-    MailFootersInForce Footers);
+    MailFootersInForce Footers,
+    AgentConversationFiles Files);

@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Text.Json.Serialization;
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Citations;
 
@@ -14,6 +15,7 @@ namespace MailFathom.Application.Agent.Conversations;
 /// <param name="Text">What they wrote.</param>
 /// <param name="Scope">What the question was asked about, and <see langword="null" /> for a message of the agent's own.</param>
 /// <param name="Mode">How far the run answering a question may go, and <see langword="null" /> for anything but a question — an instruction, a message of the agent's own, or a question asked before a question carried one.</param>
+/// <param name="Files">The files of the conversation the question carries, each once, and <see langword="null" /> for a message that carries none.</param>
 /// <remarks>
 /// <para>
 /// One entry for both authors, because a message is the same record whoever wrote it: a line of text placed in the
@@ -38,7 +40,8 @@ public sealed record AgentMessageWritten(
     AgentMessageAuthor Author,
     PresentationText Text,
     AgentMessageScope? Scope,
-    AgentAnswerMode? Mode = null)
+    AgentAnswerMode? Mode = null,
+    IReadOnlyList<AgentConversationFileId>? Files = null)
     : AgentConversationEntry
 {
     /// <summary>The value the type discriminator carries on the wire.</summary>
