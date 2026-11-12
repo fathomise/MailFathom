@@ -8,6 +8,7 @@
     "factTable": 1,
     "file": 1,
     "people": 1,
+    "report": 1,
     "suggestedAction": 1,
     "taskProposal": 1,
     "threadState": 1,
@@ -824,6 +825,69 @@
             },
             {
               "properties": {
+                "evidence": {
+                  "properties": {
+                    "citations": {
+                      "$ref": "#/properties/blocks/items/anyOf/0/properties/evidence/properties/citations"
+                    },
+                    "conflictingClaims": {
+                      "$ref": "#/properties/blocks/items/anyOf/0/properties/evidence/properties/conflictingClaims",
+                      "default": null
+                    },
+                    "freshness": {
+                      "$ref": "#/properties/blocks/items/anyOf/0/properties/evidence/properties/freshness"
+                    },
+                    "support": {
+                      "enum": [
+                        "Supported",
+                        "Unsupported",
+                        "Conflicting",
+                        "Stale",
+                        "Cited"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "support",
+                    "citations",
+                    "freshness"
+                  ],
+                  "type": "object"
+                },
+                "fileId": true,
+                "mediaType": true,
+                "name": true,
+                "pageCount": {
+                  "type": "integer"
+                },
+                "sizeOctets": {
+                  "type": "integer"
+                },
+                "title": true,
+                "type": {
+                  "const": "report"
+                },
+                "version": {
+                  "type": "integer"
+                },
+                "writtenAt": {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fileId",
+                "title",
+                "name",
+                "mediaType",
+                "sizeOctets",
+                "pageCount",
+                "writtenAt",
+                "evidence"
+              ]
+            },
+            {
+              "properties": {
                 "account": {
                   "default": null
                 },
@@ -1252,5 +1316,5 @@
       "null"
     ]
   },
-  "schemaVersion": 4
+  "schemaVersion": 5
 }

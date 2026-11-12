@@ -191,6 +191,32 @@ public sealed class AgentConversationFilesTests
         Assert.Null(foreign);
     }
 
+    /// <summary>A file's octets are read for any file this conversation of this person holds, picture or not, and for nobody else's.</summary>
+    [Fact]
+    public async Task ReadContentAsync_AFileHeldOrNot_ReadsOctetsOnlyForOneThisConversationHolds()
+    {
+        // Arrange
+        var document = new Guid("019a0000-0000-7000-8000-0000000000c1");
+        this.store.Hold(Conversation, SyntheticUser.Deployment, Held(document, AgentConversationFileKind.Document));
+        this.storedFiles
+            .ReadAsync(SyntheticUser.Deployment, StoredFileId.Create(document), Arg.Any<CancellationToken>())
+            .Returns((ReadOnlyMemory<byte>?)new byte[] { 0x25, 0x50, 0x44, 0x46 });
+        var files = this.Files();
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        // Act
+        var held = await files.ReadContentAsync(Conversation, SyntheticUser.Deployment, AgentConversationFileId.Create(document), cancellationToken);
+        var foreign = await files.ReadContentAsync(Conversation, SyntheticUser.Another, AgentConversationFileId.Create(document), cancellationToken);
+        var unknown = await files.ReadContentAsync(Conversation, SyntheticUser.Deployment, AgentConversationFileId.Create(Guid.CreateVersion7()), cancellationToken);
+
+        // Assert
+        Assert.NotNull(held);
+        Assert.Equal(AgentConversationFileId.Create(document), held.File.Id);
+        Assert.Equal([0x25, 0x50, 0x44, 0x46], held.Content.ToArray());
+        Assert.Null(foreign);
+        Assert.Null(unknown);
+    }
+
     /// <summary>Deleting a conversation removes the stored file behind every file it held, and only once the conversation itself is gone.</summary>
     [Theory]
     [InlineData(true)]

@@ -181,6 +181,7 @@
           null
         ]
       },
+      "AgentConversationFileId": {},
       "AgentScopeKind": {
         "enum": [
           "Mailbox",
@@ -13019,6 +13020,9 @@
             "$ref": "#/components/schemas/PresentationBlockFileBlock"
           },
           {
+            "$ref": "#/components/schemas/PresentationBlockReportBlock"
+          },
+          {
             "$ref": "#/components/schemas/PresentationBlockDraftBlock"
           },
           {
@@ -13041,6 +13045,7 @@
             "factTable": "#/components/schemas/PresentationBlockFactTableBlock",
             "file": "#/components/schemas/PresentationBlockFileBlock",
             "people": "#/components/schemas/PresentationBlockPeopleBlock",
+            "report": "#/components/schemas/PresentationBlockReportBlock",
             "suggestedAction": "#/components/schemas/PresentationBlockSuggestedActionBlock",
             "taskProposal": "#/components/schemas/PresentationBlockTaskProposalBlock",
             "threadState": "#/components/schemas/PresentationBlockThreadStateBlock",
@@ -13411,6 +13416,69 @@
         },
         "required": [
           "entries",
+          "evidence"
+        ]
+      },
+      "PresentationBlockReportBlock": {
+        "properties": {
+          "evidence": {
+            "$ref": "#/components/schemas/PresentationEvidence"
+          },
+          "fileId": {
+            "$ref": "#/components/schemas/AgentConversationFileId"
+          },
+          "mediaType": {
+            "$ref": "#/components/schemas/PresentationText"
+          },
+          "name": {
+            "$ref": "#/components/schemas/PresentationText"
+          },
+          "pageCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "sizeOctets": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "title": {
+            "$ref": "#/components/schemas/PresentationText"
+          },
+          "type": {
+            "enum": [
+              "report"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "writtenAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "title",
+          "name",
+          "mediaType",
+          "sizeOctets",
+          "pageCount",
+          "writtenAt",
           "evidence"
         ]
       },
@@ -21617,6 +21685,53 @@
               }
             },
             "description": "Created"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/agent/conversations/{conversationId}/files/{fileId}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "fileId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stream"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
           }
         },
         "security": [

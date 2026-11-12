@@ -80,4 +80,49 @@ Project repository: https://github.com/fathomise/MailFathom
   <data name="ReadReceiptDisplayed" xml:space="preserve">
     <value>Twoja wiadomość została wyświetlona odbiorcy. To potwierdzenie nie mówi nic o tym, czy została przeczytana lub zrozumiana.</value>
   </data>
+  <data name="AgentReportKind" xml:space="preserve">
+    <value>Raport</value>
+  </data>
+  <data name="AgentReportWritten" xml:space="preserve">
+    <value>Napisany {0}</value>
+  </data>
+  <data name="AgentReportPage" xml:space="preserve">
+    <value>Strona {0} z {1}</value>
+  </data>
+  <data name="AgentReportSources" xml:space="preserve">
+    <value>Źródła</value>
+  </data>
+  <data name="AgentReportSourcesIntroduction" xml:space="preserve">
+    <value>Wiadomości, na których opiera się raport, w kolejności pierwszego odwołania.</value>
+  </data>
+  <data name="AgentReportNoSources" xml:space="preserve">
+    <value>Ten raport nie powołuje się na żadną wiadomość ani plik.</value>
+  </data>
+  <data name="AgentReportAttachedFiles" xml:space="preserve">
+    <value>Pliki dołączone do pytania</value>
+  </data>
+  <data name="AgentReportAttachedByYou" xml:space="preserve">
+    <value>dołączony przez Ciebie</value>
+  </data>
+  <data name="AgentReportBasis" xml:space="preserve">
+    <value>na podstawie {0}</value>
+  </data>
+  <data name="AgentReportBasisMessagesAndFiles" xml:space="preserve">
+    <value>{0} i {1}</value>
+  </data>
+  <data name="AgentReportBasisOneMessage" xml:space="preserve">
+    <value>{0} wiadomości</value>
+  </data>
+  <data name="AgentReportBasisMessages" xml:space="preserve">
+    <value>{0} wiadomości</value>
+  </data>
+  <data name="AgentReportBasisOneFile" xml:space="preserve">
+    <value>{0} załączonego pliku</value>
+  </data>
+  <data name="AgentReportBasisFiles" xml:space="preserve">
+    <value>{0} załączonych plików</value>
+  </data>
+  <data name="AgentReportSourcesIntroductionWithFiles" xml:space="preserve">
+    <value>Wiadomości, na których opiera się raport, w kolejności pierwszego odwołania, oraz pliki dołączone do pytania.</value>
+  </data>
 </root>

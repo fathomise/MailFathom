@@ -14,6 +14,7 @@ using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Agent.Files;
+using MailFathom.Application.Agent.Reports;
 using MailFathom.Application.Agent.Search;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.AutomaticReplies;
@@ -152,6 +153,7 @@ using MailFathom.Infrastructure.Calendar;
 using MailFathom.Infrastructure.Certificates;
 using MailFathom.Infrastructure.DataEncryption;
 using MailFathom.Infrastructure.Documents;
+using MailFathom.Infrastructure.Documents.Reports;
 using MailFathom.Infrastructure.Embeddings;
 using MailFathom.Infrastructure.Folders;
 using MailFathom.Infrastructure.Mail;
@@ -1377,6 +1379,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAgentConversationFileStore, AgentConversationFileStore>();
         services.AddSingleton<AgentConversationFilePassages>();
         services.AddScoped<AgentConversationFiles>();
+        // A singleton, because setting a report holds nothing between calls: every report is composed and rendered on its
+        // own, and the typefaces PDFsharp keeps once read are the process's anyway.
+        services.AddSingleton<IAgentReportTypesetter, MigraDocReportTypesetter>();
         // Scoped, because an acceptance carries the act out through the drafting and sending use cases under the
         // accepting caller's principal, and a run composes under the principal of the person who asked — both of which
         // are the scope's. The composer is resolved optionally for the reason the Discover run's are: a deployment that

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Presentation.Citations;
@@ -20,6 +21,9 @@ internal static class PresentationPlanExample
 {
     /// <summary>A timestamp every part of the example is dated from, so nothing here reads a clock.</summary>
     internal static readonly DateTimeOffset ObservedAt = new(2026, 3, 2, 9, 30, 0, TimeSpan.Zero);
+
+    /// <summary>The conversation's file the example's report was stored as.</summary>
+    internal static readonly Guid ReportFile = Guid.Parse("0197a9a4-5c3e-7d10-9a2b-3c4d5e6f7081");
 
     /// <summary>The citation every block in the example rests on.</summary>
     internal static PresentationCitationId FirstCitation { get; } = PresentationCitationId.Create("c1");
@@ -61,6 +65,7 @@ internal static class PresentationPlanExample
         ThreadState(),
         AttachmentGallery(),
         File(),
+        Report(),
         Draft(),
         EventProposal(),
         TaskProposal(),
@@ -159,6 +164,17 @@ internal static class PresentationPlanExample
             Text("application/pdf"),
             128_000L,
             Text("Ada Bell"),
+            ObservedAt);
+
+    private static ReportBlock Report() =>
+        new(
+            Supported(),
+            AgentConversationFileId.Create(ReportFile),
+            Text("Offer comparison"),
+            Text("Offer comparison.pdf"),
+            Text("application/pdf"),
+            212_000L,
+            pageCount: 3,
             ObservedAt);
 
     private static DraftBlock Draft()

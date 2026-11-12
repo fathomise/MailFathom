@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using MailFathom.AI.AgentConversations;
 using MailFathom.Application.Access;
 using MailFathom.Application.Agent.Files;
+using MailFathom.Application.Agent.Reports;
 using MailFathom.Application.Calendar;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.EmailContent;
@@ -42,6 +43,7 @@ using MailFathom.Domain.Folders;
 using MailFathom.Evaluations.Answering;
 using MailFathom.Evaluations.Corpus;
 using MailFathom.Host.Configuration.Mail;
+using MailFathom.Infrastructure.Documents.Reports;
 using MailFathom.Infrastructure.Mail.Mime;
 using MailFathom.TestSupport;
 
@@ -99,13 +101,15 @@ internal static class CorpusReaders
     /// <param name="clock">The person's clock, standing at the instant the question is asked, in their zone.</param>
     /// <param name="footers">The footers the person's accounts append, or <see langword="null" /> for a mailbox where none appends one.</param>
     /// <param name="files">The files of the conversation the question is asked in, or <see langword="null" /> where it holds none.</param>
+    /// <param name="reports">Sets a report the run writes, or <see langword="null" /> for the deployment's own typesetter.</param>
     /// <returns>The readers.</returns>
     public static AgentConversationReaders For(
         AccessAuthorization authorization,
         CorpusKnowledgeSearch search,
         UserClock clock,
         MailFootersInForce? footers = null,
-        AgentConversationFiles? files = null)
+        AgentConversationFiles? files = null,
+        IAgentReportTypesetter? reports = null)
     {
         var scope = ScopeFor(authorization);
         var summaries = new CorpusSummaries();
@@ -156,7 +160,8 @@ internal static class CorpusReaders
             authorization,
             clock,
             footers ?? MailFootings.SendingNone(),
-            files ?? CorpusConversationFiles.None);
+            files ?? CorpusConversationFiles.None,
+            reports ?? new MigraDocReportTypesetter());
     }
 
     /// <summary>Gives the person a footer of their own on the corpus account, whose text no turn ever carries.</summary>

@@ -610,15 +610,9 @@ test('colours, sizes, and aligns what was written from the bar, keeps it across 
     const formatting = page.getByRole('toolbar', { name: 'Formatting' });
 
     await formatting.getByRole('button', { name: 'Text colour - Automatic' }).click();
-    await page
-        .getByRole('menu', { name: 'Text colour' })
-        .getByRole('menuitemradio', { name: 'Red', exact: true })
-        .click();
+    await chooseFrom(page, 'Text colour', 'Automatic', 'Red');
     await formatting.getByRole('button', { name: 'Text size - Normal' }).click();
-    await page
-        .getByRole('menu', { name: 'Text size' })
-        .getByRole('menuitemradio', { name: 'Large', exact: true })
-        .click();
+    await chooseFrom(page, 'Text size', 'Normal', 'Large');
 
     // The third by the keyboard alone: the control opens its menu on the choice it holds, the arrow walks to the
     // next, and Enter takes it.
@@ -661,12 +655,9 @@ test('takes a colour off again with Automatic, so the message goes out with no c
     const formatting = page.getByRole('toolbar', { name: 'Formatting' });
 
     await formatting.getByRole('button', { name: 'Text colour - Automatic' }).click();
-    await page
-        .getByRole('menu', { name: 'Text colour' })
-        .getByRole('menuitemradio', { name: 'Red', exact: true })
-        .click();
+    await chooseFrom(page, 'Text colour', 'Automatic', 'Red');
     await formatting.getByRole('button', { name: 'Text colour - Red' }).click();
-    await page.getByRole('menu', { name: 'Text colour' }).getByRole('menuitemradio', { name: 'Automatic' }).click();
+    await chooseFrom(page, 'Text colour', 'Red', 'Automatic');
 
     await expect(formatting.getByRole('button', { name: 'Text colour - Automatic' })).toBeVisible();
     await send(page);
@@ -675,6 +666,19 @@ test('takes a colour off again with Automatic, so the message goes out with no c
         expect.objectContaining({ plainTextBody: words, htmlBody: words }),
     ]);
 });
+
+/**
+ * Chooses from a formatting menu by the pointer once the menu has put the focus on the choice it holds, which it does
+ * in an effect of opening, and an effect still to run when the choice has landed moves the focus off the words the
+ * choice was just written into, so the next control acts on a selection that is no longer theirs. The keyboard path
+ * waits for that focus before it presses anything; this is the same wait for a pointer.
+ */
+async function chooseFrom(page: Page, named: string, holding: string, choice: string): Promise<void> {
+    const menu = page.getByRole('menu', { name: named });
+
+    await expect(menu.getByRole('menuitemradio', { name: holding, exact: true })).toBeFocused();
+    await menu.getByRole('menuitemradio', { name: choice, exact: true }).click();
+}
 
 const cellStyle = 'border:1px solid #d0d5dd;padding:4px 8px;vertical-align:top;text-align:left';
 

@@ -101,4 +101,49 @@ Project repository: https://github.com/fathomise/MailFathom
     <value>Your message was displayed to its recipient. This receipt says nothing about whether it was read or understood.</value>
     <comment>The words a read receipt the reader chose to send carries for the person who asked for it.</comment>
   </data>
+  <data name="AgentReportKind" xml:space="preserve">
+    <value>Report</value>
+  </data>
+  <data name="AgentReportWritten" xml:space="preserve">
+    <value>Written {0}</value>
+  </data>
+  <data name="AgentReportPage" xml:space="preserve">
+    <value>Page {0} of {1}</value>
+  </data>
+  <data name="AgentReportSources" xml:space="preserve">
+    <value>Sources</value>
+  </data>
+  <data name="AgentReportSourcesIntroduction" xml:space="preserve">
+    <value>The messages the report rests on, in the order it first cites them.</value>
+  </data>
+  <data name="AgentReportNoSources" xml:space="preserve">
+    <value>This report cites no message and no file.</value>
+  </data>
+  <data name="AgentReportAttachedFiles" xml:space="preserve">
+    <value>Files attached to the question</value>
+  </data>
+  <data name="AgentReportAttachedByYou" xml:space="preserve">
+    <value>attached by you</value>
+  </data>
+  <data name="AgentReportBasis" xml:space="preserve">
+    <value>based on {0}</value>
+  </data>
+  <data name="AgentReportBasisMessagesAndFiles" xml:space="preserve">
+    <value>{0} and {1}</value>
+  </data>
+  <data name="AgentReportBasisOneMessage" xml:space="preserve">
+    <value>{0} message</value>
+  </data>
+  <data name="AgentReportBasisMessages" xml:space="preserve">
+    <value>{0} messages</value>
+  </data>
+  <data name="AgentReportBasisOneFile" xml:space="preserve">
+    <value>{0} attached file</value>
+  </data>
+  <data name="AgentReportBasisFiles" xml:space="preserve">
+    <value>{0} attached files</value>
+  </data>
+  <data name="AgentReportSourcesIntroductionWithFiles" xml:space="preserve">
+    <value>The messages the report rests on, in the order it first cites them, and the files attached to the question.</value>
+  </data>
 </root>

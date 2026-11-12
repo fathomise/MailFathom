@@ -129,7 +129,14 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             zone.Reading(brief.Question.AskedAt));
         var files = await AgentTurnFiles.ReadAsync(this.readers.Files, this.egressGuard, effort.Ledger, brief.Question, cancellationToken);
         var fileTools = new AgentConversationFileTools(journal, this.readers.Files, this.egressGuard, effort.Ledger, brief.Question, files);
-        var tools = new AgentConversationTools(journal, retrieval, this.readers, this.egressGuard, scope.AccountIds, fileTools);
+        var tools = new AgentConversationTools(
+            journal,
+            retrieval,
+            this.readers,
+            this.egressGuard,
+            scope.AccountIds,
+            fileTools,
+            new AgentConversationReporting(brief.Question, brief.Language, files));
         var accounts = await tools.NameAccountsAsync(cancellationToken);
         var languages = MailboxLanguages.Of(accounts.Select(static account => account.Id), this.accountLanguages);
         var stickySession = StickySessionOf(brief.Question.Conversation);

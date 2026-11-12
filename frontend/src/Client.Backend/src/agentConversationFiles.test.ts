@@ -4,7 +4,10 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+    agentConversationFileRequest,
+    agentConversationFileRoute,
     agentConversationFileUploadRequest,
+    readAgentConversationFile,
     readAgentConversationFiles,
     takeAgentConversationFile,
 } from './agentConversationFiles';
@@ -160,5 +163,55 @@ describe('readAgentConversationFiles', () => {
         const listed = await readAgentConversationFiles(session, answering(403), conversation);
 
         expect(listed).toMatchObject({ outcome: 'failed', failure: { reason: 'unauthorized' } });
+    });
+});
+
+const downloadedConversation = '0199a7c4-5b1e-7c3a-9d42-000000000001';
+const downloadedFile = '0199a7c4-5b1e-7c3a-9d42-000000000002';
+
+describe('agentConversationFileRoute', () => {
+    it('names the file beneath the conversation that holds it', () => {
+        expect(agentConversationFileRoute(downloadedConversation, downloadedFile)).toBe(
+            `/agent/conversations/${downloadedConversation}/files/${downloadedFile}`,
+        );
+    });
+
+    it('encodes the identifiers it is given rather than writing them into the path as they stand', () => {
+        expect(agentConversationFileRoute('a/b', '../c')).toBe('/agent/conversations/a%2Fb/files/..%2Fc');
+    });
+});
+
+describe('agentConversationFileRequest', () => {
+    it('asks for octets under the size the answer described, presenting the credential the session holds', () => {
+        expect(agentConversationFileRequest(session, downloadedConversation, downloadedFile, 212_000)).toEqual({
+            method: 'GET',
+            path: `https://mail.example.invalid/api/client/agent/conversations/${downloadedConversation}/files/${downloadedFile}`,
+            headers: { Accept: 'application/octet-stream', Authorization: 'Basic dGVzdA==' },
+            longestAnswer: 212_000,
+        });
+    });
+});
+
+describe('readAgentConversationFile', () => {
+    it('hands the composed download to the adapter and answers exactly what it answered', async () => {
+        const asked: ClientRequest[] = [];
+
+        const answer = await readAgentConversationFile(
+            session,
+            downloadedConversation,
+            downloadedFile,
+            17,
+            (request) => {
+                asked.push(request);
+
+                return Promise.resolve('delivered');
+            },
+            () => null,
+        );
+
+        expect([asked, answer]).toEqual([
+            [agentConversationFileRequest(session, downloadedConversation, downloadedFile, 17)],
+            'delivered',
+        ]);
     });
 });

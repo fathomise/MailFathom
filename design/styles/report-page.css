@@ -66,7 +66,6 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .page th { text-align: left; font-weight: 600; color: var(--ink); padding: 5pt 6pt; border-bottom: 1pt solid var(--ink); background: var(--tint); vertical-align: bottom; }
 .page td { padding: 5pt 6pt; border-bottom: 0.5pt solid var(--rule); vertical-align: top; color: var(--ink2); }
 .page td.num, .page th.num { text-align: right; }
-.page caption { caption-side: top; text-align: left; font-family: 'Geist', system-ui, sans-serif; font-size: 8.5pt; color: var(--ink3); padding-bottom: 5pt; }
 
 /* The list of sources that closes a report. */
 .sources { display: flex; flex-direction: column; gap: 0; padding: 0; margin: 0; list-style: none; counter-reset: src; }

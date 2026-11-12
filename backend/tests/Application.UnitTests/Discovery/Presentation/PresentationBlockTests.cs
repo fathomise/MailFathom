@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Agent.Files;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Presentation.Citations;
@@ -365,4 +366,20 @@ public sealed class PresentationBlockTests
             sizeOctets: 1L,
             sender: null,
             sentAt: null);
+
+    /// <summary>A report is set on at least one page, so a count below it describes no file that was written.</summary>
+    [Fact]
+    public void ReportBlock_NoPages_IsRefused()
+    {
+        // Act, Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ReportBlock(
+            PresentationEvidence.Unsupported(PresentationFreshness.Unknown),
+            AgentConversationFileId.Create(PresentationPlanExample.ReportFile),
+            PresentationPlanExample.Text("Offer comparison"),
+            PresentationPlanExample.Text("Offer comparison.pdf"),
+            PresentationPlanExample.Text("application/pdf"),
+            sizeOctets: 1L,
+            pageCount: 0,
+            PresentationPlanExample.ObservedAt));
+    }
 }

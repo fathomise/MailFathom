@@ -10,6 +10,7 @@
 *.gif binary
 *.ico binary
 *.pdf binary
+*.ttf binary
 *.woff binary
 *.woff2 binary
 *.jar binary
@@ -19,6 +20,10 @@
 # Noto Emoji's pictures are committed byte for byte as upstream publishes them, trailing whitespace included: an
 # Apache-2.0 file this repository changed would have to carry a notice saying so.
 frontend/src/Client.App/src/assets/emoji/*.svg -whitespace
+
+# The report typefaces' licence texts are the SIL Open Font License as each upstream ships it, trailing whitespace
+# included, because the licence is to travel with the fonts as written.
+backend/src/Infrastructure/Documents/Reports/Fonts/OFL-*.txt -whitespace
 
 .agents/skills/brandkit/** linguist-vendored
 .agents/skills/design-taste-frontend/** linguist-vendored

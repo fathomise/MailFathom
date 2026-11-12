@@ -1137,6 +1137,138 @@ public sealed class AgentConversationScenarioTests : IDisposable
 
     public void Dispose() => this.store.Delete(recursive: true);
 
+    /// <summary>A total asked as a question gets an answer, so a run writing a report for it is caught by the report check.</summary>
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task RunAsync_AnOrdinaryQuestion_PassesTheReportCheckOnlyWhereNoReportIsWritten(bool writes, bool passes)
+    {
+        // Arrange
+        var invoice = InvoiceRunMail.All[13].Id.ToString();
+        using var model = new ScriptedAgentChatClient(
+            [ReadThread(invoice), .. writes ? new[] { WriteReport("Brackenford invoices", $"Brackenford invoiced 18,940.00 EUR in May.[^{invoice}]") } : []],
+            "Brackenford Office Supply invoiced you 18,940.00 EUR in its largest invoice, BO-2614.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Report.OrdinaryQuestionWritesNone"), model);
+
+        // Assert
+        Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.WritesReportAsAskedMetricName).Value);
+    }
+
+    /// <summary>A report asked for lists the invoice it rests on only where it cites a message the run read, so one citing nothing is caught by the sources check.</summary>
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task RunAsync_AReportAskedFor_ListsItsSourcesOnlyWhereItCitesTheMessageItRead(bool cites, bool passes)
+    {
+        // Arrange
+        var invoice = InvoiceRunMail.All[13].Id.ToString();
+        var citation = cites ? $"[^{invoice}]" : string.Empty;
+        using var model = new ScriptedAgentChatClient(
+            [ReadThread(invoice), WriteReport("Brackenford Office Supply invoices", $"## Invoices\n\nThe largest invoice of the year is BO-2614, for 18,940.00 EUR.{citation}")],
+            "I wrote the report on Brackenford's invoices; it covers the largest one of the year.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Report.AskedFor"), model);
+
+        // Assert
+        Assert.Equal(
+            (true, passes),
+            (verdict.Get<BooleanMetric>(AgentConversationScenario.WritesReportAsAskedMetricName).Value, verdict.Get<BooleanMetric>(AgentConversationScenario.ReportListsItsSourcesMetricName).Value));
+    }
+
+    /// <summary>A report listing each invoice as a finding cites every one of them, so a single uncited line is caught by the findings check.</summary>
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task RunAsync_AReportListingFindings_PassesTheFindingsCheckOnlyWhereEveryOneCites(bool everyOne, bool passes)
+    {
+        // Arrange
+        var latest = InvoiceRunMail.All[^1].Id.ToString();
+        var earlier = InvoiceRunMail.All[^4].Id.ToString();
+        var second = everyOne ? $"[^{earlier}]" : string.Empty;
+        var body = $"""
+            ## Faktury Wrenhollow Print
+
+            - Faktura WP-2627 na kwotę podaną w wiadomości, płatna w ciągu trzydziestu dni.[^{latest}]
+            - Faktura WP-2624 za materiały drukowane, płatna w ciągu trzydziestu dni od wiadomości.{second}
+            """;
+        using var model = new ScriptedAgentChatClient(
+            [ReadThread(latest), ReadThread(earlier), WriteReport("Faktury Wrenhollow Print", body)],
+            "Napisałem raport z fakturami Wrenhollow Print; obejmuje dwie z nich.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Report.EveryFindingSourced"), model);
+
+        // Assert
+        Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.ReportCitesEveryFindingMetricName).Value);
+    }
+
+    /// <summary>A report asked for a table, a nested list, and a quotation holds all three, so one holding only the table is caught by the structure check.</summary>
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task RunAsync_AReportAskedForThreeStructures_PassesTheStructureCheckOnlyWhereItHoldsEachOne(bool all, bool passes)
+    {
+        // Arrange
+        var invoice = InvoiceRunMail.All[13].Id.ToString();
+        var rest = all
+            ? $"\n\n- Brackenford Office Supply\n  - BO-2614[^{invoice}]\n\n> Payment is made by bank transfer to the account printed on the invoice.\n>\n> — Mirela Haugen[^{invoice}]"
+            : string.Empty;
+        using var model = new ScriptedAgentChatClient(
+            [ReadThread(invoice), WriteReport("Three suppliers", $"| Supplier | Total |\n|---|---:|\n| Brackenford Office Supply | 18,940.00 EUR[^{invoice}] |{rest}")],
+            "I wrote the report comparing the three suppliers; it covers the invoices I read.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Report.SetAsAsked"), model);
+
+        // Assert
+        Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.ReportSetAsAskedMetricName).Value);
+    }
+
+    /// <summary>A report asked for more years than the mailbox holds says what it does not cover, so one silently covering the year it found is caught by the coverage check.</summary>
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task RunAsync_AReportAskedForMoreThanTheMailboxHolds_PassesTheCoverageCheckOnlyWhereItSaysWhatItDoesNotCover(bool states, bool passes)
+    {
+        // Arrange
+        var invoice = InvoiceRunMail.All[0].Id.ToString();
+        var reach = states ? "\n\nThe mailbox goes back only to January 2026, so this report does not cover 2020 to 2025." : string.Empty;
+        using var model = new ScriptedAgentChatClient(
+            [ReadThread(invoice), WriteReport("Tallmoor Paper invoices", $"- The first Tallmoor Paper invoice in the mailbox arrived in January 2026.[^{invoice}]{reach}")],
+            "I wrote the report on the Tallmoor Paper invoices.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Report.SaysWhatItDoesNotCover"), model);
+
+        // Assert
+        Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.ReportSaysWhatItDoesNotCoverMetricName).Value);
+    }
+
+    /// <summary>A report asked in Polish is written in Polish, so one written in English is caught by the language check.</summary>
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task RunAsync_AReportAskedInPolish_PassesTheLanguageCheckOnlyWhereItIsWrittenInPolish(bool polish, bool passes)
+    {
+        // Arrange
+        var latest = InvoiceRunMail.All[^1].Id.ToString();
+        var body = polish
+            ? $"- Ostatnia faktura Wrenhollow Print to WP-2627 i jest płatna w ciągu trzydziestu dni od wiadomości.[^{latest}]"
+            : $"- The latest Wrenhollow Print invoice is WP-2627 and it is payable within thirty days of the message.[^{latest}]";
+        using var model = new ScriptedAgentChatClient(
+            [ReadThread(latest), WriteReport("Faktury Wrenhollow Print", body)],
+            "Napisałem raport z fakturami Wrenhollow Print; obejmuje ostatnią z nich.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Report.EveryFindingSourced"), model);
+
+        // Assert
+        Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.ReportInThePersonsLanguageMetricName).Value);
+    }
+
     private static AgentConversationScenario Named(string name) =>
         AgentConversationScenario.All.Single(scenario => scenario.Name == name);
 
@@ -1164,6 +1296,9 @@ public sealed class AgentConversationScenarioTests : IDisposable
 
     private static (string Tool, IDictionary<string, object?> Arguments) Offer(string messageId, int attachment) =>
         (AgentConversationTools.OfferAttachmentToolName, new Dictionary<string, object?> { ["messageId"] = messageId, ["attachment"] = attachment });
+
+    private static (string Tool, IDictionary<string, object?> Arguments) WriteReport(string title, string markdown) =>
+        (AgentConversationTools.WriteReportToolName, new Dictionary<string, object?> { ["title"] = title, ["markdown"] = markdown });
 
     private static (string Tool, IDictionary<string, object?> Arguments) ReadThread(string messageId) =>
         ("read_thread", new Dictionary<string, object?> { ["messageId"] = messageId });

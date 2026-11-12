@@ -70,4 +70,49 @@ public enum ApplicationText
 
     /// <summary>The status line while the Agent searches or reads the files the person handed to the conversation.</summary>
     AgentStatusReadingFiles = 20,
+
+    /// <summary>The word a report the Agent writes is labelled with above its title.</summary>
+    AgentReportKind = 21,
+
+    /// <summary>When a report was written, under its title; takes the date and time already formatted.</summary>
+    AgentReportWritten = 22,
+
+    /// <summary>Which page of how many, in a report's running foot; takes the page and the count.</summary>
+    AgentReportPage = 23,
+
+    /// <summary>The heading of the list of sources a report closes with.</summary>
+    AgentReportSources = 24,
+
+    /// <summary>What the list of a report's sources holds, under its heading.</summary>
+    AgentReportSourcesIntroduction = 25,
+
+    /// <summary>What a report's list of sources says where the report cites no message and no file.</summary>
+    AgentReportNoSources = 26,
+
+    /// <summary>The heading over the files attached to the question a report cites.</summary>
+    AgentReportAttachedFiles = 27,
+
+    /// <summary>Who a file a report cites came from, which is always the person who asked.</summary>
+    AgentReportAttachedByYou = 28,
+
+    /// <summary>What a report rests on, said under its title, around the count of messages, of files, or of both.</summary>
+    AgentReportBasis = 29,
+
+    /// <summary>The count of messages a report rests on beside the count of files, inside <see cref="AgentReportBasis" />.</summary>
+    AgentReportBasisMessagesAndFiles = 30,
+
+    /// <summary>One message a report rests on, inside <see cref="AgentReportBasis" />.</summary>
+    AgentReportBasisOneMessage = 31,
+
+    /// <summary>Several messages a report rests on, inside <see cref="AgentReportBasis" />.</summary>
+    AgentReportBasisMessages = 32,
+
+    /// <summary>One attached file a report rests on, inside <see cref="AgentReportBasis" />.</summary>
+    AgentReportBasisOneFile = 33,
+
+    /// <summary>Several attached files a report rests on, inside <see cref="AgentReportBasis" />.</summary>
+    AgentReportBasisFiles = 34,
+
+    /// <summary>The sentence opening a report's sources where it cites the question's files as well as messages.</summary>
+    AgentReportSourcesIntroductionWithFiles = 35,
 }

@@ -6,6 +6,7 @@ import { failed, failureReasonForStatus, read, type ClientResult } from './failu
 import { asRecord } from './json';
 import {
     parseAnswerFile,
+    parseAnswerReport,
     parseAttachmentEntries,
     parseBlockEvidence,
     parseComposedDraft,
@@ -21,6 +22,7 @@ import {
     parseTaskProposal,
     parseTimelineEntries,
     type AnswerFile,
+    type AnswerReport,
     type AttachmentEntry,
     type BlockEvidence,
     type ComposedDraft,
@@ -77,7 +79,7 @@ export function discoveryRunRoute(runId: string): string {
  * A run whose plan states a higher revision is drawn as far as it can be and the reader is told so; a run stating this
  * one or lower carries no plan shape this client was not built for.
  */
-export const understoodPlanSchemaVersion = 4;
+export const understoodPlanSchemaVersion = 5;
 
 /** The block catalogue the plan is closed over, as the service spells each type on the wire. */
 export const answerBlockTypes = [
@@ -89,6 +91,7 @@ export const answerBlockTypes = [
     'threadState',
     'attachmentGallery',
     'file',
+    'report',
     'draft',
     'eventProposal',
     'taskProposal',
@@ -166,6 +169,11 @@ export type AnswerBlock =
           readonly type: 'file';
           readonly evidence: BlockEvidence;
           readonly file: AnswerFile;
+      })
+    | (NamedBlock & {
+          readonly type: 'report';
+          readonly evidence: BlockEvidence;
+          readonly report: AnswerReport;
       })
     | (NamedBlock & {
           readonly type: 'draft';
@@ -767,6 +775,13 @@ export function parseBlock(value: unknown): AnswerBlock | null {
             const file = parseAnswerFile(record);
 
             return evidence === null || file === null ? null : { type: named, named, evidence, file };
+        }
+
+        case 'report': {
+            const evidence = parseBlockEvidence(record['evidence']);
+            const report = parseAnswerReport(record);
+
+            return evidence === null || report === null ? null : { type: named, named, evidence, report };
         }
 
         case 'draft': {

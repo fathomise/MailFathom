@@ -86,6 +86,19 @@
     </ItemGroup>
   </Target>
 
+  <!-- The PDFsharp package carries three assemblies no report renders through, and one of them carries Microsoft's Segoe
+       WP typefaces under an end-user licence for the product they came with rather than a permissive one. Neither
+       PdfSharp nor MigraDoc references any of the three - only the package's own sample and quality assemblies reach
+       the fonts - so they are kept out of the build output, the published artifact, and the dependency manifest alike.
+       Removed after ResolvePackageAssets, which is where NuGet contributes them, and before the manifest is written,
+       which reads the same items. -->
+  <Target Name="RemoveUnusedPdfSharpAssemblies" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <RuntimeCopyLocalItems Remove="@(RuntimeCopyLocalItems)"
+                             Condition="'%(RuntimeCopyLocalItems.NuGetPackageId)' == 'PDFsharp' and ('%(Filename)' == 'PdfSharp.WPFonts' or '%(Filename)' == 'PdfSharp.Snippets' or '%(Filename)' == 'PdfSharp.Quality')" />
+    </ItemGroup>
+  </Target>
+
   <!-- The native artifact is this project's publish output, and so is the container image, which copies that output
        and nothing else. The AGPL-3.0-only grant and the original-author attribution therefore travel with both, rather
        than being attached by a release step nobody runs the same way twice. -->

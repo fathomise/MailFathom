@@ -14,7 +14,7 @@ using Microsoft.Net.Http.Headers;
 
 namespace MailFathom.Host.Api;
 
-/// <summary>Takes files into a person's conversation with the Agent and lists the files a conversation holds.</summary>
+/// <summary>Takes files into a person's conversation with the Agent, lists the files a conversation holds, and hands one back whole.</summary>
 /// <remarks>
 /// <para>
 /// A file is posted as the request body itself, with the name the person's machine gave it in a
@@ -22,7 +22,7 @@ namespace MailFathom.Host.Api;
 /// what a file is, is decided from its octets. The name is shown back and decides nothing.
 /// </para>
 /// <para>
-/// Both routes are published under the grant that uses the Agent, and both resolve whose conversation it is from the
+/// Every route is published under the grant that uses the Agent, and each resolves whose conversation it is from the
 /// signed-in account, so a conversation of somebody else answers as one that does not exist. A file is taken into a
 /// conversation the client names, which is started there where nothing stands under that identifier yet — so a file
 /// attached before the first question is posted is held by the conversation that question then starts.
@@ -35,6 +35,9 @@ internal static class ClientAgentConversationFileEndpoints
 {
     /// <summary>The route a conversation's files are taken in and listed at, relative to the client prefix.</summary>
     internal const string FilesRoute = "/agent/conversations/{conversationId:guid}/files";
+
+    /// <summary>The route one of a conversation's files is downloaded from, relative to the client prefix.</summary>
+    internal const string FileRoute = FilesRoute + "/{fileId:guid}";
 
     /// <summary>Maps the routes into the client group, so they inherit the group's requirement, its policy, and its limits.</summary>
     /// <param name="api">The client route group.</param>
@@ -52,7 +55,66 @@ internal static class ClientAgentConversationFileEndpoints
             .WithMetadata(new RequestSizeLimitAttribute(AgentConversationFileBounds.MaximumFileOctets))
             .Accepts<Stream>(ClientDraftEndpoints.AnyUploadedMediaType)
             .RequirePermission(MailFathomPermission.AssistantUse);
+
+        api.MapGet(FileRoute, DownloadAsync)
+            .RequirePermission(MailFathomPermission.AssistantUse)
+            .Produces<Stream>(StatusCodes.Status200OK, AttachmentContentResponse.FallbackMediaType);
     }
+
+    /// <summary>Hands back one file a conversation holds, whole: one the person attached, or a report the Agent wrote.</summary>
+    /// <param name="conversationId">The conversation.</param>
+    /// <param name="fileId">The file, as the conversation's list or an answer's block named it.</param>
+    /// <param name="scopeResolver">Names the acting user, whose conversation it has to be.</param>
+    /// <param name="files">The conversations' files.</param>
+    /// <param name="context">The exchange, whose response is told the octets are not to be sniffed or cached.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The file's octets; <c>404</c> where this person's conversation holds no such file — the conversation deleted, the file gone, or either somebody else's; or <c>403</c> for a caller whose grant does not carry <c>mailfathom.assistant.use</c>.</returns>
+    /// <remarks>
+    /// Served as an attachment, under the media type its octets proved and with sniffing refused, for the reason a mail
+    /// attachment is: a file a person uploaded is bytes from outside the deployment, and rendered inline from its origin
+    /// it could be a page of its own there. Every absence answers alike, so asking says nothing about a conversation the
+    /// caller cannot read. <c>no-store</c> keeps the octets out of every cache between the deployment and the reader.
+    /// </remarks>
+    internal static async Task<Results<FileContentHttpResult, NotFound>> DownloadAsync(
+        [FromRoute] Guid conversationId,
+        [FromRoute] Guid fileId,
+        [FromServices] MailboxScopeResolver scopeResolver,
+        [FromServices] AgentConversationFiles files,
+        HttpContext context,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scopeResolver);
+        ArgumentNullException.ThrowIfNull(files);
+        ArgumentNullException.ThrowIfNull(context);
+
+        if (conversationId == Guid.Empty || fileId == Guid.Empty)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var held = await files.ReadContentAsync(
+            AgentConversationId.Create(conversationId),
+            scopeResolver.User,
+            AgentConversationFileId.Create(fileId),
+            cancellationToken);
+
+        if (held is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        context.Response.Headers.XContentTypeOptions = "nosniff";
+        context.Response.Headers.CacheControl = "no-store";
+
+        return TypedResults.File(
+            held.Content.ToArray(),
+            held.File.MediaType,
+            held.File.Name ?? FallbackNameOf(held.File));
+    }
+
+    /// <summary>Names a file the upload gave no usable name, so a download still saves under one.</summary>
+    private static string FallbackNameOf(AgentConversationFile file) =>
+        file.Id.Value.ToString("N", CultureInfo.InvariantCulture);
 
     /// <summary>Lists the files one conversation holds, in the order they were taken in.</summary>
     /// <param name="conversationId">The conversation.</param>

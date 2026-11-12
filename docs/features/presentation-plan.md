@@ -13,8 +13,8 @@ described here, because what a block looks like is the client's rather than the 
 
 ## Two properties the contract is built around
 
-**It is closed.** A plan holds blocks drawn from a catalogue of twelve types and nothing else. No part of it is markup,
-a template, an expression, or a reference to code, and adding a thirteenth block type is a change to
+**It is closed.** A plan holds blocks drawn from a catalogue of thirteen types and nothing else. No part of it is markup,
+a template, an expression, or a reference to code, and adding a fourteenth block type is a change to
 `PresentationBlockType` that a reviewer reads rather than a string a model chose. That is what makes generative
 presentation safe here: the flexibility is in which blocks a run composes and what it puts in them, and the drawing is
 typed UI a client already has.
@@ -71,7 +71,7 @@ yielded nothing is not an account that was skipped, and its staleness may be why
 bound **what the run drew on** rather than what the mailbox holds, so a reader can see that an answer about a decade of
 correspondence rested on three weeks of it.
 
-## The twelve block types
+## The thirteen block types
 
 Each block carries the evidence behind it — see [§ What the correspondence does for a block](#what-the-correspondence-does-for-a-block) —
 beside the data below.
@@ -86,18 +86,19 @@ beside the data below.
 | `threadState` | where a conversation stands is wanted | participants, plus what was agreed, what is open, and what somebody undertook |
 | `attachmentGallery` | files are being looked for | per entry: the citation, the name, the declared media type, the size, and whether it can be opened |
 | `file` | one file a message carries is handed to the reader | the citation of the message it arrived on, its position there, and what that message said of it: the name, the declared media type, the size, the sender, and when it was sent |
+| `report` | the person asked for a report, which the Agent wrote and the service set as a PDF | the conversation's file the PDF was stored as, the report's title, the name, the media type, the size, and the page count of the file, and when it was written |
 | `draft` | the result is text to be sent | recipients, subject, body, what has become of it locally, the instant it is to leave where the person asked for a later send, and the account it is sent from |
 | `eventProposal` | a date is to be put on the person's calendar | a title, when it begins, when it ends where it states an end, and whether it is a whole day |
 | `taskProposal` | something is to be owed | a title, and the day it is due where it states one |
 | `suggestedAction` | there is a sensible next step | which step, why, what it would change, and whether it must be confirmed |
 
-**Four of the twelve offer the reader something to do**, and the catalogue says which: `draft`, `eventProposal`,
-`taskProposal`, and `suggestedAction` carry controls where a surface draws them with any, while the other eight are
+**Four of the thirteen offer the reader something to do**, and the catalogue says which: `draft`, `eventProposal`,
+`taskProposal`, and `suggestedAction` carry controls where a surface draws them with any, while the other nine are
 read. A Discover run's answer is drawn read-only throughout, so nothing there acts on the distinction; the Agent's
 record does, writing a block the person can answer as a proposal it can then record an outcome against, and everything
 else as a reading.
 
-Six of them are worth a note.
+Seven of them are worth a note.
 
 **An answer's text carries no picture, and every link in it is judged as a link in mail is.** The text is Markdown a
 model wrote after reading mail anybody can send, so a message can ask it to write a picture that would call a stranger's
@@ -146,6 +147,16 @@ before anything is asked. None of the file's bytes are in the plan or anywhere b
 press, so a message removed since or no longer theirs to read answers as gone rather than as whatever the plan
 remembered. That is also why it is a type of its own rather than an `attachmentGallery` entry: a gallery lists files
 for looking at and never hands one over.
+
+**A report is a file of the conversation, written rather than proposed.** A `report` block is the Agent handing the
+reader a report it wrote — [Mail answering § The Agent writes a report](mail-answering.md#the-agent-writes-a-report) is
+how — so it names the conversation's file the PDF was stored as rather than a message, and carries what the file was
+when it was written: the title, the name it downloads under, its type, its size, its page count, and the instant its
+first page states. Its evidence cites the messages the report's list of sources names, as many as a block's evidence
+holds. A client downloads it through
+[the conversation's file route](../operations/client-endpoint.md#a-conversations-files), under the reader's grant, so
+a conversation deleted since answers as gone. Writing one changes nothing in the mailbox, so it is a reading the Agent
+writes on its own turn rather than something the person accepts. It joined the catalogue at schema version `5`.
 
 ## What the correspondence does for a block
 

@@ -17,6 +17,7 @@ using MailFathom.Application.Accounts;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Agent.Files;
+using MailFathom.Application.Agent.Reports;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
@@ -548,7 +549,8 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
                     : AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse, MailFathomPermission.MailRead),
                 UserClocks.Reading(Now, zoneId),
                 MailFootings.SendingNone(),
-                files ?? ConversationFiles.None);
+                files ?? ConversationFiles.None,
+                Substitute.For<IAgentReportTypesetter>());
 
             return new AgentConversationAgent(
                 plan,
