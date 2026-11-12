@@ -34,9 +34,11 @@ internal sealed class AgentConversationFileStore(
 {
     /// <inheritdoc />
     /// <remarks>
-    /// One statement that holds the conversation's row while it counts the files beside it, so the last place is taken
-    /// once. Where it writes nothing, a second read tells a conversation that is full from one that is not this
-    /// person's; the stored file the row would have named is the caller's to remove.
+    /// The conversation's row is locked in a statement of its own and the files are counted in the next, inside one
+    /// transaction: under read committed a statement that waited for a lock still counts from the snapshot it started
+    /// with, so a count taken beside the lock would let two uploads at once both take the last place. Where nothing is
+    /// written, the conversation is full or is not this person's; the stored file the row would have named is the
+    /// caller's to remove.
     /// </remarks>
     public async Task<AgentConversationFileRefusal?> RecordAsync(
         AgentConversationId conversation,
@@ -54,45 +56,51 @@ internal sealed class AgentConversationFileStore(
         var conversationId = conversation.Value;
         var userId = user.Value;
 
+        await using var recording = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var locked = await dbContext.Database
+            .SqlQuery<Guid>(
+                $"""
+                 SELECT c."Id" AS "Value" FROM agent_conversations AS c
+                 WHERE c."Id" = {conversationId} AND c."UserId" = {userId}
+                 FOR UPDATE
+                 """)
+            .ToListAsync(cancellationToken);
+
+        if (locked.Count is 0)
+        {
+            return AgentConversationFileRefusal.NoSuchConversation;
+        }
+
         int written;
         try
         {
             written = await dbContext.Database.ExecuteSqlAsync(
                 $"""
-                 WITH conversation AS (
-                     SELECT c."Id" FROM agent_conversations AS c
-                     WHERE c."Id" = {conversationId} AND c."UserId" = {userId}
-                     FOR UPDATE),
-                 held AS (
-                     SELECT count(*) AS files FROM agent_conversation_files AS f WHERE f."ConversationId" = {conversationId})
                  INSERT INTO agent_conversation_files
                      ("Id", "ConversationId", "Name", "Kind", "MediaType", "ByteLength", "AddedAt", "TextOutcome", "PageCount", "PageKind", "Text", "Segments")
-                 SELECT {file.Id.Value}, conversation."Id", CAST({file.Name} AS varchar), {file.Kind.ToString()}, {file.MediaType}, {file.ByteLength},
+                 SELECT {file.Id.Value}, {conversationId}, CAST({file.Name} AS varchar), {file.Kind.ToString()}, {file.MediaType}, {file.ByteLength},
                         {file.AddedAt}, CAST({reading?.Outcome.ToString()} AS varchar), {reading?.PageCount ?? 0}, CAST({reading?.PageKind?.ToString()} AS varchar),
                         {document.Text}, CAST(CAST({segments} AS text) AS jsonb)
-                 FROM conversation, held
-                 WHERE held.files < {AgentConversationFileBounds.MaximumFilesPerConversation}
+                 WHERE (SELECT count(*) FROM agent_conversation_files AS f WHERE f."ConversationId" = {conversationId})
+                     < {AgentConversationFileBounds.MaximumFilesPerConversation}
                  """,
                 cancellationToken);
         }
-        catch (DbUpdateException refused) when (refused.InnerException is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation })
+        catch (PostgresException refused) when (refused.SqlState == PostgresErrorCodes.ForeignKeyViolation)
         {
             // The stored file was removed, or the person erased, between its write and this one.
             return AgentConversationFileRefusal.NoSuchConversation;
         }
-        catch (PostgresException refused) when (refused.SqlState == PostgresErrorCodes.ForeignKeyViolation)
+
+        if (written is 0)
         {
-            return AgentConversationFileRefusal.NoSuchConversation;
+            return AgentConversationFileRefusal.ConversationFull;
         }
 
-        if (written > 0)
-        {
-            return null;
-        }
+        await recording.CommitAsync(cancellationToken);
 
-        return await dbContext.AgentConversations.AnyAsync(held => held.Id == conversationId && held.UserId == userId, cancellationToken)
-            ? AgentConversationFileRefusal.ConversationFull
-            : AgentConversationFileRefusal.NoSuchConversation;
+        return null;
     }
 
     /// <inheritdoc />

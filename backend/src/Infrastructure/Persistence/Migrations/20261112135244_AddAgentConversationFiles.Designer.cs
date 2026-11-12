@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261112132636_AddAgentConversationFiles")]
+    [Migration("20261112135244_AddAgentConversationFiles")]
     partial class AddAgentConversationFiles
     {
         /// <inheritdoc />
@@ -3649,6 +3649,11 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
+
+                    b.Property<bool>("MarksExternalMail")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("ShortName")
                         .IsRequired()

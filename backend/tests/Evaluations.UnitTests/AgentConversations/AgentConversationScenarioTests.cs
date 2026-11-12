@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Globalization;
+using System.Text;
 using MailFathom.AI.AgentConversations;
 using MailFathom.AI.Chat;
 using MailFathom.AI.Retrieval;
@@ -11,12 +12,12 @@ using MailFathom.Evaluations.AgentConversations;
 using MailFathom.Evaluations.Answering;
 using MailFathom.Evaluations.Corpus;
 using MailFathom.Evaluations.Costing;
+using MailFathom.Evaluations.Descriptions;
 using MailFathom.Evaluations.Judging;
 using MailFathom.Evaluations.Languages;
 using MailFathom.Evaluations.Providers;
 using MailFathom.Evaluations.Reporting;
 using MailFathom.Evaluations.UnitTests.Enrichment;
-using MailFathom.Host.Configuration.Chat;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
 using Xunit;
@@ -502,7 +503,7 @@ public sealed class AgentConversationScenarioTests : IDisposable
     }
 
     [Fact]
-    public void All_EveryPieceOfEvidence_IsCarriedBySomeMessageOrTheAgenda()
+    public void All_EveryPieceOfEvidence_IsCarriedBySomeMessageFileOrTheAgenda()
     {
         // Arrange
         string[] sources =
@@ -511,6 +512,9 @@ public sealed class AgentConversationScenarioTests : IDisposable
             .. AgentConversationScenario.Mailbox.SelectMany(static message => message.Attachments).Select(static attachment => attachment.FileName).OfType<string>(),
             .. LongMail.Readings.Values.SelectMany(static readings => readings).Select(static stored => stored.Text),
             .. PersonalAgenda.Texts,
+            .. AgentConversationScenario.All.SelectMany(static scenario => scenario.Files).Select(static file => Encoding.UTF8.GetString(file.Content.Span)),
+            .. AgentConversationScenario.All.SelectMany(static scenario => scenario.Files).Select(static file => file.Name),
+            .. ImageDescriptionScenario.All.Select(static picture => picture.Shows),
         ];
 
         // Act
@@ -776,13 +780,17 @@ public sealed class AgentConversationScenarioTests : IDisposable
     {
         // Arrange
         using var model = new ScriptedAgentChatClient([], answer);
-        var plan = new ChatModelDeclarationOptions
-        {
-            Alias = "model-under-test",
-            Model = "model-under-test",
-            Address = string.Empty,
-            MaxRequestImageOctets = imageOctets,
-        }.ToPlan();
+        var declared = PlanFor(model);
+        var plan = ChatGenerationPlan.Create(
+            declared.Endpoint,
+            declared.MaximumOutputTokens,
+            declared.Temperature,
+            declared.TopP,
+            declared.ReasoningEffort,
+            declared.MaximumMessagesPerRequest,
+            declared.MaximumRequestCharacters,
+            imageOctets,
+            declared.RequestTimeout);
 
         // Act
         var verdict = await this.RunAsync(Named("Agent.Files.PictureTheAnswerHasToRead"), model, plan);

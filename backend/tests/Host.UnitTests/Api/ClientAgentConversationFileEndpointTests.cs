@@ -6,6 +6,7 @@ using System.Text;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Agent.Files;
 using MailFathom.Application.AiProviders;
+using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Extraction.Attachments;

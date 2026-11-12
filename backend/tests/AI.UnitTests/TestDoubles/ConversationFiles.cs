@@ -9,6 +9,7 @@ using MailFathom.Application.AiProviders;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Extraction.Attachments;
+using MailFathom.Application.Emails.Search;
 using MailFathom.Application.StoredFiles;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
