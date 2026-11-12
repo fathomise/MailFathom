@@ -11,7 +11,7 @@ namespace MailFathom.Application.Discovery.Presentation;
 /// <summary>One typed part of a presentation plan, carrying its own data and its own sources.</summary>
 /// <remarks>
 /// <para>
-/// The hierarchy is closed by a private protected constructor, so the eleven derived types declared beside it are the
+/// The hierarchy is closed by a private protected constructor, so the twelve derived types declared beside it are the
 /// whole of it: nothing outside this assembly can bring a block into being from data. What C# leaves reachable is the
 /// copy constructor every non-sealed record has and which the language requires to be protected — a type derived
 /// through it can only copy a block this assembly already composed, carries that block's catalogue type, and is refused
