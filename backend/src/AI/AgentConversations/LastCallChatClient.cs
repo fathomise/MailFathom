@@ -23,6 +23,11 @@ namespace MailFathom.AI.AgentConversations;
 /// never offered the move: it never moves on its own, and a deep run has nowhere further to go.
 /// </para>
 /// <para>
+/// The same run is told to consider the move as soon as a reading was cut at the fast limit, on every call until it
+/// moves or answers. The reading's own mark and the move's description say as much, and a model still answers with a
+/// caveat more often than it asks; said at the turn it is about to take, with every tool still offered, it asks.
+/// </para>
+/// <para>
 /// It sits beneath the framework's tool loop, like the steering client, so <em>the next call</em> is the next call to
 /// the model; nothing it adds is recorded, because it is this deployment's instruction rather than anything the person
 /// or the model said.
@@ -39,6 +44,12 @@ internal sealed class LastCallChatClient : DelegatingChatClient
         "A quick answer may read no further after this reply. Either answer the question now from what you have already "
         + "read, or — where the question needs more reading than you have done — call " + AgentRunEffort.GoDeepToolName
         + " alone and carry on reading.";
+
+    private const string CutShortGoDeep =
+        "A reading above was cut at the limit of a quick answer. Where the question needs the mail that reading left "
+        + "out — a total, a largest or latest, every message of a kind — call " + AgentRunEffort.GoDeepToolName
+        + " now and repeat the reading, rather than answering with a caveat. Answer from what you have only where it "
+        + "already settles the question.";
 
     private readonly AgentRunEffort effort;
 
@@ -74,7 +85,9 @@ internal sealed class LastCallChatClient : DelegatingChatClient
             return base.GetResponseAsync([.. messages, new ChatMessage(ChatRole.User, AnswerOrGoDeep)], lastFast, cancellationToken);
         }
 
-        return base.GetResponseAsync(messages, options, cancellationToken);
+        return this.effort.MayDeepen && ledger.RetrievalWasTruncated
+            ? base.GetResponseAsync([.. messages, new ChatMessage(ChatRole.User, CutShortGoDeep)], options, cancellationToken)
+            : base.GetResponseAsync(messages, options, cancellationToken);
     }
 
     /// <inheritdoc />

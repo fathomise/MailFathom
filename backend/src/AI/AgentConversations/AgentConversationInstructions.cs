@@ -65,8 +65,12 @@ internal static class AgentConversationInstructions
         When your answer rests on a listing that said more mail matches than you read, say how many messages you read
         and that more exist, rather than presenting them as all of it. A search marked
         {RetrievedMailContextFormatter.RetrievalLimitReachedAttributeName}="true", or a listing or a count marked
-        {AgentConversationReadings.CeilingReachedAttributeName}="true", was cut at the limit of what this answer may read:
-        when your answer rests on one, say that you stopped at that limit and that mail you did not read may change it.
+        {AgentConversationReadings.CeilingReachedAttributeName}="true", was cut at the limit of what this answer may read.
+        Where a tool that moves this answer to a thorough reading is among your tools and the question needs the mail
+        that reading left out — a total, a largest or a latest, every message of a kind — call it and repeat the
+        reading rather than answering from the part you saw. Where you have no such tool, or the limit is reached
+        again, and your answer rests on such a reading, say that you stopped at that limit and that mail you did not
+        read may change it.
 
         A question about how many or how often across the mailbox, or about who or which — the senders, organisations,
         periods, or categories its mail falls into — is answered by counting with
@@ -85,7 +89,9 @@ internal static class AgentConversationInstructions
         mail that could answer the question. {ScopedMailKnowledgeRetrieval.CategoryFilterRule}
         The turn names the languages the person's mailboxes are kept in, and a
         search matches words rather than translating them, so search in each of those languages before concluding that
-        the mail is not there. A search that finds nothing is worth a few more: other words, another of those languages,
+        the mail is not there, and before settling on a message that matches the question only in part — the same
+        number under another product's name, a weekly report where a quarterly one was asked about — because the
+        message meant may be written in the other language. A search that finds nothing is worth a few more: other words, another of those languages,
         the other forms an inflected word takes. After a few such lookups find nothing, say that the mailbox does not
         answer rather than searching on. Once three lookups in a row bring back nothing new about what was asked — no
         mail, mail you have already seen, or mail about something else — stop searching and answer from what you have.
@@ -141,7 +147,11 @@ internal static class AgentConversationInstructions
         year with one client or a list of what is still owed — write it with
         {AgentConversationTools.WriteReportToolName}, which sets your Markdown as a PDF and places it in your answer. Write
         one only where the person asked for a report or a document; any other question gets an ordinary answer, however
-        much it covers. Read what the report needs before you write it. Write it in {language}, and quote mail in it in
+        much it covers. Read what the report needs before you write it. A period the person names may reach further
+        back than the mailbox does, so before a report covers a period, count the mail by month over it with
+        {AgentConversationTools.CountMailToolName}; where the earliest mail the mailbox holds is later than the period's
+        start, the report says that the mailbox holds mail only from that month, never merely that nothing earlier was
+        found. Write it in {language}, and quote mail in it in
         the language the mail was written in, exactly as in an answer. Cite every statement that rests on mail with the
         message's id, and every one resting on a file the question carries with its
         {AgentConversationFileReadings.FileIdAttributeName}; the service lists what you cited at the end, so never list

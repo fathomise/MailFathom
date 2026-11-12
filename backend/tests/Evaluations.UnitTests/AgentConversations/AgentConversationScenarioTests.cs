@@ -407,6 +407,20 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.False(verdict.Get<BooleanMetric>(AgentConversationScenario.SaysItStoppedMetricName).Value);
     }
 
+    /// <summary>The last call offers no tool to rate with, so an answer written on it is not held to a rating the run could not give.</summary>
+    [Fact]
+    public async Task RunAsync_AnAnswerWrittenOnTheLastCall_PassesTheRatingCheckWithoutARating()
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient([Search("LumenDesk export error")], "The export error is in the log; I stopped at the limit.", callsEveryTurn: true);
+
+        // Act
+        var verdict = await this.RunAsync(Quoting, model);
+
+        // Assert
+        Assert.True(verdict.Get<BooleanMetric>(AgentConversationScenario.RatedConfidenceMetricName).Value);
+    }
+
     /// <summary>A fast run that cannot read enough passes the stop checks only where its answer says it stopped at the limit.</summary>
     [Theory]
     [InlineData("TP-2601 to BO-2608 so far; I stopped at the limit of what this answer may read.", true)]
@@ -606,6 +620,21 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.False(verdict.Get<BooleanMetric>(AgentConversationScenario.CarriesEvidenceMetricName).Value);
     }
 
+    /// <summary>A day's bounds are written on the person's clock and read there, so a total over them is the figure a count grouped by day gives for that day.</summary>
+    [Fact]
+    public async Task RunAsync_ADayCountedBetweenBoundsOnThePersonsClock_CarriesTheFigureOfThatDay()
+    {
+        // Arrange
+        using var model = new TotalEchoingChatClient(receivedOnOrAfter: "2026-09-07T00:00", receivedBefore: "2026-09-08T00:00");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Counting.ADayOnThePersonsClock"), model);
+
+        // Assert
+        var carries = verdict.Get<BooleanMetric>(AgentConversationScenario.CarriesEvidenceMetricName);
+        Assert.True(carries.Value, carries.Reason);
+    }
+
     /// <summary>A count is a reading of the mailbox, so an answer resting on one alone counts as looked up.</summary>
     [Fact]
     public async Task RunAsync_AnAnswerRestingOnACountAlone_CountsAsLookedUp()
@@ -675,6 +704,23 @@ public sealed class AgentConversationScenarioTests : IDisposable
 
         // Assert
         Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.CarriesEvidenceMetricName).Value);
+    }
+
+    /// <summary>A file the answer hands over is named by its card, so an answer saying it could not read the drawing and handing it over carries the file's name.</summary>
+    [Fact]
+    public async Task RunAsync_AnUnreadFileHandedOverRatherThanNamed_PassesTheEvidenceCheck()
+    {
+        // Arrange
+        var plans = LongMail.FloorPlans[0].Id.ToString();
+        using var model = new ScriptedAgentChatClient(
+            [ReadThread(plans), Offer(plans, 0)],
+            "I could not read the attached drawing, so I cannot say where the rooms ended up; I have included it for you.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Long.UnreadAttachmentIsNamed"), model);
+
+        // Assert
+        Assert.True(verdict.Get<BooleanMetric>(AgentConversationScenario.CarriesEvidenceMetricName).Value);
     }
 
     /// <summary>A message carrying three files means one of them, so a run handing over another, or all three, or none, is caught by the file check.</summary>
@@ -1391,5 +1437,47 @@ public sealed class AgentConversationScenarioTests : IDisposable
             new SpendMeter(),
             new SpendMeter(),
             TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>A model that counts the mail between two bounds once and answers with the total the count returned.</summary>
+    private sealed class TotalEchoingChatClient(string receivedOnOrAfter, string receivedBefore) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            var counted = messages.SelectMany(static message => message.Contents).OfType<FunctionResultContent>().FirstOrDefault();
+            var reply = counted is null
+                ? new ChatMessage(
+                    ChatRole.Assistant,
+                    [
+                        new FunctionCallContent(
+                            "call-0",
+                            AgentConversationTools.CountMailToolName,
+                            new Dictionary<string, object?> { ["receivedOnOrAfter"] = receivedOnOrAfter, ["receivedBefore"] = receivedBefore }),
+                    ])
+                : new ChatMessage(ChatRole.Assistant, $"{TotalOf(counted.Result?.ToString() ?? string.Empty)} emails arrived that day.");
+
+            return Task.FromResult(new ChatResponse(reply) { ModelId = "scripted-agent-model" });
+        }
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Nothing here streams.");
+
+        public object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceKey is null && serviceType == typeof(ChatClientMetadata)
+                ? new ChatClientMetadata("scripted", defaultModelId: "scripted-agent-model")
+                : null;
+
+        public void Dispose()
+        {
+        }
+
+        private static string TotalOf(string census) =>
+            census.Split("total=\"", 2) is [_, var rest] ? rest[..rest.IndexOf('"', StringComparison.Ordinal)] : string.Empty;
     }
 }

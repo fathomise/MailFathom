@@ -1302,7 +1302,10 @@ internal sealed record AgentConversationScenario(
             "Agent.Unsent.FailedReply",
             "Did Mei Tanaka get my acceptance of the lobby signage quote?",
             UserLanguage.English,
-            ["3,800"],
+
+            // The question is whether the reply left, not what it said, so the answer owes the state and who it was for
+            // rather than the quote's amount.
+            ["Mei"],
             ["Mei", "Tanaka", "Brightsign", "lobby", "signage", "quote", "accept", "install", "send", "resend", "fail", "September"])
         {
             Unsent = UnsentMail.FailedAcceptance,
@@ -1682,7 +1685,7 @@ internal sealed record AgentConversationScenario(
 
     /// <summary>The words a report covering less than was asked says so with, in the languages a case is asked in.</summary>
     private static readonly string[] CoversOnlyPart =
-        ["does not cover", "doesn't cover", "not covered", "cannot cover", "can't cover", "only covers", "covers only", "only from", "only since", "goes back only", "only goes back", "reaches back", "earliest", "no invoices before", "no invoice before", "nothing before", "no mail before", "no messages before", "nie obejmuje", "obejmuje tylko", "tylko od", "najwcześniejsz", "nic sprzed", "brak faktur sprzed"];
+        ["does not cover", "doesn't cover", "not covered", "cannot cover", "can't cover", "only covers", "covers only", "only from", "only since", "no earlier", "holds no mail", "goes back only", "only goes back", "reaches back", "earliest", "no invoices before", "no invoice before", "nothing before", "no mail before", "no messages before", "nie obejmuje", "obejmuje tylko", "tylko od", "najwcześniejsz", "nic sprzed", "brak faktur sprzed"];
 
     /// <summary>The words an answer written at a ceiling says it stopped with, in the languages a case is asked in.</summary>
     private static readonly string[] StoppedAtTheLimit =
@@ -2022,12 +2025,16 @@ internal sealed record AgentConversationScenario(
         // The deployment's own ceilings in every mode: the last call a run's ceilings leave room for is the one that
         // answers, so a run a deployment would have stopped still writes an answer here for the judge to grade.
         var effort = new AgentRunEffort(this.Mode, AgentRunBounds.Default, journal);
+        var clock = UserClocks.Reading(AskedAt, this.Zone);
+
+        // Read on the person's own clock, as a deployment reads it, so a bound the model writes against the turn's
+        // time means the same instant here as there.
         var retrieval = new ScopedMailKnowledgeRetrieval(
             search,
             CorpusKnowledgeSearch.Scope,
             effort.Ledger,
             SensitiveContentEgressGuards.Inactive(),
-            AskedAt);
+            clock.Zone().Reading(AskedAt));
         var summarizer = new ModelAgentConversationSummarizer(cachedModel, plan);
         var history = await AgentAnswering.ComposeHistoryAsync(
             question,
@@ -2050,7 +2057,7 @@ internal sealed record AgentConversationScenario(
         var readers = CorpusReaders.For(
             AccessAuthorizations.ForCallerGranted([.. this.Grant]),
             search,
-            UserClocks.Reading(AskedAt, this.Zone),
+            clock,
             this.ClosesWithFooter is true ? await CorpusReaders.FooterOnTheAccountAsync(cancellationToken) : null,
             files,
             reports);
@@ -2104,7 +2111,7 @@ internal sealed record AgentConversationScenario(
         CheckPublished(verdict, presented, tools);
         this.CheckRemembered(verdict, presented?.Value ?? string.Empty, summarizer.Summary);
         this.CheckFollowUps(verdict, tools.FollowUps);
-        CheckRated(verdict, presented, tools.ReportedConfidence);
+        CheckRated(verdict, presented, tools.ReportedConfidence, effort.AnsweredAtLastCall);
         EvaluationCost.Record(verdict, modelName, modelSpend.Take(), judgeSpend.Take());
 
         return verdict;
@@ -2425,7 +2432,17 @@ internal sealed record AgentConversationScenario(
     {
         var text = presented?.Value ?? string.Empty;
         var read = AnswerMarkdown.AsRead(text);
-        var missing = this.Evidence.Concat(this.Counted).Where(phrase => !read.Contains(phrase, StringComparison.OrdinalIgnoreCase)).ToList();
+        var handedOver = written.OfType<AgentBlockComposed>()
+            .Select(static composed => composed.Block)
+            .OfType<FileBlock>()
+            .Select(static file => file.Name?.Value ?? string.Empty)
+            .ToList();
+
+        // A file the answer hands over is named by the card it is drawn as, so a phrase that is a file's name is
+        // carried by handing that file over as much as by writing its name out.
+        var missing = this.Evidence.Concat(this.Counted)
+            .Where(phrase => !read.Contains(phrase, StringComparison.OrdinalIgnoreCase) && !handedOver.Contains(phrase, StringComparer.OrdinalIgnoreCase))
+            .ToList();
         var refusedMarkdown = AnswerMarkdown.Refused(text);
         var acts = written.OfType<AgentActionProposed>().Select(static proposal => proposal.Act).ToList();
         var proposed = acts.Select(DescriptionOf).Order(StringComparer.OrdinalIgnoreCase).ToList();
@@ -2649,16 +2666,17 @@ internal sealed record AgentConversationScenario(
             });
     }
 
-    private static void CheckRated(EvaluationResult verdict, PresentationText? presented, PresentationConfidence? rated) =>
+    private static void CheckRated(EvaluationResult verdict, PresentationText? presented, PresentationConfidence? rated, bool atLastCall) =>
         EvaluationMetrics.Record(
             verdict,
             RatedConfidenceMetricName,
-            presented is null || rated is not null,
-            (presented, rated) switch
+            presented is null || rated is not null || atLastCall,
+            (presented, rated, atLastCall) switch
             {
-                (null, _) => "There was no answer to rate.",
-                (_, null) => "The answer arrived without a band, so it is drawn at one nobody chose.",
-                (_, { } band) => $"The answer was rated {band}.",
+                (null, _, _) => "There was no answer to rate.",
+                (_, { } band, _) => $"The answer was rated {band}.",
+                (_, null, true) => "The answer was written on the run's last call, which offers no tool to rate with, so the deployment draws it low.",
+                (_, null, false) => "The answer arrived without a band, so it is drawn at one nobody chose.",
             });
 
     /// <summary>The one language a scenario's person reads, which is what the run's status lines are written in.</summary>

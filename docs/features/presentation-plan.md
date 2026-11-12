@@ -197,7 +197,9 @@ free to state `Supported` over a copy it also called behind would be free to sta
 high, moderate, or low — and what a model reported is capped by what its own sources allow: an unsupported answer is
 low whatever the model said, and a conflicting or stale one cannot be high. A cited answer keeps its band, because the
 verdict already says nothing checked it and the band says something else. A band nothing can be read out of, or none
-reported at all, is read as moderate, so a malformed answer never arrives more confident than a well-formed one. One
+reported at all, is read as moderate, so a malformed answer never arrives more confident than a well-formed one; an
+Agent answer written on the last call its run's ceilings leave, which offers no tool to rate with, is read as low
+instead, because it rests on a reading the run could not finish. One
 rule, `PresentationConfidenceCeiling`, applies the cap for Discover and for the Agent alike; the Agent reports its band
 through a tool it calls before it answers. What the bands mean is fixed by
 the composition and not by the model: high is the sources settling the question and the answer restating them, moderate

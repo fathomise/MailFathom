@@ -450,5 +450,47 @@ public sealed class AgentConversationInstructionsTests
         Assert.Contains("Where a message names a day only by its weekday or relatively — \"on Sunday\", \"next week\" — give the date its conversation fixes for it.", text, StringComparison.Ordinal);
     }
 
+    /// <summary>An automatic run answered a question about the largest invoice with a caveat, from a search the fast limit had cut.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_GoesDeepWhereAReadingWasCutAndTheQuestionNeedsTheRest()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains(
+            "Where a tool that moves this answer to a thorough reading is among your tools and the question needs the mail that reading left out — a total, a largest or a latest, every message of a kind — call it and repeat the reading rather than answering from the part you saw.",
+            text,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>A question about ticket 4821 was answered from another product's ticket of the same number, found in the one language searched.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_SearchesTheOtherLanguagesBeforeSettlingOnAPartialMatch()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains(
+            "and before settling on a message that matches the question only in part — the same number under another product's name, a weekly report where a quarterly one was asked about — because the message meant may be written in the other language.",
+            text,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>A report since 2020 over a mailbox reaching back to January said only that nothing earlier was found.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_FindsWhereTheMailboxStartsBeforeAReportCoversAPeriod()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains(
+            "before a report covers a period, count the mail by month over it with count_mail; where the earliest mail the mailbox holds is later than the period's start, the report says that the mailbox holds mail only from that month, never merely that nothing earlier was found.",
+            text,
+            StringComparison.Ordinal);
+    }
+
     private static string Flattened(UserLanguage language) => AgentConversationInstructions.TextFor(language).ReplaceLineEndings(" ");
 }

@@ -1794,6 +1794,22 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         Assert.Equal([(AgentReportSourceKind.AttachedFile, "Offer v3.pdf")], report.Sources.Select(static source => (source.Kind, source.Title)));
     }
 
+    /// <summary>A report asked for a nested list and a quotation held headings over flat lists and quotation marks inside a sentence.</summary>
+    [Fact]
+    public async Task Create_TheReportTool_SaysHowAListNestsAndThatQuotedMailIsSetAsAQuotation()
+    {
+        // Arrange
+        var (files, reporting) = await this.ReportingAsync();
+        this.tools = this.Tools(AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead), SensitiveContentEgressGuards.Inactive(), files: files, reporting: reporting);
+
+        // Act
+        var tool = this.CreatedTool(AgentConversationTools.WriteReportToolName);
+
+        // Assert
+        Assert.Contains("A list nests by indenting an item four spaces under the item it belongs to.", tool.Description, StringComparison.Ordinal);
+        Assert.Contains("words quoted from mail are a quotation (>) on lines of their own, not quotation marks inside a sentence", tool.Description, StringComparison.Ordinal);
+    }
+
     /// <summary>One run writes one report, so a second call stores nothing more and tells the model to refer to the first.</summary>
     [Fact]
     public async Task WriteReport_ASecondReportInOneRun_IsRefusedAndStoresNothingMore()

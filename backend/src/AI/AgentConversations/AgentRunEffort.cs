@@ -75,6 +75,9 @@ internal sealed class AgentRunEffort
             ? new AgentRunCeiling(this.Ledger.Read().MessagesRetrieved)
             : null;
 
+    /// <summary>Gets whether the run's answer was written on its last call, where no tool could be called — the rating among them.</summary>
+    internal bool AnsweredAtLastCall => Volatile.Read(ref this.answeredAtLastCall) is 1;
+
     /// <summary>Adds the move to the tools a run is offered, where the run may make it.</summary>
     /// <param name="tools">The tools the person's grant allows.</param>
     /// <returns>Those tools, and the move after them for an automatic run.</returns>
