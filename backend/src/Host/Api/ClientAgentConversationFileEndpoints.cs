@@ -50,7 +50,7 @@ internal static class ClientAgentConversationFileEndpoints
         // bound is refused by the pipeline before it is buffered.
         api.MapPost(FilesRoute, TakeAsync)
             .WithMetadata(new RequestSizeLimitAttribute(AgentConversationFileBounds.MaximumFileOctets))
-            .Accepts<Stream>("application/octet-stream")
+            .Accepts<Stream>(ClientDraftEndpoints.AnyUploadedMediaType)
             .RequirePermission(MailFathomPermission.AssistantUse);
     }
 

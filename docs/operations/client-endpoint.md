@@ -5169,7 +5169,9 @@ carries no `text`.
 **A file is held on the terms mail is.** Its octets are a stored file of the person's, placed by the content storage
 backend the deployment configures and moved by [moving stored content](moving-stored-content.md) like every other; the
 row recording it names the conversation, and a long document's passages are placed in the active embedding space so the
-Agent can find them by meaning as well as by words. Nothing a file holds is readable from another conversation or by
+Agent can find them by meaning as well as by words. What is embedded is bounded as one message's text is, by
+`Embeddings:MaxCharactersPerEmail` spent once across the file's pages; the search by words reaches every page the reader
+took out of it. Nothing a file holds is readable from another conversation or by
 another person. Deleting the conversation deletes its files — the rows, the vectors, and the octets — and erasing the
 person erases them with everything else they hold. No route deletes one file on its own, and the person's mailbox
 export carries no conversation, so it carries no file either.

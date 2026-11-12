@@ -8,6 +8,7 @@ using MailFathom.Application.Agent.Files;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Embeddings;
+using MailFathom.Application.Emails.Embeddings.Limits;
 using MailFathom.Application.Emails.Extraction.Attachments;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.StoredFiles;
@@ -39,7 +40,7 @@ internal static class ConversationFiles
             store,
             storedFiles ?? Substitute.For<IStoredFileStore>(),
             Substitute.For<IAttachmentTextExtractor>(),
-            new AgentConversationFilePassages(new DeterministicEmailTextChunker(), EmailChunkingRules.Current),
+            new AgentConversationFilePassages(new DeterministicEmailTextChunker(), EmailChunkingRules.Current, EmbeddingInputBound.Default),
             space ?? new ActiveEmbeddingSpace(
                 Substitute.For<IActiveEmbeddingProfileReader>(),
                 Substitute.For<IAiProviderHealthReader>(),

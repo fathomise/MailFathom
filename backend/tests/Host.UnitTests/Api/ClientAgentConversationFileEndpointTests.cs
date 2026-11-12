@@ -9,6 +9,7 @@ using MailFathom.Application.AiProviders;
 using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Embeddings;
+using MailFathom.Application.Emails.Embeddings.Limits;
 using MailFathom.Application.Emails.Extraction.Attachments;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
@@ -149,7 +150,7 @@ public sealed class ClientAgentConversationFileEndpointTests
             this.store,
             this.storedFiles,
             this.extractor,
-            new AgentConversationFilePassages(Substitute.For<IEmailTextChunker>(), EmailChunkingRules.Current),
+            new AgentConversationFilePassages(Substitute.For<IEmailTextChunker>(), EmailChunkingRules.Current, EmbeddingInputBound.Default),
             new ActiveEmbeddingSpace(
                 Substitute.For<IActiveEmbeddingProfileReader>(),
                 Substitute.For<IAiProviderHealthReader>(),

@@ -370,7 +370,7 @@ public sealed class AgentConversationFiles
         AgentConversationFileText document,
         CancellationToken cancellationToken)
     {
-        var cut = this.passages.Cut(document);
+        var cut = this.passages.CutForEmbedding(document);
 
         if (cut.Count is 0)
         {
