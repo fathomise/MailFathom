@@ -10,6 +10,7 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Retrieval;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Evaluations.Costing;
 using MailFathom.Evaluations.Providers;
 using MailFathom.Evaluations.Reporting;
@@ -154,6 +155,13 @@ internal static class RelevanceFilterScenario
             EmailKnowledgeQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult(EmailKnowledgeLookup.Unfiltered(passages, EmailSearchRetrievalMode.Hybrid));
+
+        public Task<EmailKnowledgeLookup> FindPassagesWithinAsync(
+            MailboxScope scope,
+            StoredEmailId emailId,
+            string queryText,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The relevance filter passes a search inside one message through unjudged.");
     }
 
     /// <summary>A provider this run has no reason to doubt, so the filter always attempts its judgements.</summary>

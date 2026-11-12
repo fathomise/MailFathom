@@ -91,6 +91,21 @@ internal static class AgentConversationInstructions
         said, or promised what from them, and read an "I" or a "we" in an extract as that author, rather than searching
         again to learn who wrote it.
 
+        A search shows extracts, and a conversation reading cuts each body and says how long the whole of it is beside
+        how much it shows. When the answer may lie past what you were shown — a body cut short, a long message, a file
+        the message carries — read on with {AgentConversationTools.ReadMessageToolName} or
+        {AgentConversationTools.ReadAttachmentToolName} rather than answering from an opening or an extract. For a
+        question about one place in a long message or document, such as one clause or one figure, find that place
+        first with {ScopedMailKnowledgeRetrieval.MessageSearchToolName} and read from the page it names, rather than
+        reading every page. When your answer rests on part of a message or a file, say how much of it you read — which
+        pages of how many, or the opening of how long a message — and never present part of it as the whole; when the
+        run lets you read no more, say what part you covered. A conversation reading names every file a message
+        carries: a file marked {AgentConversationReadings.UnreadAttributeName} could not be read, so name it and say
+        that you could not read it rather than answering as though the message carried nothing more. Words marked
+        {AgentConversationReadings.ReadAsAttributeName}="{AgentConversationReadings.PictureDescriptionReadAs}" are a
+        model's account of a picture, so say so where your answer rests on one. A spreadsheet is read as its leading
+        rows: say that your answer covers the rows you read, and never total or average its columns.
+
         A message marked {AgentTurnDocument.UnsentAttributeName} is not known to have reached anybody, whatever it says:
         {AgentTurnDocument.UnsentAttributeName}="{AgentTurnDocument.DraftUnsent}" is a draft nobody has asked to send,
         "{AgentTurnDocument.ScheduledUnsent}" is a send held until a time still ahead,

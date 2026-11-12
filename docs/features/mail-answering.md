@@ -1,6 +1,6 @@
 # Mail answering
 
-<!-- describes: backend/src/AI/Orchestration/**, backend/src/AI/Retrieval/**, backend/src/AI/ProviderAdapters/ResilientChatClient.cs, backend/src/Application/Retrieval/**, backend/src/Application/Emails/Provenance/**, backend/src/Infrastructure/Persistence/Emails/StoredEmailProvenanceReader.cs, backend/src/Domain/Answering/**, backend/src/Infrastructure/Persistence/Answering/**, backend/src/Host/Configuration/Mail/MailAnsweringAuditTrailOptions.cs, backend/src/Host/Configuration/Access/TransportRequestTimeoutOptions.cs -->
+<!-- describes: backend/src/AI/Orchestration/**, backend/src/AI/Retrieval/**, backend/src/AI/ProviderAdapters/ResilientChatClient.cs, backend/src/Application/Retrieval/**, backend/src/Application/Emails/Provenance/**, backend/src/Infrastructure/Persistence/Emails/StoredEmailProvenanceReader.cs, backend/src/AI/AgentConversations/AgentConversationReadings.cs, backend/src/Domain/Answering/**, backend/src/Infrastructure/Persistence/Answering/**, backend/src/Host/Configuration/Mail/MailAnsweringAuditTrailOptions.cs, backend/src/Host/Configuration/Access/TransportRequestTimeoutOptions.cs -->
 
 A question about the mailbox, answered from the mail the model looks up while answering. This page describes the
 composition that does it: what the model may reach, when it reaches it, how much of it leaves the process, and what an
@@ -267,6 +267,29 @@ value can be told which one and write another; absorbing the refusal into an emp
 holds nothing when what it holds is a bad filter. A lookup that ran and matched nothing is an ordinary empty result, and
 a run whose lookups found nothing still has an answer to give.
 
+### The Agent reads a long message and a file a page at a time
+
+A lookup shows extracts and a conversation reading cuts each body to 4 000 characters, so the answer to a question
+about a long message or a file it carries can lie past everything the Agent was first shown. The Agent therefore has
+three more tools, and every one of them reads mail the person may already read, never more:
+
+| Tool | What it reads | What it says about how much it read |
+| --- | --- | --- |
+| `read_thread` | Every message of a conversation, each body cut to 4 000 characters | Each message's `body-characters` beside `body-shown`, and one `<attached-file>` per file it carries — its position, name, type, and size, and either how many pages, slides, or sheets its reading came to with `read-as="document"` or `read-as="picture-description"`, or `unread` with the reason its reading recorded, `never-read` where nothing reached it |
+| `read_message` | One message's body, 4 000 characters at a time from a stated place | The whole body's length, where the page starts and ends, and `next`, where the following page begins, until the last page |
+| `read_attachment` | One file's stored words, 4 000 characters at a time from a page, slide, or sheet the model names or from a stated place | The file's name, how many pages its reading came to, `next`, and one `<part>` per page the window reaches, named by its number; a file nothing could read answers with its reason instead |
+
+`search_message` finds a place in one message and the files it carries before reading it: a lexical search confined to
+that message, answering the same envelope a lookup does, with each file's extract naming the page it was read from.
+It ranks nothing and matches no picture description — a picture is matched by meaning, and one message has nothing
+to rank against — so a question about one clause of a long document reads the page it names rather than every page.
+
+A file's words are read from what [attachment text extraction](attachment-text-extraction.md) stored, never from the
+file, so a read reaches no parser and no provider. A spreadsheet is read as the rows its stored reading holds, from the
+top, and the Agent is told to say its answer covers the rows it read and never to total or average a column. Every
+page is scanned at `ChatPrompt` before it leaves, is declared as mail the answer was shown so it can be cited, and is
+spent from the run's retrieved-character ceiling below; a page past what the run may still send is cut there and says so.
+
 ## What one question may spend
 
 A run is a conversation rather than a call, and its length is the model's decision: it asks for mail, reads what comes
@@ -276,7 +299,7 @@ provider call rather than reported after the run.
 
 | Ceiling | Key | Default | What happens when it is reached |
 | --- | --- | --- | --- |
-| Retrieved characters per run | `MailAnswering:MaxRetrievedCharactersPerRun` | 20 000 | The lookup, the listed page, or the census is cut and the run continues, told there is no more mail |
+| Retrieved characters per run | `MailAnswering:MaxRetrievedCharactersPerRun` | 20 000 | The lookup, the listed page, the census, or the page of a message or a file is cut and the run continues, told there is no more mail |
 | Provider calls per run | `MailAnswering:MaxProviderCallsPerRun` | 8 | The run stops with `57001` |
 | Tokens per run | `MailAnswering:MaxTokensPerRun` | 80 000 | The run stops with `57001` |
 
@@ -288,12 +311,17 @@ operator agreed to on the other.
 
 Three numbers because they fail in three different ways. The retrieved-character ceiling is the privacy one — the total
 amount of somebody's mail that may leave the process to answer one question, whatever the model asks for. It counts
-each passage's extract and the sender's name and address written beside it, and each message an Agent's `list_mail`
-page shows by its subject and its sender, so a run cannot page through a mailbox beside the ceiling on searching it. A
-page the ceiling cut keeps the messages that fit, says more mail matches, and offers no cursor to continue from. An
-Agent's `count_mail` reading spends it by the key of each group it names — a sender address, a domain, a category's
-name, or a period's date — and nothing for the figures, and one the ceiling cut keeps the groups that fit and says so; a count names no
-message, so it adds nothing to how many messages the run read and nothing an answer may cite. The token
+each passage's extract, the sender's name and address written beside it, and every extract of a file the message
+carries with the file's name; each message an Agent's `list_mail` page shows by its subject and its sender; and each
+page of a message or a file the Agent's `read_message` and `read_attachment` read — so a run cannot page through a
+mailbox, a long message, or a long file beside the ceiling on searching it. A listed page the ceiling cut keeps the
+messages that fit, says more mail matches, and offers no cursor to continue from. A page of a message or a file is cut
+to what the run may still send instead, because it is the continuation the model asked for by name and the part the
+allowance covers is exactly what it would read first; it says where it stopped and that the run reached its ceiling,
+so the answer can say how much of the message or the file it covered. An Agent's `count_mail` reading spends it by the
+key of each group it names — a sender address, a domain, a category's name, or a period's date — and nothing for the
+figures, and one the ceiling cut keeps the groups that fit and says so; a count names no message, so it adds nothing to
+how many messages the run read and nothing an answer may cite. The token
 ceiling is the cost one, and the only one stated in the unit a provider bills by. The call ceiling is the one that
 always works: a token count is what the provider *reported*, and an endpoint that reports none would leave the cost
 ceiling unreachable while a tool loop went round.
@@ -555,7 +583,7 @@ written here for the same reason `search_emails` publishes the mode in every res
 Nothing a message contains can end an element or open one. The turns and tool results that carry text somebody else
 wrote on this path are composed by one writer, `AgentTurnDocument` in `backend/src/AI/Orchestration/`: `ask_mail`'s
 question turn, the `<retrieved-mail>` envelope, the relevance judgement below, the Agent's question turn and its
-`list_mail`, `count_mail`, `read_thread`, `read_calendar`, and `read_tasks` results, the Agent's earlier turns where they are not plain text the
+`list_mail`, `count_mail`, `read_thread`, `read_message`, `read_attachment`, `read_calendar`, and `read_tasks` results, the Agent's earlier turns where they are not plain text the
 person or the Agent wrote, the turn a compaction of an Agent conversation reads,
 [reply drafting](reply-drafting.md#what-reaches-the-provider-and-what-does-not)'s turn, and the turns of enrichment, a
 conversation's state, contact relationships, calendar-event extraction, the day layout, and Discover's composition. Only

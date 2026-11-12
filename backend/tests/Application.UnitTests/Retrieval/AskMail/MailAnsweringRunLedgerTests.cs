@@ -3,11 +3,13 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Chat;
+using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.UnitTests.TestDoubles;
+using MailFathom.Domain.Emails;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Retrieval.AskMail;
@@ -254,6 +256,105 @@ public sealed class MailAnsweringRunLedgerTests
 
         // Act, Assert
         Assert.Throws<ArgumentNullException>(() => ledger.RecordSpend(null!));
+    }
+
+    /// <summary>A file's extract reaches the provider in the same envelope the body's does, so it spends the same allowance, and so does the name its sender gave the file.</summary>
+    [Fact]
+    public void AdmitPassages_APassageWhoseAttachmentExtractsTakeItPastTheCeiling_IsNotHandedOver()
+    {
+        // Arrange
+        var ledger = LedgerAllowing(retrievedCharacters: 150);
+        var passage = ScriptedEmailKnowledgeSearch.Passage(new string('a', 100)) with
+        {
+            AttachmentExtracts =
+            [
+                new EmailKnowledgeAttachmentExtract(0, "contract.pdf", AttachmentTextKind.Document, Segment: null, new string('c', 40)),
+            ],
+        };
+
+        // Act
+        var admitted = ledger.AdmitPassages([passage]);
+
+        // Assert
+        Assert.Empty(admitted);
+        Assert.True(ledger.RetrievalWasTruncated);
+    }
+
+    [Fact]
+    public void AdmitPassages_APassageCarryingAttachmentExtracts_SpendsThemBesideItsOwnExtract()
+    {
+        // Arrange
+        var ledger = LedgerAllowing();
+        var passage = ScriptedEmailKnowledgeSearch.Passage(new string('a', 100)) with
+        {
+            AttachmentExtracts =
+            [
+                new EmailKnowledgeAttachmentExtract(0, "a.pdf", AttachmentTextKind.Document, Segment: null, new string('c', 40)),
+                new EmailKnowledgeAttachmentExtract(1, FileName: null, AttachmentTextKind.ImageDescription, Segment: null, new string('d', 10)),
+            ],
+        };
+
+        // Act
+        ledger.AdmitPassages([passage]);
+
+        // Assert
+        Assert.Equal(100 + 5 + 40 + 10, ledger.Read().RetrievedCharacters);
+    }
+
+    [Fact]
+    public void AdmitPage_APageInsideTheRunsCeiling_GrantsAllOfItAndCountsItsMessage()
+    {
+        // Arrange
+        var ledger = LedgerAllowing(retrievedCharacters: 1_000);
+
+        // Act
+        var granted = ledger.AdmitPage(StoredEmailId.Create(Guid.CreateVersion7()), 400);
+
+        // Assert
+        Assert.Equal(400, granted);
+        Assert.False(ledger.RetrievalWasTruncated);
+        Assert.Equal((400, 1), (ledger.Read().RetrievedCharacters, ledger.Read().MessagesRetrieved));
+    }
+
+    /// <summary>A page is the continuation the model asked for by name, so the part the allowance covers is handed over rather than nothing.</summary>
+    [Fact]
+    public void AdmitPage_APagePastTheRunsCeiling_GrantsWhatIsLeftAndSaysItCut()
+    {
+        // Arrange
+        var ledger = LedgerAllowing(retrievedCharacters: 250);
+        ledger.AdmitPassages(PassagesOf(100));
+
+        // Act
+        var granted = ledger.AdmitPage(StoredEmailId.Create(Guid.CreateVersion7()), 400);
+
+        // Assert
+        Assert.Equal(150, granted);
+        Assert.True(ledger.RetrievalWasTruncated);
+    }
+
+    [Fact]
+    public void AdmitPage_AfterTheCeilingWasSpent_GrantsNothingAndCountsNoMessage()
+    {
+        // Arrange
+        var ledger = LedgerAllowing(retrievedCharacters: 100);
+        ledger.AdmitPage(StoredEmailId.Create(Guid.CreateVersion7()), 100);
+
+        // Act
+        var granted = ledger.AdmitPage(StoredEmailId.Create(Guid.CreateVersion7()), 50);
+
+        // Assert
+        Assert.Equal(0, granted);
+        Assert.Equal(1, ledger.Read().MessagesRetrieved);
+    }
+
+    [Fact]
+    public void AdmitPage_ANegativeLength_IsRefused()
+    {
+        // Arrange
+        var ledger = LedgerAllowing();
+
+        // Act, Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => ledger.AdmitPage(StoredEmailId.Create(Guid.CreateVersion7()), -1));
     }
 
     [Fact]

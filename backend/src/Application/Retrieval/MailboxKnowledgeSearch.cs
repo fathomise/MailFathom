@@ -114,6 +114,27 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
             result.RetrievalMode);
     }
 
+    /// <inheritdoc />
+    public async Task<EmailKnowledgeLookup> FindPassagesWithinAsync(
+        MailboxScope scope,
+        StoredEmailId emailId,
+        string queryText,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+
+        if (await this.searchReader.SearchWithinEmailAsync(scope, emailId, queryText, cancellationToken) is not { } match)
+        {
+            return EmailKnowledgeLookup.Unfiltered([], EmailSearchRetrievalMode.Lexical);
+        }
+
+        var provenance = await this.provenanceReader.ReadAsync([emailId], cancellationToken);
+
+        return EmailKnowledgeLookup.Unfiltered(
+            PassagesOf([match], provenance, this.bounds),
+            EmailSearchRetrievalMode.Lexical);
+    }
+
     /// <summary>Reads the matches a search returned into the passages a model receives, dropping every one that yielded no text.</summary>
     /// <param name="matches">The matches, in the order the search ranked them.</param>
     /// <param name="provenance">Where each matched message came from, keyed by its identity.</param>

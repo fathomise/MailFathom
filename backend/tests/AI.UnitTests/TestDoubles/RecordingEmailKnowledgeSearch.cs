@@ -5,6 +5,7 @@
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Retrieval;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.AI.UnitTests.TestDoubles;
 
@@ -20,6 +21,9 @@ internal sealed class RecordingEmailKnowledgeSearch : IEmailKnowledgeSearch
     private readonly Dictionary<string, IReadOnlyList<EmailKnowledgePassage>> passagesByQuery =
         new(StringComparer.Ordinal);
 
+    private readonly Dictionary<(StoredEmailId Email, string QueryText), IReadOnlyList<EmailKnowledgePassage>> passagesWithin = [];
+    private readonly List<(MailboxScope Scope, StoredEmailId Email, string QueryText)> callsWithin = [];
+
     private MailboxQueryFilterInvalidException? refusal;
     private EmailSearchRetrievalMode retrievalMode = EmailSearchRetrievalMode.Hybrid;
 
@@ -33,6 +37,21 @@ internal sealed class RecordingEmailKnowledgeSearch : IEmailKnowledgeSearch
     public RecordingEmailKnowledgeSearch Returning(string queryText, params EmailKnowledgePassage[] passages)
     {
         this.passagesByQuery[queryText] = passages;
+
+        return this;
+    }
+
+    /// <summary>Gets what each search inside one message asked for, in order.</summary>
+    public IReadOnlyList<(MailboxScope Scope, StoredEmailId Email, string QueryText)> CallsWithin => this.callsWithin;
+
+    /// <summary>Arranges what a search inside one message finds.</summary>
+    /// <param name="email">The message searched.</param>
+    /// <param name="queryText">The query to answer.</param>
+    /// <param name="passages">What it finds.</param>
+    /// <returns>This retrieval, so arrangement reads as one statement.</returns>
+    public RecordingEmailKnowledgeSearch ReturningWithin(StoredEmailId email, string queryText, params EmailKnowledgePassage[] passages)
+    {
+        this.passagesWithin[(email, queryText)] = passages;
 
         return this;
     }
@@ -77,6 +96,28 @@ internal sealed class RecordingEmailKnowledgeSearch : IEmailKnowledgeSearch
         return Task.FromResult(EmailKnowledgeLookup.Unfiltered(
             this.passagesByQuery.GetValueOrDefault(query.QueryText, []),
             this.retrievalMode));
+    }
+
+    /// <inheritdoc />
+    public Task<EmailKnowledgeLookup> FindPassagesWithinAsync(
+        MailboxScope scope,
+        StoredEmailId emailId,
+        string queryText,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        this.callsWithin.Add((scope, emailId, queryText));
+
+        if (this.refusal is { } refused)
+        {
+            throw refused;
+        }
+
+        return Task.FromResult(EmailKnowledgeLookup.Unfiltered(
+            this.passagesWithin.GetValueOrDefault((emailId, queryText), []),
+            EmailSearchRetrievalMode.Lexical));
     }
 
     /// <summary>What one lookup asked for.</summary>

@@ -304,6 +304,26 @@ public sealed class ModelJudgedKnowledgeSearchTests
             () => search.FindPassagesAsync(Scope, Query, cancellation.Token));
     }
 
+    /// <summary>The message is the one the model named, so its matching places are handed over as found and no judgement is paid for.</summary>
+    [Fact]
+    public async Task FindPassagesWithinAsync_ANamedMessage_PassesItsPlacesThroughWithoutAJudgement()
+    {
+        // Arrange
+        var passage = KnowledgePassages.Create("termination needs ninety days' notice", Guid.CreateVersion7());
+        var judge = new ScriptedChatModelClient();
+        var search = SearchOver(
+            new RecordingEmailKnowledgeSearch().ReturningWithin(passage.StoredEmailId, "notice", passage),
+            judge,
+            minimumRelevance: 100);
+
+        // Act
+        var lookup = await search.FindPassagesWithinAsync(Scope, passage.StoredEmailId, "notice", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([passage], lookup.Passages);
+        Assert.Equal(0, judge.CallCount);
+    }
+
     [Fact]
     public void Constructor_WithoutACollaborator_IsRefused()
     {

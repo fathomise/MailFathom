@@ -5,6 +5,7 @@
 using MailFathom.AI.AgentConversations;
 using MailFathom.AI.Chat;
 using MailFathom.AI.Retrieval;
+using MailFathom.Application.Emails.Extraction.Attachments;
 using MailFathom.Evaluations.AgentConversations;
 using MailFathom.Evaluations.Answering;
 using MailFathom.Evaluations.Corpus;
@@ -446,7 +447,13 @@ public sealed class AgentConversationScenarioTests : IDisposable
     public void All_EveryPieceOfEvidence_IsCarriedBySomeMessageOrTheAgenda()
     {
         // Arrange
-        string[] sources = [.. AgentConversationScenario.Mailbox.Select(static message => message.GroundingText), .. PersonalAgenda.Texts];
+        string[] sources =
+        [
+            .. AgentConversationScenario.Mailbox.Select(static message => message.GroundingText),
+            .. AgentConversationScenario.Mailbox.SelectMany(static message => message.Attachments).Select(static attachment => attachment.FileName).OfType<string>(),
+            .. LongMail.Readings.Values.SelectMany(static readings => readings).Select(static stored => stored.Text),
+            .. PersonalAgenda.Texts,
+        ];
 
         // Act
         var uncarried = AgentConversationScenario.All
@@ -550,6 +557,62 @@ public sealed class AgentConversationScenarioTests : IDisposable
 
         // Assert
         Assert.True(verdict.Get<BooleanMetric>(AgentConversationScenario.LookedUpMetricName).Value);
+    }
+
+    /// <summary>The long-mail cases measure reading on only while what they ask about lies past what a first reading shows.</summary>
+    [Fact]
+    public void LongMail_EveryCasesAnswer_LiesPastWhatAFirstReadingShows()
+    {
+        // Arrange
+        var report = LongMail.SiteReport[0].Text;
+        var lease = LongMail.Readings[LongMail.Lease[0].Id].Single();
+        var ceiling = EvaluationRunBounds.Ceiling.MaximumRetrievedCharacters;
+
+        // Act
+        var walk = report.IndexOf("24 September", StringComparison.Ordinal);
+        var breakClause = lease.Text.IndexOf("nine months", StringComparison.Ordinal);
+
+        // Assert
+        Assert.True(walk > AgentConversationTools.MaximumBodyCharacters, $"The walk is at {walk}, inside the cut a conversation reading makes.");
+        Assert.True(lease.Text.Length > ceiling, $"The lease is {lease.Text.Length} characters, which one run may read whole.");
+        Assert.True(breakClause > ceiling, $"The break clause is at {breakClause}, inside what one run may read from the lease's start.");
+        Assert.Equal(LongMail.BreakClausePage, AttachmentTextSegment.At(lease.Segments, breakClause)?.Number);
+    }
+
+    /// <summary>A summary of a file longer than the run may read has to have read the file, so a run that only read the conversation is caught by the tool check.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RunAsync_ASummaryOfALongFileReadOrNot_PassesTheToolCheckOnlyWhereItReadTheFile(bool readsTheFile)
+    {
+        // Arrange
+        var lease = LongMail.Lease[0].Id.ToString();
+        (string Tool, IDictionary<string, object?> Arguments) call = readsTheFile
+            ? (AgentConversationTools.ReadAttachmentToolName, new Dictionary<string, object?> { ["messageId"] = lease, ["attachment"] = 0, ["page"] = null, ["from"] = null })
+            : ReadThread(lease);
+        using var model = new ScriptedAgentChatClient([call], "I read the first eight of the lease's 18 pages: they cover the letting, the rent, and its review.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Long.WholeDocumentPastTheCeiling"), model);
+
+        // Assert
+        Assert.Equal(readsTheFile, verdict.Get<BooleanMetric>(AgentConversationScenario.CalledTheToolsAskedForMetricName).Value);
+    }
+
+    /// <summary>A file nothing could read is named as unread, so an answer passing over it is caught by the evidence check.</summary>
+    [Theory]
+    [InlineData("I could not read the attached drawing, KQ-level3-plan-rev-C.dwg, so I cannot say where the rooms ended up.", true)]
+    [InlineData("Ingrid's plans put the meeting rooms along the harbour side of level 3.", false)]
+    public async Task RunAsync_AnAnswerAboutAFileNothingCouldRead_PassesTheEvidenceCheckOnlyWhereItNamesTheFile(string answer, bool passes)
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient([ReadThread(LongMail.FloorPlans[0].Id.ToString())], answer);
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Long.UnreadAttachmentIsNamed"), model);
+
+        // Assert
+        Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.CarriesEvidenceMetricName).Value);
     }
 
     /// <summary>A question about the latest mail is answered from the timeline, so a run that only searched the mail is caught by the tool check.</summary>
@@ -830,7 +893,12 @@ public sealed class AgentConversationScenarioTests : IDisposable
     public void All_EveryRememberedPhrase_IsStatedByItsConversationAndByNoMessageOrAgenda()
     {
         // Arrange
-        string[] sources = [.. AgentConversationScenario.Mailbox.Select(static message => message.GroundingText), .. PersonalAgenda.Texts];
+        string[] sources =
+        [
+            .. AgentConversationScenario.Mailbox.Select(static message => message.GroundingText),
+            .. LongMail.Readings.Values.SelectMany(static readings => readings).Select(static stored => stored.Text),
+            .. PersonalAgenda.Texts,
+        ];
 
         // Act
         var unsound = AgentConversationScenario.All

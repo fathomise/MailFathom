@@ -14,6 +14,7 @@ using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.AI;
@@ -582,6 +583,112 @@ public sealed class ScopedMailKnowledgeRetrievalTests
         Assert.Contains("whether the person whose mailbox this is opened the message", description, StringComparison.Ordinal);
         Assert.Contains("never whether a recipient read mail the person sent", description, StringComparison.Ordinal);
     }
+
+    /// <summary>A search inside one message reaches the port with the run's own scope and the message the model named, nothing wider.</summary>
+    [Fact]
+    public async Task MessageSearchTool_ANamedMessage_IsSearchedWithinTheRunsScope()
+    {
+        // Arrange
+        var named = Guid.CreateVersion7();
+        var knowledgeSearch = new RecordingEmailKnowledgeSearch();
+        var tool = RetrievalOver(knowledgeSearch).CreateMessageSearchTool();
+
+        // Act
+        await InvokeAsync(tool, MessageQuery(named.ToString(), "termination"));
+
+        // Assert
+        Assert.Equal(
+            [(OnePrimaryAccount, StoredEmailId.Create(named), "termination")],
+            knowledgeSearch.CallsWithin);
+    }
+
+    /// <summary>What a search inside one message found is what the run read, so it joins the report its answer cites from.</summary>
+    [Fact]
+    public async Task MessageSearchTool_WhatItFinds_ReachesTheModelAndTheRunsRecord()
+    {
+        // Arrange
+        var named = Guid.CreateVersion7();
+        var passage = KnowledgePassages.Create(
+            string.Empty,
+            named,
+            attachmentExtracts: new EmailKnowledgeAttachmentExtract(0, "contract.pdf", AttachmentTextKind.Document, Segment: null, "ninety days' notice"));
+        var knowledgeSearch = new RecordingEmailKnowledgeSearch().ReturningWithin(StoredEmailId.Create(named), "notice", passage);
+        var retrieval = RetrievalOver(knowledgeSearch);
+
+        // Act
+        var envelope = await InvokeAsync(retrieval.CreateMessageSearchTool(), MessageQuery(named.ToString(), "notice"));
+
+        // Assert
+        Assert.Equal(
+            "ninety days' notice",
+            RootOf(envelope).Descendants(RetrievedMailContextFormatter.AttachmentExtractElementName).Single().Value);
+        Assert.Equal([passage], retrieval.Report.Passages);
+    }
+
+    /// <summary>A search inside one message spends the run's ceiling exactly as a search of the mailbox does.</summary>
+    [Fact]
+    public async Task MessageSearchTool_WhatWouldTakeTheRunPastItsCeiling_IsNotHandedOver()
+    {
+        // Arrange
+        var named = Guid.CreateVersion7();
+        var passage = KnowledgePassages.Create(new string('a', 300), named);
+        var knowledgeSearch = new RecordingEmailKnowledgeSearch().ReturningWithin(StoredEmailId.Create(named), "notice", passage);
+        var retrieval = new ScopedMailKnowledgeRetrieval(
+            knowledgeSearch,
+            OnePrimaryAccount,
+            new MailAnsweringRunLedger(MailAnsweringRunBounds.Create(100, 8, 80_000)),
+            SensitiveContentEgressGuards.Inactive(),
+            AskedAt);
+
+        // Act
+        var envelope = await InvokeAsync(retrieval.CreateMessageSearchTool(), MessageQuery(named.ToString(), "notice"));
+
+        // Assert
+        Assert.Empty(retrieval.Report.Passages);
+        Assert.Equal("true", RootOf(envelope).Attribute(RetrievedMailContextFormatter.RetrievalLimitReachedAttributeName)?.Value);
+    }
+
+    [Fact]
+    public async Task MessageSearchTool_AnIdThatNamesNoMessage_ComesBackAsARefusalWithoutSearching()
+    {
+        // Arrange
+        var knowledgeSearch = new RecordingEmailKnowledgeSearch();
+        var tool = RetrievalOver(knowledgeSearch).CreateMessageSearchTool();
+
+        // Act
+        var document = await InvokeAsync(tool, MessageQuery("the contract", "notice"));
+
+        // Assert
+        Assert.Equal("messageId", RootOf(document).Attribute(RetrievedMailContextFormatter.RefusedFilterAttributeName)?.Value);
+        Assert.Empty(knowledgeSearch.CallsWithin);
+    }
+
+    [Fact]
+    public async Task MessageSearchTool_AQueryWithNoWords_ComesBackAsARefusalWithoutSearching()
+    {
+        // Arrange
+        var knowledgeSearch = new RecordingEmailKnowledgeSearch();
+        var tool = RetrievalOver(knowledgeSearch).CreateMessageSearchTool();
+
+        // Act
+        var document = await InvokeAsync(tool, MessageQuery(Guid.CreateVersion7().ToString(), " "));
+
+        // Assert
+        Assert.Equal(
+            ScopedMailKnowledgeRetrieval.QueryArgumentName,
+            RootOf(document).Attribute(RetrievedMailContextFormatter.RefusedFilterAttributeName)?.Value);
+        Assert.Empty(knowledgeSearch.CallsWithin);
+    }
+
+    private static Dictionary<string, object?> MessageQuery(string messageId, string queryText) =>
+        new() { ["messageId"] = messageId, [ScopedMailKnowledgeRetrieval.QueryArgumentName] = queryText };
+
+    private static ScopedMailKnowledgeRetrieval RetrievalOver(RecordingEmailKnowledgeSearch knowledgeSearch) => new(
+        knowledgeSearch,
+        OnePrimaryAccount,
+        new MailAnsweringRunLedger(MailAnsweringRunBounds.Default),
+        SensitiveContentEgressGuards.Inactive(),
+        AskedAt);
 
     private static Dictionary<string, object?> OneQuery =>
         new() { [ScopedMailKnowledgeRetrieval.QueryArgumentName] = Query };

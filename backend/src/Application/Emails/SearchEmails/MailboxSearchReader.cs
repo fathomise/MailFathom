@@ -13,6 +13,7 @@ using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.SearchEmails;
@@ -268,6 +269,70 @@ public sealed class MailboxSearchReader
             retrievalMode,
             semanticSearchCapability,
             folderFreshness);
+    }
+
+    /// <summary>Finds where one message, and the documents it carries, hold the words of a query, for a reader inside this process.</summary>
+    /// <param name="scope">The mail the reader may reach, already resolved by its caller.</param>
+    /// <param name="emailId">The one message searched.</param>
+    /// <param name="queryText">The text to find, which a model may have written.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>The message's match, carrying every extract the deployment's widest snippet bounds allow, or <see langword="null" /> where the message is outside <paramref name="scope" />, is gone, or holds none of the words.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="scope" /> is <see langword="null" />.</exception>
+    /// <exception cref="MailboxQueryFilterInvalidException">Thrown when the query text is blank or unusable.</exception>
+    /// <remarks>
+    /// <para>
+    /// Nothing is ranked: the message is named, so the question is where in it the words stand rather than which mail
+    /// they stand in, and the extracts are cut by the same lexical index a ranked window's are. The scope is applied by
+    /// the same re-applied filter that keeps a ranked window inside its request, so naming a message the reader may not
+    /// reach answers exactly as naming one that holds none of the words does.
+    /// </para>
+    /// <para>
+    /// The match is lexical only. A picture's description is reachable by meaning alone, and a meaning ranked against
+    /// one message has no window to place it in, so a reader after a picture reads its description instead.
+    /// </para>
+    /// <para>
+    /// Unguarded for the reason <see cref="SearchWindowAsync" /> is: its caller sends the extracts to a model and guards
+    /// them under the egress point they cross.
+    /// </para>
+    /// </remarks>
+    internal async Task<EmailSearchMatch?> SearchWithinEmailAsync(
+        MailboxScope scope,
+        StoredEmailId emailId,
+        string? queryText,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+
+        var matchedText = EmailSearchQueryText.Create(queryText).MatchedUnder(EmailSearchRetrievalMode.Lexical);
+        var selection = MailboxEmailSelection.Create(
+            scope,
+            senderAddress: null,
+            recipientAddress: null,
+            subjectFragment: null,
+            receivedOnOrAfter: null,
+            receivedBefore: null,
+            isMarkedSeen: null,
+            isFlagged: null,
+            keyword: null,
+            hasAttachments: null);
+        var widest = EmailSearchSnippetBounds.Create(EmailSearchSnippetBounds.MaximumSnippetsPerEmail, this.snippetBounds.WordsPerSnippet);
+
+        var matches = await this.searchIndexReader.ReadMatchesAsync(
+            selection,
+            matchedText,
+            widest,
+            [new RankedEmailCandidate(new EmailTimelinePosition(ReceivedAt: null, emailId), Score: 1)],
+            cancellationToken);
+
+        matches = await this.attachmentMatchReader.ReadWindowMatchesAsync(
+            selection,
+            matchedText,
+            widest,
+            matches,
+            depictedOnly: new HashSet<StoredEmailId>(),
+            cancellationToken);
+
+        return matches.FirstOrDefault(static match => match.Snippets.Count is not 0 || match.AttachmentMatches.Count is not 0);
     }
 
     /// <summary>Scans the mail content of a window before the window becomes somebody else's.</summary>

@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Retrieval;
 
@@ -52,5 +53,25 @@ public interface IEmailKnowledgeSearch
     Task<EmailKnowledgeLookup> FindPassagesAsync(
         MailboxScope scope,
         EmailKnowledgeQuery query,
+        CancellationToken cancellationToken);
+
+    /// <summary>Finds where one message, and the documents it carries, hold the words of a query.</summary>
+    /// <param name="scope">The accounts and folders the message must lie in, decided by the caller.</param>
+    /// <param name="emailId">The one message searched, which a model may have named.</param>
+    /// <param name="queryText">The words to find, which a model may have written.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>At most one passage, carrying more of the message's matching places than a ranked lookup carries for any one message, or none where the message is outside the scope or holds none of the words.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="scope" /> is <see langword="null" />.</exception>
+    /// <exception cref="MailboxQueryFilterInvalidException">Thrown when the query carries no usable text.</exception>
+    /// <remarks>
+    /// The answer to a question about one long document: the places in it that hold the words, each naming its page,
+    /// rather than a reading of every page. Matched by words alone, because nothing ranks one message against itself.
+    /// A message outside the scope answers exactly as one holding none of the words does, so naming an identifier
+    /// discloses nothing about mail the caller may not read.
+    /// </remarks>
+    Task<EmailKnowledgeLookup> FindPassagesWithinAsync(
+        MailboxScope scope,
+        StoredEmailId emailId,
+        string queryText,
         CancellationToken cancellationToken);
 }

@@ -8,6 +8,7 @@ using MailFathom.Application.Chat;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Retrieval;
+using MailFathom.Domain.Emails;
 using Microsoft.Extensions.Logging;
 
 namespace MailFathom.AI.Retrieval;
@@ -87,6 +88,18 @@ internal sealed class ModelJudgedKnowledgeSearch : IEmailKnowledgeSearch
         this.plan = plan;
         this.logger = logger;
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Passed through unjudged: the message is the one the model named, so there is no ranking for a relevance pass to
+    /// correct, and its matching places are what the model asked to read.
+    /// </remarks>
+    public Task<EmailKnowledgeLookup> FindPassagesWithinAsync(
+        MailboxScope scope,
+        StoredEmailId emailId,
+        string queryText,
+        CancellationToken cancellationToken) =>
+        this.rankedSearch.FindPassagesWithinAsync(scope, emailId, queryText, cancellationToken);
 
     /// <inheritdoc />
     public async Task<EmailKnowledgeLookup> FindPassagesAsync(

@@ -670,6 +670,100 @@ public sealed class MailboxKnowledgeSearchTests
         Assert.Equal(120, Assert.Single(passage.AttachmentExtracts).Text.Length);
     }
 
+    /// <summary>A question about one document is answered from where that one message holds the words, its files included.</summary>
+    [Fact]
+    public async Task FindPassagesWithinAsync_ANamedMessage_ReturnsItsBodyAndFileExtractsAndNoOtherMessage()
+    {
+        // Arrange
+        var named = SyntheticEmailSummaries.Create(FirstJuly);
+        var other = SyntheticEmailSummaries.Create(FirstJuly.AddDays(1));
+        var index = new InMemoryEmailSearchIndex()
+            .With(named, snippets: "see the clause on termination")
+            .With(other, snippets: "termination elsewhere");
+        var attachmentMatches = new InMemoryEmailAttachmentMatchIndex()
+            .WithWritten(named.StoredEmailId, AttachmentMatch("termination needs ninety days' notice"));
+        var search = SearchOver(index, attachmentMatches: attachmentMatches);
+
+        // Act
+        var lookup = await search.FindPassagesWithinAsync(
+            EveryAccount,
+            named.StoredEmailId,
+            "termination",
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var passage = Assert.Single(lookup.Passages);
+
+        Assert.Equal(named.StoredEmailId, passage.StoredEmailId);
+        Assert.Equal("see the clause on termination", passage.Text);
+        Assert.Equal("termination needs ninety days' notice", Assert.Single(passage.AttachmentExtracts).Text);
+        Assert.Equal(EmailSearchRetrievalMode.Lexical, lookup.RetrievalMode);
+    }
+
+    /// <summary>One message is searched for more of its places than a ranked window gives any message.</summary>
+    [Fact]
+    public async Task FindPassagesWithinAsync_ANamedMessage_AsksForTheMostExtractsOneMessageMayCarry()
+    {
+        // Arrange
+        var named = SyntheticEmailSummaries.Create(FirstJuly);
+        var index = new InMemoryEmailSearchIndex().With(named, snippets: "the clause");
+        var search = SearchOver(index);
+
+        // Act
+        await search.FindPassagesWithinAsync(EveryAccount, named.StoredEmailId, "clause", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            EmailSearchSnippetBounds.MaximumSnippetsPerEmail,
+            Assert.Single(index.MatchesCalls).SnippetBounds.SnippetsPerEmail);
+    }
+
+    /// <summary>Naming a message outside the scope answers as naming one that holds none of the words, so an identifier discloses nothing.</summary>
+    [Fact]
+    public async Task FindPassagesWithinAsync_AMessageOutsideTheScope_FindsNothing()
+    {
+        // Arrange
+        var elsewhere = SyntheticEmailSummaries.Create(FirstJuly, accountId: "secondary");
+        var index = new InMemoryEmailSearchIndex().With(elsewhere, snippets: "the clause");
+        var search = SearchOver(index);
+        var primaryOnly = MailboxScope.Create([MailAccountId.Create(SyntheticEmailSummaries.DefaultAccountId)], selectedFolders: null);
+
+        // Act
+        var lookup = await search.FindPassagesWithinAsync(primaryOnly, elsewhere.StoredEmailId, "clause", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(lookup.Passages);
+    }
+
+    [Fact]
+    public async Task FindPassagesWithinAsync_AMessageHoldingNoneOfTheWords_FindsNothing()
+    {
+        // Arrange
+        var named = SyntheticEmailSummaries.Create(FirstJuly);
+        var search = SearchOver(new InMemoryEmailSearchIndex().With(named));
+
+        // Act
+        var lookup = await search.FindPassagesWithinAsync(EveryAccount, named.StoredEmailId, "clause", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(lookup.Passages);
+    }
+
+    [Fact]
+    public async Task FindPassagesWithinAsync_AQueryWithNoUsableText_IsRefused()
+    {
+        // Arrange
+        var named = SyntheticEmailSummaries.Create(FirstJuly);
+        var search = SearchOver(new InMemoryEmailSearchIndex().With(named, snippets: "the clause"));
+
+        // Act, Assert
+        await Assert.ThrowsAsync<MailboxQueryFilterInvalidException>(() => search.FindPassagesWithinAsync(
+            EveryAccount,
+            named.StoredEmailId,
+            "   ",
+            TestContext.Current.CancellationToken));
+    }
+
     /// <summary>Builds a hit on the second page of a document attachment.</summary>
     private static EmailAttachmentMatch AttachmentMatch(params string[] extracts) => new(
         AttachmentPosition: 1,
