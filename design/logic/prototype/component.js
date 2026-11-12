@@ -504,6 +504,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     if (r.author === "authenticated") return r.authDomain + " authenticated this message, but this account does not recognize the sender.";
     return "Nothing established who sent this message.";
   };
+  /* THE EXTERNAL CHIP — a received message on an organization's mail account that the organization's signature does
+     not prove, marked in so many words once the organization switched the mark on (`externalMark`, off by default).
+     It asks about the signature alone, so a colleague writing from another mail application earns it as a stranger
+     does, and what it says has to explain that. It stands beside the sender mark and never changes it. */
+  const externalColleague = (r) => (r.trust && r.trust.source === "colleague" && r.trust) || (r.known && r.known.source === "colleague" && r.known) || null;
+  const externalRest = (r, org) => {
+    const c = externalColleague(r);
+    return c ? "The address is " + c.member + "'s, a colleague in your organization: a colleague's message is marked this way when it is written in another mail application or sent from an account outside " + org + "."
+      : "It was not sent from a " + org + " mail account through MailFathom. A colleague writing from another mail application is marked the same way.";
+  };
+  const EXTERNAL_PILL = "display:inline-flex;align-items:center;gap:4px;box-sizing:border-box;border-radius:6px;font-family:'Geist',system-ui,sans-serif;font-size:12px;font-weight:600;line-height:1;white-space:nowrap;color:var(--err-text);background:var(--err-soft);border:1px solid var(--err);";
   const senderSteps = (r, acc) => {
     const fromDom = domainOf(r.from);
     const nobody = r.checker === "none";
@@ -1766,6 +1777,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     inSpamFolder = () => !this.state.convMail && /·Spam$/.test(this.state.folderKey || "acc1·Inbox");
     /* Whether *Spam* and *Not spam* also move a message is its account's own setting, off unless the account says so. */
     accountOf = (id) => (THREADS.find(x => x.id === id) || {}).acc || "acc1";
+    /* What the organization's signature says about a received message, asked only where the organization switched the
+       External mark on and the message arrived on one of its accounts: `external` where the signature does not prove
+       it, with the chip's name and the sentence behind it. Null everywhere else, which draws what stood before. */
+    orgSignatureOf = (id, from) => {
+      const org = (ORGANIZATION || {}).name;
+      if (!this.props.externalMark || !(this.props.inOrganization ?? true) || !org) return null;
+      if (!(SENDER_MARKS.organizationAccounts || []).includes(this.accountOf(id))) return null;
+      const r = senderRecord(id, from);
+      if (!r) return null;
+      if (r.trust && r.trust.source === "org") return { external: false, org: r.trust.org };
+      const short = "External - not signed by " + org;
+      return { external: true, org, short, name: short + ". " + externalRest(r, org), why: "This message is not signed by " + org + ". " + externalRest(r, org), open: (e) => this.openSenderMark(id, from, e) };
+    };
+    externalOf = (id, from) => { const s = this.orgSignatureOf(id, from); return s && s.external ? s : null; };
     /* The account a composition sends from: a reply's conversation's, a draft's own, or else the account whose folder is
        open — the work account where none is, unified folders included. Its footer is drawn under the text and carries
        the closing, so an AI draft on it ends at its own words and signs off only where the account has none. */
@@ -2181,6 +2206,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             /* A finger has no hover, and the hold that would ask a label for its whole name opens this menu. */
             (sp.spam ? "" : (this.state.convMail ? conversationCategories(id) : messageCategories(id, 0)).map(n => " - " + n).join("")) +
             (/·(Sent|Drafts)$/.test(this.state.folderKey || "") || !senderRecord(id, null) ? "" : " - " + MARKS[markKeyOf(senderRecord(id, null))].name) +
+            (/·(Sent|Drafts)$/.test(this.state.folderKey || "") || !this.externalOf(id, null) ? "" : " - " + this.externalOf(id, null).short) +
             (rcpt ? " - " + rcpt.word : "") +
             (th.localOnly ? " - Local only" : "") +
             (th.encrypted ? " - " + ENC_STATES[th.encrypted].name : ""),
@@ -5304,8 +5330,24 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ...(unread && convMail ? { convWho: "", convWhoShown: false, convSnippet: t.encrypted === "noKey" ? "Encrypted - no key here opens this message" : "Encrypted - too large to open here" } : {}),
         });
       };
+      /* The External chip: on a row its word alone at the end of the subject's line, so the sender keeps its room,
+         beside an opened message's sender a badge with its glyph. Either opens the sender details, which say why. A folded spam row draws none - the fold
+         is its cue, and the opened message carries the chip. */
+      const externalChip = (X, onRow) => !X ? { extShown: false } : {
+        extShown: true, extName: X.name, openExt: X.open,
+        extBtnStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;" +
+          (onRow ? "margin-left:auto;" + (touch ? "min-height:44px;margin-top:-13px;margin-bottom:-13px;" : "margin-top:1px;")
+            : "align-self:center;" + (touch ? "min-height:44px;margin:-11px 0;" : "")),
+        /* Read by conversation the second line is the AI frame, which holds nothing but the topic, so the chip stands
+           on the first, after the sender mark. */
+        extConvBtnStyle: "flex:0 0 auto;align-self:center;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;" +
+          (touch ? "min-height:44px;margin:-12px 0;" : ""),
+        extPillStyle: EXTERNAL_PILL + (onRow ? "height:18px;padding:0 6px;border-radius:5px;" : "height:22px;padding:0 8px 0 6px;"),
+        extGlyphStyle: markGlyph(15),
+      };
       const withMark = (t, row) => {
         const M = recipientList ? null : markOf(t.id, null);
+        Object.assign(row, externalChip(recipientList || row.folded ? null : this.externalOf(t.id, null), true));
         if (!M) return Object.assign(row, { markShown: false });
         return Object.assign(row, {
           markShown: true, markGlyph: M.glyph, markName: M.name, openMark: M.open,
@@ -5575,6 +5617,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           aiBtnStyle: "display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" + (touch ? "width:44px;height:44px;margin:-12px -8px;font-size:20px" : "width:26px;height:26px;margin:-5px -3px;font-size:17px"),
           ...(m.mine ? { rptShown: false } : reportLine(thread)),
           ...(m.mine ? { markShown: false } : badgeOf(thread.id, m.from)),
+          ...externalChip(m.mine ? null : this.externalOf(thread.id, m.from), false),
           ...(() => {
             /* A reply read by thread alone (`sentLast`) stands past the sample's newest message and holds none. */
             const names = threadSpam.spam ? [] : messageCategories(thread.id, msgs.length - 1 - i - (convMail && SENT_LAST[thread.id] ? 1 : 0));
@@ -6407,6 +6450,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           if (!r) return { senderPopOpen: false };
           const k = markKeyOf(r), M = MARKS[k];
           const steps = senderSteps(r, this.accountOf(smk.id));
+          /* Where the organization marks external mail, its signature is a step of its own, first under Trust. */
+          const orgSig = this.orgSignatureOf(smk.id, smk.from);
+          if (orgSig) steps.trust.unshift({ name: "Organization's signature", more: null,
+            result: orgSig.external ? "fail" : "pass",
+            detail: orgSig.external ? "Not signed by " + orgSig.org + ". " + externalRest(r, orgSig.org)
+              : "Signed by " + (orgSig.org || "your organization") + ": the message left one of its mail accounts through MailFathom." });
           const moreOpen = st.senderMore || {};
           const group = (label, list, gk) => ({
             label,
@@ -6461,6 +6510,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             senderPopRef: this.senderPopRef,
             senderPopTitle: M.name,
             senderPopWhy: senderWhy(k, r),
+            senderPopExtShown: !!(orgSig && orgSig.external),
+            senderPopExtWhy: orgSig && orgSig.external ? orgSig.why : "",
+            senderPopExtStyle: "display:flex;align-items:flex-start;gap:8px;margin-top:8px;padding:8px 10px;border-radius:8px;border:1px solid var(--err);background:var(--err-soft);font-size:13px;line-height:1.5;color:var(--text2);text-wrap:pretty",
+            senderPopExtGlyphStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.1;color:var(--err-text)",
             senderPopFrom: r.from,
             senderPopGlyph: M.glyph,
             senderPopGroups: [group("Sender authentication", steps.auth, "a"), group("Trust", steps.trust, "t"), group("Signature", steps.sig, "s")],
@@ -8897,7 +8950,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
              in 700 and the full text colour, a read row in 400 and the secondary one. 600 against 400 alone read as
              the same row at a glance. No dot. */
           fromStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px;" : listCompact ? "flex:0 1 auto;min-width:0;font-size:14px;" : "flex:0 1 auto;min-width:0;max-width:60%;font-size:14px;") + "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
-          subjStyle: (isMobile ? "font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
+          subjStyle: "flex:1 1 auto;min-width:0;" + (isMobile ? "font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
           orgStyle: isMobile || compact ? "display:none" : "flex:0 100 auto;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
           showAi: aiHints && !!t.ai && !convMail,
           openAiSum: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.openAiSum(t.id); },
