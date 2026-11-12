@@ -193,6 +193,22 @@ public sealed class AgentConversationInstructionsTests
         Assert.Contains("Where no message you were shown carries the file asked for, say so rather than offering another.", text, StringComparison.Ordinal);
     }
 
+    /// <summary>A report is written only where one was asked for, in the person's language, citing what it rests on and saying what it leaves out, and the answer does not repeat it.</summary>
+    [Fact]
+    public void TextFor_TheInstruction_WritesAReportOnlyWhereOneWasAskedForAndNeverRepeatsIt()
+    {
+        // Act
+        var text = string.Join(' ', AgentConversationInstructions.TextFor(UserLanguage.Polish).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains($"write it with {AgentConversationTools.WriteReportToolName}", text, StringComparison.Ordinal);
+        Assert.Contains("Write one only where the person asked for a report or a document", text, StringComparison.Ordinal);
+        Assert.Contains("Write it in Polish, and quote mail in it in the language the mail was written in", text, StringComparison.Ordinal);
+        Assert.Contains("never list sources yourself", text, StringComparison.Ordinal);
+        Assert.Contains("say so in the report itself", text, StringComparison.Ordinal);
+        Assert.Contains("and never repeats it", text, StringComparison.Ordinal);
+    }
+
     /// <summary>No sample of mail is the mailbox, so a figure or a census is counted, a figure one message states is still searched, and an answer resting on a count says what it covers and cites no message.</summary>
     [Fact]
     public void TextFor_TheInstruction_CountsAFigureAndSaysWhatItCovers()

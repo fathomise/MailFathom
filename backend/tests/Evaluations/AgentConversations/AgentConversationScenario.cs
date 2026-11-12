@@ -13,6 +13,7 @@ using MailFathom.AI.Retrieval;
 using MailFathom.Application.Access;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Agent.Reports;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Emails.Census;
@@ -97,6 +98,21 @@ internal sealed record AgentConversationScenario(
 
     /// <summary>The check that the run handed the person exactly the files the question meant, and none where it meant none.</summary>
     public const string OffersTheFileMeantMetricName = "Offers the file meant";
+
+    /// <summary>The check that the run wrote a report exactly where the question asked for one, and none where it did not.</summary>
+    public const string WritesReportAsAskedMetricName = "Writes a report where one was asked";
+
+    /// <summary>The check that a report lists among its sources the messages the case names.</summary>
+    public const string ReportListsItsSourcesMetricName = "The report lists its sources";
+
+    /// <summary>The check that every finding a report sets as a list item or a table row cites a source.</summary>
+    public const string ReportCitesEveryFindingMetricName = "The report cites every finding";
+
+    /// <summary>The check that a report is set in the structures the question asked for.</summary>
+    public const string ReportSetAsAskedMetricName = "The report is set as asked";
+
+    /// <summary>The check that a report's own words, outside what it quotes, are in the person's language.</summary>
+    public const string ReportInThePersonsLanguageMetricName = "The report is in the person's language";
 
     /// <summary>The check that the answer carries what only the conversation itself settled.</summary>
     public const string KeepsWhatTheConversationSettledMetricName = "Keeps what the conversation settled";
@@ -1534,6 +1550,73 @@ internal sealed record AgentConversationScenario(
             Offers = [],
         },
 
+        // These ask for a report: one to forward, one ordinary question that must stay an answer, one listing findings
+        // that each have to be cited, one asking past what the mailbox holds, and one asking for the structures the page
+        // sets. A year of invoices is what they read, because every invoice is its own message of a known subject.
+        new(
+            "Agent.Report.AskedFor",
+            "Write me a report on this year's invoices from Brackenford Office Supply that I can forward to our accountant.",
+            UserLanguage.English,
+            [],
+            InvoiceRunSubject)
+        {
+            Mode = AgentAnswerMode.Deep,
+            Calls = [AgentConversationTools.WriteReportToolName],
+            WritesReport = true,
+            ReportCites = [InvoiceRunMail.LargestInvoice],
+        },
+        new(
+            "Agent.Report.OrdinaryQuestionWritesNone",
+
+            // A total over the same invoices, asked as a question rather than for a document, gets an answer and no file.
+            "How much did Brackenford Office Supply invoice us this year in total?",
+            UserLanguage.English,
+            [],
+            InvoiceRunSubject)
+        {
+            Mode = AgentAnswerMode.Deep,
+            WritesReport = false,
+        },
+        new(
+            "Agent.Report.EveryFindingSourced",
+            "Przygotuj raport do archiwum: każda tegoroczna faktura Wrenhollow Print w osobnym punkcie, z numerem i kwotą.",
+            UserLanguage.Polish,
+            [],
+            [.. InvoiceRunSubject, "faktur", "raport", "kwot"])
+        {
+            Mode = AgentAnswerMode.Deep,
+            Calls = [AgentConversationTools.WriteReportToolName],
+            WritesReport = true,
+            ReportCites = [InvoiceRunMail.LatestInvoice],
+            ReportCitesEveryFinding = true,
+        },
+        new(
+            "Agent.Report.SaysWhatItDoesNotCover",
+
+            // The mailbox reaches back to January 2026 alone, so a report since 2020 can cover only part of what was
+            // asked, which the report itself has to say; the judge reads the report the tool call carries.
+            "Write a report for the auditors of every Tallmoor Paper invoice we received since 2020.",
+            UserLanguage.English,
+            [],
+            InvoiceRunSubject)
+        {
+            Mode = AgentAnswerMode.Deep,
+            Calls = [AgentConversationTools.WriteReportToolName],
+            WritesReport = true,
+        },
+        new(
+            "Agent.Report.SetAsAsked",
+            "Write a report comparing this year's invoices from our three suppliers: a table with each supplier's number of invoices and total, a list of the suppliers with each one's invoices nested under it, and a quotation of what Brackenford's mail says about how payment is made.",
+            UserLanguage.English,
+            [],
+            InvoiceRunSubject)
+        {
+            Mode = AgentAnswerMode.Deep,
+            Calls = [AgentConversationTools.WriteReportToolName],
+            WritesReport = true,
+            ReportHolds = [ReportStructure.Table, ReportStructure.NestedList, ReportStructure.Quotation],
+        },
+
         // How far a run goes. An automatic run answers a question a few messages settle without going deep; goes deep
         // when the person asks for a complete answer, or when the reading turns out to need more than a quick answer
         // reads; and never ends at the fast limit without having asked. A fast run that cannot read enough stops and
@@ -1618,6 +1701,19 @@ internal sealed record AgentConversationScenario(
     /// <summary>Gets the names of the files the answer has to hand the person, in any order; none where it must hand over none, and <see langword="null" /> where the case holds the run to nothing about files.</summary>
     /// <remarks>Read off the file blocks the run placed rather than off its prose, because the card is the handing over: an answer that names a file without placing it has given the person nothing to download.</remarks>
     public IReadOnlyList<string>? Offers { get; init; }
+
+    /// <summary>Gets whether the run has to write a report, <see langword="false" /> where it must write none, and <see langword="null" /> where the case holds it to nothing about reports.</summary>
+    /// <remarks>Read off the report blocks the run placed rather than off its prose, because the block is the handing over.</remarks>
+    public bool? WritesReport { get; init; }
+
+    /// <summary>Gets phrases the subjects of a report's sources carry between them, each in at least one; none where the case names none.</summary>
+    public IReadOnlyList<string> ReportCites { get; init; } = [];
+
+    /// <summary>Gets whether every list item and every table row a report sets has to cite a source.</summary>
+    public bool ReportCitesEveryFinding { get; init; }
+
+    /// <summary>Gets the structures a report has to be set in; none where the case names none.</summary>
+    public IReadOnlyList<ReportStructure> ReportHolds { get; init; } = [];
 
     /// <summary>Gets phrases no proposal may carry, because a later turn took them out of the request.</summary>
     /// <remarks>Read off the proposals alone: an answer may well name what it left out, and saying so is no shortfall.</remarks>
@@ -1799,6 +1895,9 @@ internal sealed record AgentConversationScenario(
         Agent("Wrześniowe wydanie Zielonego Biuletynu zapowiada, że od tego miesiąca harmonogram eksportu jest dostępny we wszystkich przestrzeniach roboczych: raporty można uruchamiać co noc lub co tydzień, a każdy gotowy eksport jest przechowywany przez czternaście dni."),
     ];
 
+    private static IReadOnlyList<string> InvoiceRunSubject =>
+        ["invoice", "supplier", "Brackenford", "Tallmoor", "Wrenhollow", "amount", "total", "EUR", "report", "paid", "payment"];
+
     private static IReadOnlyList<string> KestrelQuaySubject =>
         ["Kestrel", "move", "moving", "desk", "lift", "parking", "network", "fibre", "key card", "floor", "Ingrid", "Tobias", "Skerry", "zone C", "reception"];
 
@@ -1935,12 +2034,14 @@ internal sealed record AgentConversationScenario(
         {
             NamedEmails = [.. (this.Arrived ?? []).Select(static message => message.Id)],
         };
+        var reports = new RecordingReportTypesetter();
         var readers = CorpusReaders.For(
             AccessAuthorizations.ForCallerGranted([.. this.Grant]),
             search,
             UserClocks.Reading(AskedAt, this.Zone),
             this.ClosesWithFooter is true ? await CorpusReaders.FooterOnTheAccountAsync(cancellationToken) : null,
-            files);
+            files,
+            reports);
         var turnFiles = await AgentTurnFiles.ReadAsync(files, SensitiveContentEgressGuards.Inactive(), effort.Ledger, question, cancellationToken);
         var tools = new AgentConversationTools(
             journal,
@@ -1948,7 +2049,8 @@ internal sealed record AgentConversationScenario(
             readers,
             SensitiveContentEgressGuards.Inactive(),
             CorpusKnowledgeSearch.Scope.AccountIds,
-            new AgentConversationFileTools(journal, files, SensitiveContentEgressGuards.Inactive(), effort.Ledger, question, turnFiles));
+            new AgentConversationFileTools(journal, files, SensitiveContentEgressGuards.Inactive(), effort.Ledger, question, turnFiles),
+            new AgentConversationReporting(question, this.Language, turnFiles));
         var called = new ConcurrentQueue<string>();
         IReadOnlyList<AITool> offered = [.. effort.Offer(tools.Create()).OfType<AIFunction>().Select(tool => new CalledFunction(tool, called))];
 
@@ -1985,6 +2087,7 @@ internal sealed record AgentConversationScenario(
             ? this with { Evidence = this.UnshownEvidence }
             : this;
         measured.Check(verdict, answer, presented, [.. called], search.NarrowedBy, store.Written);
+        this.CheckReport(verdict, store.Written, reports.Set);
         this.CheckEffort(verdict, answer, presented, atLastCallStart, effort, store.Written);
         CheckPublished(verdict, presented, tools);
         this.CheckRemembered(verdict, presented?.Value ?? string.Empty, summarizer.Summary);
@@ -2210,6 +2313,81 @@ internal sealed record AgentConversationScenario(
         {
             return (null, calls.AtLastCallStart);
         }
+    }
+
+    /// <summary>Records whether the run wrote a report where the case says it must, and what the report it wrote lists, cites, holds, and is written in.</summary>
+    /// <remarks>
+    /// What is read is the report as the tool handed it to the typesetter — the body with every citation already numbered,
+    /// and the sources the tool listed — so a check reads what the person's PDF carries rather than what the model typed.
+    /// </remarks>
+    private void CheckReport(EvaluationResult verdict, IReadOnlyList<AgentConversationEntry> written, IReadOnlyList<AgentReport> reports)
+    {
+        var placed = written.OfType<AgentBlockComposed>().Select(static composed => composed.Block).OfType<ReportBlock>().Count();
+
+        if (this.WritesReport is { } writes)
+        {
+            EvaluationMetrics.Record(
+                verdict,
+                WritesReportAsAskedMetricName,
+                placed > 0 == writes,
+                (placed, writes) switch
+                {
+                    (0, false) => "The Agent wrote no report, as the question asked for none.",
+                    (0, true) => "The Agent wrote no report where the question asked for one.",
+                    (_, true) => "The Agent wrote the report the question asked for.",
+                    _ => "The Agent wrote a report where the question asked for an answer.",
+                });
+        }
+
+        if (reports.Count is 0)
+        {
+            return;
+        }
+
+        var report = reports[^1];
+        var titles = report.Sources.Select(static source => source.Title).ToList();
+        var unlisted = this.ReportCites.Where(phrase => !titles.Any(title => title.Contains(phrase, StringComparison.OrdinalIgnoreCase))).ToList();
+
+        if (this.ReportCites.Count > 0)
+        {
+            EvaluationMetrics.Record(
+                verdict,
+                ReportListsItsSourcesMetricName,
+                unlisted.Count is 0,
+                unlisted.Count is 0
+                    ? $"The report lists {titles.Count} source(s), among them every one the case names."
+                    : $"The report lists no source naming {string.Join(", ", unlisted)}, of {titles.Count} listed.");
+        }
+
+        if (this.ReportCitesEveryFinding)
+        {
+            var uncited = ReportFindings.Of(report.Body).Where(static finding => !ReportFindings.Cites(finding)).ToList();
+
+            EvaluationMetrics.Record(
+                verdict,
+                ReportCitesEveryFindingMetricName,
+                uncited.Count is 0,
+                uncited.Count is 0 ? "Every finding the report lists cites a source." : $"These findings cite nothing: {string.Join(" | ", uncited)}");
+        }
+
+        if (this.ReportHolds.Count > 0)
+        {
+            var missing = this.ReportHolds.Where(structure => !ReportFindings.Holds(report.Body, structure)).ToList();
+
+            EvaluationMetrics.Record(
+                verdict,
+                ReportSetAsAskedMetricName,
+                missing.Count is 0,
+                missing.Count is 0 ? "The report is set in every structure the question asked for." : $"The report holds no {string.Join(", ", missing)}.");
+        }
+
+        var language = WrittenLanguage.Shortfall(ReportFindings.OwnWordsOf(report.Body), this.Language);
+
+        EvaluationMetrics.Record(
+            verdict,
+            ReportInThePersonsLanguageMetricName,
+            language is null,
+            language is null ? $"The report is written in {this.Language}." : $"The report misses the person's language: {language}");
     }
 
     /// <summary>Records every structural check as a metric beside the judge's.</summary>

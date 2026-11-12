@@ -11,7 +11,7 @@ namespace MailFathom.Application.Discovery.Presentation;
 /// <summary>The closed catalogue of block types a presentation plan may hold.</summary>
 /// <remarks>
 /// <para>
-/// Twelve members and no thirteenth. A plan is composed by a model, and a catalogue that were an open string would let one
+/// Thirteen members and no fourteenth. A plan is composed by a model, and a catalogue that were an open string would let one
 /// invent a presentation the client has no renderer for — so the set is declared here, adding to it is a source change
 /// that reaches a review, and a client can switch over it exhaustively.
 /// </para>
@@ -55,6 +55,9 @@ public readonly record struct PresentationBlockType
 
     /// <summary>The identity of the block presenting one file handed to the person to download.</summary>
     public const string FileIdentity = "file";
+
+    /// <summary>The identity of the block presenting one report the Agent wrote.</summary>
+    public const string ReportIdentity = "report";
 
     /// <summary>The identity of the block presenting text to be sent.</summary>
     public const string DraftIdentity = "draft";
@@ -111,6 +114,15 @@ public readonly record struct PresentationBlockType
     /// </remarks>
     public static PresentationBlockType File { get; } = new(FileIdentity, version: 1);
 
+    /// <summary>Gets the type of the block presenting one report the Agent wrote, handed to the person as a PDF.</summary>
+    /// <remarks>
+    /// A reading for the reason <see cref="File" /> is one. A type of its own rather than a <see cref="File" /> naming a
+    /// different source, because a file block's whole contract is the message a file arrived on and its place there,
+    /// while a report arrived on no message: it is a file of the conversation, written by the run, with a title and a
+    /// page count a mail attachment does not have.
+    /// </remarks>
+    public static PresentationBlockType Report { get; } = new(ReportIdentity, version: 1);
+
     #endregion
 
     #region Acting — the blocks that present something a person may do next
@@ -151,6 +163,7 @@ public readonly record struct PresentationBlockType
         ThreadState,
         AttachmentGallery,
         File,
+        Report,
         Draft,
         EventProposal,
         TaskProposal,

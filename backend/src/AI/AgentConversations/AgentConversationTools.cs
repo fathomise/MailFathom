@@ -5,10 +5,13 @@
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.Retrieval;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Agent.Files;
+using MailFathom.Application.Agent.Reports;
 using MailFathom.Application.Answers;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
@@ -65,7 +68,7 @@ namespace MailFathom.AI.AgentConversations;
 /// restate — so the same thread reads the same way in both places.
 /// </para>
 /// </remarks>
-internal sealed class AgentConversationTools
+internal sealed partial class AgentConversationTools
 {
     /// <summary>The most messages of one conversation a thread reading shows the model.</summary>
     internal const int MaximumThreadMessages = 20;
@@ -183,18 +186,41 @@ internal sealed class AgentConversationTools
     /// <summary>The media type a file is described as where the type its message declared is not one a presentation text holds.</summary>
     private const string GeneralBinaryMediaType = "application/octet-stream";
 
+    /// <summary>Names the tool that writes a report and hands it to the person as a PDF.</summary>
+    internal const string WriteReportToolName = "write_report";
+
+    /// <summary>What the model is told writing a report does, what the Markdown may carry, and how a statement cites its source.</summary>
+    private static readonly string WriteReportDescription =
+        "Writes a report the person asked for — something to forward, file, or print — and places it in your answer as a "
+        + "PDF they download. Use it only where the person asked for a report or a document; an ordinary question gets "
+        + "an ordinary answer. Read what the report needs first. The service sets the title and when it was written at "
+        + "the top and lists the sources at the end, so write neither. "
+        + string.Create(CultureInfo.InvariantCulture, $"The title is at most {AgentReportBounds.MaximumTitleCharacters} characters and the body at most {AgentReportBounds.MaximumBodyCharacters} characters of Markdown: ")
+        + "headings (## for a section, ### and #### below it), paragraphs, bulleted and numbered lists, tables, "
+        + "quotations (>), bold, and italics. A quotation of mail closes with its own line, still inside it, opening "
+        + "with \"— \" and naming who wrote it and when. Links, pictures, and HTML are printed as their words only. "
+        + "Cite a statement that rests on mail by writing [^id] right after it, with the id of the message as a "
+        + "reading, a search, or a "
+        + "listing showed it, and one resting on a file the question carries with [^file-id]; a message or a file you "
+        + "were not shown is not cited. A run writes one report.";
+
+    /// <summary>The characters a title may carry that a file name may not, which the name the report is saved under replaces.</summary>
+    private static readonly char[] FileNameReservedCharacters = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
+
     private readonly AgentAnswerJournal journal;
     private readonly ScopedMailKnowledgeRetrieval retrieval;
     private readonly AgentConversationReaders readers;
     private readonly SensitiveContentEgressGuard egressGuard;
     private readonly IReadOnlyList<MailAccountId> accounts;
     private readonly AgentConversationFileTools? fileTools;
+    private readonly AgentConversationReporting? reporting;
     private readonly Dictionary<StoredEmailId, PresentationCitation> cited = [];
     private readonly Dictionary<StoredEmailId, string?> listed = [];
     private readonly List<string> readBodies = [];
     private readonly HashSet<(StoredEmailId Message, int Position)> shownFiles = [];
     private readonly HashSet<(StoredEmailId Message, int Position)> offeredFiles = [];
     private IReadOnlySet<MailAccountId>? footedAccounts;
+    private bool reportWritten;
 
     /// <summary>Initializes the tools of one run.</summary>
     /// <param name="journal">Where every status, block, and proposal is written the moment it exists.</param>
@@ -203,13 +229,15 @@ internal sealed class AgentConversationTools
     /// <param name="egressGuard">Scans every text a tool hands the model.</param>
     /// <param name="accounts">The accounts the person reads, which are the ones a new message may be sent from.</param>
     /// <param name="fileTools">The tools over the files the person handed to the conversation, or <see langword="null" /> where the run reads none.</param>
+    /// <param name="reporting">Who a report would be written for and in which conversation, or <see langword="null" /> where the run writes none.</param>
     internal AgentConversationTools(
         AgentAnswerJournal journal,
         ScopedMailKnowledgeRetrieval retrieval,
         AgentConversationReaders readers,
         SensitiveContentEgressGuard egressGuard,
         IReadOnlyList<MailAccountId> accounts,
-        AgentConversationFileTools? fileTools = null)
+        AgentConversationFileTools? fileTools = null,
+        AgentConversationReporting? reporting = null)
     {
         this.journal = journal;
         this.retrieval = retrieval;
@@ -217,6 +245,7 @@ internal sealed class AgentConversationTools
         this.egressGuard = egressGuard;
         this.accounts = accounts;
         this.fileTools = fileTools;
+        this.reporting = reporting;
     }
 
     /// <summary>Gets every source the run has shown the model, in the order it was first shown.</summary>
@@ -275,6 +304,11 @@ internal sealed class AgentConversationTools
             AIFunctionFactory.Create(this.RateConfidence, "rate_confidence", "Rates how settled your answer is, shown beside it: high, moderate, or low."),
             .. this.fileTools?.Create() ?? [],
         ];
+
+        if (this.reporting is not null)
+        {
+            tools.Add(AIFunctionFactory.Create(this.WriteReportAsync, WriteReportToolName, WriteReportDescription));
+        }
 
         if (this.readers.Authorization.Permits(MailFathomPermission.MailRead))
         {
@@ -1133,6 +1167,144 @@ internal sealed class AgentConversationTools
             PresentationText.TryCreate(sender?.DisplayName ?? sender?.Address, out var from) ? from : null,
             message.Headers.SentAt);
     }
+
+    [Description("Writes a report and hands it to the person as a PDF.")]
+    private async Task<string> WriteReportAsync(
+        [Description("The report's title, in the person's language.")] string title,
+        [Description("The report itself, in Markdown, citing each statement's source with [^id].")] string markdown,
+        CancellationToken cancellationToken)
+    {
+        await this.ReportAsync(AgentActivity.ComposingAnswer, cancellationToken);
+
+        if (this.reporting is not { } reporting)
+        {
+            return "No report can be written in this conversation.";
+        }
+
+        if (this.reportWritten)
+        {
+            return "This answer already carries a report; a run writes one. Refer to it in your answer.";
+        }
+
+        var titled = TitleOf(title);
+
+        if (titled.Length is 0 || string.IsNullOrWhiteSpace(markdown))
+        {
+            return "A report has a title and a body.";
+        }
+
+        if (titled.Length > AgentReportBounds.MaximumTitleCharacters || markdown.Length > AgentReportBounds.MaximumBodyCharacters)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"A report's title is at most {AgentReportBounds.MaximumTitleCharacters} characters and its body at most {AgentReportBounds.MaximumBodyCharacters}; write it shorter.");
+        }
+
+        var (body, sources, citations) = await this.CitedAsync(markdown, reporting, cancellationToken);
+        var writtenAt = this.readers.Clock.Now();
+        var document = this.readers.Reports.Typeset(new AgentReport(titled, body, writtenAt, reporting.Language, sources));
+        var intake = await this.readers.Files.TakeAsync(reporting.Question.Conversation, reporting.Question.User, FileNameOf(titled), document.Content, cancellationToken);
+
+        if (intake.File is not { } stored)
+        {
+            return intake.Refusal is AgentConversationFileRefusal.ConversationFull
+                ? string.Create(CultureInfo.InvariantCulture, $"The report was not written: this conversation already holds the {AgentConversationFileBounds.MaximumFilesPerConversation} files one may. Tell the person, and give them your findings in the answer instead.")
+                : "The report could not be stored. Tell the person, and give them your findings in the answer instead.";
+        }
+
+        this.reportWritten = true;
+
+        await this.WriteAsync(this.journal.ComposeAsync(ReportBlockOf(stored, titled, document, writtenAt, citations), cancellationToken));
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"Written: a {document.PageCount}-page PDF in your answer, closing with the {sources.Count} sources it cites. Do not repeat the report in your answer: say in a sentence or two that you wrote it, what it covers, and what it leaves out.");
+    }
+
+    /// <summary>Resolves every citation the model wrote into the report's own numbering, keeping only what the run was shown.</summary>
+    /// <returns>The body with each citation numbered, the sources in that numbering, and the citations of the messages among them.</returns>
+    /// <remarks>
+    /// Messages are numbered first, in the order the body first cites them, and the question's files after them in the
+    /// same order. A message is a source only where this run was shown it and the person may still read it, and a file
+    /// only where the question carries it; any other citation is taken out of the body rather than printed, so nothing
+    /// the model names becomes a source a reader would look for.
+    /// </remarks>
+    private async Task<(string Body, IReadOnlyList<AgentReportSource> Sources, IReadOnlyList<PresentationCitationId> Citations)> CitedAsync(
+        string markdown,
+        AgentConversationReporting reporting,
+        CancellationToken cancellationToken)
+    {
+        var zone = this.readers.Clock.Zone();
+        var named = ReportCitation().Matches(markdown).Select(static match => match.Groups[1].Value).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var carried = reporting.Files.Held.Where(file => reporting.Question.Files.Contains(file.Id)).ToDictionary(static file => file.Id.Value);
+        List<(string Named, AgentReportSource Source, PresentationCitationId Citation)> messages = [];
+        List<(string Named, AgentReportSource Source)> files = [];
+
+        foreach (var name in named.Where(static name => Guid.TryParse(name, out _)))
+        {
+            if (messages.Count + files.Count >= AgentReportBounds.MaximumSources)
+            {
+                break;
+            }
+
+            if (carried.TryGetValue(Guid.Parse(name), out var file))
+            {
+                files.Add((name, new AgentReportSource(AgentReportSourceKind.AttachedFile, file.Name ?? file.Id.ToString(), Author: null, zone.Reading(file.AddedAt))));
+            }
+            else if (await this.SourceOfAsync(name, cancellationToken) is { } source
+                && await this.ReadOneMessageAsync(name, cancellationToken) is { } message)
+            {
+                var sender = SenderOf(message);
+
+                messages.Add((
+                    name,
+                    new AgentReportSource(
+                        AgentReportSourceKind.Message,
+                        string.IsNullOrWhiteSpace(message.Headers.Subject) ? this.cited[source.Message].Label.Value : message.Headers.Subject,
+                        sender?.DisplayName ?? sender?.Address,
+                        message.Headers.SentAt is { } sentAt ? zone.Reading(sentAt) : null),
+                    source.Citation));
+            }
+        }
+
+        var numbers = messages.Select(static entry => entry.Named).Concat(files.Select(static entry => entry.Named))
+            .Select(static (name, index) => (name, index))
+            .ToDictionary(static entry => entry.name, static entry => entry.index + 1, StringComparer.OrdinalIgnoreCase);
+        var body = ReportCitation().Replace(markdown, match =>
+            numbers.TryGetValue(match.Groups[1].Value, out var number) ? AgentReport.CitationOf(number) : string.Empty);
+
+        return (
+            body,
+            [.. messages.Select(static entry => entry.Source), .. files.Select(static entry => entry.Source)],
+            [.. messages.Select(static entry => entry.Citation)]);
+    }
+
+    /// <summary>Reads a title the model wrote as one line of text.</summary>
+    private static string TitleOf(string? title) =>
+        new([.. string.Join(' ', (title ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Where(static character => !char.IsControl(character))]);
+
+    /// <summary>Names the file a report is saved under: its title, with what a file name may not carry replaced.</summary>
+    private static string FileNameOf(string title) =>
+        string.Concat(title.Select(static character => FileNameReservedCharacters.Contains(character) ? '-' : character)) + ".pdf";
+
+    private static ReportBlock ReportBlockOf(
+        AgentConversationFile stored,
+        string title,
+        AgentReportDocument document,
+        DateTimeOffset writtenAt,
+        IReadOnlyList<PresentationCitationId> citations) =>
+        new(
+            citations.Count is 0
+                ? PresentationEvidence.Unsupported(PresentationFreshness.Unknown)
+                : new PresentationEvidence(PresentationSupport.Cited, [.. citations.Take(PresentationEvidence.MaxCitations)], PresentationFreshness.Unknown),
+            stored.Id,
+            PresentationText.TryCreate(title, out var titled) ? titled : PresentationText.Create(FileNameOf(title)),
+            PresentationText.TryCreate(stored.Name, out var name) ? name : PresentationText.Create(FileNameOf(title)),
+            PresentationText.Create(stored.MediaType),
+            stored.ByteLength,
+            document.PageCount,
+            writtenAt);
+
+    [GeneratedRegex(@"\[\^([^\]\s]{1,64})\]", RegexOptions.CultureInvariant)]
+    private static partial Regex ReportCitation();
 
     [Description("Reads the person's calendar.")]
     private async Task<string> ReadCalendarAsync(

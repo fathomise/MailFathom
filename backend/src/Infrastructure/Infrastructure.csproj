@@ -40,6 +40,11 @@
     <PackageReference Include="MimeKit" />
     <!-- Named so the central pin replaces the vulnerable version MimeKit would otherwise resolve. -->
     <PackageReference Include="System.Security.Cryptography.Pkcs" />
+    <!-- The Markdown parser and the PDF layout engine a report the Agent writes is read and set with. Referenced by this
+         project alone, so every Markdig, MigraDoc, and PDFsharp type stays inside the typesetter under
+         Documents/Reports/ and the application port sees a report and the octets of a PDF. -->
+    <PackageReference Include="Markdig" />
+    <PackageReference Include="PDFsharp-MigraDoc" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
@@ -80,6 +85,14 @@
          decided in Directory.Packages.props rather than inherited from Polly.RateLimiting's dependency range. Host
          resolves the same assembly from the ASP.NET Core shared framework and needs no reference of its own. -->
     <PackageReference Include="System.Threading.RateLimiting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The typefaces a report is set in, embedded so a report reads the same on every deployment and needs no font
+         installed on the host. The upstream files byte for byte, with the licence each family is published under
+         embedded beside them, so the notice travels inside the same assembly the fonts do. -->
+    <EmbeddedResource Include="Documents\Reports\Fonts\*.ttf" LogicalName="MailFathom.Infrastructure.Documents.Reports.Fonts.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Documents\Reports\Fonts\OFL-*.txt" LogicalName="MailFathom.Infrastructure.Documents.Reports.Fonts.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

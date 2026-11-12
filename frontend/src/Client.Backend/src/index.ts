@@ -201,12 +201,15 @@ export {
     type AgentProposalState,
     type AgentRunCeiling,
 } from './agentConversations';
+// `agentConversationFileRequest` is unpublished for the reason `mailAttachmentRequest` is.
 export {
+    agentConversationFileRoute,
     agentConversationFilesRoute,
     agentConversationFileUploadRequest,
     largestAgentFile,
     mostFilesPerConversation,
     mostFilesPerQuestion,
+    readAgentConversationFile,
     readAgentConversationFiles,
     takeAgentConversationFile,
     type AgentConversationFile,
@@ -224,6 +227,7 @@ export {
 export type {
     AnswerConfidence,
     AnswerFile,
+    AnswerReport,
     AnswerLink,
     AttachmentAvailability,
     AttachmentEntry,

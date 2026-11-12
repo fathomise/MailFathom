@@ -236,6 +236,36 @@ export interface AttachmentEntry {
 }
 
 /**
+ * One report the Agent wrote and handed the person as a PDF, named by the conversation's file it was stored as.
+ *
+ * Nothing of the file travels with it: what a screen downloads is that file of the conversation, asked for under the
+ * reader's grant at the moment they ask, so a conversation deleted since answers as no file at all. The rest is what
+ * the file was when it was written, so a reader can tell which report it is before opening it.
+ */
+export interface AnswerReport {
+    /** The conversation's file the report was stored as, which its download names. */
+    readonly fileId: string;
+
+    /** The report's title, as the Agent wrote it. */
+    readonly title: string;
+
+    /** The name the file is downloaded under. */
+    readonly name: string;
+
+    /** What the file is, which is a PDF. It chooses a word, never a way to open. */
+    readonly mediaType: string;
+
+    /** How large the file is, which is the bound a download of it is read under. */
+    readonly sizeOctets: number;
+
+    /** How many pages it was set on, which is at least one. */
+    readonly pageCount: number;
+
+    /** When it was written, as the service wrote the instant. */
+    readonly writtenAt: string;
+}
+
+/**
  * One file an answer hands the person, named by the message it arrived on and its place among that message's files.
  *
  * Nothing of the file travels with it. What a screen downloads is the message's own attachment, asked for under the
@@ -845,6 +875,30 @@ function parseAttachmentEntry(value: unknown): AttachmentEntry | null {
 
     return typeof sizeOctets === 'number' && Number.isSafeInteger(sizeOctets) && sizeOctets >= 0
         ? { source, name, mediaType, sizeOctets, availability }
+        : null;
+}
+
+/** A report an answer hands the person, or `null` where what arrived is not one this client can offer. */
+export function parseAnswerReport(value: unknown): AnswerReport | null {
+    const record = asRecord(value);
+    if (record === null) {
+        return null;
+    }
+
+    const fileId = parseText(record['fileId']);
+    const title = parseText(record['title']);
+    const name = parseText(record['name']);
+    const mediaType = parseText(record['mediaType']);
+    const writtenAt = parseInstant(record['writtenAt']);
+    const sizeOctets = record['sizeOctets'];
+    const pageCount = record['pageCount'];
+
+    if (fileId === null || title === null || name === null || mediaType === null || writtenAt === null) {
+        return null;
+    }
+
+    return isCount(sizeOctets) && isCount(pageCount) && pageCount >= 1
+        ? { fileId, title, name, mediaType, sizeOctets, pageCount, writtenAt }
         : null;
 }
 

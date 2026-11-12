@@ -122,6 +122,53 @@ public sealed class ClientAgentConversationFileEndpointTests
         Assert.Empty(answered.Value!.Files);
     }
 
+    /// <summary>A file this person's conversation holds is served as an attachment under its own name and media type, never to be sniffed or cached.</summary>
+    [Fact]
+    public async Task DownloadAsync_AFileTheConversationHolds_ServesItsOctetsAsAnAttachment()
+    {
+        // Arrange
+        var file = this.Holding(SyntheticUser.Deployment, "The move.pdf");
+        this.storedFiles
+            .ReadAsync(SyntheticUser.Deployment, StoredFileId.Create(file.Value), Arg.Any<CancellationToken>())
+            .Returns((ReadOnlyMemory<byte>?)Encoding.ASCII.GetBytes("%PDF-1.7"));
+        var context = new DefaultHttpContext();
+
+        // Act
+        var answered = await ClientAgentConversationFileEndpoints.DownloadAsync(Conversation, file.Value, Resolver(), this.Files(), context, TestContext.Current.CancellationToken);
+
+        // Assert
+        var served = Assert.IsType<FileContentHttpResult>(answered.Result);
+
+        Assert.Equal(
+            ("%PDF-1.7", "application/pdf", "The move.pdf", "nosniff", "no-store"),
+            (Encoding.ASCII.GetString(served.FileContents.Span), served.ContentType, served.FileDownloadName, context.Response.Headers.XContentTypeOptions.ToString(), context.Response.Headers.CacheControl.ToString()));
+    }
+
+    /// <summary>Another person's file answers as no file at all, exactly as a file nobody holds does.</summary>
+    [Fact]
+    public async Task DownloadAsync_AFileOfAnotherPerson_AnswersNotFound()
+    {
+        // Arrange
+        var file = this.Holding(SyntheticUser.Another, "theirs.pdf");
+
+        // Act
+        var answered = await ClientAgentConversationFileEndpoints.DownloadAsync(Conversation, file.Value, Resolver(), this.Files(), new DefaultHttpContext(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NotFound>(answered.Result);
+    }
+
+    private AgentConversationFileId Holding(UserId user, string name)
+    {
+        var file = AgentConversationFileId.Create(Guid.CreateVersion7());
+        this.store.Hold(
+            AgentConversationId.Create(Conversation),
+            user,
+            new AgentConversationFileText(new AgentConversationFile(file, name, AgentConversationFileKind.Document, "application/pdf", 8, Now, Reading: null), string.Empty, []));
+
+        return file;
+    }
+
     private static DefaultHttpContext Upload(byte[] body, string? disposition)
     {
         var context = new DefaultHttpContext();

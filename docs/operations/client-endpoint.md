@@ -181,6 +181,7 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `DELETE /api/client/agent/conversations/{conversationId}/archive` | `mailfathom.assistant.use` |
 | `GET /api/client/agent/conversations/{conversationId}/files` | `mailfathom.assistant.use` |
 | `POST /api/client/agent/conversations/{conversationId}/files` | `mailfathom.assistant.use` |
+| `GET /api/client/agent/conversations/{conversationId}/files/{fileId}` | `mailfathom.assistant.use` |
 | `POST /api/client/agent/conversations/{conversationId}/messages` | `mailfathom.assistant.use` |
 | `POST /api/client/agent/conversations/{conversationId}/runs/{runId}/messages` | `mailfathom.assistant.use` |
 | `DELETE /api/client/agent/conversations/{conversationId}/runs/{runId}` | `mailfathom.assistant.use` |
@@ -5165,6 +5166,13 @@ carries no `text`.
 
 `GET` on the same route lists the files the conversation holds, in the order they were taken in, as
 `{ "files": [ ... ] }` of the objects above, and an empty list for a conversation this person does not hold.
+
+`GET .../files/{fileId}` downloads one of them — a file the person posted, or a report the Agent wrote into the
+conversation — as its octets, under the media type its octets proved and the name it was taken under, served as an
+attachment with `X-Content-Type-Options: nosniff` and `Cache-Control: no-store`, for the reason a mail attachment is: a
+file is bytes from outside the deployment, and rendered inline from its origin it could be a page of its own there. A
+conversation that is another person's, one deleted since, and a file it no longer holds all answer `404` alike, so
+asking says nothing about a conversation the caller cannot read.
 
 **A file is held on the terms mail is.** Its octets are a stored file of the person's, placed by the content storage
 backend the deployment configures and moved by [moving stored content](moving-stored-content.md) like every other; the

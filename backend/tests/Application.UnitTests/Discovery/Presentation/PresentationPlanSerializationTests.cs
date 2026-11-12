@@ -306,6 +306,24 @@ public sealed class PresentationPlanSerializationTests
             (file.Source, file.AttachmentPosition, file.Name?.Value, file.MediaType.Value, file.SizeOctets, file.Sender?.Value, file.SentAt));
     }
 
+    /// <summary>A report reads back naming the conversation's file it was stored as, which is what its download is asked for by.</summary>
+    [Fact]
+    public void RoundTrip_AReport_ReadsBackItsFileAndWhatItWasWhenWritten()
+    {
+        // Arrange
+        var written = JsonSerializer.Serialize(PresentationPlanExample.Compose(), Contract);
+
+        // Act
+        var read = JsonSerializer.Deserialize<PresentationPlan>(written, Contract);
+
+        // Assert
+        var report = Assert.Single(read!.Blocks.OfType<ReportBlock>());
+
+        Assert.Equal(
+            (PresentationPlanExample.ReportFile, "Offer comparison", "Offer comparison.pdf", "application/pdf", 212_000L, 3, PresentationPlanExample.ObservedAt),
+            (report.FileId.Value, report.Title.Value, report.Name.Value, report.MediaType.Value, report.SizeOctets, report.PageCount, report.WrittenAt));
+    }
+
     /// <summary>A conversation stored before a draft named its account is still read, as a draft naming none.</summary>
     [Fact]
     public void Deserialization_ADraftStoredAtTheRevisionBeforeItsAccount_IsReadAsOneNamingNone()

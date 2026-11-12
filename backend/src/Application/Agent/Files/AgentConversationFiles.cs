@@ -206,17 +206,32 @@ public sealed class AgentConversationFiles
     /// <param name="file">The picture.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The octets, or <see langword="null" /> where this conversation of this person holds no such picture or its octets are gone.</returns>
-    /// <remarks>Read only once the conversation is known to hold it, so naming another conversation's file reaches nothing.</remarks>
     public async Task<ReadOnlyMemory<byte>?> ReadPictureAsync(
+        AgentConversationId conversation,
+        UserId user,
+        AgentConversationFileId file,
+        CancellationToken cancellationToken) =>
+        await this.ReadContentAsync(conversation, user, file, cancellationToken) is { File.Kind: AgentConversationFileKind.Picture } picture
+            ? (ReadOnlyMemory<byte>?)picture.Content
+            : null;
+
+    /// <summary>Reads one file a conversation holds, with its octets, which is what a download of it hands back.</summary>
+    /// <param name="conversation">The conversation.</param>
+    /// <param name="user">Whose conversation it has to be.</param>
+    /// <param name="file">The file.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The file and its octets, or <see langword="null" /> where this conversation of this person holds no such file or its octets are gone.</returns>
+    /// <remarks>Read only once the conversation is known to hold it, so naming another conversation's file reaches nothing.</remarks>
+    public async Task<AgentConversationFileContent?> ReadContentAsync(
         AgentConversationId conversation,
         UserId user,
         AgentConversationFileId file,
         CancellationToken cancellationToken)
     {
-        var held = await this.files.ListAsync(conversation, user, cancellationToken);
+        var held = (await this.files.ListAsync(conversation, user, cancellationToken)).FirstOrDefault(candidate => candidate.Id == file);
 
-        return held.Any(candidate => candidate.Id == file && candidate.Kind is AgentConversationFileKind.Picture)
-            ? await this.storedFiles.ReadAsync(user, file.StoredFile, cancellationToken)
+        return held is not null && await this.storedFiles.ReadAsync(user, file.StoredFile, cancellationToken) is { } content
+            ? new AgentConversationFileContent(held, content)
             : null;
     }
 

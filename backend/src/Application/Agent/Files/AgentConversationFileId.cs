@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.Json.Serialization;
 using MailFathom.Application.StoredFiles;
 
 namespace MailFathom.Application.Agent.Files;
@@ -11,6 +12,7 @@ namespace MailFathom.Application.Agent.Files;
 /// Its value is the identifier of the stored file that holds the octets, because the two are one file: the conversation
 /// row says whose conversation holds it and what reading it came to, and the stored file says where its octets are.
 /// </remarks>
+[JsonConverter(typeof(AgentConversationFileIdJsonConverter))]
 public readonly record struct AgentConversationFileId
 {
     private AgentConversationFileId(Guid value) => this.Value = value;

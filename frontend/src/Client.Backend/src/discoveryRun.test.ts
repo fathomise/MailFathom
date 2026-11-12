@@ -3,7 +3,13 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import { discoveryRunRoute, readDiscoveryRunTail, startDiscoveryRun, stopDiscoveryRun } from './discoveryRun';
+import {
+    discoveryRunRoute,
+    parseBlock,
+    readDiscoveryRunTail,
+    startDiscoveryRun,
+    stopDiscoveryRun,
+} from './discoveryRun';
 import type { ClientSession } from './session';
 import type { ClientRequest, ClientResponse, MailFathomTransport } from './transport';
 
@@ -661,6 +667,52 @@ describe('readDiscoveryRunTail', () => {
             sender: 'Ada Bell',
             sentAt: '2026-09-19T15:30:00+00:00',
         });
+    });
+
+    it('reads a report handed over as the conversation file it was stored as, and what that file was when written', async () => {
+        const report = {
+            type: 'report',
+            version: 1,
+            evidence: {
+                support: 'Cited',
+                citations: ['c-1'],
+                freshness: { staleness: 'Current', observedAt: '2026-11-12T09:30:00+00:00' },
+            },
+            fileId: '0197a9a4-5c3e-7d10-9a2b-3c4d5e6f7081',
+            title: 'Offer comparison',
+            name: 'Offer comparison.pdf',
+            mediaType: 'application/pdf',
+            sizeOctets: 212000,
+            pageCount: 3,
+            writtenAt: '2026-11-12T09:30:00+00:00',
+        };
+        const answered = await readDiscoveryRunTail(
+            session,
+            answering({
+                status: 200,
+                body: bodyOf([{ event: 'block', sequence: 11, block: report }]),
+            }),
+            runId,
+            0,
+        );
+
+        const events = answered.outcome === 'read' ? answered.value.events : [];
+
+        expect(events.map((event) => (event.kind === 'block' ? event.block : null))).toEqual([
+            expect.objectContaining({
+                type: 'report',
+                report: {
+                    fileId: '0197a9a4-5c3e-7d10-9a2b-3c4d5e6f7081',
+                    title: 'Offer comparison',
+                    name: 'Offer comparison.pdf',
+                    mediaType: 'application/pdf',
+                    sizeOctets: 212000,
+                    pageCount: 3,
+                    writtenAt: '2026-11-12T09:30:00+00:00',
+                },
+            }),
+        ]);
+        expect(parseBlock({ ...report, pageCount: 0 })).toBeNull();
     });
 
     it('reads where a conversation stands off the block that carries it rather than off a member of its own', async () => {

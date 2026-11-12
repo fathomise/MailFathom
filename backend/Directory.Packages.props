@@ -102,6 +102,11 @@
          sees entries of MailFathom's own. It brings NodaTime with it, which is its zone database and is named nowhere
          in this repository; both are recorded in THIRD_PARTY_LICENSES.md. -->
     <PackageVersion Include="Ical.Net" Version="5.2.3" />
+    <!-- The Markdown parser a report the Agent writes is read with before it is set as a PDF. Referenced by
+         Infrastructure alone, where the typesetter under Documents/Reports/ walks its syntax tree; nothing else reads
+         Markdown through it. BSD-2-Clause, no package dependency on the net10.0 assets, and a row in
+         THIRD_PARTY_LICENSES.md. -->
+    <PackageVersion Include="Markdig" Version="1.6.0" />
     <PackageVersion Include="Microsoft.Agents.AI" Version="1.24.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.15" />
     <!-- The OpenAPI document generator, which ships outside the shared framework. It builds the HTTP contract from the
@@ -176,6 +181,12 @@
          around it has to guarantee. -->
     <PackageVersion Include="NCalc" Version="7.2.0" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <!-- The layout engine and PDF writer a report the Agent writes is set with: MigraDoc lays the page out and
+         PDFsharp writes it and embeds the typeface. Referenced by Infrastructure alone, under Documents/Reports/.
+         Pinned at the last release published under MIT: from 6.5.0 on, both packages are AGPL-3.0-only, which is a
+         copyleft licence the owner has not approved for this component, so neither pin moves past this line without
+         that approval. Each carries a row in THIRD_PARTY_LICENSES.md. -->
+    <PackageVersion Include="PDFsharp-MigraDoc" Version="6.2.4" />
     <!-- The PDF reader an attachment's text is extracted with. Referenced by Infrastructure alone, so every PdfPig type
          stays inside the adapter under Documents/ and the application port sees characters and a closed set of reasons.
          It declares no package dependency at all on the net8.0 assets .NET 10 resolves, which is most of why it was

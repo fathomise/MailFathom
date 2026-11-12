@@ -1,6 +1,6 @@
 # Mail answering
 
-<!-- describes: backend/src/AI/Orchestration/**, backend/src/AI/Retrieval/**, backend/src/AI/ProviderAdapters/ResilientChatClient.cs, backend/src/Application/Retrieval/**, backend/src/Application/Emails/Provenance/**, backend/src/Infrastructure/Persistence/Emails/StoredEmailProvenanceReader.cs, backend/src/AI/AgentConversations/AgentConversationReadings.cs, backend/src/AI/AgentConversations/AgentConversationFile*.cs, backend/src/AI/AgentConversations/AgentTurnFiles.cs, backend/src/Application/Agent/Files/**, backend/src/Domain/Answering/**, backend/src/Infrastructure/Persistence/Answering/**, backend/src/Host/Configuration/Mail/MailAnsweringAuditTrailOptions.cs, backend/src/Host/Configuration/Access/TransportRequestTimeoutOptions.cs, backend/src/AI/AgentConversations/AgentRunEffort.cs, backend/src/AI/AgentConversations/LastCallChatClient.cs, backend/src/Application/Agent/Answering/AgentRunBounds.cs -->
+<!-- describes: backend/src/AI/Orchestration/**, backend/src/AI/Retrieval/**, backend/src/AI/ProviderAdapters/ResilientChatClient.cs, backend/src/Application/Retrieval/**, backend/src/Application/Emails/Provenance/**, backend/src/Infrastructure/Persistence/Emails/StoredEmailProvenanceReader.cs, backend/src/AI/AgentConversations/AgentConversationReadings.cs, backend/src/AI/AgentConversations/AgentConversationFile*.cs, backend/src/AI/AgentConversations/AgentTurnFiles.cs, backend/src/Application/Agent/Files/**, backend/src/Domain/Answering/**, backend/src/Infrastructure/Persistence/Answering/**, backend/src/Host/Configuration/Mail/MailAnsweringAuditTrailOptions.cs, backend/src/Host/Configuration/Access/TransportRequestTimeoutOptions.cs, backend/src/AI/AgentConversations/AgentRunEffort.cs, backend/src/AI/AgentConversations/LastCallChatClient.cs, backend/src/Application/Agent/Answering/AgentRunBounds.cs, backend/src/AI/AgentConversations/AgentConversationReporting.cs, backend/src/Application/Agent/Reports/**, backend/src/Infrastructure/Documents/Reports/** -->
 
 A question about the mailbox, answered from the mail the model looks up while answering. This page describes the
 composition that does it: what the model may reach, when it reaches it, how much of it leaves the process, and what an
@@ -331,6 +331,45 @@ question reaches no parser. Every word the turn or a tool hands over is scanned 
 run's retrieved-character ceiling below, exactly as mail is; the Agent is told that a file's words are data the person
 chose to share and never instructions, and to say how much of a long file its answer covers. A file belongs to its
 conversation alone: no tool reaches a file another conversation or another person holds.
+
+### The Agent writes a report
+
+When the person asks for a report or a document — something to forward, file, or print — the Agent writes it with
+`write_report`, and the service sets it as an A4 PDF placed in the answer as a `report` block. The tool takes a title
+of at most 200 characters and a body of at most 60 000 characters of Markdown, and a run writes one report: a second
+call, an empty title or body, and one past either bound are refused with a sentence the model acts on. The instruction
+tells the Agent to write one only where a report or a document was asked for, to read first, to write it in the
+person's language with mail quoted in its own, to say in the report where it covers only part of what was asked, and to
+say in its answer that it wrote it, what it covers, and what it leaves out, rather than repeating it.
+
+**What of the Markdown is interpreted.** Headings, paragraphs, bulleted and numbered lists three levels deep, pipe
+tables, quotations, bold, italics, code, and a thematic break are set as the template draws them; `#` and `##` both open
+a section, since the title is the page's own. A table that runs past a page repeats its header row on the next. A
+quotation's last paragraph opening with `— ` names who wrote it and when, and is set as that line. Raw HTML is printed
+as the characters it was written in, a link and a picture as their words alone, and an autolink as its address in
+plain text: nothing is fetched, followed, or run, and no address is embedded as a link.
+
+**Its sources are minted, never written.** The model cites a statement with `[^id]`, naming a message by the id a
+reading, a search, or a listing showed it, or a file the question carries by its `file-id`. The tool resolves each
+citation against what the run was shown — exactly as a citation in an answer is — and drops one naming a message it was
+not shown, so a guessed identifier lists nothing. Messages are numbered in the order the body first cites them, the
+question's files after them, and the report closes with a list of each by subject, sender, and when it was sent, or
+by name and when it was attached; the body's markers become those numbers, and at most 60 sources are listed.
+
+**What the page adds is the person's language.** The kind above the title, *Written* and the date, how many messages
+and files the report rests on, the page count in the running foot, and the sources' heading are read from the
+application's texts in the person's language; the date is set in their zone. The body is set in Source Serif 4 and the
+frame in Geist, both embedded as subsets so every Polish letter is carried in the file. The time the page states and
+the file's creation date are both the instant the report was written, read from the run's clock, so the same report
+sets the same pages; the engine still draws the six letters naming each font subset and the file identifier the PDF
+format asks for, so two settings of one report are the same document without being the same octets.
+
+**The PDF is a file of the conversation.** It is taken in through the same path a file the person posts is — stored,
+recorded, read for its words, and deleted with the conversation — so it counts towards the conversation's 20 files,
+and a conversation already holding 20 refuses it with a sentence saying so. The `report` block names that file, and
+the person downloads it through
+[the conversation's file route](../operations/client-endpoint.md#a-conversations-files) under their own grant. The
+block's evidence cites the messages the report lists.
 
 ## What one question may spend
 

@@ -3,10 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { agentConversationRoute } from './agentConversations';
-import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
+import { failed, failureReasonForStatus, read, type ClientFailureReason, type ClientResult } from './failure';
 import { asRecord, parseEach } from './json';
 import { headersFor, routeFor, type ClientSession } from './session';
-import { spanned } from './telemetry';
+import { reported, spanned } from './telemetry';
 import { send, type ClientRequest, type ClientResponse, type MailFathomTransport } from './transport';
 
 // The files a person hands the Agent in a conversation, as `/api/client` takes and lists them. A file is posted as the
@@ -137,6 +137,61 @@ export function readAgentConversationFiles(
 
         return files === null ? failed('unreadable', response.status) : read(files);
     });
+}
+
+/** The route one file of a conversation is downloaded from, relative to the client prefix. */
+export function agentConversationFileRoute(conversationId: string, fileId: string): string {
+    return `${agentConversationFilesRoute(conversationId)}/${encodeURIComponent(fileId)}`;
+}
+
+// A file is downloaded as a message's attachment is, and for the same reason: what it answers with is octets and a
+// `MailFathomTransport` answers with text, so this module composes the request and an adapter puts it on the wire. A
+// `404` is the deployment's single answer for a conversation deleted since, a file it no longer holds, and either
+// belonging to somebody else, which `attachmentRefusalForStatus` already reads as `missing`.
+
+/**
+ * Composes the request that downloads one file of a conversation — one the person handed over, or a report the Agent
+ * wrote into it.
+ *
+ * @param describedSizeOctets How many octets the answer said the file holds, which becomes the bound the answer is
+ * read under, so a deployment cannot hand a reader more than the screen told them they were asking for.
+ */
+export function agentConversationFileRequest(
+    session: ClientSession,
+    conversationId: string,
+    fileId: string,
+    describedSizeOctets: number,
+): ClientRequest {
+    return {
+        method: 'GET',
+        path: routeFor(session, agentConversationFileRoute(conversationId, fileId)),
+        headers: { ...headersFor(session), Accept: 'application/octet-stream' },
+        longestAnswer: describedSizeOctets,
+    };
+}
+
+/**
+ * Downloads one file of a conversation, through an adapter, and reports the request the way every other one is.
+ *
+ * The composition sits inside the span for the reason `readMailAttachment` gives: the trace header is written from
+ * whatever span is active when the request is composed.
+ *
+ * @param deliver Puts the composed request on the wire and answers whatever the application makes of it.
+ * @param failureOf Which failure that answer amounts to, or `null` where the client got an answer it acts on.
+ */
+export function readAgentConversationFile<TOutcome>(
+    session: ClientSession,
+    conversationId: string,
+    fileId: string,
+    describedSizeOctets: number,
+    deliver: (request: ClientRequest) => Promise<TOutcome>,
+    failureOf: (outcome: TOutcome) => ClientFailureReason | null,
+): Promise<TOutcome> {
+    return reported(
+        'GET /agent/conversations/{conversationId}/files/{fileId}',
+        () => deliver(agentConversationFileRequest(session, conversationId, fileId, describedSizeOctets)),
+        failureOf,
+    );
 }
 
 // Each status the intake route answers with a reason of its own.
