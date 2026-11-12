@@ -198,8 +198,10 @@ own type, rather than a chain inside the element that renders it.
 
 ## The two heads
 
-MailFathom ships a static web bundle and, when it is built, a Tauri desktop application from this same tree. Android,
-iOS, and macOS are reachable and supported by nothing.
+MailFathom ships a static web bundle and, when it is built, a Tauri desktop application from this same tree. An Android
+head is built every night and supported by nothing, under
+[ADR 0027](../../docs/decisions/0027-an-android-head-built-every-night-and-supported-by-nothing.md); iOS and macOS are
+reachable and supported by nothing.
 
 **Nothing in this tree branches on a platform.** No `if (isDesktop)`, no per-head component, and no module chosen by
 target: a difference between the heads is a CSS one — a safe-area inset, a pointer or hover query — or it is a shell
@@ -332,8 +334,7 @@ rule catches a string written into markup and nothing else, so everything below 
 
 ## UX: nothing waits in silence, and nothing waits without a way out
 
-This is the contract's oldest rule and it survived the platform it was written for. It is an obligation on every surface,
-not a preference about polish.
+This is an obligation on every surface, not a preference about polish.
 
 - **Every surface that waits says it is waiting**, from the moment the wait starts, in the place the answer will appear.
   A screen that looks finished while a read is in flight is a screen a person acts on twice.
@@ -370,8 +371,8 @@ not a preference about polish.
 
 ## UI: the token layer is the only place a value is written
 
-The withdrawn client had an open defect for exactly one failure — two stated conventions the screens stopped holding to —
-so this is written to be mechanically visible in a diff rather than remembered.
+A stated convention the screens stop holding to is the failure this section exists for, so it is written to be
+mechanically visible in a diff rather than remembered.
 
 - **No literal colour, spacing, radius, or type size appears outside the token layer.** That layer is Tailwind's theme
   plus the `@theme` block in `Client.App/src/styles.css`, which is where MailFathom's own values are declared and the

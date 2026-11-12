@@ -35,16 +35,14 @@ question is answered again rather than reworded.
   either suite imports is an ordinary module and carries neither marker in its name.
 - **A subject too large for one file is split by the concern each group of tests exercises**, into files named
   `<Subject>.<concern>.test.tsx` beside the source, and the arrangement they share moves into one `<Subject>.harness.tsx`
-  next to them. `App.tsx` is the worked example and the reason the rule exists: ninety-two tests in one file each
-  mounting the whole application meant a timeout had two thousand lines of setup to look at rather than one screen's,
-  and the file was where a new test went to inherit whatever the nearest one did. So the frame, the session, sign-in,
+  next to them. `App.tsx` is the worked example: one file mounting the whole application for every test leaves a
+  timeout the whole file's setup to look at rather than one screen's, and is where a new test goes to inherit whatever
+  the nearest one did. So the frame, the session, sign-in,
   the deployment, language, telemetry, and the shell's layers are seven files over one `App.harness.tsx`. The threshold
   is the same judgement the root instructions ask of a directory rather than a line count: a file stops being one thing
   when its `describe` blocks no longer read as one subject.
-- **The browser suite is split the same way**, into `client.<concern>.spec.ts` files over one `client.harness.ts`:
-  sign-in, navigation, layout, settings, language, message security, attachments, the list window, the field under an
-  open message, failure, motion, the connection, what the deployment signals, the changes still on their way, and what
-  the build publishes. It was one file of eighteen hundred lines holding all of them, which is the condition above.
+- **The browser suite is split the same way**, into `client.<concern>.spec.ts` files over one `client.harness.ts`,
+  one file per concern — sign-in, navigation, layout, and what the build publishes among them.
   A new check goes into the file whose concern it exercises, and a concern none of them names is a file of its own.
 - **A harness is a module and not a suite.** It exports the doubles, the render, and the helpers, and it carries no
   `describe` and no `it` — the hooks a family shares are exported as one function each file calls at its top level, so
@@ -557,8 +555,7 @@ changing. `pnpm test:desktop` is the whole of how it runs.
   has not generated is no preference at all, because `setlocale` refuses one and leaves the process in `C`, so the head
   then reports `en-US` exactly as it does for a machine naming nothing. The last of those is why a case naming a locale
   checks that the machine has it and stops with `locale-gen` where it does not: the failure it replaces is a case
-  asserting the opposite of its own name and looking green for it, which is how the suite first passed here and failed
-  on a runner. The `Drive the desktop head` job generates what the cases name.
+  asserting the opposite of its own name and looking green for it. The `Drive the desktop head` job generates what the cases name.
 - **Nothing a run captures is kept.** No screenshot, no trace, and no video — on the rule § _The browser suite_ states
   and for the same reason, except that here there is nothing to weigh: the suite reads text out of a document and a
   failure is diagnosed from the expectation it printed.
