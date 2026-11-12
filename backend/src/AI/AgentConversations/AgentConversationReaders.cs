@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Calendar;
+using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Application.Emails.Mailboxes;
@@ -20,6 +21,7 @@ namespace MailFathom.AI.AgentConversations;
 /// <param name="ScopeResolver">Resolves the mail the person reads.</param>
 /// <param name="KnowledgeSearch">Searches that mail.</param>
 /// <param name="Timeline">Lists the mail the person reads in the order it arrived, a bounded page at a time.</param>
+/// <param name="Census">Counts the mail the person reads, in total or grouped, as one bounded reading.</param>
 /// <param name="ContentReader">Reads a message or a conversation.</param>
 /// <param name="ProvenanceReader">Reads where each message of a conversation came from, which a thread reading states beside it.</param>
 /// <param name="StateBrowser">Reads the derivation already made about a conversation.</param>
@@ -33,6 +35,7 @@ internal sealed record AgentConversationReaders(
     MailboxScopeResolver ScopeResolver,
     IEmailKnowledgeSearch KnowledgeSearch,
     MailboxTimelineReader Timeline,
+    MailboxCensusReader Census,
     EmailContentReader ContentReader,
     IEmailProvenanceReader ProvenanceReader,
     MailThreadStateBrowser StateBrowser,

@@ -487,6 +487,57 @@ public sealed class AgentConversationScenarioTests : IDisposable
     }
 
     /// <summary>A question about the latest mail is answered from the timeline, so a run that only searched the mail is caught by the tool check.</summary>
+    /// <summary>A question wanting a census is answered by counting, so a run that estimated it from a search is caught by the tool check.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RunAsync_AQuestionWantingACensusCountedOrOnlySearched_PassesTheToolCheckOnlyWhereItCounted(bool counts)
+    {
+        // Arrange
+        var scenario = Named("Agent.Counting.RankedDomains");
+        var call = counts ? Count("domain") : Search("organisations");
+        using var model = new ScriptedAgentChatClient([call], "Apart from your own, harbourline.test and quietfjord.test write most.");
+
+        // Act
+        var verdict = await this.RunAsync(scenario, model);
+
+        // Assert
+        Assert.Equal(counts, verdict.Get<BooleanMetric>(AgentConversationScenario.CalledTheToolsAskedForMetricName).Value);
+    }
+
+    /// <summary>A figure one message states is still searched for, so a run that counted the mailbox instead is caught by the tool check.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RunAsync_AFigureInsideAMessageSearchedOrOnlyCounted_PassesTheToolCheckOnlyWhereItSearched(bool searches)
+    {
+        // Arrange
+        var scenario = Named("Agent.Counting.AFigureInsideAMessageIsStillSearched");
+        var call = searches ? Search("archive boxes") : Count("none");
+        using var model = new ScriptedAgentChatClient([call], "The courier collects 14 archive boxes.");
+
+        // Act
+        var verdict = await this.RunAsync(scenario, model);
+
+        // Assert
+        Assert.Equal(searches, verdict.Get<BooleanMetric>(AgentConversationScenario.CalledTheToolsAskedForMetricName).Value);
+    }
+
+    /// <summary>A count is a reading of the mailbox, so an answer resting on one alone counts as looked up.</summary>
+    [Fact]
+    public async Task RunAsync_AnAnswerRestingOnACountAlone_CountsAsLookedUp()
+    {
+        // Arrange
+        var scenario = Named("Agent.Counting.Total");
+        using var model = new ScriptedAgentChatClient([Count("none")], "Your mailbox holds that many emails.");
+
+        // Act
+        var verdict = await this.RunAsync(scenario, model);
+
+        // Assert
+        Assert.True(verdict.Get<BooleanMetric>(AgentConversationScenario.LookedUpMetricName).Value);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -821,6 +872,9 @@ public sealed class AgentConversationScenarioTests : IDisposable
 
     private static AgentConversationScenario Named(string name) =>
         AgentConversationScenario.All.Single(scenario => scenario.Name == name);
+
+    private static (string Tool, IDictionary<string, object?> Arguments) Count(string groupBy) =>
+        (AgentConversationTools.CountMailToolName, new Dictionary<string, object?> { ["groupBy"] = groupBy });
 
     private static (string Tool, IDictionary<string, object?> Arguments) List(int pageSize) =>
         (AgentConversationTools.ListMailToolName, new Dictionary<string, object?> { ["pageSize"] = pageSize });

@@ -48,4 +48,11 @@ public enum MailboxReadOperation
     /// average a grouping's cost into a walk's.
     /// </remarks>
     ListEmailThreads = 6,
+
+    /// <summary>Counting the mail a scope and its filters hold, in total or grouped.</summary>
+    /// <remarks>
+    /// Apart from the timeline because a count aggregates everything the filters admit, where a timeline page stops at
+    /// the page. Sharing a name would average an aggregate's cost into a bounded walk's.
+    /// </remarks>
+    CountMailbox = 7,
 }

@@ -431,6 +431,7 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
                     StubMailFolderMappings.ResolvingNothing),
                 search ?? Substitute.For<IEmailKnowledgeSearch>(),
                 Timeline: null!,
+                Census: null!,
                 ContentReader: null!,
                 ProvenanceReader: StubEmailProvenanceReader.AllKnownCorrespondents,
                 StateBrowser: null!,

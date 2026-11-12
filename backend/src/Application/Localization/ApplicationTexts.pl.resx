@@ -44,6 +44,9 @@ Project repository: https://github.com/fathomise/MailFathom
   <data name="AgentStatusListingMail" xml:space="preserve">
     <value>Przeglądam skrzynkę</value>
   </data>
+  <data name="AgentStatusCountingMail" xml:space="preserve">
+    <value>Liczę wiadomości</value>
+  </data>
   <data name="DiscoveryMailDoesNotAnswer" xml:space="preserve">
     <value>Poczta przeczytana w tym wyszukiwaniu nie odpowiada na to pytanie.</value>
   </data>

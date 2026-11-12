@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Chat;
+using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
@@ -148,6 +149,37 @@ public sealed class MailAnsweringRunLedgerTests
 
         // Assert
         Assert.Equal("Quote".Length + "Ada".Length + "ada@example.org".Length, ledger.Read().RetrievedCharacters);
+    }
+
+    /// <summary>A census hands a provider the senders and domains somebody wrote, so its groups spend the shared allowance by their keys and are cut where it runs out.</summary>
+    [Fact]
+    public void AdmitCensusGroups_GroupsPastTheRunsCeiling_HandsOverTheLeadingGroupsThatFitAndCountsNoMessage()
+    {
+        // Arrange
+        var ledger = LedgerAllowing(retrievedCharacters: 20);
+        MailCensusGroup[] groups = [new("harbourline.test", 20), new("quietfjord.test", 15), new(null, 2)];
+
+        // Act
+        var admitted = ledger.AdmitCensusGroups(groups);
+
+        // Assert
+        Assert.Equal(
+            (1, true, "harbourline.test".Length, 0),
+            (admitted.Count, ledger.RetrievalWasTruncated, ledger.Read().RetrievedCharacters, ledger.Read().MessagesRetrieved));
+    }
+
+    /// <summary>A group keyed by nothing — mail with no sender address, or undated — carries no text somebody wrote, so it spends nothing.</summary>
+    [Fact]
+    public void AdmitCensusGroups_AGroupKeyedByNothing_SpendsNothing()
+    {
+        // Arrange
+        var ledger = LedgerAllowing(retrievedCharacters: 1);
+
+        // Act
+        var admitted = ledger.AdmitCensusGroups([new MailCensusGroup(null, 4)]);
+
+        // Assert
+        Assert.Equal((1, 0), (admitted.Count, ledger.Read().RetrievedCharacters));
     }
 
     [Fact]

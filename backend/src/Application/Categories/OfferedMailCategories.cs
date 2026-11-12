@@ -64,6 +64,18 @@ public sealed class OfferedMailCategories(
             [.. offering.Select(static entry => entry.Account)]);
     }
 
+    /// <summary>Reads which categories each account a read reaches shows, by the names its records spell them.</summary>
+    /// <param name="scope">The accounts the read is restricted to.</param>
+    /// <returns>Every account in scope with what it shows, which is nothing for an account that does not categorize.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="scope" /> is <see langword="null" />.</exception>
+    /// <remarks>What a read grouping mail by its category may count, so a default an account switched off is never a group of its own.</remarks>
+    public IReadOnlyDictionary<MailAccountId, IReadOnlyList<string>> ShownWithin(MailboxScope scope)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+
+        return scope.AccountIds.Distinct().ToDictionary(static account => account, account => offerReader.OfferOf(account).Names);
+    }
+
     /// <summary>Puts on each summary the categories its account shows.</summary>
     /// <param name="summaries">The summaries about to be published.</param>
     /// <param name="cancellationToken">Cancels the read.</param>

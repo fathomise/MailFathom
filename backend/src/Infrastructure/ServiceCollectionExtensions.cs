@@ -44,6 +44,7 @@ using MailFathom.Application.Emails.BrowseSearch;
 using MailFathom.Application.Emails.BrowseThread;
 using MailFathom.Application.Emails.BrowseThreadList;
 using MailFathom.Application.Emails.BrowseTimeline;
+using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.DownloadAttachment;
 using MailFathom.Application.Emails.Embeddings;
@@ -964,6 +965,7 @@ public static class ServiceCollectionExtensions
         // The read side takes no persistence session and joins no transaction, so its ports are registered beside the
         // write repositories rather than through one of them.
         services.AddScoped<IStoredEmailTimelineReader, StoredEmailTimelineReader>();
+        services.AddScoped<IStoredEmailCensusReader, StoredEmailCensusReader>();
         services.AddScoped<IStoredEmailSummaryReader, StoredEmailSummaryReader>();
         services.AddScoped<IStoredEmailPreviewReader, StoredEmailPreviewReader>();
         services.AddScoped<IEmailProvenanceReader, StoredEmailProvenanceReader>();
@@ -1241,6 +1243,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISensitiveContentDerivationTelemetry, SensitiveContentDerivationTelemetry>();
         services.AddSingleton<SensitiveContentDerivationGuard>();
         services.AddScoped<MailboxTimelineReader>();
+        services.AddScoped<MailboxCensusReader>();
         services.AddScoped<MailTimelineBrowser>();
         services.AddScoped<MailThreadBrowser>();
         services.AddScoped<MailThreadListBrowser>();

@@ -1,6 +1,6 @@
 # Mailbox queries
 
-<!-- describes: backend/src/Application/Categories/**, backend/src/Infrastructure/Persistence/Categories/StoredEmailCategoryRecordReader.cs, backend/src/Application/Accounts/**, backend/src/Application/Emails/BrowseThread/**, backend/src/Application/Emails/BrowseThreadList/**, backend/src/Application/Emails/BrowseTimeline/**, backend/src/Application/Emails/ListEmails/**, backend/src/Application/Emails/Mailboxes/**, backend/src/Application/Emails/Summaries/**, backend/src/Application/Emails/Threads/**, backend/src/Application/Folders/**, backend/src/Application/Synchronization/Checkpoints/**, backend/src/Infrastructure/Persistence/Emails/**, backend/src/Infrastructure/Persistence/Synchronization/** -->
+<!-- describes: backend/src/Application/Categories/**, backend/src/Infrastructure/Persistence/Categories/StoredEmailCategoryRecordReader.cs, backend/src/Application/Accounts/**, backend/src/Application/Emails/BrowseThread/**, backend/src/Application/Emails/BrowseThreadList/**, backend/src/Application/Emails/BrowseTimeline/**, backend/src/Application/Emails/Census/**, backend/src/Application/Emails/ListEmails/**, backend/src/Application/Emails/Mailboxes/**, backend/src/Application/Emails/Summaries/**, backend/src/Application/Emails/Threads/**, backend/src/Application/Folders/**, backend/src/Application/Synchronization/Checkpoints/**, backend/src/Infrastructure/Persistence/Emails/**, backend/src/Infrastructure/Persistence/Synchronization/** -->
 
 MailFathom answers a mailbox listing from its local copy. `ListEmails` is the first read use case: it takes structured
 filters, returns a bounded page of email summaries, issues the cursor that continues the walk, and reports how current
@@ -256,8 +256,8 @@ layout arranges comes from it, no spam stage judges it, and no conversation's st
 
 The Agent reads it under a reader of its own, `ConversationAgent`, which sees the folders an agent sees and admits
 this mail where an agent's scope does not, so it can answer what the person wrote and has not sent. Its `search_mail`
-reaches such mail lexically — it carries no vector — `list_mail` lists it in the order mail arrived, and `read_thread`
-reads it in a conversation, each message marked
+reaches such mail lexically — it carries no vector — `list_mail` lists it in the order mail arrived, `count_mail`
+counts it, and `read_thread` reads it in a conversation, each message marked
 with the state it is in, as [where a message came from](mail-answering.md#where-a-message-came-from) describes. The
 Agent's thread state and reply proposal still read as an agent does.
 
@@ -736,9 +736,55 @@ withheld from AI is drawn like any other: the switch withholds a folder from AI 
 is what [`GET /api/client/folders`](../operations/client-endpoint.md#the-folders-route) publishes; the whole configured
 list, mirrored or not and withheld or not, is [the administrative status route](../operations/admin-endpoint.md).
 
+## Counting the mailbox
+
+A question that wants a figure or a census — how much mail of a kind arrived, who writes most, which organisations the
+person corresponds with — is answered by counting rather than by reading a page, because no page of mail is the mailbox.
+`MailboxCensusReader` counts the local copy, and the Agent reaches it as `count_mail`; nothing else publishes it yet.
+
+**It takes the filters a listing takes and counts exactly what a listing would page through.** The request carries the
+same accounts, folders, sender, recipient, subject fragment, received range, marks, keyword, attachment presence,
+category, and reader as a listing's, validated the same way, and storage narrows by the same predicate, so a count and a
+listing given the same filters can never disagree about which mail they reach.
+
+**It groups by one of seven things.** By nothing, for a single total; by the sender's normalized address; by the domain
+of that address, which is the organisation a message came from as far as its address says; by the day, the week starting
+on Monday, or the month it arrived in, read on the person's own clock — the instant is moved to their zone before it is
+cut, so a message that arrived shortly after midnight there counts on the day it arrived for them; or by category, where
+a message sorted into several counts in each and only what its own account shows is counted, so a default one account
+switched off is never counted under the name another account shows. Mail with no sender address, or no arrival date, is
+a group of its own, keyed by nothing.
+
+**One reading is bounded, and states what it left out.** It carries at most fifty groups, twenty unless the caller asks
+for another number, and a ceiling outside that range is refused with `51001` rather than clamped. Senders, domains, and
+categories lead by how many messages they count, the largest first; periods by how recent they are, the latest first.
+Beside the leading groups it carries how many groups there are in all, how many messages every group counts between
+them — which exceeds the total where a message counts in several categories — and the total itself, so what lies beyond
+the groups shown is a figure rather than a guess.
+
+**The database counts it, in one statement.** A census by sender, domain, or period is grouped, ordered, and cut to the
+leading groups by PostgreSQL, and the group count, the count across groups, and the total are subqueries of the same
+statement, so the figures agree with each other however much mail arrives meanwhile. A census by category reads the
+per-account counts of the categories the accounts show, which are bounded by what the accounts offer rather than by the
+mailbox, and leaves out the hidden ones before cutting. Nothing reads a body, a subject, or stored content: what is
+counted is the columns a group is keyed by.
+
+**It may take ten seconds.** A count still running then is abandoned, and the use case answers that it did not finish
+rather than an error, so the caller narrows the filters and asks again; the Agent is told exactly that. The read is
+published as the `count_mailbox` span.
+
+**Nothing here guards a key**, because a census leaves the use case for more than one destination and each guards at its
+own egress point. A sender's address and its domain are what somebody else wrote: the Agent's tool scans each one at the
+chat-prompt egress point before the reading is written, and spends the run's retrieved-character allowance by each key
+it shows, as [mail answering](mail-answering.md#what-one-question-may-spend) states.
+
 ## Where the pieces live
 
 - `MailFathom.Application.Emails.ListEmails` — the use case, its request, and its result.
+- `MailFathom.Application.Emails.Census` — `MailboxCensusReader`, its request, the census it answers, the grouping it
+  hands storage, and `IStoredEmailCensusReader`, the port `StoredEmailCensusReader` implements over PostgreSQL. The
+  statement is composed by static methods over `IQueryable<StoredEmailEntity>`, so the evaluation suite counts its
+  corpus with the deployment's own composition.
 - `MailFathom.Application.Emails.BrowseTimeline` — `MailTimelineBrowser`, the same walk read for a screen, with its
   request, its page, the row that pairs a summary with a preview, what a derivation concluded and how long the
   conversation the row stands for is, and the page direction that says which way a page

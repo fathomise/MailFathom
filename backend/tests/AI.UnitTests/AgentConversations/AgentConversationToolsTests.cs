@@ -20,6 +20,7 @@ using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.EmailContent.Repair;
 using MailFathom.Application.EmailContent.Storage;
+using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Application.Emails.Mailboxes;
@@ -83,6 +84,8 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
 
     private readonly IStoredEmailTimelineReader storedTimeline = Substitute.For<IStoredEmailTimelineReader>();
 
+    private readonly IStoredEmailCensusReader storedCensus = Substitute.For<IStoredEmailCensusReader>();
+
     private readonly ClientSignals signals;
 
     private readonly AgentAnswerJournal journal;
@@ -120,7 +123,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         var names = this.Tools(MailFathomPermission.MailRead).Create().Select(static tool => tool.Name);
 
         // Assert
-        Assert.Equal(["suggest_follow_ups", "rate_confidence", "search_mail", "list_mail", "read_thread", "show_thread_state"], names);
+        Assert.Equal(["suggest_follow_ups", "rate_confidence", "search_mail", "list_mail", "count_mail", "read_thread", "show_thread_state"], names);
     }
 
     /// <summary>The calendar and the task list are each read under a grant of their own, so holding both reading grants offers both reading tools and no way to propose onto either.</summary>
@@ -1504,6 +1507,178 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         Assert.Contains("to read, summarise, or retell a conversation, use read_thread", tool.Description, StringComparison.Ordinal);
     }
 
+    /// <summary>A census reading states the total, the groups it leads with, and how many groups and messages lie beyond them, so the model never names the leaders as everybody.</summary>
+    [Fact]
+    public async Task CountMail_GroupedBySender_ShowsTheLeadingGroupsAndWhatLiesBeyondThem()
+    {
+        // Arrange
+        var tool = this.CountingTool(new MailCensus([new("ada@example.org", 9), new(null, 2)], GroupCount: 7, CountedInGroups: 30, Total: 30));
+
+        // Act
+        var answer = await tool.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?> { ["groupBy"] = "sender" }),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var census = XElement.Parse(answer!.ToString()!);
+
+        Assert.Equal(
+            ("sender", "30", "7", "5", "19"),
+            (
+                (string?)census.Attribute(AgentConversationReadings.GroupedByAttributeName),
+                (string?)census.Attribute(AgentConversationReadings.TotalAttributeName),
+                (string?)census.Attribute(AgentConversationReadings.GroupsAttributeName),
+                (string?)census.Attribute(AgentConversationReadings.GroupsBeyondAttributeName),
+                (string?)census.Attribute(AgentConversationReadings.MessagesBeyondAttributeName)));
+        Assert.Equal(
+            [("ada@example.org", null, "9"), (null, "true", "2")],
+            census.Elements(AgentConversationReadings.GroupElementName).Select(static group => (
+                (string?)group.Attribute(AgentConversationReadings.KeyAttributeName),
+                (string?)group.Attribute(AgentConversationReadings.NoneAttributeName),
+                (string?)group.Attribute(AgentConversationReadings.CountAttributeName))));
+    }
+
+    /// <summary>A count reads no message, so nothing it shows can become a source an answer cites.</summary>
+    [Fact]
+    public async Task CountMail_AReading_DeclaresNoSource()
+    {
+        // Arrange
+        var tool = this.CountingTool(new MailCensus([new("ada@example.org", 9)], 1, 9, 9));
+        await tool.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?> { ["groupBy"] = "sender" }),
+            TestContext.Current.CancellationToken);
+
+        // Act
+        await this.tools.DeclareSearchedAndListedAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(this.tools.Cited);
+    }
+
+    /// <summary>A sender's address is somebody else's words, so it is scanned before the reading is written around it.</summary>
+    [Fact]
+    public async Task CountMail_ASenderTheScannerFinds_IsRedacted()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        using var actingFor = egress.Guard.ActingFor(await egress.ReadUserPostureAsync(TestContext.Current.CancellationToken));
+        var tool = this.CountingTool(new MailCensus([new($"{Marker}@example.org", 3)], 1, 3, 3), egress.Guard);
+
+        // Act
+        var answer = await tool.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?> { ["groupBy"] = "sender" }),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.DoesNotContain(Marker, answer!.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>A census spends the run's reading allowance by the keys it names, so groups past what the run may still send are left out and the reading says so.</summary>
+    [Fact]
+    public async Task CountMail_GroupsPastWhatTheRunMayStillSend_AreCutAndTheReadingSaysSo()
+    {
+        // Arrange
+        var tool = this.CountingTool(
+            new MailCensus([new("aaaa.test", 5), new("bbbb.test", 4)], 2, 9, 9),
+            runBounds: MailAnsweringRunBounds.Create("aaaa.test".Length, maximumProviderCalls: 4, maximumTokens: 10_000));
+
+        // Act
+        var answer = await tool.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?> { ["groupBy"] = "domain" }),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var census = XElement.Parse(answer!.ToString()!);
+
+        Assert.Equal(
+            (1, "true", "1", "4"),
+            (
+                census.Elements(AgentConversationReadings.GroupElementName).Count(),
+                (string?)census.Attribute(AgentConversationReadings.CeilingReachedAttributeName),
+                (string?)census.Attribute(AgentConversationReadings.GroupsBeyondAttributeName),
+                (string?)census.Attribute(AgentConversationReadings.MessagesBeyondAttributeName)));
+    }
+
+    /// <summary>The count names no account and reads the run's own accounts as the person's Agent, with a period read on the person's own clock.</summary>
+    [Fact]
+    public async Task CountMail_AMonthlyCount_ReadsTheRunsAccountsAsThePersonsAgentOnTheirClock()
+    {
+        // Arrange
+        var tool = this.CountingTool(MailCensus.Empty);
+
+        // Act
+        await tool.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?> { ["groupBy"] = "month", ["groups"] = 12, ["hasAttachments"] = true }),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var call = Assert.Single(this.storedCensus.ReceivedCalls()).GetArguments();
+        var selection = Assert.IsType<MailboxEmailSelection>(call[0]);
+        var grouping = Assert.IsType<MailCensusGrouping>(call[1]);
+
+        Assert.Equal(
+            (MailboxReaderKind.ConversationAgent, Primary, (bool?)true, MailCensusDimension.Month, "Europe/Warsaw", 12),
+            (selection.Scope.Reader, Assert.Single(selection.Scope.AccountIds), selection.HasAttachments, grouping.Dimension, grouping.Zone.Id, (int)call[2]!));
+    }
+
+    /// <summary>An argument the model can correct is told back to it, and nothing is counted on its strength.</summary>
+    [Theory]
+    [InlineData("groupBy", "year")]
+    [InlineData("groups", 500)]
+    [InlineData("receivedBefore", "2026-09-22T00:00:00Z")]
+    [InlineData("folder", "Outbox")]
+    public async Task CountMail_AnArgumentItCannotRead_IsRefusedWithoutACensus(string argument, object value)
+    {
+        // Arrange
+        var tool = this.CountingTool(MailCensus.Empty);
+
+        // Act
+        var answer = await tool.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?> { [argument] = value }),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.DoesNotContain($"<{AgentConversationReadings.CensusElementName}", answer?.ToString(), StringComparison.Ordinal);
+        Assert.Empty(this.storedCensus.ReceivedCalls());
+    }
+
+    /// <summary>The tool states what one reading carries and what it costs, in the figures the use case enforces.</summary>
+    [Fact]
+    public void CountMail_ItsDescription_StatesTheCeilingAndTheAllowanceItSpends()
+    {
+        // Act
+        var tool = this.ToolNamed(AgentConversationTools.CountMailToolName, MailFathomPermission.MailRead);
+
+        // Assert
+        Assert.Contains($"at most {MailboxCensusReader.MaximumLeadingGroups} groups", tool.Description, StringComparison.Ordinal);
+        Assert.Contains("spends the same reading allowance a search does", tool.Description, StringComparison.Ordinal);
+    }
+
+    /// <summary>Arranges the counting tool over stored mail answering with the given census.</summary>
+    private AIFunction CountingTool(
+        MailCensus census,
+        SensitiveContentEgressGuard? egressGuard = null,
+        MailAnsweringRunBounds? runBounds = null)
+    {
+        this.storedCensus
+            .CountAsync(Arg.Any<MailboxEmailSelection>(), Arg.Any<MailCensusGrouping>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(census);
+
+        var authorization = AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead);
+        var guard = egressGuard ?? SensitiveContentEgressGuards.Inactive();
+        var counting = new MailboxCensusReader(
+            this.storedCensus,
+            ScopeOverPrimaryInbox(),
+            Substitute.For<IMailboxReadTelemetry>(),
+            authorization,
+            StubMailCategories.OfferingNothing,
+            this.clock);
+
+        this.tools = this.Tools(authorization, guard, census: counting, runBounds: runBounds);
+
+        return this.CreatedTool(AgentConversationTools.CountMailToolName);
+    }
+
     /// <summary>Arranges the listing tool over a stored timeline holding the given messages, newest first as a deployment's query returns them.</summary>
     private AIFunction ListingTool(
         IReadOnlyList<EmailSummary> timeline,
@@ -1619,7 +1794,8 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         EmailContentReader? contentReader = null,
         MailThreadStateBrowser? stateBrowser = null,
         MailboxTimelineReader? timeline = null,
-        MailAnsweringRunBounds? runBounds = null)
+        MailAnsweringRunBounds? runBounds = null,
+        MailboxCensusReader? census = null)
     {
         var retrieval = new ScopedMailKnowledgeRetrieval(
             this.knowledgeSearch,
@@ -1631,6 +1807,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             ScopeResolver: null!,
             KnowledgeSearch: null!,
             Timeline: timeline!,
+            Census: census!,
             ContentReader: contentReader!,
             ProvenanceReader: provenanceReader ?? StubEmailProvenanceReader.AllKnownCorrespondents,
             StateBrowser: stateBrowser!,

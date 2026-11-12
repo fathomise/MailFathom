@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Categories;
+using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
@@ -85,8 +86,13 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
 
     private readonly MailboxKnowledgeSearch search = SearchOver(corpus);
 
+    private readonly CorpusSearchIndex index = new(corpus);
+
     /// <summary>Gets the corpus as the stored timeline a listing reads, newest or oldest first, a page at a time.</summary>
-    public IStoredEmailTimelineReader Timeline { get; } = new CorpusSearchIndex(corpus);
+    public IStoredEmailTimelineReader Timeline => this.index;
+
+    /// <summary>Gets the corpus as the stored mail a census counts, through the deployment's own composition of the count.</summary>
+    public IStoredEmailCensusReader Census => this.index;
 
     /// <summary>Gets the scope every lookup of a run is answered from: the one inbox, admitted as a deployment's folder mapping admits it.</summary>
     public static MailboxScope Scope { get; } = MailboxScope.Create([Account], [InboxFolder.Id]).RestrictedTo([InboxIdentity]);
@@ -153,7 +159,7 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
     private static partial Regex Word();
 
     /// <summary>The full-text index a deployment keeps in PostgreSQL, over the corpus held as the rows it would have stored.</summary>
-    private sealed class CorpusSearchIndex(IReadOnlyList<CorpusMessage> corpus) : IEmailSearchIndexReader, IStoredEmailTimelineReader
+    private sealed class CorpusSearchIndex(IReadOnlyList<CorpusMessage> corpus) : IEmailSearchIndexReader, IStoredEmailTimelineReader, IStoredEmailCensusReader
     {
         private readonly IReadOnlyList<StoredEmailEntity> rows = [.. corpus.Select(RowOf)];
 
@@ -343,12 +349,43 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
             return Task.FromResult(page);
         }
 
+        public Task<MailCensus> CountAsync(
+            MailboxEmailSelection selection,
+            MailCensusGrouping grouping,
+            int leadingGroups,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(selection);
+            ArgumentNullException.ThrowIfNull(grouping);
+
+            var matching = this.SelectedRows(selection).ToArray().AsQueryable();
+
+            var census = grouping.Dimension switch
+            {
+                MailCensusDimension.Total => MailCensus.Empty with { Total = matching.Count() },
+                MailCensusDimension.Category => StoredEmailCensusReader.CategoryCensusOf(
+                    [.. StoredEmailCensusReader.CategoryGroups(matching, grouping)],
+                    grouping,
+                    leadingGroups,
+                    matching.Count()),
+                _ => StoredEmailCensusReader.LeadingGroups(matching, grouping, leadingGroups).ToArray() is { Length: > 0 } rows
+                    ? StoredEmailCensusReader.CensusOf(rows, grouping.Dimension)
+                    : MailCensus.Empty with { Total = matching.Count() },
+            };
+
+            return Task.FromResult(census);
+        }
+
         /// <summary>Reads the mail a selection admits, through the predicate a deployment's query narrows by.</summary>
         /// <remarks>
         /// The subject fragment is matched here rather than by the predicate, because the predicate matches it with
         /// PostgreSQL's <c>ILIKE</c>, which has no form outside the database; everything else is the predicate's own.
         /// </remarks>
-        private IEnumerable<CorpusMessage> Selected(MailboxEmailSelection selection)
+        private IEnumerable<CorpusMessage> Selected(MailboxEmailSelection selection) =>
+            this.SelectedRows(selection).Select(row => this.messages[row.Id]);
+
+        /// <summary>Reads the rows a selection admits, as <see cref="Selected" /> reads the messages.</summary>
+        private IEnumerable<StoredEmailEntity> SelectedRows(MailboxEmailSelection selection)
         {
             var subjectFragment = selection.SubjectFragment;
             var predicateSelection = subjectFragment is null
@@ -368,8 +405,7 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
 
             return StoredEmailSelectionPredicate.Matching(this.rows.AsQueryable(), predicateSelection)
                 .AsEnumerable()
-                .Where(row => subjectFragment is null || (row.Subject?.Contains(subjectFragment, StringComparison.OrdinalIgnoreCase) ?? false))
-                .Select(row => this.messages[row.Id]);
+                .Where(row => subjectFragment is null || (row.Subject?.Contains(subjectFragment, StringComparison.OrdinalIgnoreCase) ?? false));
         }
     }
 

@@ -35,4 +35,7 @@ public enum AgentActivity
 
     /// <summary>The run is listing the person's mail in the order it arrived.</summary>
     ListingMail = 7,
+
+    /// <summary>The run is counting the person's mail, in total or grouped.</summary>
+    CountingMail = 8,
 }

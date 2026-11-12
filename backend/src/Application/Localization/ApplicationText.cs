@@ -64,4 +64,7 @@ public enum ApplicationText
 
     /// <summary>The status line while the Agent lists the person's mail in the order it arrived.</summary>
     AgentStatusListingMail = 18,
+
+    /// <summary>The status line while the Agent counts the person's mail.</summary>
+    AgentStatusCountingMail = 19,
 }

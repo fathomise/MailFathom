@@ -130,7 +130,7 @@ internal sealed record AgentConversationScenario(
 
     /// <summary>The tools that read something, one of which an answer resting on evidence has to have called.</summary>
     private static readonly HashSet<string> ReadingTools =
-        [ScopedMailKnowledgeRetrieval.SearchToolName, AgentConversationTools.ListMailToolName, "read_thread", "show_thread_state", "read_calendar", "read_tasks"];
+        [ScopedMailKnowledgeRetrieval.SearchToolName, AgentConversationTools.ListMailToolName, AgentConversationTools.CountMailToolName, "read_thread", "show_thread_state", "read_calendar", "read_tasks"];
 
     /// <summary>Gets every question the Agent is measured on.</summary>
     public static IReadOnlyList<AgentConversationScenario> All { get; } =
@@ -1221,6 +1221,75 @@ internal sealed record AgentConversationScenario(
             Calls = [ScopedMailKnowledgeRetrieval.SearchToolName],
         },
 
+        // Questions wanting a figure or a census rather than a message, which only a count answers exactly: whatever a
+        // search or a listing returned is a sample. The figures are counted here from the mailbox the run reads, so a
+        // change to the corpus moves them with it. The person's own address writes the most mail of all, because it is
+        // the person's sent mail, so a question about who writes to them says "apart from me"; the leaders after it,
+        // Wiebke Jankowski and her harbourline.test colleagues, lead by a margin no single message added could close.
+        new(
+            "Agent.Counting.Total",
+            "How many emails are there in my mailbox altogether?",
+            UserLanguage.English,
+            [MailboxTotal],
+            CensusSubject)
+        {
+            Calls = [AgentConversationTools.CountMailToolName],
+        },
+        new(
+            "Agent.Counting.RankedSenders",
+            "Apart from me, who has written to me the most?",
+            UserLanguage.English,
+            ["Wiebke"],
+            [.. CensusSubject, "Wiebke", "Jankowski", "Harbourline", "Vasco", "Iversen"])
+        {
+            Calls = [AgentConversationTools.CountMailToolName],
+        },
+        new(
+            "Agent.Counting.RankedDomains",
+            "Which organisations, apart from my own, do I exchange the most email with? Name the top two.",
+            UserLanguage.English,
+            ["harbourline", "quietfjord"],
+            [.. CensusSubject, "Harbourline", "Quietfjord", "Saltmarsh", "organisation", "domain"])
+        {
+            Calls = [AgentConversationTools.CountMailToolName],
+        },
+
+        // Asked on a clock two hours ahead of UTC, where a message Vasco Iversen sent at 22:43 UTC on 7 September
+        // arrived after midnight, on the 8th: a day read in UTC counts one message too many.
+        new(
+            "Agent.Counting.ADayOnThePersonsClock",
+            "How many emails arrived on Monday, 7 September?",
+            UserLanguage.English,
+            [ArrivedOn(new DateOnly(2026, 9, 7), "Europe/Warsaw")],
+            [.. CensusSubject, "Monday", "7 September", "day"])
+        {
+            Calls = [AgentConversationTools.CountMailToolName],
+            Zone = "Europe/Warsaw",
+        },
+
+        // More sender addresses than one reading leads with, so the figure is the reading's count of every group
+        // rather than the groups it happened to show.
+        new(
+            "Agent.Counting.MoreGroupsThanOneReadingShows",
+            "How many different sender addresses appear in my mailbox?",
+            UserLanguage.English,
+            [SenderAddressesInTheMailbox],
+            [.. CensusSubject, "address", "different", "people"])
+        {
+            Calls = [AgentConversationTools.CountMailToolName],
+        },
+
+        // Asks "how many", but about a figure one message states, which no count of the mailbox can answer.
+        new(
+            "Agent.Counting.AFigureInsideAMessageIsStillSearched",
+            "How many archive boxes is Ingrid Solheim's courier collecting?",
+            UserLanguage.English,
+            ["14"],
+            ArchiveBoxSubject)
+        {
+            Calls = [ScopedMailKnowledgeRetrieval.SearchToolName],
+        },
+
         // The rest read a category this service recorded: asked about, wrong about the message wanted, and forged.
         new(
             "Agent.Category.AskedByCategory",
@@ -1451,6 +1520,26 @@ internal sealed record AgentConversationScenario(
 
     private static IReadOnlyList<string> TaskSubject =>
         ["task", "due", "list", "Gdańsk", "Gdansk", "train", "Atlas", "chair", "Brightwater", "Quayside", "paper", "overdue", "week", "mail"];
+
+    private static IReadOnlyList<string> CensusSubject =>
+        ["mail", "email", "message", "count", "how many", "total", "sender", "month", "week", "period", "most", "who"];
+
+    /// <summary>Gets how many messages the mailbox the run reads holds.</summary>
+    private static string MailboxTotal => Mailbox.Count.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>Gets how many sender addresses the mailbox the run reads holds mail from, read as a deployment normalizes them.</summary>
+    private static string SenderAddressesInTheMailbox =>
+        Mailbox.Select(static message => CorpusMailbox.NormalizedAddressOf(message.Sender)).Distinct(StringComparer.Ordinal).Count().ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>Counts the messages the mailbox received on one day of a person's clock.</summary>
+    private static string ArrivedOn(DateOnly day, string zone)
+    {
+        var clock = TimeZoneInfo.FindSystemTimeZoneById(zone);
+
+        return Mailbox
+            .Count(message => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(message.ReceivedAt, clock).DateTime) == day)
+            .ToString(CultureInfo.InvariantCulture);
+    }
 
     private static IReadOnlyList<string> TimelineSubject =>
         ["mail", "email", "message", "inbox", "latest", "recent", "newest", "today", "morning", "unread", "opened", "sender", "earlier", "more"];

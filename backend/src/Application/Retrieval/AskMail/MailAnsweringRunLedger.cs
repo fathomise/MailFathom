@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Chat;
+using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Domain.Emails;
 
@@ -105,7 +106,24 @@ public sealed class MailAnsweringRunLedger
         return this.Admit(listed, static summary => summary.StoredEmailId, ListedCharactersOf);
     }
 
-    private List<T> Admit<T>(IReadOnlyList<T> found, Func<T, StoredEmailId> messageOf, Func<T, int> charactersOf)
+    /// <summary>Takes the groups of one census reading that still fit inside what this run may send.</summary>
+    /// <param name="counted">The groups, in the order the census leads with them.</param>
+    /// <returns>The leading groups that fit, which is every one of them until the ceiling is approached and none once it is reached.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="counted" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// A census spends the same allowance for the reason a listing does: a sender's address and its domain are what
+    /// somebody else wrote, and a run that could count beside the ceiling on reading would hand a provider text without
+    /// one. What a group spends is its key and nothing else — the figures and the period's dates are this deployment's
+    /// own — and a group names no message, so a census adds nothing to how many messages the run read.
+    /// </remarks>
+    public IReadOnlyList<MailCensusGroup> AdmitCensusGroups(IReadOnlyList<MailCensusGroup> counted)
+    {
+        ArgumentNullException.ThrowIfNull(counted);
+
+        return this.Admit(counted, static _ => null, static group => group.Key?.Length ?? 0);
+    }
+
+    private List<T> Admit<T>(IReadOnlyList<T> found, Func<T, StoredEmailId?> messageOf, Func<T, int> charactersOf)
     {
         lock (this.gate)
         {
@@ -126,7 +144,12 @@ public sealed class MailAnsweringRunLedger
                 }
 
                 this.retrievedCharacters += characters;
-                this.retrievedMessages.Add(messageOf(item).Value);
+
+                if (messageOf(item) is { } message)
+                {
+                    this.retrievedMessages.Add(message.Value);
+                }
+
                 admitted.Add(item);
             }
 
