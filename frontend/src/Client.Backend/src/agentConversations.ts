@@ -4,7 +4,7 @@
 
 import { parseBlock, type AnswerBlock } from './discoveryRun';
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
-import { asRecord } from './json';
+import { asRecord, parseEach } from './json';
 import { parseDeclaredSource, type DeclaredSource } from './presentationBlocks';
 import type { RunTail } from './runFollowing';
 import { headersFor, routeFor, type ClientSession } from './session';
@@ -41,6 +41,9 @@ const longestIdentifier = 128;
 const longestTitle = 1024;
 const longestText = 64 * 1024;
 const mostFollowUps = 3;
+
+// The service's own bound on the files one question carries.
+const mostCarriedFiles = 10;
 const longestFollowUp = 120;
 const longestWriteAnswer = 4 * 1024;
 
@@ -121,6 +124,9 @@ export type AgentConversationEntry =
 
           /** The mode a question was asked in, and `null` for anything else or a question asked before one carried it. */
           readonly mode: AgentAnswerMode | null;
+
+          /** The conversation's files the question carried, by identifier, and empty for a message that carried none. */
+          readonly files: readonly string[];
       }
     | { readonly kind: 'answerStarted'; readonly sequence: number; readonly run: string }
     | { readonly kind: 'status'; readonly sequence: number; readonly run: string; readonly status: string }
@@ -247,6 +253,7 @@ export function readAgentConversation(
  * @param messageId The question's own identifier, so a retry of the same post is the same question.
  * @param scope What the question is about, where it was carried in from a screen, and `null` for one narrowing nothing.
  * @param mode How far the run answering it may go.
+ * @param files The conversation's files the question carries, each already taken in through its files route.
  * @returns The answer it opened, or why it was not asked.
  */
 export function askAgent(
@@ -257,16 +264,16 @@ export function askAgent(
     text: string,
     scope: AgentMessageScope | null = null,
     mode: AgentAnswerMode = 'auto',
+    files: readonly string[] = [],
 ): Promise<ClientResult<AgentMessagePosted>> {
     return spanned('POST /agent/conversations/{conversationId}/messages', () =>
-        posted(
-            session,
-            transport,
-            `${agentConversationRoute(conversationId)}/messages`,
-            scope === null
-                ? { messageId, text, mode: wireModes[mode] }
-                : { messageId, text, scope: wireScopeOf(scope), mode: wireModes[mode] },
-        ),
+        posted(session, transport, `${agentConversationRoute(conversationId)}/messages`, {
+            messageId,
+            text,
+            ...(scope === null ? {} : { scope: wireScopeOf(scope) }),
+            mode: wireModes[mode],
+            ...(files.length === 0 ? {} : { files }),
+        }),
     );
 }
 
@@ -427,7 +434,13 @@ async function posted(
     session: ClientSession,
     transport: MailFathomTransport,
     route: string,
-    message: { readonly messageId: string; readonly text: string; readonly scope?: WireScope; readonly mode?: string },
+    message: {
+        readonly messageId: string;
+        readonly text: string;
+        readonly scope?: WireScope;
+        readonly mode?: string;
+        readonly files?: readonly string[];
+    },
 ): Promise<ClientResult<AgentMessagePosted>> {
     const response = await send(transport, {
         method: 'POST',
@@ -630,12 +643,14 @@ function parseEntry(value: unknown): AgentConversationEntry | null {
             const author = namedIn(authors, entry['author']);
             const text = entry['text'];
             const scope = parseScope(entry['scope']);
+            const files = entry['files'] === undefined || entry['files'] === null ? [] : parseEach(entry['files'], mostCarriedFiles, identifier);
 
             return run === null ||
                 author === undefined ||
                 typeof text !== 'string' ||
                 text.length > longestText ||
-                scope === undefined
+                scope === undefined ||
+                files === null
                 ? null
                 : {
                       kind: 'message',
@@ -645,6 +660,7 @@ function parseEntry(value: unknown): AgentConversationEntry | null {
                       text,
                       scope,
                       mode: namedIn(modes, entry['mode']) ?? null,
+                      files,
                   };
         }
 

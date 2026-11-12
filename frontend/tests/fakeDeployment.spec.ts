@@ -748,6 +748,38 @@ test('records the mode a conversation started here was asked in, and stops a fas
     expect(entriesOf(deep).find((entry) => entry['entry'] === 'answerEnded')).not.toHaveProperty('ceiling');
 });
 
+test('takes a file into a conversation before its first question, lists it, and reads the question carrying it', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const conversation = '/agent/conversations/0198f4a1-0000-7000-8000-00000000b004';
+    const take = (body: string) =>
+        deployment.answer({
+            method: 'POST',
+            url: `http://deployment.invalid/api/client${conversation}/files`,
+            body,
+            contentType: 'application/octet-stream',
+            contentDisposition: "attachment; filename*=UTF-8''Offer%20v3.pdf",
+        });
+
+    const taken = take('%PDF-1.7');
+    const { fileId } = JSON.parse(taken.body) as { fileId: string };
+
+    expect(taken.status).toBe(201);
+    expect(take('').status).toBe(400);
+    expect(ask(deployment, 'GET', `${conversation}/files`)).toMatchObject({
+        files: [{ fileId, name: 'Offer v3.pdf', kind: 'document', byteLength: 8 }],
+    });
+
+    ask(deployment, 'POST', `${conversation}/messages`, {
+        messageId: agent.answeredQuestionId,
+        text: 'Compare',
+        files: [fileId],
+    });
+
+    expect(ask(deployment, 'GET', conversation)).toMatchObject({
+        entries: [{ entry: { entry: 'message', text: 'Compare', files: [fileId] } }],
+    });
+});
+
 test('answers the centre and the bell with every notification raised, marked, and erased since', () => {
     const deployment = new FakeDeployment('0.0.0');
     const centre = () =>

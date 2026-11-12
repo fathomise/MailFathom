@@ -6,12 +6,15 @@ import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import type { AgentAnswerMode } from '@mailfathom/client-backend';
 import { ChoiceSegment } from '../controls/ChoiceSegment';
 import { Icon } from '../controls/Icon';
+import { SymbolControl } from '../controls/SymbolControl';
 import type { IconName } from '../controls/icons';
 import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
+import { acceptedFiles, type QuestionFiles } from './questionFiles';
+import { WaitingFiles } from './WaitingFiles';
 
 // What a new conversation offers to start with. The design's prototype opens a seeded conversation from each;
 // a client has none to open, so each asks its question exactly as typing it would.
@@ -28,6 +31,34 @@ const modes: readonly {
     { mode: 'fast', icon: 'bolt', label: 'agent.mode.fast', says: 'agent.modeSays.fast' },
     { mode: 'deep', icon: 'manage_search', label: 'agent.mode.deep', says: 'agent.modeSays.deep' },
 ];
+
+const heldUploading: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
+    zero: 'agent.sendHeld.uploading.other',
+    one: 'agent.sendHeld.uploading.one',
+    two: 'agent.sendHeld.uploading.other',
+    few: 'agent.sendHeld.uploading.few',
+    many: 'agent.sendHeld.uploading.many',
+    other: 'agent.sendHeld.uploading.other',
+};
+
+const heldFailed: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
+    zero: 'agent.sendHeld.failed.other',
+    one: 'agent.sendHeld.failed.one',
+    two: 'agent.sendHeld.failed.other',
+    few: 'agent.sendHeld.failed.few',
+    many: 'agent.sendHeld.failed.many',
+    other: 'agent.sendHeld.failed.other',
+};
+
+// What a picture pasted with no name of its own is called: the hour and minute it was pasted, joined by a point rather
+// than the locale's own separator, since a colon is no character a file name may carry everywhere.
+function pastedAt(locale: string): string {
+    const parts = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(
+        new Date(),
+    );
+
+    return ['hour', 'minute'].map((unit) => parts.find((part) => part.type === unit)?.value ?? '').join('.');
+}
 
 /**
  * Where the reader tells the agent what to do: the field, Send, and Cancel beside it, which is drawn at all times and
@@ -46,6 +77,8 @@ const modes: readonly {
  * nothing narrower — which draws no chip rather than an empty one.
  * @param onClearContext Drops that context, so the next question is asked about everything again.
  * @param mode The mode the next question is asked in, which the screen holds because asking again in `deep` sets it.
+ * @param files The files the next question will carry, which the screen holds because a drop onto the conversation
+ * hands them over too.
  */
 export function AgentComposer({
     running,
@@ -59,6 +92,7 @@ export function AgentComposer({
     onClearContext,
     mode,
     onMode,
+    files,
     dock,
 }: {
     readonly running: boolean;
@@ -72,11 +106,12 @@ export function AgentComposer({
     readonly onClearContext: () => void;
     readonly mode: AgentAnswerMode;
     readonly onMode: (mode: AgentAnswerMode) => void;
+    readonly files: QuestionFiles;
 
     /** Takes the field's column, which a draft's rewrite bar docks across under a finger. */
     readonly dock?: RefObject<HTMLDivElement | null>;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
     const wide = useWideWorkspace();
     const field = useId();
     const modeGroup = useId();
@@ -86,11 +121,26 @@ export function AgentComposer({
     const [writtenFor, setWrittenFor] = useState(conversation);
     const [sentInto, setSentInto] = useState<string | null>(null);
     const input = useRef<HTMLInputElement>(null);
+    const chooser = useRef<HTMLInputElement>(null);
     const writeRefused = useWriteRefusal();
+
+    // A question leaves with every file it was handed or with none, so one still on its way, or one that did not
+    // arrive, holds Send and says which.
+    const uploading = files.waiting.filter((file) => file.state === 'uploading').length;
+    const notUploaded = files.waiting.filter((file) => file.state === 'failed').length;
+    const plural = new Intl.PluralRules(locale);
+    const heldByFiles =
+        uploading > 0
+            ? translate(heldUploading[plural.select(uploading)], { count: new Intl.NumberFormat(locale).format(uploading) })
+            : notUploaded > 0
+              ? translate(heldFailed[plural.select(notUploaded)], {
+                    count: new Intl.NumberFormat(locale).format(notUploaded),
+                })
+              : null;
 
     // Sending, steering, and cancelling each ask the server to do something, so while it is out of reach each says so
     // before it is pressed rather than failing after. The field stays open: what is typed waits for the connection.
-    const sendRefused = writeRefused(translate('agent.send'));
+    const sendRefused = writeRefused(translate('agent.send')) ?? heldByFiles;
     const cancelRefused = running ? writeRefused(translate('agent.cancel')) : null;
     const clearName = useTip({
         says: translate('agent.clearContext'),
@@ -186,13 +236,38 @@ export function AgentComposer({
                     </ul>
                 ) : null}
 
+                <WaitingFiles files={files} />
+
                 <form
-                    className="flex w-full items-center gap-2 rounded-lg border-2 border-accent bg-panel py-1.5 ps-3.5 pe-1.5 transition focus-within:ring-3 focus-within:ring-accent-soft workspace:gap-3 desktop:px-3.25 desktop:py-2.5"
+                    className="flex w-full items-center gap-1.5 rounded-lg border-2 border-accent bg-panel p-1.5 transition focus-within:ring-3 focus-within:ring-accent-soft workspace:gap-2.5 desktop:py-2.5 desktop:ps-2 desktop:pe-3.25"
                     onSubmit={(event) => {
                         event.preventDefault();
                         void send(text);
                     }}
                 >
+                    <input
+                        ref={chooser}
+                        type="file"
+                        multiple
+                        accept={acceptedFiles}
+                        tabIndex={-1}
+                        aria-hidden="true"
+                        className="hidden"
+                        onChange={(event) => {
+                            files.add([...(event.target.files ?? [])], null);
+                            event.target.value = '';
+                        }}
+                    />
+                    <SymbolControl
+                        label={translate('agent.attachFiles')}
+                        className="flex size-8.5 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-hover hover:text-text"
+                        onPress={() => {
+                            chooser.current?.click();
+                        }}
+                    >
+                        <Icon name="attach_file" className="size-icon-lg" />
+                    </SymbolControl>
+
                     <label htmlFor={field} className="sr-only">
                         {translate('agent.composerLabel')}
                     </label>
@@ -206,6 +281,15 @@ export function AgentComposer({
                         className="min-w-0 flex-1 bg-transparent text-lg text-text outline-none placeholder:text-faint"
                         onChange={(event) => {
                             setText(event.target.value);
+                        }}
+                        onPaste={(event) => {
+                            const pasted = [...event.clipboardData.files];
+
+                            // A file pasted into the field is attached rather than typed; words pasted are typed.
+                            if (pasted.length > 0) {
+                                event.preventDefault();
+                                files.add(pasted, translate('agent.files.pastedName', { time: pastedAt(locale) }));
+                            }
                         }}
                     />
 

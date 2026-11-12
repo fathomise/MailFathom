@@ -37,6 +37,7 @@ import { AgentComposer } from './AgentComposer';
 import { ConversationHistory } from './ConversationHistory';
 import { ConversationTabs } from './ConversationTabs';
 import { ConversationThread } from './ConversationThread';
+import { FileDropTarget } from './FileDropTarget';
 import {
     historyWidthStep,
     historyWidthWithin,
@@ -47,6 +48,8 @@ import {
 import { answerInFlight, ranDeep, threadOf } from './threadTurns';
 import { newIdentifier } from './newIdentifier';
 import { ProposalAnswersContext } from './proposalAnswers';
+import { useQuestionFiles } from './questionFiles';
+import { useConversationFiles } from './useConversationFiles';
 import type { ConversationHistory as History } from './useConversationHistory';
 import { useFollowedConversation } from './useFollowedConversation';
 
@@ -174,6 +177,12 @@ export function AgentSpace({
     // conversation puts it back on `auto`, the value nobody chose.
     const [mode, setMode] = useState<AgentAnswerMode>('auto');
 
+    // What a new conversation will be started under. It is named before the first question because a file handed over
+    // before that question is taken into the conversation then and there, and the question starts the conversation that
+    // already holds it.
+    const [fresh, setFresh] = useState(newIdentifier);
+    const questionFiles = useQuestionFiles(session, current ?? fresh);
+
     // The source somebody is checking, held with the conversation it was cited in: a source belongs to the answer that
     // cited it, so opening another conversation leaves it behind rather than standing beside answers it backs nothing in.
     const [checking, setChecking] = useState<{
@@ -271,6 +280,8 @@ export function AgentSpace({
 
     // Folded once per arrival rather than per render, because the thread re-measures whenever the turns change.
     const turns = useMemo(() => threadOf(followed.entries), [followed.entries]);
+    const carried = useMemo(() => turns.flatMap((turn) => (turn.kind === 'question' ? turn.files : [])), [turns]);
+    const conversationFiles = useConversationFiles(session, transport, current, carried);
 
     // Let go during render rather than hide, so coming back to the conversation opens the answer and not the panel.
     if (checking !== null && checking.conversation !== current) {
@@ -359,22 +370,27 @@ export function AgentSpace({
         }
     }
 
+    // A question carries every file waiting under the field, and asking one again carries what it carried before. An
+    // instruction steering an answer in flight carries none: the run takes words, and the files wait for the next question.
     async function send(
         text: string,
         asked: AgentAnswerMode = mode,
         scope: AgentMessageScope | null = context?.scope ?? null,
+        files: readonly string[] | null = null,
     ): Promise<string | null> {
         if (session === null) {
             return null;
         }
 
-        const conversation = current ?? newIdentifier();
+        const conversation = current ?? fresh;
         const message = newIdentifier();
+        const steered = current === null ? null : inFlight;
+        const waiting = questionFiles.waiting.flatMap((file) => (file.fileId === null ? [] : [file.fileId]));
 
         const posted =
-            current === null || inFlight === null
-                ? await askAgent(session, transport, conversation, message, text, scope, asked)
-                : await steerAgentRun(session, transport, conversation, inFlight.run, message, text);
+            steered === null
+                ? await askAgent(session, transport, conversation, message, text, scope, asked, files ?? waiting)
+                : await steerAgentRun(session, transport, conversation, steered.run, message, text);
 
         if (posted.outcome === 'failed') {
             setUnsent(posted.failure.reason);
@@ -388,9 +404,14 @@ export function AgentSpace({
         // and only the conversation still being looked at is pinned to its bottom again.
         if (current === null) {
             setOpen((before) => (before.includes(conversation) ? before : [...before, conversation]));
+            setFresh(newIdentifier());
         }
 
         if (inFront) {
+            if (steered === null && files === null) {
+                questionFiles.sent();
+            }
+
             setUnsent(null);
             setCurrent(conversation);
             setFollowing((before) => before + 1);
@@ -451,10 +472,14 @@ export function AgentSpace({
 
     // The same question again in `deep`, about what it was asked about rather than what the field carries now, which
     // leaves the control on `deep` for the questions after it as well.
-    function askInDeep(question: string, scope: AgentMessageScope | null): Promise<string | null> {
+    function askInDeep(
+        question: string,
+        scope: AgentMessageScope | null,
+        files: readonly string[],
+    ): Promise<string | null> {
         setMode('deep');
 
-        return send(question, 'deep', scope);
+        return send(question, 'deep', scope, files);
     }
 
     function cancel(): void {
@@ -655,7 +680,11 @@ export function AgentSpace({
                     </dialog>
                 )}
 
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <FileDropTarget
+                    onDrop={(dropped) => {
+                        questionFiles.add(dropped, null);
+                    }}
+                >
                     <ProposalAnswersContext value={{ answer: answerProposal, askAnotherTime, look: onLook }}>
                         <RewriteDockContext value={fieldColumn}>
                             <AnswerDownloadsContext value={session}>
@@ -669,6 +698,7 @@ export function AgentSpace({
                                     onAsk={send}
                                     onAskInDeep={inFlight === null ? askInDeep : null}
                                     onFollowSource={followSource}
+                                    files={conversationFiles}
                                 />
                             </AnswerDownloadsContext>
                         </RewriteDockContext>
@@ -704,9 +734,10 @@ export function AgentSpace({
                         }}
                         mode={mode}
                         onMode={setMode}
+                        files={questionFiles}
                         dock={fieldColumn}
                     />
-                </div>
+                </FileDropTarget>
 
                 {/* Checking a fact keeps the conversation on the screen: beside it where the desktop has room for a column,
                     over it where it does not, and either way the citation that was pressed gets the keyboard back. */}

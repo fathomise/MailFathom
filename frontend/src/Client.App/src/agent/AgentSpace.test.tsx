@@ -14,6 +14,7 @@ import * as agent from '../../../../tests/fixtures/agent';
 import { messageCitationResolutions } from '../../../../tests/fixtures/mail';
 import { newsletterId } from '../../../../tests/fixtures/messages';
 import type { ProposalLook } from '../answerCanvas/proposalAnswering';
+import { AttachmentUploadContext, type AttachmentUpload } from '../deployment/attachmentUpload';
 import { LocalizationProvider } from '../localization/Localization';
 import type { AgentHandOver } from '../routing/agentHandOver';
 import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
@@ -103,6 +104,29 @@ function deploymentAnswering(posting: { readonly status: number; readonly body: 
     };
 }
 
+const offerId = '0198f4a1-0000-7000-8000-00000000f001';
+
+// What the deployment answers a file taken into a conversation with: the file, under the name the upload gave it.
+function fileTaken(request: ClientRequest, file: Blob): { readonly status: number; readonly body: string; readonly headers: Record<string, string> } {
+    const named = /filename\*=UTF-8''(.*)$/u.exec(request.headers['Content-Disposition'] ?? '')?.[1] ?? '';
+
+    return {
+        status: 201,
+        headers: {},
+        body: JSON.stringify({
+            fileId: offerId,
+            name: decodeURIComponent(named),
+            kind: 'document',
+            mediaType: 'application/pdf',
+            byteLength: file.size,
+            addedAt: '2026-11-12T10:00:00+00:00',
+            text: null,
+        }),
+    };
+}
+
+const takesEveryFile: AttachmentUpload = (request, file) => Promise.resolve(fileTaken(request, file));
+
 // The corpus with its answered conversation turned unread, which is what a reply landing while nobody looked leaves.
 function withAnswerUnread() {
     const { transport, asked } = deploymentAnswering();
@@ -135,22 +159,30 @@ function drawn(
         inFront = true,
         opening = null,
         lost = false,
-    }: { readonly inFront?: boolean; readonly opening?: AgentOpening | null; readonly lost?: boolean } = {},
+        upload = takesEveryFile,
+    }: {
+        readonly inFront?: boolean;
+        readonly opening?: AgentOpening | null;
+        readonly lost?: boolean;
+        readonly upload?: AttachmentUpload;
+    } = {},
 ) {
     return (
         <LocalizationProvider>
             <LinkOpenerContext value={() => Promise.resolve()}>
-                <WorkspaceProvider>
-                    <ConnectionStatusContext value={lost ? serverLost : serverAnswering}>
-                        <AgentSpaceInFrame
-                            transport={transport}
-                            handOver={handOver}
-                            onLook={onLook}
-                            inFront={inFront}
-                            opening={opening}
-                        />
-                    </ConnectionStatusContext>
-                </WorkspaceProvider>
+                <AttachmentUploadContext value={upload}>
+                    <WorkspaceProvider>
+                        <ConnectionStatusContext value={lost ? serverLost : serverAnswering}>
+                            <AgentSpaceInFrame
+                                transport={transport}
+                                handOver={handOver}
+                                onLook={onLook}
+                                inFront={inFront}
+                                opening={opening}
+                            />
+                        </ConnectionStatusContext>
+                    </WorkspaceProvider>
+                </AttachmentUploadContext>
             </LinkOpenerContext>
         </LocalizationProvider>
     );
@@ -720,7 +752,7 @@ describe('AgentSpace', () => {
         expect(screen.getByRole('radio', { name: /^Auto - / })).toHaveProperty('checked', true);
     });
 
-    it('asks a fast answer stopped at its ceiling again in deep about what it was asked about, not what the field carries', async () => {
+    it('asks a fast answer stopped at its ceiling again in deep about what it was asked about and with the files it carried, not what the field carries', async () => {
         const thread = { kind: 'Thread', subject: '0198f4a1-0000-7000-8000-00000000b001' };
         const { transport, asked } = deploymentAnswering();
         const askedFast: MailFathomTransport = (request) =>
@@ -732,7 +764,7 @@ describe('AgentSpace', () => {
                           ...agent.answeredConversation,
                           entries: agent.answeredConversation.entries.map((held) =>
                               held.entry.entry === 'message'
-                                  ? { ...held, entry: { ...held.entry, scope: thread, mode: 'Fast' } }
+                                  ? { ...held, entry: { ...held.entry, scope: thread, mode: 'Fast', files: [offerId] } }
                                   : held.entry.entry === 'answerEnded'
                                     ? { ...held, entry: { ...held.entry, ceiling: agent.fastAnswerCeiling } }
                                     : held,
@@ -753,6 +785,7 @@ describe('AgentSpace', () => {
             text: 'How many bays were confirmed?',
             scope: thread,
             mode: 'Deep',
+            files: [offerId],
         });
         expect(screen.getByRole('radio', { name: /^Deep - / })).toHaveProperty('checked', true);
     });
@@ -1199,5 +1232,280 @@ describe('AgentSpace', () => {
 
             expect(onLook.mock.calls).toEqual([[{ kind: 'calendar' }], [{ kind: 'thread', email: newsletterId }]]);
         });
+    });
+});
+
+describe('AgentSpace files', () => {
+    const chooser = (): HTMLInputElement => {
+        const input = document.querySelector('input[type="file"]');
+
+        if (!(input instanceof HTMLInputElement)) {
+            throw new Error('The field draws no file chooser.');
+        }
+
+        return input;
+    };
+
+    const fileOf = (name: string, octets = 1200, type = 'application/pdf'): File => {
+        const file = new File(['x'], name, { type });
+
+        Object.defineProperty(file, 'size', { value: octets });
+
+        return file;
+    };
+
+    const chosen = (...files: File[]): void => {
+        fireEvent.change(chooser(), { target: { files } });
+    };
+
+    const waitingCards = () => screen.queryByRole('list', { name: 'Files for your question' });
+
+    it('offers the system’s chooser from a control named for what it does', () => {
+        const { transport } = deploymentAnswering();
+        screenOf(transport);
+        const opened = vi.spyOn(chooser(), 'click').mockImplementation(() => undefined);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Attach files' }));
+
+        expect(opened).toHaveBeenCalledOnce();
+        expect(chooser().accept).toContain('.pdf');
+    });
+
+    it('takes a chosen file into the conversation the question starts, and sends the question carrying it', async () => {
+        const { transport, asked } = deploymentAnswering();
+        const uploads: ClientRequest[] = [];
+        render(
+            drawn(transport, null, null, {
+                upload: (request, file) => {
+                    uploads.push(request);
+
+                    return takesEveryFile(request, file);
+                },
+            }),
+        );
+
+        chosen(fileOf('Offer v3.pdf'));
+
+        const cards = await waitFor(() => {
+            const list = waitingCards();
+
+            expect(list).not.toBeNull();
+
+            return list as HTMLElement;
+        });
+
+        expect(await within(cards).findByText('1.2 kB')).toBeDefined();
+        expect(within(cards).getByRole('button', { name: 'Remove Offer v3.pdf' })).toBeDefined();
+
+        const question = await sent(asked, 'Compare this with Contoso’s');
+        const [posted] = asked.filter((request) => request.method === 'POST');
+
+        expect(question).toMatchObject({ files: [offerId] });
+        expect(uploads[0]?.path).toBe(posted?.path.replace(/messages$/u, 'files'));
+        await waitFor(() => {
+            expect(waitingCards()).toBeNull();
+        });
+    });
+
+    it('refuses before sending a file the agent does not read, one too large, one empty, and every one past ten', async () => {
+        const { transport } = deploymentAnswering();
+        const uploads: string[] = [];
+        render(
+            drawn(transport, null, null, {
+                upload: (request, file) => {
+                    uploads.push(request.path);
+
+                    return takesEveryFile(request, file);
+                },
+            }),
+        );
+
+        chosen(
+            fileOf('Floor plan.dwg'),
+            fileOf('Board pack - full.pdf', 48_000_000),
+            fileOf('Notes.txt', 0, 'text/plain'),
+            ...Array.from({ length: 13 }, (_, at) => fileOf(`Part ${String(at)}.pdf`)),
+        );
+
+        const refused = await screen.findByRole('alert');
+
+        expect(within(refused).getByText(/^Floor plan\.dwg was not attached: the agent does not read DWG files\./u)).toBeDefined();
+        expect(within(refused).getByText('Board pack - full.pdf was not attached: at 48 MB it is over the 16 MB a file can be.')).toBeDefined();
+        expect(within(refused).getByText('Notes.txt was not attached: it is empty.')).toBeDefined();
+        expect(within(refused).getByText('3 files were not attached: a question carries at most 10 files.')).toBeDefined();
+        expect(within(waitingCards() as HTMLElement).getAllByRole('listitem')).toHaveLength(10);
+        expect(uploads).toHaveLength(10);
+
+        fireEvent.click(within(refused).getByRole('button', { name: 'Dismiss' }));
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('says a refusal only the service can give in its own words, and takes the file off the waiting cards', async () => {
+        const { transport } = deploymentAnswering();
+        render(
+            drawn(transport, null, null, {
+                upload: () => Promise.resolve({ status: 409, body: '', headers: {} }),
+            }),
+        );
+
+        chosen(fileOf('Minutes - March.docx'));
+
+        expect(
+            await screen.findByText(
+                'Minutes - March.docx was not attached: this conversation already holds the 20 files one can. Start a new conversation to attach more.',
+            ),
+        ).toBeDefined();
+        expect(waitingCards()).toBeNull();
+    });
+
+    it('holds Send while a file is on its way and while one did not upload, until it is tried again', async () => {
+        const { transport, asked } = deploymentAnswering();
+        const attempts: ((answered: Awaited<ReturnType<AttachmentUpload>>) => void)[] = [];
+        render(
+            drawn(transport, null, null, {
+                upload: () =>
+                    new Promise((resolve) => {
+                        attempts.push(resolve);
+                    }),
+            }),
+        );
+        fireEvent.change(screen.getByRole('textbox', { name: 'Tell the agent what to do' }), {
+            target: { value: 'Compare' },
+        });
+
+        chosen(fileOf('Offer v3.pdf'));
+
+        expect(await screen.findByText('Uploading…')).toBeDefined();
+        expect(screen.getByRole('button', { name: /Send/ }).getAttribute('aria-disabled')).toBe('true');
+        expect(screen.getByText('Send - wait for 1 file to finish uploading')).toBeDefined();
+
+        attempts[0]?.(null);
+
+        expect(await screen.findByText('Did not upload')).toBeDefined();
+        expect(screen.getByText('Send - 1 file did not upload. Try again, or remove it.')).toBeDefined();
+        fireEvent.click(screen.getByRole('button', { name: /Send/ }));
+        expect(asked.filter((request) => request.method === 'POST')).toHaveLength(0);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try uploading Offer v3.pdf again' }));
+        await waitFor(() => {
+            expect(attempts).toHaveLength(2);
+        });
+        attempts[1]?.(
+            fileTaken(
+                { method: 'POST', path: '', headers: { 'Content-Disposition': "attachment; filename*=UTF-8''Offer%20v3.pdf" } },
+                fileOf('Offer v3.pdf'),
+            ),
+        );
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: /Send/ }).getAttribute('aria-disabled')).toBeNull();
+        });
+    });
+
+    it('stops an upload and sends without the file once it is taken off', async () => {
+        const { transport, asked } = deploymentAnswering();
+        const abandoned: AbortSignal[] = [];
+        render(
+            drawn(transport, null, null, {
+                upload: (_, __, signal) => {
+                    abandoned.push(signal);
+
+                    return new Promise(() => undefined);
+                },
+            }),
+        );
+
+        chosen(fileOf('Offer v3.pdf'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Remove Offer v3.pdf' }));
+
+        expect(abandoned[0]?.aborted).toBe(true);
+        expect(await sent(asked, 'Compare')).not.toHaveProperty('files');
+    });
+
+    it('attaches a picture pasted into the field under the time it was pasted, rather than typing it', async () => {
+        const { transport } = deploymentAnswering();
+        screenOf(transport);
+        const field = screen.getByRole('textbox', { name: 'Tell the agent what to do' });
+
+        fireEvent.paste(field, { clipboardData: { files: [fileOf('image.png', 380_000, 'image/png')] } });
+
+        const cards = await waitFor(() => {
+            const list = waitingCards();
+
+            expect(list).not.toBeNull();
+
+            return list as HTMLElement;
+        });
+
+        expect(within(cards).getByText(/^Pasted image \d\d\.\d\d\.png$/u)).toBeDefined();
+        expect(await within(cards).findByText('Pasted · 380 kB')).toBeDefined();
+        expect(field).toHaveProperty('value', '');
+    });
+
+    it('raises the drop surface for a drag carrying files, and attaches what is dropped onto the conversation', async () => {
+        const { transport } = deploymentAnswering();
+        screenOf(transport);
+        const thread = screen.getByRole('log', { name: 'Conversation with the agent' });
+        const dropped = fileOf('Offer v3.pdf');
+
+        fireEvent.dragEnter(thread, { dataTransfer: { types: ['text/plain'], files: [] } });
+
+        expect(screen.queryByText('Drop to attach to your question')).toBeNull();
+
+        fireEvent.dragEnter(thread, { dataTransfer: { types: ['Files'], files: [dropped] } });
+
+        expect(screen.getByText('Drop to attach to your question').closest('[role="status"]')).not.toBeNull();
+        expect(screen.getByText('Up to 10 files, 16 MB each')).toBeDefined();
+
+        fireEvent.drop(thread, { dataTransfer: { types: ['Files'], files: [dropped] } });
+
+        expect(screen.queryByText('Drop to attach to your question')).toBeNull();
+        expect(await screen.findByRole('button', { name: 'Remove Offer v3.pdf' })).toBeDefined();
+    });
+
+    it('draws the files a sent question carried under its words, named from the conversation’s files', async () => {
+        const { transport } = deploymentAnswering();
+        const carrying: MailFathomTransport = (request) =>
+            request.method === 'GET' && request.path === `${conversations}/${agent.answeredConversationId}/files`
+                ? Promise.resolve({
+                      status: 200,
+                      headers: {},
+                      body: JSON.stringify({
+                          files: [
+                              {
+                                  fileId: offerId,
+                                  name: 'Offer v3.pdf',
+                                  kind: 'document',
+                                  mediaType: 'application/pdf',
+                                  byteLength: 1_200_000,
+                                  addedAt: '2026-11-12T10:00:00+00:00',
+                                  text: null,
+                              },
+                          ],
+                      }),
+                  })
+                : request.method === 'GET' && request.path === `${conversations}/${agent.answeredConversationId}`
+                  ? Promise.resolve({
+                        status: 200,
+                        headers: {},
+                        body: JSON.stringify({
+                            ...agent.answeredConversation,
+                            entries: agent.answeredConversation.entries.map((held) =>
+                                held.entry.entry === 'message'
+                                    ? { ...held, entry: { ...held.entry, files: [offerId] } }
+                                    : held,
+                            ),
+                        }),
+                    })
+                  : transport(request);
+        screenOf(carrying);
+
+        await opened('How many bays were confirmed');
+
+        const carried = await screen.findByRole('list', { name: 'Files sent with the question' });
+
+        expect(within(carried).getByText('Offer v3.pdf')).toBeDefined();
+        expect(within(carried).getByText('1.2 MB')).toBeDefined();
     });
 });

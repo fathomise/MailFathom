@@ -201,6 +201,18 @@ export {
     type AgentProposalState,
     type AgentRunCeiling,
 } from './agentConversations';
+export {
+    agentConversationFilesRoute,
+    agentConversationFileUploadRequest,
+    largestAgentFile,
+    mostFilesPerConversation,
+    mostFilesPerQuestion,
+    readAgentConversationFiles,
+    takeAgentConversationFile,
+    type AgentConversationFile,
+    type AgentFileIntake,
+    type AgentFileRefusal,
+} from './agentConversationFiles';
 export { reportingRefusedCredential } from './credentialRefusal';
 export {
     failureReasonForStatus,

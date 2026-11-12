@@ -262,3 +262,52 @@ test('asks in the mode chosen under the field, and asks a fast answer that stopp
         ]);
     await expect(page.getByRole('radio', { name: /^Deep - / })).toBeChecked();
 });
+
+test('takes a file attached to a question into its conversation, sends the question carrying it, and draws it there after a reload', async ({
+    page,
+    deployment,
+}) => {
+    await openSignedIn(page, '/#/agent');
+
+    const chosen = page.waitForEvent('filechooser');
+
+    await page.getByRole('button', { name: 'Attach files' }).click();
+    await (
+        await chosen
+    ).setFiles([
+        { name: 'Offer v3.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 an offer') },
+        { name: 'Floor plan.dwg', mimeType: 'application/octet-stream', buffer: Buffer.from('a drawing') },
+    ]);
+
+    // The drawing is refused by the field before anything is sent, and the offer waits uploaded under it.
+    await expect(page.getByRole('alert').getByText(/^Floor plan\.dwg was not attached: the agent does not read DWG files\./u)).toBeVisible();
+
+    const waiting = page.getByRole('list', { name: 'Files for your question' });
+
+    await expect(waiting.getByRole('listitem')).toHaveCount(1);
+    await expect(waiting.getByText('17 B')).toBeVisible();
+
+    await ask(page, 'Compare this offer with Contoso’s');
+
+    // The waiting card goes once the question has left with the file, so what was asked is read after it.
+    await expect(waiting).toHaveCount(0);
+
+    const taken = deployment.issued.filter(
+        ({ method, route }) => method === 'POST' && /^\/agent\/conversations\/[^/]+\/files$/u.test(route),
+    );
+    const [question] = asked(deployment) as { files?: unknown }[];
+
+    expect(taken).toHaveLength(1);
+    expect(question?.files).toHaveLength(1);
+
+    const carried = threadOf(page).getByRole('list', { name: 'Files sent with the question' });
+
+    await expect(carried.getByText('Offer v3.pdf')).toBeVisible();
+
+    await page.reload();
+    await conversations(page)
+        .getByRole('option', { name: /^Compare this offer with Contoso’s/u })
+        .click();
+
+    await expect(threadOf(page).getByRole('list', { name: 'Files sent with the question' }).getByText('Offer v3.pdf')).toBeVisible();
+});

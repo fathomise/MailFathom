@@ -29,6 +29,9 @@ input { font-family: inherit; }
 [data-rail-dot="pulse"] { animation: mf-rail-ring 1.6s var(--ease-out, ease-out) infinite; }
 
 @keyframes mfmsgin{ from { opacity: 0; transform: translateY(6px) } }
+/* A file on its way up: a block of the bar travels the card's foot and back, since how far the upload has got is not
+   known - the client's own bar for an operation that cannot say how far it has got. */
+@keyframes mfupload { 0% { margin-left: 0 } 50% { margin-left: 62% } 100% { margin-left: 0 } }
 @keyframes mfblkin { from { opacity: 0; transform: translateY(7px) } }
 @keyframes mfdot { 0%, 78%, 100% { opacity: 0.25; transform: translateY(0) } 38% { opacity: 1; transform: translateY(-3px) } }
 @keyframes mfrowin { from { opacity: 0; max-height: 0; transform: translateY(-7px) } to { opacity: 1; max-height: 260px; transform: none } }

@@ -3834,14 +3834,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           if (pasted && (!name || /^image\.\w+$/i.test(name))) { ext = ext || "png"; name = "Pasted image " + stamp + "." + ext; }
           if (FILE_LIMITS.kinds.indexOf(ext) < 0) refused.push({ reason: "kind", name });
           else if (f.size > FILE_LIMITS.maxBytes) refused.push({ reason: "large", name, size: this.fileSize(f.size) });
+          else if (f.size === 0) refused.push({ reason: "empty", name });
           else if (tray.length >= FILE_LIMITS.maxFiles) over++;
-          else tray.push({ id: "f" + Date.now() + "-" + i, name, kind: ext === "jpg" ? "JPEG" : ext.toUpperCase(), size: this.fileSize(f.size), state: "uploading", pct: 0, image: /^image\//.test(f.type || ""), pasted: !!pasted });
+          else tray.push({ id: "f" + Date.now() + "-" + i, name, kind: ext === "jpg" ? "JPEG" : ext.toUpperCase(), size: this.fileSize(f.size), state: "uploading", ticks: 0, image: /^image\//.test(f.type || ""), pasted: !!pasted });
         });
         if (over) refused.push({ reason: "many", count: over });
         return { agentTray: tray, agentRefused: refused, agentDrag: false };
       }, this.tickUploads);
     };
 
+    /* An upload says it is going and not how far: the client puts every request on the wire through `fetch`, which
+       reports nothing about a body on its way up, so a percentage would be a number nobody measured. */
     tickUploads = () => {
       clearInterval(this._upT);
       this._upT = setInterval(() => this.setState(s2 => {
@@ -3849,8 +3852,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const tray = (s2.agentTray || []).map(f => {
           if (f.state !== "uploading" || f.sample) return f;
           busy = true;
-          const pct = Math.min(100, (f.pct || 0) + 17);
-          return Object.assign({}, f, { pct, state: pct >= 100 ? "done" : "uploading" });
+          const ticks = (f.ticks || 0) + 1;
+          return Object.assign({}, f, { ticks, state: ticks >= 6 ? "done" : "uploading" });
         });
         if (!busy) clearInterval(this._upT);
         return { agentTray: tray };
@@ -3858,7 +3861,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
 
     removeAgentFile = (id) => this.setState(s2 => ({ agentTray: (s2.agentTray || []).filter(f => f.id !== id) }));
-    retryAgentFile = (id) => this.setState(s2 => ({ agentTray: (s2.agentTray || []).map(f => f.id !== id ? f : Object.assign({}, f, { state: "uploading", pct: 0, sample: false })) }), this.tickUploads);
+    retryAgentFile = (id) => this.setState(s2 => ({ agentTray: (s2.agentTray || []).map(f => f.id !== id ? f : Object.assign({}, f, { state: "uploading", ticks: 0, sample: false })) }), this.tickUploads);
 
     /* Only a drag that carries files raises the drop surface; text or a link dragged over the conversation does not. */
     dragHasFiles = (e) => !!(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0);
@@ -3914,6 +3917,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const btn = (n) => "display:flex;align-items:center;justify-content:center;flex:0 0 " + n + "px;width:" + n + "px;height:" + n + "px;border-radius:8px;color:var(--muted)";
       const said = (r) => r.reason === "large" ? r.name + " was not attached: at " + r.size + " it is over the " + FILE_LIMITS.maxSaid + " a file can be."
         : r.reason === "kind" ? r.name + " was not attached: the agent does not read " + ((r.name.split(".").pop() || "this kind of").toUpperCase()) + " files. It reads " + FILE_LIMITS.kindsSaid + "."
+        : r.reason === "empty" ? r.name + " was not attached: it is empty."
+        : r.reason === "unread" ? r.name + " was not attached: what it holds is not a file the agent reads, whatever its name says. It reads " + FILE_LIMITS.kindsSaid + "."
+        : r.reason === "full" ? r.name + " was not attached: this conversation already holds the " + FILE_LIMITS.maxHeld + " files one can. Start a new conversation to attach more."
         : (r.count === 1 ? "1 file was" : r.count + " files were") + " not attached: a question carries at most " + FILE_LIMITS.maxFiles + " files.";
       return {
         agentFileRef: this.agentFileRef,
@@ -3934,9 +3940,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           return {
             name: f.name, kind: f.kind, image: !!f.image, notImage: !f.image,
             uploading: up, failed,
-            line: failed ? "Did not upload" : up ? "Uploading · " + (f.pct || 0) + "%" : (f.pasted ? "Pasted · " : "") + f.size,
+            line: failed ? "Did not upload" : up ? "Uploading…" : (f.pasted ? "Pasted · " : "") + f.size,
             lineStyle: "font-size:12px;white-space:nowrap;color:" + (failed ? "var(--err-text)" : "var(--faint)"),
-            barStyle: "position:absolute;left:0;bottom:0;height:3px;border-radius:0 2px 2px 0;background:var(--accent);width:" + (f.pct || 0) + "%",
+            barStyle: "position:absolute;left:0;bottom:0;height:3px;width:38%;border-radius:2px;background:var(--accent);animation:mfupload 1.4s ease-in-out infinite",
             remove: () => this.removeAgentFile(f.id),
             removeName: "Remove " + f.name,
             retry: () => this.retryAgentFile(f.id),
