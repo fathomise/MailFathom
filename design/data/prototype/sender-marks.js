@@ -25,6 +25,9 @@
 // thread missing here is an authenticated sender the account does not recognize.
 MailFathomDesign.data.senderMarks = {
   ownDomains: { acc1: "nordwind.example", acc2: "mail.example" },
+  // The mail accounts that belong to the reader's organization. A received message on one of them that the
+  // organization's signature does not prove is what the External chip marks, once the organization switched it on.
+  organizationAccounts: ["acc1", "acc3"],
   threads: {
     contoso: {
       from: "a.kowalska@contoso.example", checker: "server", dkim: "contoso.example", spf: "contoso.example", dmarc: "pass",

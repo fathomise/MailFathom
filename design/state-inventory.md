@@ -726,6 +726,37 @@ contacts* is offered for a sender recorded afresh (`hr1`), on a warning (`bank1`
 a contact of the reader's holds but they did not write down (`klient3`). No sample is known through the member
 directory; its sentences are the contact's, naming the colleague instead.
 
+### The External chip
+
+A received message on a mail account of the reader's organization that the organization's signature does not prove
+(ADR 0042) is marked *External* in so many words — once the organization switched the mark on. The switch is the
+organization's own, written by its administrator for every member and every account at once, and **off by default**;
+no screen of the client holds it, and no member or mail account chooses for itself. Off, or outside an organization,
+nothing in this section is drawn and every screen is the one it was.
+
+The chip asks about the signature and nothing else — never the sender's address or domain — so it stands beside the
+sender mark and changes no mark: a contact is *Trusted* and *External*, and so is a colleague the member directory
+names, whose message the organization did not sign because it was written in another mail application or sent from an
+account outside the organization. That is why the chip never stands without its explanation (`orgSignatureOf`,
+`externalOf`; the organization's accounts are `organizationAccounts` in `data/prototype/sender-marks.js`).
+
+| State | Flag | Reveal |
+|---|---|---|
+| The switch | `externalMark` | the component property, off by default; with `inOrganization` off it draws nothing either. On, every state below stands |
+| The chip on a message row | `t.extShown` / `t.extPillStyle` | every received message's row on an organization's account that the signature does not prove, in a folder and in *All accounts*: the word *External* at the end of the subject's line, pushed to the row's end so the sender's line keeps its whole room and the subject gives way instead — 18 px tall, a 5 px radius, 12 px semibold in `--err-text` on `--err-soft` inside an `--err` border. Under a finger a 44 px tall target around it, taken from the row's own lines so the row keeps its height. Told by its word, not by its colour. Pressing it opens the sender details and nothing else — it neither opens nor selects the message. Like the sender mark it answers a pointer alone and is hidden from the accessibility tree, carries `data-tip-hover`, and joins the row menu's header for a finger (`ctxMenuDetail`, *Finance - Suspicious - the signature does not match - External - not signed by Nordwind*); the keyboard reaches the explanation through the row menu's *Sender details* |
+| The chip on a conversation row | `t.extShown` / `t.extConvBtnStyle` | read by conversation, where the conversation's newest received message earns it: the same chip on the row's first line, straight after the sender mark, because the second line is the AI frame and holds nothing but the topic. The names before it give way with an ellipsis |
+| No chip | `t.extShown` false | a message the organization's signature proves (`rekrutacja1`); a row that draws no sender mark, since the sample holds no sender record to read (the encrypted messages, the receipts); every row of the personal account, which belongs to no organization (`handover1`, `travel1`, `selfNote1`); Sent, Drafts and the Outbox, whose rows stand for what was sent (`recipientList`); the reader's own messages in an opened conversation; and a folded spam row, where the fold is the cue — its opened message carries the chip. The search specimen (`mail-search.html`) is drawn with the mark off |
+| The chip beside the sender | `m.extShown` / `m.extPillStyle` | every opened message that earns it, straight after the sender's badge and before the categories: the badge's own shape — 22 px tall, a 6 px radius — with a 15 px `domain_disabled` glyph and *External* in 12 px semibold, in the error tone above. A button named by its reason; under a finger a 44 px target around it, taken from the head's line height. It wraps with the head's line as the badge does |
+| The chip's name | `t.extName` / `m.extName` | resting a pointer on either chip, or a finger held on the opened message's, names the reason in the name bubble: *External - not signed by Nordwind. It was not sent from a Nordwind mail account through MailFathom. A colleague writing from another mail application is marked the same way.* Where the address is a colleague's in the member directory — trusted under authentication or known by the address alone — it reads instead *External - not signed by Nordwind. The address is Marta Nowak's, a colleague in your organization: a colleague's message is marked this way when it is written in another mail application or sent from an account outside Nordwind.* It says how a colleague's message comes to be marked and never that this one is a colleague's, since an address alone proves nobody |
+| The explanation in the details | `senderPopExtShown` / `senderPopExtWhy` | a press on either chip opens the sender details — anchored under the chip under a mouse, the sheet under a finger — exactly as the mark does, and the details of a message that earns the chip carry, under the mark's own sentence in the head, a box on `--err-soft` inside an `--err` border with an 8 px radius: the 18 px `domain_disabled` glyph in `--err-text`, **External.** in `--err-text` semibold, and the reason at 13 px in `--text2` — *This message is not signed by Nordwind.* followed by the sentence the name carries. The box stands whichever of the mark or the chip opened the details |
+| The organization's signature, as a step | `orgSignatureOf` in `senderPopGroups` | with the switch on, the details of every received message on an organization's account open their *Trust* group with a step of its own, *Organization's signature*: *Failed*, *Not signed by Nordwind.* and the same reason, on a message that earns the chip; *Passed*, *Signed by Nordwind: the message left one of its mail accounts through MailFathom.*, on one the signature proves, which draws no chip. With the switch off the step is not drawn |
+
+Reached with `externalMark` on: the chip on every row of *Nordwind · work* that draws a sender mark but *Hiring summary -
+Frontend* (`rekrutacja1`), which the signature proves — *Board* holds no sample message; a contact, *Trusted* and *External* (`contoso`); a colleague the member
+directory names, with the colleague's sentence (`marta`, *CPI calculation 2027*); a warning beside it (`finanse`, *Invoice 08/2026*). No
+sample is known through the member directory, so the colleague's sentence beside a *Known* mark is reached by no
+record.
+
 ### The receipt mark
 
 A message the account sent may have asked for a delivery status notification (RFC 3461) and a read receipt (RFC 8098)
@@ -1708,6 +1739,10 @@ clicking a preview.
 - **Outside an organization** (`inOrganization` turned off). The component property alone reaches it: no
   *Colleagues* segment, none of the organization's contacts under *Own*, no presence on the rail or in the user menu
   or the *More* sheet, no status menu, no colleague in the recipient suggestions, and no presence on a message row.
+- **The External chip** (`externalMark` turned on). The organization's switch is its administrator's and drawn on no
+  screen here, and it is off by default, so only the component property reaches the chip, its name, the explanation in
+  the sender details and the *Organization's signature* step (§ *The External chip*). With `inOrganization` off it
+  reaches nothing.
 - **The reader shown as hidden.** Only the reader's own status menu, rail dot and menu row ever draw *Hidden*; every
   other member who chose it is drawn *Offline*, so no record in the sample draws the hidden dot on anybody else.
 - **A contact photo refused** (`ctPhotoError`). Set only by choosing a file over 1 MB, one that is neither a JPEG nor
