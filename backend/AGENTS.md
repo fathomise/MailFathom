@@ -1,6 +1,6 @@
 # Service Stack Development Instructions
 
-These instructions apply under `backend/` in addition to the repository root instructions. They hold across `backend/src/`, `backend/tests/`, and `backend/tools/` alike, which is why they sit here rather than in either of the two files below: the root is loaded into every session in the repository, including the client sessions that have no `.cs` file to apply them to, and a rule stated in one of the two would be silently absent from the other.
+These instructions apply under `backend/` in addition to the repository root instructions. They hold across `backend/src/`, `backend/tests/`, and `backend/tools/` alike.
 
 `backend/src/AGENTS.md` adds what holds for the service's production code, `backend/tests/AGENTS.md` what holds for its suites, and `backend/src/Infrastructure/AGENTS.md` and `backend/src/Mcp/AGENTS.md` what holds for those two boundaries. Nothing here is restated in any of them.
 
@@ -15,7 +15,7 @@ The root file states the half both stacks owe: consulting a library's current of
 
 ## .NET and C# conventions
 
-These govern every `.cs` file under `backend/`, production code and test code alike. They sit here rather than in `backend/src/AGENTS.md` because the suites and the tooling projects are compiled by the same build with the same analyzers, so a convention stated for the service's production code alone would govern two thirds of the C# in the repository.
+These govern every `.cs` file under `backend/`, production code and test code alike: the suites and the tooling projects are compiled by the same build with the same analyzers.
 
 Some of the rules below are enforced by the build rather than by a reader. Those are listed here so nobody re-checks by hand what the compiler already rejects, and so a new rule lands in the mechanism that can enforce it instead of becoming another paragraph:
 
@@ -71,7 +71,6 @@ Add a mechanically checkable rule to the mechanism, not to this file: a severity
 - Async methods that perform I/O accept and propagate `CancellationToken`. Put it last and do not replace it with `CancellationToken.None` inside a call chain.
 - Use `await using` and `IAsyncDisposable` for asynchronously released resources. Dispose owned resources; never dispose dependencies owned by the DI container.
 - When a type implements disposable ownership, implement the appropriate disposable contract explicitly: use `IDisposable` for synchronous resources, `IAsyncDisposable` for asynchronous resources, and implement both when the type owns both synchronous and asynchronous cleanup paths or can be consumed by both sync and async owners. Document ownership and disposal expectations.
-- Use `Task` by default. Choose `ValueTask` only after measurement shows a meaningful benefit and its consumption constraints are acceptable.
 - Use `DateTimeOffset` for timestamps and inject `TimeProvider` wherever current time affects behavior. `.config/BannedSymbols.txt` bans the ambient clock properties outright, so a test never depends on the wall clock and a delay is always cancellable.
 - Any sentence the service writes for a person to read in their chosen language comes from the application's resource files, one per language: `backend/src/Application/Localization/ApplicationTexts.resx` holds English, the neutral set, and `ApplicationTexts.<culture>.resx` holds each other language, currently `pl`. There is one set of files for the whole application and not one per feature, so a new language is one more file whichever boundary writes the words. Name the sentence once as an `ApplicationText` member, add its entry to every language's file in the same change, and read it with `languages.GetText(text, user)` over `IUserLanguages`, or `ApplicationTexts.GetText(text, language)` where the language is already known. Both types are public, because `AI` writes one of these sentences too: the one a Discover result carries when the mail it read does not answer the question. Never put such a sentence in a string literal, a dictionary keyed by `UserLanguage`, or a `switch` on the language. `ApplicationTextsTests` reads each language's file without fallback to the neutral set, so a translation someone forgot fails the suite instead of quietly showing English to the person.
 - Use structured logging with named properties. Never log credentials, tokens, message bodies, attachment content, or raw MIME.
@@ -87,7 +86,7 @@ Add a mechanically checkable rule to the mechanism, not to this file: a severity
 - Return `Task` or `Task<TResult>` from every asynchronous method unless a rule below applies. A reference-typed task is a single field, composes directly with `Task.WhenAll` and `Task.WhenAny`, and can be awaited, stored, and awaited again without care.
 - Complete synchronously through `Task.CompletedTask` and `Task.FromResult`, or a cached completed task for a hot repeated result, rather than reaching for `ValueTask` to avoid an allocation.
 - The default covers methods that return a task. An async iterator returns `IAsyncEnumerable<T>` instead, and `IAsyncEnumerable<T>.GetAsyncEnumerator` returns `IAsyncEnumerator<T>` synchronously; neither is subject to it. Choose a stream when a caller consumes results incrementally, and keep the sequence bounded like any other query result.
-- Return `ValueTask` or `ValueTask<TResult>` when a framework contract requires it: `IAsyncDisposable.DisposeAsync`, and `IAsyncEnumerator<T>.MoveNextAsync` should the repository gain an async stream. Only `DisposeAsync` occurs today. A mandated signature is not precedent for choosing `ValueTask` elsewhere.
+- Return `ValueTask` or `ValueTask<TResult>` when a framework contract requires it: `IAsyncDisposable.DisposeAsync`, and `IAsyncEnumerator<T>.MoveNextAsync` where an enumerator is written by hand rather than by an async iterator. A mandated signature is not precedent for choosing `ValueTask` elsewhere.
 - A private or internal helper may return `ValueTask` when it exists to implement one of those mandated signatures, so the dispose path stays free of a wrapping conversion. Keep such a helper unpublished and awaited once by its caller.
 - Choose `ValueTask` over `Task` only when every one of these holds, and record the measurement in the pull request:
   - the operation completes synchronously on its common path, for example a cache or buffer hit, or the implementation pools an `IValueTaskSource<TResult>` so an asynchronous completion is also allocation-free;
@@ -103,7 +102,7 @@ Add a mechanically checkable rule to the mechanism, not to this file: a severity
 
 ## Comments and XML documentation in C#
 
-This is the one place comment discipline is stated, and it governs every `.cs` file under `backend/` — production code, test code, and the tooling projects alike. It sits here rather than beside one of them because a comment is answerable to what a reader needs rather than to which project the file belongs to, and because the same rule would otherwise be written three times and drift in two of them. No file below restates any of it.
+This is the one place comment discipline is stated, and it governs every `.cs` file under `backend/` — production code, test code, and the tooling projects alike. No file below restates any of it.
 
 - A comment earns its place by carrying what the code cannot. Write one for the *why*: a non-obvious constraint, a workaround and what it works around, protocol behavior, an algorithm that is not evident from its steps, a concurrency assumption, a security implication, a compatibility requirement, a performance decision taken after measurement, or a choice a later reader would otherwise quietly undo. Do not write one for the *what*, which the statement beneath it already says.
 - Do not narrate an implementation step by step. `// Create the request`, `// Get the user`, `// Return the result`, `// Check if null`, and `// Loop through items` above the lines that do exactly that are a second copy of the code, and the copy is the one that goes stale. The repair is never a better comment: it is a name that says what the value is, a small private method that says what the block does, and structure a reader can follow. Rename an unclear identifier in the change that exposed it rather than explaining it in passing, and never let a comment compensate for a misleading or abbreviated name.
@@ -127,6 +126,7 @@ The root file states which stack owns which build contract and how the two meet.
 - `AI` owns retrieval, chunking, embeddings, and agent-framework composition without leaking provider-specific types into `Application` or `Domain`.
 - `Mcp` maps protocol inputs and outputs to application use cases. It contains no persistence or email-protocol logic.
 - `Host` is a composition root only: configuration, dependency injection, middleware, endpoints, workers, and process lifetime.
+- `Common` is cross-cutting code that belongs to no boundary. It depends on nothing but the base class library and `Domain`, and it is not a layer in the ordering above.
 - Keep email retrieval read-only. Synchronization and content retrieval must never set the remote IMAP `\Seen` flag. A change the mailbox's user authored may move it, and reaches the server only through the write session ADR 0007 defines, which no read path can obtain — a rule, the spam verdict, an MCP caller, or the user themselves opening a message in the client, which is [ADR 0026](../docs/decisions/0026-marking-a-message-read-when-a-person-opens-it-in-the-client.md). That route to the server is the one a mirrored account's change takes, and a restoring account's on a message the source still holds; on a held account the same change commits to stored state and never reaches the source, as § *Custody phases* states.
 
 ## Reliability and performance
@@ -168,8 +168,8 @@ The root file holds the two rules that reach both stacks: keeping a third-party 
 
 - Take every package from the sources the repository's own `NuGet.config` declares. It clears the inherited source list so a feed configured on a developer machine cannot supply a dependency the license register never reviewed, and its package source mapping means a second source restores nothing until its packages are named explicitly.
 - Do not expose EF Core entities, MailKit objects, MCP SDK types, or provider-specific AI types across application boundaries.
-- Access raw RFC 822 content only through the application-owned `IEmailContentStore` port. Its initial implementation uses a dedicated PostgreSQL table, separate from email metadata.
-- Keep PostgreSQL, Npgsql, and `bytea` details inside the initial content-store adapter so a future MinIO/S3 implementation does not change application use cases or domain types.
+- Access raw RFC 822 content only through the application-owned `IEmailContentStore` port. A deployment keeps that content in a dedicated PostgreSQL table, separate from email metadata, or in S3-compatible object storage.
+- Keep PostgreSQL, Npgsql, `bytea`, and object-storage client details inside the content-store adapters, so where a deployment keeps content changes no application use case or domain type.
 - Do not load raw MIME in ordinary mailbox queries or track large `bytea` values in EF Core unnecessarily.
 - Apply database migrations explicitly. Do not run destructive or automatic production migrations during ordinary host startup.
 
