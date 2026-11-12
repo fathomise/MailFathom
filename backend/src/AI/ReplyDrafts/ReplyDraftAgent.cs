@@ -12,13 +12,12 @@ using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
-using MailFathom.Domain.Access;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace MailFathom.AI.ReplyDrafts;
 
-/// <summary>Writes a reply by putting one conversation, one manner, and one ask to the composed drafting agent.</summary>
+/// <summary>Writes a reply by putting one conversation, one manner, and one ask to the composed drafting agent, and rewrites passages of a draft through the rewriting agent.</summary>
 /// <remarks>
 /// <para>
 /// One call, no tools, and one conversation. What leaves this deployment is the subject, each message's author name,
@@ -28,6 +27,10 @@ namespace MailFathom.AI.ReplyDrafts;
 /// is a yes or a no and never the footer, and the host and words of each link a draft may carry. <b>No address leaves
 /// at all</b>: the people and the links are numbered, a proposal and a link name a number, and the address it resolves
 /// to is looked up here afterwards.
+/// </para>
+/// <para>
+/// A rewriting sends less: the draft's own text with the passages marked in it, and what the person asked, every text of
+/// them guarded first. Nothing is read from a mailbox for it, and nothing is numbered but the passages themselves.
 /// </para>
 /// <para>
 /// It opens no chat call of its own. The agent is composed by <see cref="AgentComposition" /> like every other
@@ -147,7 +150,12 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
             this.plan.MaximumRequestCharacters,
             this.plan.MaximumRequestImageOctets);
 
-        var answer = await this.AskAsync(turn, brief.Language, cancellationToken);
+        var answer = await this.AskAsync(
+            turn.Text,
+            async (chatClient, model, attemptToken) => (await ReplyDraftAgentComposition
+                .Compose(chatClient, model, brief.Language, turn, this.instructionEnvelope, this.loggerFactory)
+                .RunAsync(turn.Text, session: null, options: null, attemptToken)).Text,
+            cancellationToken);
         var draft = ReplyDraftReading.Read(answer?.Text, sources.Messages, sources.Participants, turn.Links);
 
         // The model that answered where one did, and the model the brief was put to where none could.
@@ -172,6 +180,89 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
 
         return draft;
     }
+
+    /// <inheritdoc />
+    public async Task<PassageRewrite> RewritePassagesAsync(PassageRewriteRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Admitted first and refused aloud, for the reasons a drafting is: a rewriting is one more call charged to the
+        // same allowance, and the person pressed a button.
+        if (!await this.spendLedger.TryAdmitRunAsync(cancellationToken))
+        {
+            throw MailAnsweringBudgetExhaustedException.PeriodSpent();
+        }
+
+        // Not held to the main model's request bound here as a drafting's turn is, because nothing in it could be cut
+        // without losing a passage: a model too narrow for it refuses the attempt, which answers nothing rather than
+        // failing the request.
+        var turn = await ComposeRewritingTurnAsync(request, this.egressGuard, cancellationToken);
+        var passageCount = request.Passages.Count;
+
+        var answer = await this.AskAsync(
+            turn,
+            async (chatClient, model, attemptToken) => (await ReplyDraftAgentComposition
+                .ComposeRewriting(chatClient, model, this.instructionEnvelope, this.loggerFactory)
+                .RunAsync(turn, session: null, options: null, attemptToken)).Text,
+            cancellationToken);
+        var rewrite = PassageRewriteReading.Read(answer?.Text, passageCount);
+        var answeringAlias = answer?.Alias ?? this.plan.Endpoint.Alias;
+
+        if (rewrite.WasWritten)
+        {
+            ReplyDraftEvents.LogPassagesRewritten(this.logger, answeringAlias, passageCount);
+        }
+        else
+        {
+            ReplyDraftEvents.LogRewriteUnreadable(this.logger, answeringAlias);
+        }
+
+        return rewrite;
+    }
+
+    /// <summary>Composes the turn one rewriting sends: the draft with its passages inline, and the ask, every text of them guarded.</summary>
+    /// <param name="request">The draft, the passages of it to rewrite, and how they should change.</param>
+    /// <param name="egressGuard">Scans every text somebody wrote before it is composed.</param>
+    /// <param name="cancellationToken">Withdraws the scan.</param>
+    /// <returns>The turn text.</returns>
+    /// <remarks>
+    /// The draft is cut at its passages before anything is scanned, and each stretch between them and each passage is
+    /// guarded on its own: a redaction may be longer or shorter than what it replaced, so a guarded whole read again at
+    /// the request's offsets would put a passage's edge in the wrong place. An empty stretch — a passage at the very
+    /// start or end of the draft, or two passages meeting — carries nothing to scan and is not offered.
+    /// </remarks>
+    internal static async Task<string> ComposeRewritingTurnAsync(
+        PassageRewriteRequest request,
+        SensitiveContentEgressGuard egressGuard,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var text = request.Text;
+        var stretches = new List<string>(request.Passages.Count + 1);
+        var passages = new List<string>(request.Passages.Count);
+        var stretchStart = 0;
+
+        foreach (var passage in request.Passages)
+        {
+            stretches.Add(await GuardedStretchAsync(egressGuard, text[stretchStart..passage.Start], cancellationToken));
+            passages.Add(await GuardedAsync(egressGuard, text.Substring(passage.Start, passage.Length), cancellationToken));
+            stretchStart = passage.Start + passage.Length;
+        }
+
+        stretches.Add(await GuardedStretchAsync(egressGuard, text[stretchStart..], cancellationToken));
+
+        return PassageRewriteInstructions.ComposeRewritingTurn(new GuardedPassageRewriteTurn(
+            stretches,
+            passages,
+            await GuardedAsync(egressGuard, request.Instruction, cancellationToken)));
+    }
+
+    private static Task<string> GuardedStretchAsync(
+        SensitiveContentEgressGuard egressGuard,
+        string stretch,
+        CancellationToken cancellationToken) =>
+        stretch.Length is 0 ? Task.FromResult(stretch) : GuardedAsync(egressGuard, stretch, cancellationToken);
 
     /// <summary>Composes the turn one drafting sends: the brief, guarded and cut to what one call may carry.</summary>
     /// <param name="brief">The correspondence, what the person selected and typed, and the language the draft is for.</param>
@@ -302,8 +393,8 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
     /// </para>
     /// </remarks>
     private async Task<ChatModelAnswer?> AskAsync(
-        ReplyDraftTurn turn,
-        UserLanguage language,
+        string turnText,
+        Func<BudgetedChatClient, ChatGenerationPlan, CancellationToken, Task<string?>> runAgentAsync,
         CancellationToken cancellationToken)
     {
         try
@@ -311,7 +402,7 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
             return await ChatModelFallThrough.RunAsync(
                 this.plan,
                 this.logger,
-                (model, attemptToken) => this.AskModelAsync(model, turn, language, attemptToken),
+                (model, attemptToken) => this.AskModelAsync(model, turnText, runAgentAsync, attemptToken),
                 cancellationToken);
         }
         catch (ChatGenerationFailedException failure)
@@ -324,15 +415,19 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
     }
 
     /// <summary>Asks one model of the chain, letting a failure out so the fallback behind it can be tried.</summary>
+    /// <param name="model">The model of the chain this attempt is against.</param>
+    /// <param name="turnText">The turn the agent is put, which this model's own bounds are checked against.</param>
+    /// <param name="runAgentAsync">Composes the agent of the act being asked for over the client this attempt opened, and runs it.</param>
+    /// <param name="cancellationToken">Withdraws the attempt.</param>
     private async Task<ChatModelAnswer> AskModelAsync(
         ChatGenerationPlan model,
-        ReplyDraftTurn turn,
-        UserLanguage language,
+        string turnText,
+        Func<BudgetedChatClient, ChatGenerationPlan, CancellationToken, Task<string?>> runAgentAsync,
         CancellationToken cancellationToken)
     {
         // Against this model's own bounds rather than the main model's, because a fallback may be declared
         // narrower and a conversation too wide for it is refused here rather than sent and billed for.
-        ChatRequestBounds.RequireForAttempt([new ChatMessage(ChatRole.User, turn.Text)], model);
+        ChatRequestBounds.RequireForAttempt([new ChatMessage(ChatRole.User, turnText)], model);
 
         var endpoint = model.Endpoint;
 
@@ -354,16 +449,6 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
         // started from a composer.
         await using var chatClient = new BudgetedChatClient(resilientClient, this.runLedger, this.spendLedger);
 
-        var agent = ReplyDraftAgentComposition.Compose(
-            chatClient,
-            model,
-            language,
-            turn,
-            this.instructionEnvelope,
-            this.loggerFactory);
-
-        var response = await agent.RunAsync(turn.Text, session: null, options: null, cancellationToken);
-
-        return new ChatModelAnswer(endpoint.Alias, response.Text);
+        return new ChatModelAnswer(endpoint.Alias, await runAgentAsync(chatClient, model, cancellationToken));
     }
 }

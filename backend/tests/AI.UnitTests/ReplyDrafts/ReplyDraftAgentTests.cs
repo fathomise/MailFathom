@@ -43,6 +43,8 @@ public sealed class ReplyDraftAgentTests
         \"recipients\": [0]}
         """;
 
+    private const string Rewritten = """{\"passages\": [\"Tuesday suits us.\"]}""";
+
     [Fact]
     public async Task WriteAsync_AProviderThatAnsweredWithAReply_DraftsIt()
     {
@@ -317,6 +319,94 @@ public sealed class ReplyDraftAgentTests
 
         Assert.False(sent.RootElement.TryGetProperty("provider", out _));
     }
+
+    [Fact]
+    public async Task RewritePassagesAsync_AProviderThatRewroteThePassage_AnswersWithIt()
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Completion(Rewritten));
+        var agent = provider.WriterOver();
+
+        // Act
+        var rewrite = await agent.RewritePassagesAsync(RewriteRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["Tuesday suits us."], rewrite.Passages);
+        Assert.Equal(1, provider.RequestCount);
+    }
+
+    /// <summary>The draft is the person's own writing and may quote mail, so what a deployment withholds from a provider is withheld from it too.</summary>
+    [Fact]
+    public async Task RewritePassagesAsync_ADraftCarryingASecret_SendsTheProviderTheGuardedText()
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Completion(Rewritten));
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        using var actingFor = egress.Guard.ActingFor(await egress.ReadUserPostureAsync(TestContext.Current.CancellationToken));
+        var agent = provider.WriterOver(egressGuard: egress.Guard);
+        var text = $"The key is {Marker}.\nTuesday would be fine for us.";
+        var request = new PassageRewriteRequest(text, [new DraftPassage(text.IndexOf('\n') + 1, 29)], $"and drop {Marker}");
+
+        // Act
+        await agent.RewritePassagesAsync(request, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.DoesNotContain(Marker, provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>What a person has when a provider fails is the draft they were already looking at.</summary>
+    [Fact]
+    public async Task RewritePassagesAsync_AProviderThatRefusedTheCall_RewritesNothing()
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Refusing(HttpStatusCode.InternalServerError);
+        var agent = provider.WriterOver();
+
+        // Act
+        var rewrite = await agent.RewritePassagesAsync(RewriteRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(rewrite.WasWritten);
+    }
+
+    /// <summary>A rewriting is charged to the same allowance a drafting is, and a spent one is said aloud before anything is sent.</summary>
+    [Fact]
+    public async Task RewritePassagesAsync_APeriodThatHasSpentItsAllowance_RefusesRatherThanFallingBack()
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Completion(Rewritten));
+        var spendLedger = Substitute.For<IMailAnsweringSpendLedger>();
+        spendLedger.TryAdmitRunAsync(Arg.Any<CancellationToken>()).Returns(false);
+        var agent = provider.WriterOver(spendLedger: spendLedger);
+
+        // Act and assert
+        await Assert.ThrowsAsync<MailAnsweringBudgetExhaustedException>(
+            () => agent.RewritePassagesAsync(RewriteRequest(), TestContext.Current.CancellationToken));
+        Assert.Equal(0, provider.RequestCount);
+    }
+
+    /// <summary>A model whose server honours a strict schema is asked for the rewriting's own, under the rewriting agent's instruction rather than the drafting one's.</summary>
+    [Fact]
+    public async Task RewritePassagesAsync_AModelDeclaringStructuredOutputs_AsksForTheRewritingSchema()
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Completion(Rewritten));
+        var agent = provider.WriterOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(), structuredOutputs: true));
+
+        // Act
+        var rewrite = await agent.RewritePassagesAsync(RewriteRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        using var sent = JsonDocument.Parse(provider.RequestBodies[0]);
+        var format = SchemaFormatOf(sent.RootElement, ChatProviderApi.ChatCompletions);
+
+        Assert.True(rewrite.WasWritten);
+        Assert.Equal(("json_schema", PassageRewriteSchema.Name, true), (format.Type, format.Name, format.Strict));
+        Assert.DoesNotContain("You draft a reply", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    private static PassageRewriteRequest RewriteRequest() =>
+        new("Dear Anna,\nTuesday would be fine for us.", [new DraftPassage(11, 29)], "Shorter");
 
     private static ReplyDraftBrief Brief(
         string text = "It is 4 200 zloty.",

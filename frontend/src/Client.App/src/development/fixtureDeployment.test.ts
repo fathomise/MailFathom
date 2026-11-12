@@ -427,6 +427,18 @@ describe('fixtureAnswer', () => {
         expect(stated(posted('/outbox/cancellation'))['outcome']).toBe('Accepted');
     });
 
+    it('answers a rewrite of selected passages with one version for each passage it was asked about', () => {
+        const rewritten = answered(
+            '/replies/drafting/passages',
+            {},
+            1,
+            'POST',
+            '{"text":"One. Two.","passages":[{"start":0,"length":4},{"start":5,"length":4}],"instruction":"Shorter."}',
+        );
+
+        expect(stated(rewritten)).toStrictEqual(drafts.rewrittenPassages(2));
+    });
+
     it('answers a discarded draft with nothing to read', () => {
         expect(answered(`/drafts/${drafts.draftId}`, {}, 1, 'DELETE').status).toBe(204);
     });

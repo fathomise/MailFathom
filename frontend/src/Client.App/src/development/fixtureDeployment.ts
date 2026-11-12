@@ -415,6 +415,17 @@ function answerFor(
         return answering(request.method === 'POST' ? drafts.draftedReply : drafts.draftsReplies);
     }
 
+    // A rewrite answers each passage the request named, so the count is read off the request rather than assumed.
+    if (route === '/replies/drafting/passages') {
+        const asked: unknown = JSON.parse(request.body ?? '{}');
+        const count =
+            typeof asked === 'object' && asked !== null && 'passages' in asked && Array.isArray(asked.passages)
+                ? asked.passages.length
+                : 0;
+
+        return answering(drafts.rewrittenPassages(count));
+    }
+
     return (
         discoveryAnswer(route, asked, request, options) ??
         agentAnswer(route, asked, request, options) ??

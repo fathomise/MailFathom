@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import { Icon } from '../controls/Icon';
 import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
@@ -41,6 +41,7 @@ export function AgentComposer({
     onSend,
     onCancel,
     onClearContext,
+    dock,
 }: {
     readonly running: boolean;
     readonly offersStarters: boolean;
@@ -51,6 +52,9 @@ export function AgentComposer({
     readonly onSend: (text: string) => Promise<string | null>;
     readonly onCancel: () => void;
     readonly onClearContext: () => void;
+
+    /** Takes the field's column, which a draft's rewrite bar docks across under a finger. */
+    readonly dock?: RefObject<HTMLDivElement | null>;
 }) {
     const { translate } = useLocalization();
     const wide = useWideWorkspace();
@@ -124,7 +128,10 @@ export function AgentComposer({
         // The band runs the whole width of the space, and what stands in it is the conversation's own column: the same
         // measure, centring and inset as `ConversationThread.tsx`, so the field lines up under the turns it answers.
         <div className="shrink-0 border-t border-line bg-panel py-3 workspace:pt-3.5 workspace:pb-4">
-            <div className="mx-auto flex w-full max-w-agent-thread flex-col gap-2.25 px-3.5 workspace:gap-2.5 workspace:px-6.5">
+            <div
+                ref={dock}
+                className="mx-auto flex w-full max-w-agent-thread flex-col gap-2.25 px-3.5 workspace:gap-2.5 workspace:px-6.5"
+            >
                 {context === null ? null : (
                     <p className="flex max-w-full items-center gap-2.25 self-start rounded-lg border border-accent-line bg-accent-soft py-2 ps-3 pe-2.5 text-accent-deep">
                         <Icon name="attach_file" className="size-icon-md shrink-0" />

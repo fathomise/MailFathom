@@ -156,6 +156,22 @@ export const refusedSend = {
 /** That this deployment writes a draft for somebody, which is what decides whether the composer offers the block. */
 export const draftsReplies = { draftsReplies: true };
 
+/** What a rewrite of selected passages hands back, one version each, cycling through two so any count can be answered. */
+const passageVersions = ['We are glad to confirm the price and the date.', 'With kind regards'];
+
+/**
+ * A rewrite of as many passages as were asked about, in the order they were asked.
+ *
+ * @param count How many passages the request named.
+ * @returns The answer the deployment gives.
+ */
+export function rewrittenPassages(count: number): { readonly rewritten: true; readonly passages: readonly string[] } {
+    return {
+        rewritten: true,
+        passages: Array.from({ length: count }, (_, at) => passageVersions[at % passageVersions.length] ?? ''),
+    };
+}
+
 /**
  * One drafted reply, as the composer puts it on the screen.
  *

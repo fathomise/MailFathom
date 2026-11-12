@@ -515,6 +515,16 @@ export {
     type MailSearchPhraseReading,
 } from './mailSearchPhrase';
 export {
+    draftPassageRewritingRoute,
+    longestRewriteInstruction,
+    longestRewrittenDraft,
+    mostRewrittenPassages,
+    rewriteDraftPassages,
+    type DraftPassage,
+    type DraftPassageRewriteRequest,
+    type DraftPassageRewriting,
+} from './draftPassageRewriting';
+export {
     draftMailReply,
     draftsMailReplies,
     longestDraftInstruction,

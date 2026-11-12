@@ -2167,6 +2167,31 @@
         ],
         "type": "object"
       },
+      "ClientDraftPassage": {
+        "properties": {
+          "length": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "start": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "start",
+          "length"
+        ],
+        "type": "object"
+      },
       "ClientDraftPictureRequest": {
         "properties": {
           "content": {
@@ -6060,6 +6085,55 @@
         "required": [
           "footer",
           "setByOrganization"
+        ],
+        "type": "object"
+      },
+      "ClientPassageRewriteRequest": {
+        "properties": {
+          "instruction": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "passages": {
+            "items": {
+              "$ref": "#/components/schemas/ClientDraftPassage"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "text": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "passages",
+          "instruction"
+        ],
+        "type": "object"
+      },
+      "ClientPassageRewriteResponse": {
+        "properties": {
+          "passages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rewritten": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "rewritten",
+          "passages"
         ],
         "type": "object"
       },
@@ -25489,6 +25563,46 @@
           },
           "404": {
             "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
+    "/api/client/replies/drafting/passages": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ClientPassageRewriteRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPassageRewriteResponse"
+                }
+              }
+            },
+            "description": "OK"
           }
         },
         "security": [

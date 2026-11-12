@@ -153,6 +153,10 @@
        surface as wide as the window keeps them past its edges and shows none. */
     --shadow-edges: -1px 0 0 var(--color-line), 1px 0 0 var(--color-line);
 
+    /* Not a depth either: the accent line under words a rewrite brought, standing in for an underline so it sits
+       clear of the descenders the way the design draws it. */
+    --shadow-rewritten: 0 1.5px 0 var(--color-accent);
+
     /* The design's type scale, in the order it climbs, and it is closed: text is one of these twelve sizes and nothing
        between. The first line empties the namespace, so the steps Tailwind ships are not there to be reached for and
        a size written against a name this block does not declare draws no size at all. It is finer and lower than a

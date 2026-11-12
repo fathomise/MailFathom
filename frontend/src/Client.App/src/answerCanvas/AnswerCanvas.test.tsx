@@ -6,6 +6,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnswerBlock, BlockEvidence } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ToastsProvider } from '../toasts/Toasts';
 import { AnswerCanvas } from './AnswerCanvas';
 import type { AnswerBlockRenderers } from './answerBlocks';
 import type { ArrivedAnswerBlock } from './followedRun';
@@ -259,12 +260,15 @@ describe('AnswerCanvas', () => {
     it.each(registered)('draws a $block.type block through the build’s own registry', ({ block, draws }) => {
         render(
             <LocalizationProvider>
-                <AnswerCanvas
-                    blocks={[{ sequence: 1, block }]}
-                    planSchemaVersion={2}
-                    running={false}
-                    sources={new Map()}
-                />
+                {/* A draft rewrites part of itself and says what came of it in a toast, as the frame lets every block. */}
+                <ToastsProvider>
+                    <AnswerCanvas
+                        blocks={[{ sequence: 1, block }]}
+                        planSchemaVersion={2}
+                        running={false}
+                        sources={new Map()}
+                    />
+                </ToastsProvider>
             </LocalizationProvider>,
         );
 

@@ -7,12 +7,17 @@ using MailFathom.Application.SensitiveContent.Detection;
 
 namespace MailFathom.Application.Emails.ReplyDrafts;
 
-/// <summary>Writes a reply out of the correspondence it answers and the way its author writes.</summary>
+/// <summary>Writes a reply out of the correspondence it answers and the way its author writes, or rewrites passages of one.</summary>
 /// <remarks>
 /// <para>
 /// The port a composer reaches the model through, and the whole of what a provider decides about a reply. It answers
 /// with text and with what backs it, so nothing provider-shaped travels beyond this boundary and the message that may
 /// eventually be sent is composed by the same authoring a message somebody typed is composed by.
+/// </para>
+/// <para>
+/// Rewriting passages is the same port's second act rather than a port of its own, because it is the same capability
+/// reached from the same composer: one registration decides whether a deployment does either, and the same allowance,
+/// ledgers, and failure contract govern both.
 /// </para>
 /// <para>
 /// It is registered only where the deployment declared a chat endpoint and turned drafting on, so a caller resolves it
@@ -36,4 +41,13 @@ public interface IReplyDraftWriter
     /// <exception cref="MailAnsweringBudgetExhaustedException">Thrown when this deployment has spent what it allows a provider for the period, which is the one refusal a caller publishes rather than answering with nothing.</exception>
     /// <exception cref="SensitiveContentScannerUnavailableException">Thrown when a switched-on scanner could not establish what the correspondence carries, which withholds the drafting rather than sending text nothing scanned.</exception>
     Task<ReplyDraft> WriteAsync(ReplyDraftBrief brief, CancellationToken cancellationToken);
+
+    /// <summary>Rewrites the passages of a draft as the person asked, or answers with nothing where they could not be rewritten.</summary>
+    /// <param name="request">The draft, the passages of it to rewrite, and how they should change.</param>
+    /// <param name="cancellationToken">Cancels the rewriting.</param>
+    /// <returns>One rewritten passage for each passage asked about, or <see cref="PassageRewrite.Nothing" /> where the provider failed or answered unreadably.</returns>
+    /// <remarks>The failure contract is <see cref="WriteAsync" />'s, for the same reasons: what a person has when a provider fails is the draft they were already looking at.</remarks>
+    /// <exception cref="MailAnsweringBudgetExhaustedException">Thrown when this deployment has spent what it allows a provider for the period, which is the one refusal a caller publishes rather than answering with nothing.</exception>
+    /// <exception cref="SensitiveContentScannerUnavailableException">Thrown when a switched-on scanner could not establish what the draft carries, which withholds the rewriting rather than sending text nothing scanned.</exception>
+    Task<PassageRewrite> RewritePassagesAsync(PassageRewriteRequest request, CancellationToken cancellationToken);
 }

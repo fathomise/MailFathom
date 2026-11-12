@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace MailFathom.AI.ReplyDrafts;
 
-/// <summary>What a drafting reports about itself, carrying no part of the reply and no part of the correspondence.</summary>
+/// <summary>What a drafting or a passage rewriting reports about itself, carrying no part of the reply and no part of the correspondence.</summary>
 /// <remarks>
 /// A draft is a message somebody is about to send and inherits the classification of the mail it was written from, so
 /// nothing here names a word of it: how many claims it made, how many of them the correspondence backs, how many people
@@ -32,4 +32,16 @@ internal static partial class ReplyDraftEvents
         Level = LogLevel.Warning,
         Message = "The reply-drafting agent at {EndpointAlias} answered with nothing this build could read as a reply, so the composer is left as it was.")]
     internal static partial void LogAnswerUnreadable(ILogger logger, string endpointAlias);
+
+    [LoggerMessage(
+        EventId = 3,
+        Level = LogLevel.Debug,
+        Message = "The passage-rewriting agent at {EndpointAlias} rewrote {PassageCount} passages of a draft.")]
+    internal static partial void LogPassagesRewritten(ILogger logger, string endpointAlias, int passageCount);
+
+    [LoggerMessage(
+        EventId = 4,
+        Level = LogLevel.Warning,
+        Message = "The passage-rewriting agent at {EndpointAlias} answered with nothing this build could read as one text for every passage, so the draft is left as it was.")]
+    internal static partial void LogRewriteUnreadable(ILogger logger, string endpointAlias);
 }

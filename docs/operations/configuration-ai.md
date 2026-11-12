@@ -909,6 +909,10 @@ drafts at all, is told it does not, and offers nothing — every reply is then w
 **Nothing it produces is sent, queued, or stored.** The draft comes back as text in the client, and saving it as a
 draft or sending it stays behind the person confirming those acts.
 
+**The same block governs rewriting a selected part of a draft.** It runs on the model this block names, against the
+allowance below, and a deployment that drafts no reply rewrites nothing either — [Rewriting a selected part of a
+draft](../features/reply-drafting.md#rewriting-a-selected-part-of-a-draft) says what one rewriting sends and answers.
+
 **It competes with questions for one allowance**, exactly as the blocks above do: each drafting is admitted against and
 charged to the same `MailAnswering` period ceilings a question is. A deployment that has spent the period refuses the
 drafting rather than falling back to an empty composer, because somebody pressed a button for it.

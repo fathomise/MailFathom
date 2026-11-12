@@ -12491,6 +12491,7 @@ drafts.ts withdrawnSend POST /api/client/outbox/cancellation
 drafts.ts refusedSend - -
 drafts.ts draftsReplies GET /api/client/replies/drafting
 drafts.ts draftedReply POST /api/client/replies/drafting
+drafts.ts rewrittenPassages POST /api/client/replies/drafting/passages
 mail.ts timelineRow GET /api/client/emails
 mail.ts timelinePage GET /api/client/emails
 mail.ts conversationTimelineRow GET /api/client/emails

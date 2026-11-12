@@ -2,28 +2,14 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ClientFailureReason, ClientResult, MailDocument, MailReplyDrafting } from '@mailfathom/client-backend';
+import type { ClientResult, MailDocument, MailReplyDrafting } from '@mailfathom/client-backend';
 import type { MessageKey } from '../localization/en';
+import { failureSaid } from '../localization/writingFailures';
 import type { ToastKind } from '../toasts/useToasts';
 
 // What asking the deployment for a draft came to, read once for the two places that ask: the composer's own drafting
 // block, and the field under a correspondence. Both say a drafting that wrote nothing in the same words, which is why the
 // reading is here rather than in either of them.
-
-/**
- * What each of the five failures means for somebody trying to write mail, said as what they do next.
- *
- * The composer's reading failure and the deployment's own are worded from one table because four of the five are the
- * same answer to either. `missing` reaches only the read: the message route is the one that reads a `404` as something
- * the deployment no longer holds, so the sentence is about the message being answered rather than about a draft.
- */
-export const failureSaid: Readonly<Record<ClientFailureReason, MessageKey>> = {
-    unauthenticated: 'compose.failedUnauthenticated',
-    unauthorized: 'compose.failedUnauthorized',
-    unavailable: 'compose.failedUnavailable',
-    unreadable: 'compose.failedUnreadable',
-    missing: 'compose.failedMissing',
-};
 
 /** A draft the deployment wrote, or what to tell somebody about one it did not. */
 export type DraftingRead =

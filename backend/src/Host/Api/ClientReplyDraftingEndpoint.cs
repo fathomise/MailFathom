@@ -15,13 +15,19 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MailFathom.Host.Api;
 
-/// <summary>Drafts the reply somebody is about to write, out of the messages they chose to write it from.</summary>
+/// <summary>Drafts the reply somebody is about to write, out of the messages they chose to write it from, and rewrites the passages of it they select.</summary>
 /// <remarks>
 /// <para>
 /// Two routes on one address, because a composer has two different questions and only one of them costs anything. The
 /// read says whether this deployment drafts at all, which is what decides whether the composer may offer the
 /// affordance before anybody presses it — a button that promises a draft over a deployment that cannot write one fails
 /// a person at the one moment they trusted it. The write drafts one reply and costs a provider call.
+/// </para>
+/// <para>
+/// A third route beneath them rewrites passages of a draft somebody selected — shorter, more formal, softer, firmer, or
+/// as they typed. It is the same act's second half rather than a capability of its own, so the read above answers for it
+/// too: a deployment that drafts replies rewrites passages, under the same grants and the same allowance. The draft is
+/// sent as its own text and nothing is read out of a mailbox for it.
 /// </para>
 /// <para>
 /// <b>What comes back is a proposal rather than a message.</b> Nothing here sends, queues, or writes to a mail server,
@@ -61,6 +67,17 @@ internal static class ClientReplyDraftingEndpoint
     /// </remarks>
     internal const int MaxDraftingRequestBytes = 32 * 1024;
 
+    /// <summary>The route selected passages of a draft are rewritten at, relative to the client prefix.</summary>
+    internal const string PassageRewritingRoute = "/replies/drafting/passages";
+
+    /// <summary>The greatest request body a passage rewriting reads before refusing it.</summary>
+    /// <remarks>
+    /// Generous against the draft and the ask — up to eight thousand and four thousand characters, which UTF-8 spells in up
+    /// to three bytes apiece — and the passages and the envelope around them, and small enough that a body over it is
+    /// refused before it is read rather than after.
+    /// </remarks>
+    internal const int MaxPassageRewritingRequestBytes = 64 * 1024;
+
     /// <summary>Maps the routes into the client group, so they inherit its requirement, its policy, and its limits.</summary>
     /// <param name="api">The client route group.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="api" /> is <see langword="null" />.</exception>
@@ -76,6 +93,10 @@ internal static class ClientReplyDraftingEndpoint
         // the bound is refused before anything reads it.
         api.MapPost(ReplyDraftingRoute, DraftReplyAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaxDraftingRequestBytes))
+            .RequirePermission(MailFathomPermission.AssistantUse);
+
+        api.MapPost(PassageRewritingRoute, RewritePassagesAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaxPassageRewritingRequestBytes))
             .RequirePermission(MailFathomPermission.AssistantUse);
     }
 
@@ -178,6 +199,56 @@ internal static class ClientReplyDraftingEndpoint
         catch (MailAnsweringBudgetExhaustedException refusal)
         {
             return TypedResults.Problem(refusal.Message, statusCode: StatusCodes.Status429TooManyRequests);
+        }
+    }
+
+    /// <summary>Rewrites the passages of a draft somebody selected, or reports what was wrong with the request.</summary>
+    /// <param name="request">The draft as plain text, the passages of it to rewrite, and how they should change.</param>
+    /// <param name="drafting">Rewrites the passages, or <see langword="null" /> where this deployment drafts nothing.</param>
+    /// <param name="cancellationToken">Cancels the rewriting when the client disconnects.</param>
+    /// <returns><c>200</c> with the rewritten passages, <c>400</c> naming what was wrong with the request, <c>429</c> where the deployment has spent what it allows a provider, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.assistant.use</c>.</returns>
+    /// <remarks>
+    /// A deployment that drafts nothing, and a provider that wrote nothing, answer <c>200</c> with nothing rewritten, for
+    /// the reason a drafting does: what follows either is the draft the person was already looking at. There is no
+    /// <c>404</c>, because a rewriting names no message.
+    /// </remarks>
+    internal static async Task<Results<Ok<ClientPassageRewriteResponse>, ProblemHttpResult>> RewritePassagesAsync(
+        [FromBody] ClientPassageRewriteRequest? request,
+        [FromServices] MailReplyDrafting? drafting,
+        CancellationToken cancellationToken)
+    {
+        // The serializer leaves a list's elements as JSON wrote them, so a `null` among them is refused here rather
+        // than met as a fault while the passages are read.
+        if (request?.Passages?.Any(static passage => passage is null) is true)
+        {
+            return Refuse("Every passage names where it starts and how long it is.");
+        }
+
+        DraftPassage[]? passages = request?.Passages is { } named
+            ? [.. named.Select(static passage => new DraftPassage(passage.Start, passage.Length))]
+            : null;
+
+        if (PassageRewriteRequest.RefusalOf(request?.Text, passages, request?.Instruction) is { } refusal)
+        {
+            return Refuse(refusal);
+        }
+
+        if (drafting is null)
+        {
+            return TypedResults.Ok(ClientPassageRewriteResponse.NotRewritten);
+        }
+
+        try
+        {
+            var rewrite = await drafting.RewritePassagesAsync(
+                new PassageRewriteRequest(request!.Text!, passages!, request.Instruction!),
+                cancellationToken);
+
+            return TypedResults.Ok(ClientPassageRewriteResponse.For(rewrite));
+        }
+        catch (MailAnsweringBudgetExhaustedException exhausted)
+        {
+            return TypedResults.Problem(exhausted.Message, statusCode: StatusCodes.Status429TooManyRequests);
         }
     }
 
@@ -318,4 +389,54 @@ internal sealed record ClientReplyDraftRecipientResponse(string Address, string?
     internal static ClientReplyDraftRecipientResponse For(EmailAddress address) => new(
         address.Address,
         address.DisplayName);
+}
+
+/// <summary>Passages of a draft to rewrite: the draft they stand in, where each stands, and how they should change.</summary>
+/// <param name="Text">The draft as plain text, each paragraph on a line of its own — at most <see cref="PassageRewriteRequest.MaximumTextLength" /> characters.</param>
+/// <param name="Passages">The stretches of it to rewrite, in the order they stand in it and none overlapping another — at least one and at most <see cref="PassageRewriteRequest.MaximumPassages" />.</param>
+/// <param name="Instruction">How the passages should change: one of the composer's own asks, or what the person typed — at most <see cref="ReplyDraftRequest.MaximumInstructionLength" /> characters.</param>
+/// <remarks>
+/// The draft travels whole, because each passage is rewritten to read in place between the words around it, and it is
+/// the whole of what a rewriting is grounded in: no message is named and nothing is read out of a mailbox. It travels in a
+/// body for the reason a drafting's text does, since what somebody is writing is as private as the mail it answers.
+/// </remarks>
+internal sealed record ClientPassageRewriteRequest(
+    string? Text,
+    IReadOnlyList<ClientDraftPassage>? Passages,
+    string? Instruction);
+
+/// <summary>One stretch of a draft to rewrite.</summary>
+/// <param name="Start">The offset of its first character in the draft, counted in UTF-16 code units, as a browser's string counts them.</param>
+/// <param name="Length">How many UTF-16 code units it spans, which is at least one.</param>
+internal sealed record ClientDraftPassage(int Start, int Length);
+
+/// <summary>The rewritten passages, as the client endpoint serves them.</summary>
+/// <param name="Rewritten">Whether the passages were rewritten at all, which is <see langword="false" /> where this deployment drafts nothing or the provider could not be reached.</param>
+/// <param name="Passages">One rewritten text for each passage asked about, in the order they were asked about, which is empty where nothing was rewritten.</param>
+/// <remarks>
+/// <para>
+/// <c>rewritten</c> being <see langword="false" /> is not a failure a client reports: the draft stays as the person left it.
+/// What comes back is a proposal the client shows beside the passages it would replace, and nothing is written into the
+/// draft, sent, or stored here.
+/// </para>
+/// <para>
+/// The passages are derived from somebody's draft, and so from their mail, so none of them reaches a log, a span
+/// attribute, or a telemetry event.
+/// </para>
+/// </remarks>
+internal sealed record ClientPassageRewriteResponse(bool Rewritten, IReadOnlyList<string> Passages)
+{
+    /// <summary>The answer a rewriting that produced nothing gives, which leaves the draft as it was.</summary>
+    internal static ClientPassageRewriteResponse NotRewritten { get; } = new(Rewritten: false, []);
+
+    /// <summary>Describes one rewriting for the wire.</summary>
+    /// <param name="rewrite">The rewriting the use case answered with.</param>
+    /// <returns>The response body.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="rewrite" /> is <see langword="null" />.</exception>
+    internal static ClientPassageRewriteResponse For(PassageRewrite rewrite)
+    {
+        ArgumentNullException.ThrowIfNull(rewrite);
+
+        return rewrite.WasWritten ? new ClientPassageRewriteResponse(Rewritten: true, rewrite.Passages) : NotRewritten;
+    }
 }
