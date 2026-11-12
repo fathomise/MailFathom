@@ -590,6 +590,9 @@ public static class ServiceCollectionExtensions
         // The read half, which is a port of its own for the reason the cited-fragment reader is: an attachment passage
         // is content a caller may legitimately receive, and a message passage is not.
         services.AddScoped<IEmailAttachmentPassageReader, EmailAttachmentPassageReader>();
+        // What each reading came to and, for one file at a time, its words: the Agent names every file a conversation
+        // carries and reads one on request, always after the content read has admitted the message.
+        services.AddScoped<IEmailAttachmentTextReader, EmailAttachmentTextReader>();
         // The derivation behind the cut, and the pass that performs it. It is registered for every deployment because
         // the enricher it resolves answers with a reason rather than by being absent, so an instance that turned
         // enrichment off runs the pass, is told the deployment has not activated it, and stops without a provider call.

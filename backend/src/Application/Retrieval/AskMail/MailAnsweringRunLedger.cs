@@ -18,9 +18,9 @@ namespace MailFathom.Application.Retrieval.AskMail;
 /// both halves of a check-then-take have to happen together.
 /// </para>
 /// <para>
-/// The two kinds of refusal are deliberately unequal. Retrieval — a lookup's passages, a listed page, or a census's
-/// groups — is trimmed to what the run may still send and the run continues, because a question with some mail already
-/// retrieved is answerable and the model is told there is no more.
+/// The two kinds of refusal are deliberately unequal. Retrieval — a lookup's passages, a listed page, a census's groups,
+/// or a page of a message or of a file it carries — is trimmed to what the run may still send and the run continues,
+/// because a question with some mail already retrieved is answerable and the model is told there is no more.
 /// A provider call is refused outright, because a run with no allowance for another call has no answer to trim.
 /// </para>
 /// <para>
@@ -158,13 +158,52 @@ public sealed class MailAnsweringRunLedger
         }
     }
 
-    /// <summary>Counts what one passage spends of the run's allowance: its extract and the sender written beside it.</summary>
+    /// <summary>Takes as much of one page of a message or of a file it carries as this run may still send.</summary>
+    /// <param name="message">The message the page is read from, which the run then counts among the messages it read.</param>
+    /// <param name="characters">How many characters the page holds.</param>
+    /// <returns>How many of them the run may send: all of them while the allowance lasts, what is left of it once it is approached, and none once it is spent.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="characters" /> is negative.</exception>
+    /// <remarks>
+    /// A page is cut to what is left rather than refused whole, unlike a passage. A passage is a ranked guess at the
+    /// place an answer stands, and dropping one leaves the next to try; a page is the continuation the model asked for
+    /// by name, so the part of it the allowance covers is exactly what it would read first. The caller states the cut,
+    /// and the run is recorded as truncated, so an answer resting on the page says it covered less than the whole.
+    /// </remarks>
+    public int AdmitPage(StoredEmailId message, int characters)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(characters);
+
+        lock (this.gate)
+        {
+            var granted = Math.Min(characters, Math.Max(0, this.Bounds.MaximumRetrievedCharacters - this.retrievedCharacters));
+
+            if (granted < characters)
+            {
+                this.RetrievalWasTruncated = true;
+            }
+
+            if (granted > 0)
+            {
+                this.retrievedCharacters += granted;
+                this.retrievedMessages.Add(message.Value);
+            }
+
+            return granted;
+        }
+    }
+
+    /// <summary>Counts what one passage spends of the run's allowance: its extract, what its files contributed, and the sender written beside it.</summary>
     /// <remarks>
     /// The sender counts because it is mail the passage hands a provider exactly as the extract is, written by whoever
-    /// wrote the message; the identity and the coordinates beside them are this deployment's own and count for nothing.
+    /// wrote the message; so does every attachment's extract and the name its sender gave the file, which reach the same
+    /// provider in the same envelope. The identity and the coordinates beside them are this deployment's own and count
+    /// for nothing.
     /// </remarks>
     private static int RetrievedCharactersOf(EmailKnowledgePassage passage) =>
-        passage.Text.Length + (passage.SenderDisplayName?.Length ?? 0) + (passage.SenderAddress?.Length ?? 0);
+        passage.Text.Length
+        + (passage.SenderDisplayName?.Length ?? 0)
+        + (passage.SenderAddress?.Length ?? 0)
+        + passage.AttachmentExtracts.Sum(static extract => extract.Text.Length + (extract.FileName?.Length ?? 0));
 
     private static int ListedCharactersOf(EmailSummary summary) =>
         (summary.Subject?.Length ?? 0) + (summary.SenderDisplayName?.Length ?? 0) + (summary.SenderAddress?.Length ?? 0);

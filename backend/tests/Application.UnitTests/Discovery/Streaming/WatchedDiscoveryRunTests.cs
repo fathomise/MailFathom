@@ -13,6 +13,7 @@ using MailFathom.Application.UnitTests.Discovery.Presentation;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
@@ -492,6 +493,13 @@ public sealed class WatchedDiscoveryRunTests
 
             throw new InvalidOperationException("The run was expected to have been stopped before retrieval answered.");
         }
+
+        public Task<EmailKnowledgeLookup> FindPassagesWithinAsync(
+            MailboxScope scope,
+            StoredEmailId emailId,
+            string queryText,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("A Discover run never searches inside one message.");
     }
 
     private WatchedDiscoveryRun RunOver(IEmailKnowledgeSearch search) =>

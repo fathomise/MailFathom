@@ -205,6 +205,48 @@ public sealed class OrchestratedEmailAttachmentTextTests(MailFathomOrchestration
                 .SingleAsync(token),
             cancellationToken);
 
+    /// <summary>
+    /// What each attachment came to is read back without its words, and one attachment's words come back with the
+    /// boundaries that place them on a page.
+    /// </summary>
+    /// <remarks>
+    /// The attachment the message's own ceiling stopped is the control the outcome needs: a projection that read the
+    /// words' length wrongly would report it read, and one that dropped rows without words would not report it at all.
+    /// </remarks>
+    [Fact]
+    public async Task ReadReadingsAsync_AMessageWithAReadAndAnUnreadAttachment_ReportsEachOutcomeAndReadsTheWordsOfOne()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, FolderAlias, cancellationToken);
+        var storedEmailId = await StoreAsync(services, SyntheticEmail.OccurrenceIn(binding, uid: 9105), cancellationToken);
+        var read = Document(0, "clause");
+
+        await SaveAsync(
+            services,
+            storedEmailId,
+            [read, DerivedAttachmentText.PastMessageBudget(1, "application/pdf", "annex.pdf")],
+            cancellationToken);
+
+        // Act
+        var (readings, content) = await services.InScopeAsync(
+            async (scope, token) =>
+            {
+                var reader = scope.GetRequiredService<IEmailAttachmentTextReader>();
+
+                return (await reader.ReadReadingsAsync([storedEmailId], token), await reader.ReadTextAsync(storedEmailId, 0, token));
+            },
+            cancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [(0, true, 1, (AttachmentTextSegmentKind?)AttachmentTextSegmentKind.Page), (1, false, 0, null)],
+            readings[storedEmailId].Select(static reading => (reading.AttachmentPosition, reading.WasRead, reading.PageCount, reading.PageKind)));
+        Assert.Equal(read.Text, content?.Text);
+        Assert.Equal(read.Segments, content?.Segments);
+    }
+
     /// <summary>Builds one document reading long enough to be cut into a passage of its own.</summary>
     private static DerivedAttachmentText Document(int position, string term) => DerivedAttachmentText.FromExtraction(
         position,

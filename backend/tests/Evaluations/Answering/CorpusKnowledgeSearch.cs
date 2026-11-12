@@ -8,6 +8,7 @@ using MailFathom.Application.AiProviders;
 using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.Embeddings;
+using MailFathom.Application.Emails.Extraction.Attachments;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
@@ -133,6 +134,18 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
         return this.search.FindPassagesAsync(scope, query, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public Task<EmailKnowledgeLookup> FindPassagesWithinAsync(
+        MailboxScope scope,
+        StoredEmailId emailId,
+        string queryText,
+        CancellationToken cancellationToken)
+    {
+        this.queries.Enqueue(queryText);
+
+        return this.search.FindPassagesWithinAsync(scope, emailId, queryText, cancellationToken);
+    }
+
     private static MailboxKnowledgeSearch SearchOver(IReadOnlyList<CorpusMessage> corpus)
     {
         // The window an answering run reads asks for no grant of its own: the run asked for the assistant's at its entry.
@@ -144,7 +157,7 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
         return new MailboxKnowledgeSearch(
             new MailboxSearchReader(
                 new CorpusSearchIndex(corpus),
-                new NoAttachmentText(),
+                new CorpusAttachmentText(corpus),
                 new SemanticEmailSearch(nothingEmbedded, nothingEmbedded, nothingEmbedded, TimeProvider.System, textEmbeddingGenerator: null),
                 unobserved,
                 new MailboxScopeResolver(
@@ -226,7 +239,7 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
 
         /// <summary>Reads the terms a query matches and the ones it excludes, from the text a deployment hands <c>websearch_to_tsquery</c>.</summary>
         /// <exception cref="NotSupportedException">Thrown for a query requiring every word, which only the lexical half of a fusion reads.</exception>
-        private static (IReadOnlyList<string> Matched, IReadOnlyList<string> Excluded) TermsOf(EmailSearchQueryText queryText)
+        internal static (IReadOnlyList<string> Matched, IReadOnlyList<string> Excluded) TermsOf(EmailSearchQueryText queryText)
         {
             if (queryText.WordMatching is not EmailSearchWordMatching.AnyWord)
             {
@@ -262,10 +275,15 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
 
             return words.Length > 0
                 && Regex.IsMatch(
-                    message.GroundingText,
+                    SearchedTextOf(message),
                     string.Concat(@"(?<![\p{L}\p{N}])", string.Join(@"[^\p{L}\p{N}]+", words), @"(?![\p{L}\p{N}])"),
                     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         }
+
+        /// <summary>Reads what a deployment's search document holds for a message: its own text, then the words its files yielded.</summary>
+        private static string SearchedTextOf(CorpusMessage message) => string.Join(
+            "\n\n",
+            [message.GroundingText, .. LongMail.Readings.GetValueOrDefault(message.Id, []).Select(static reading => reading.Text)]);
 
         /// <summary>Writes a message as the row a deployment would have stored, carrying what the selection predicate reads.</summary>
         /// <remarks>An agent's read never reaches the folder binding, which only the person's own junk exclusion reads.</remarks>
@@ -330,7 +348,7 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
         /// A matched word usually opens the clause that answers, so a window split evenly cut the fact it was found for
         /// halfway through its sentence and a model was graded for quoting what it was shown.
         /// </remarks>
-        private static string WindowAround(string text, int position, int words)
+        internal static string WindowAround(string text, int position, int words)
         {
             var before = text[..position].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).TakeLast(words / 3);
             var after = text[position..].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Take(words - (words / 3));
@@ -421,16 +439,36 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
         }
     }
 
-    /// <summary>Reads no attachment text: the corpus indexes what its messages say, and no case asks for a clause inside a file.</summary>
-    private sealed class NoAttachmentText : IEmailAttachmentMatchReader
+    /// <summary>Reads the words the files of a corpus message yielded, as a deployment's attachment index cuts extracts from the rows the background reading stored.</summary>
+    /// <remarks>
+    /// The rows are <see cref="LongMail.Readings" />: every other corpus attaches files whose words nothing stored, which
+    /// is what a deployment holds for a file its reading has not reached. A picture's description is never matched, as
+    /// only a semantic ranking reaches one and the corpus embeds nothing.
+    /// </remarks>
+    private sealed class CorpusAttachmentText(IReadOnlyList<CorpusMessage> corpus) : IEmailAttachmentMatchReader
     {
+        private readonly Dictionary<StoredEmailId, CorpusMessage> messages = corpus.ToDictionary(static message => message.Id);
+
         public Task<IReadOnlyList<StoredEmailAttachmentMatches>> ReadWrittenMatchesAsync(
             MailboxEmailSelection selection,
             EmailSearchQueryText queryText,
             EmailSearchSnippetBounds snippetBounds,
             IReadOnlyList<StoredEmailId> rankedEmailIds,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<StoredEmailAttachmentMatches>>([]);
+            CancellationToken cancellationToken)
+        {
+            var (matched, _) = CorpusSearchIndex.TermsOf(queryText);
+
+            IReadOnlyList<StoredEmailAttachmentMatches> found =
+            [
+                .. rankedEmailIds
+                    .Where(this.messages.ContainsKey)
+                    .Distinct()
+                    .Select(emailId => new StoredEmailAttachmentMatches(emailId, [.. MatchesIn(this.messages[emailId], matched, snippetBounds)]))
+                    .Where(static email => email.Matches.Count > 0),
+            ];
+
+            return Task.FromResult(found);
+        }
 
         public Task<IReadOnlyList<StoredEmailAttachmentMatches>> ReadDepictedMatchesAsync(
             MailboxEmailSelection selection,
@@ -438,6 +476,30 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
             IReadOnlyList<StoredEmailId> depictedEmailIds,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<StoredEmailAttachmentMatches>>([]);
+
+        private static IEnumerable<EmailAttachmentMatch> MatchesIn(CorpusMessage message, IReadOnlyList<string> matched, EmailSearchSnippetBounds snippets) =>
+            LongMail.Readings.GetValueOrDefault(message.Id, [])
+                .Where(static reading => reading.Reading.WasRead)
+                .Select(reading => (
+                    Reading: reading,
+                    Positions: matched
+                        .Select(term => reading.Text.IndexOf(term, StringComparison.OrdinalIgnoreCase))
+                        .Where(static position => position >= 0)
+                        .Order()
+                        .ToArray()))
+                .Where(static found => found.Positions.Length > 0)
+                .Select(found => new EmailAttachmentMatch(
+                    found.Reading.Reading.AttachmentPosition,
+                    message.Attachments[found.Reading.Reading.AttachmentPosition].FileName,
+                    message.Attachments[found.Reading.Reading.AttachmentPosition].DeclaredMediaType,
+                    found.Reading.Reading.Kind,
+                    AttachmentTextSegment.At(found.Reading.Segments, found.Positions[0]),
+                    [
+                        .. found.Positions
+                            .Select(position => CorpusSearchIndex.WindowAround(found.Reading.Text, position, snippets.WordsPerSnippet))
+                            .Distinct(StringComparer.Ordinal)
+                            .Take(snippets.SnippetsPerEmail),
+                    ]));
     }
 
     /// <summary>Stands for a deployment that activated no embedding profile, so semantic retrieval is inactive and nothing past the profile is asked.</summary>

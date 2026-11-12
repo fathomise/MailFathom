@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Calendar;
+using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.ListEmails;
@@ -24,6 +25,7 @@ namespace MailFathom.AI.AgentConversations;
 /// <param name="Census">Counts the mail the person reads, in total or grouped, as one bounded reading.</param>
 /// <param name="ContentReader">Reads a message or a conversation.</param>
 /// <param name="ProvenanceReader">Reads where each message of a conversation came from, which a thread reading states beside it.</param>
+/// <param name="AttachmentTexts">Reads what reading each file a message carries came to, and one file's words, for a message the content read admitted.</param>
 /// <param name="StateBrowser">Reads the derivation already made about a conversation.</param>
 /// <param name="Calendar">Reads the person's calendar.</param>
 /// <param name="Tasks">Reads the person's tasks.</param>
@@ -38,6 +40,7 @@ internal sealed record AgentConversationReaders(
     MailboxCensusReader Census,
     EmailContentReader ContentReader,
     IEmailProvenanceReader ProvenanceReader,
+    IEmailAttachmentTextReader AttachmentTexts,
     MailThreadStateBrowser StateBrowser,
     OwnCalendar Calendar,
     OwnTasks Tasks,

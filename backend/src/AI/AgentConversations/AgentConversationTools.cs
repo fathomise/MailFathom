@@ -13,7 +13,9 @@ using MailFathom.Application.Answers;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Presentation.Citations;
+using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Census;
+using MailFathom.Application.Emails.Extraction.Attachments;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Application.Emails.Mailboxes;
@@ -36,7 +38,7 @@ using Microsoft.Extensions.AI;
 
 namespace MailFathom.AI.AgentConversations;
 
-/// <summary>What one Agent run may do besides answer: read the person's mail, calendar, and tasks, and propose what to do about them.</summary>
+/// <summary>What one Agent run may do besides answer: read the person's mail and the files it carries, calendar, and tasks, and propose what to do about them.</summary>
 /// <remarks>
 /// <para>
 /// <strong>The tool set is the capability, and it splits in two.</strong> A reading tool answers on the model's own turn,
@@ -70,6 +72,10 @@ internal sealed class AgentConversationTools
 
     /// <summary>The most characters of one message's body a thread reading shows the model.</summary>
     internal const int MaximumBodyCharacters = 4_000;
+
+    /// <summary>The most characters of a message's body or of a file's words one page shows the model.</summary>
+    /// <remarks>The same stride a conversation reading cuts a body at, so reading on from that cut takes the same steps again.</remarks>
+    internal const int MaximumPageCharacters = MaximumBodyCharacters;
 
     /// <summary>The most calendar events or tasks one reading shows the model.</summary>
     internal const int MaximumAgendaItems = 50;
@@ -112,11 +118,55 @@ internal sealed class AgentConversationTools
         + "Each sender or domain it names spends the same reading allowance a search does. A count cites no message: to "
         + "quote or cite mail, search or list it.";
 
+    /// <summary>Names the tool that reads on in one message's body.</summary>
+    internal const string ReadMessageToolName = "read_message";
+
+    /// <summary>Names the tool that reads one file a message carries.</summary>
+    internal const string ReadAttachmentToolName = "read_attachment";
+
+    /// <summary>Names the tool that reads a conversation.</summary>
+    internal const string ReadThreadToolName = "read_thread";
+
+    /// <summary>What the model is told once the run's ceiling on retrieved mail leaves nothing for another page.</summary>
+    private const string CeilingReachedStatement =
+        "This run may read no more mail: its ceiling on retrieved text is spent. Answer from what you have read, and say "
+        + "how much of the message or the file that covers.";
+
     /// <summary>What both proposing tools say of the send time they take, which only a person's own ask may supply.</summary>
     private const string SendAtDescription =
         "When it is to leave, as an ISO 8601 instant with an offset, in the person's time zone the turn names. Give one only "
         + "where the person asked in this conversation for the message to leave later; otherwise leave it empty, and it "
         + "leaves as soon as they accept.";
+
+    /// <summary>What the model is told the conversation reading shows, including how much of each message and which files.</summary>
+    private static readonly string ReadThreadDescription =
+        $"Reads the email conversation a message belongs to, up to its {MaximumThreadMessages} newest messages: each one's "
+        + $"sender, date, subject, and body, the body cut at {MaximumBodyCharacters} characters, with how long the whole "
+        + "body is beside how much is shown, and every file the message carries — its position, name, type, size, and how "
+        + "many pages, slides, or sheets its words were read into, or why nothing of it could be read. Pass the id of any "
+        + "message in it, or of the conversation; where the message is older than those, the reading ends at it instead. "
+        + "The reading says how many earlier or later messages it left out. A conversation past "
+        + $"{IEmailThreadReader.MaximumAssembledEmails} messages is read from its first {IEmailThreadReader.MaximumAssembledEmails} only.";
+
+    /// <summary>What the model is told reading on in a body does, and when to reach for it.</summary>
+    private static readonly string ReadMessageDescription =
+        $"Reads one message's body a page of at most {MaximumPageCharacters} characters at a time, from the place you "
+        + "name. Use it when a conversation reading or a search showed only part of a body — a body marked cut, or one "
+        + "whose body-characters is larger than body-shown — and the answer may lie in the rest. The page says how long "
+        + "the whole body is, where the page starts and ends, and, where more remains, the next attribute to pass as from "
+        + "to read on. Omit from to start at the beginning.";
+
+    /// <summary>What the model is told reading a file does, and when to reach for it.</summary>
+    private static readonly string ReadAttachmentDescription =
+        $"Reads the words stored for one file a message carries, a page of at most {MaximumPageCharacters} characters at "
+        + "a time, each part of it under the page, slide, or sheet it came from. Name the message and the file's position "
+        + "as a conversation reading or a search showed it, and either a page, slide, or sheet number to start there or "
+        + "the next attribute of an earlier page to read on; omit both to start at the beginning. The page says how many "
+        + "pages, slides, or sheets the file holds and how many characters. Words read-as=\"picture-description\" are a "
+        + "model's account of a picture, which nobody wrote. A spreadsheet is read as its rows written out in order, so "
+        + "a page of one holds its leading rows rather than anything computed over its columns. A file nothing could "
+        + "read answers with the reason instead. To find one clause in a long file, search the message with "
+        + $"{ScopedMailKnowledgeRetrieval.MessageSearchToolName} first and read from the page it names.";
 
     private readonly AgentAnswerJournal journal;
     private readonly ScopedMailKnowledgeRetrieval retrieval;
@@ -152,7 +202,7 @@ internal sealed class AgentConversationTools
     internal IReadOnlyList<PresentationCitation> Cited => [.. this.cited.Values];
 
     /// <summary>Gets the text of every message the run has shown the model, cut where it was cut for the model, which is what an answer's links are traced to.</summary>
-    /// <remarks>Every source the run shows is one its answer cites, so this is the cited mail's text: what a search returned, what a thread reading showed, and the subjects a listing showed.</remarks>
+    /// <remarks>Every source the run shows is one its answer cites, so this is the cited mail's text: what a search returned, what a thread reading showed, every page of a body or a file it read, and the subjects a listing showed.</remarks>
     internal IEnumerable<string> ShownMail => [.. AnswerMarkup.TextOf(this.retrieval.Report.Passages), .. this.readBodies, .. this.listed.Values.OfType<string>()];
 
     /// <summary>Gets whether a proposal is on record from this run, which no later model may be asked to answer beside.</summary>
@@ -206,9 +256,12 @@ internal sealed class AgentConversationTools
         if (this.readers.Authorization.Permits(MailFathomPermission.MailRead))
         {
             tools.Add(new ReportingFunction(this.retrieval.CreateSearchTool(), this.journal, AgentActivity.SearchingMail));
+            tools.Add(new ReportingFunction(this.retrieval.CreateMessageSearchTool(), this.journal, AgentActivity.SearchingMail));
             tools.Add(AIFunctionFactory.Create(this.ListMailAsync, ListMailToolName, ListMailDescription));
             tools.Add(AIFunctionFactory.Create(this.CountMailAsync, CountMailToolName, CountMailDescription));
-            tools.Add(AIFunctionFactory.Create(this.ReadThreadAsync, "read_thread", $"Reads the email conversation a message belongs to, up to its {MaximumThreadMessages} newest messages: each one's sender, date, subject, and body. Pass the id of any message in it, or of the conversation; where the message is older than those, the reading ends at it instead. The reading says how many earlier or later messages it left out. A conversation past {IEmailThreadReader.MaximumAssembledEmails} messages is read from its first {IEmailThreadReader.MaximumAssembledEmails} only."));
+            tools.Add(AIFunctionFactory.Create(this.ReadThreadAsync, ReadThreadToolName, ReadThreadDescription));
+            tools.Add(AIFunctionFactory.Create(this.ReadMessageAsync, ReadMessageToolName, ReadMessageDescription));
+            tools.Add(AIFunctionFactory.Create(this.ReadAttachmentAsync, ReadAttachmentToolName, ReadAttachmentDescription));
             tools.Add(AIFunctionFactory.Create(this.ShowThreadStateAsync, "show_thread_state", "Shows the person where the conversation a message belongs to stands — what was agreed, what is still open, what somebody owes — exactly as it was already derived. Use it only when the person asks where a conversation stands or what is open in it; to read, summarise, or retell a conversation, use read_thread. The reading is placed in the conversation for them; do not restate it."));
         }
 
@@ -635,15 +688,19 @@ internal sealed class AgentConversationTools
         IReadOnlyList<ReadEmailContent> shown,
         CancellationToken cancellationToken)
     {
-        var provenance = await this.readers.ProvenanceReader.ReadAsync(
-            [.. shown.Select(static message => message.StoredEmailId)],
-            cancellationToken);
+        StoredEmailId[] messages = [.. shown.Select(static message => message.StoredEmailId)];
+        var provenance = await this.readers.ProvenanceReader.ReadAsync(messages, cancellationToken);
+        var attachmentReadings = await this.readers.AttachmentTexts.ReadReadingsAsync(messages, cancellationToken);
 
         List<GuardedThreadReading> readings = [];
 
         foreach (var message in shown.Where(message => provenance.ContainsKey(message.StoredEmailId)))
         {
-            readings.Add(await this.GuardedReadingOfAsync(message, provenance[message.StoredEmailId], cancellationToken));
+            readings.Add(await this.GuardedReadingOfAsync(
+                message,
+                provenance[message.StoredEmailId],
+                attachmentReadings.GetValueOrDefault(message.StoredEmailId, []),
+                cancellationToken));
         }
 
         return readings;
@@ -651,13 +708,21 @@ internal sealed class AgentConversationTools
 
     /// <summary>Guards each value one message's author wrote, before the reading is written around it.</summary>
     /// <remarks>
+    /// <para>
     /// The body is marked as cut where either this tool's bound or the guard's analyzed ceiling shortened it, because
     /// the ceiling drops what lies beyond it without failing and a reading that hid the drop would show the model a
-    /// shortened message as whole.
+    /// shortened message as whole. How long the whole body is travels beside it, so a model can tell a short message
+    /// from the opening of a long one and read on rather than answer from the opening.
+    /// </para>
+    /// <para>
+    /// Every file the message carries is named whether or not anything read it, with the name its sender chose guarded
+    /// like any other text the sender wrote.
+    /// </para>
     /// </remarks>
     internal async Task<GuardedThreadReading> GuardedReadingOfAsync(
         ReadEmailContent message,
         EmailProvenance provenance,
+        IReadOnlyList<AttachmentTextReading> attachmentReadings,
         CancellationToken cancellationToken)
     {
         var body = message.Body.PlainText.Text;
@@ -670,6 +735,7 @@ internal sealed class AgentConversationTools
         var guardedBody = await this.egressGuard.GuardWithOmissionAsync(SensitiveContentEgressPoint.ChatPrompt, bounded, cancellationToken);
         var citation = await this.CiteAsync(message.StoredEmailId, message.Headers.Subject, cancellationToken);
         var footed = await this.FootedAccountsAsync(cancellationToken);
+        var attachments = await this.GuardedAttachmentsOfAsync(message, attachmentReadings, cancellationToken);
 
         return new GuardedThreadReading(
             message.StoredEmailId,
@@ -681,7 +747,231 @@ internal sealed class AgentConversationTools
             guardedBody.Text,
             bounded.Length < body.Length || guardedBody.WasCutAtAnalyzedCeiling,
             await AgentReceiptReadings.GuardedAsync(this.egressGuard, message.Receipts, cancellationToken),
-            footed.Contains(message.AccountId));
+            footed.Contains(message.AccountId),
+            body.Length,
+            bounded.Length,
+            attachments);
+    }
+
+    /// <summary>Names every file one message carries, beside what reading each came to, its sender's name for it guarded.</summary>
+    private async Task<IReadOnlyList<GuardedAttachmentReading>> GuardedAttachmentsOfAsync(
+        ReadEmailContent message,
+        IReadOnlyList<AttachmentTextReading> attachmentReadings,
+        CancellationToken cancellationToken)
+    {
+        var byPosition = attachmentReadings.ToDictionary(static reading => reading.AttachmentPosition);
+        List<GuardedAttachmentReading> attachments = [];
+
+        foreach (var (attachment, position) in message.Attachments.Select(static (attachment, position) => (attachment, position)))
+        {
+            attachments.Add(await this.GuardedAttachmentOfAsync(attachment, position, byPosition.GetValueOrDefault(position), cancellationToken));
+        }
+
+        return attachments;
+    }
+
+    private async Task<GuardedAttachmentReading> GuardedAttachmentOfAsync(
+        ReadEmailAttachment attachment,
+        int position,
+        AttachmentTextReading? reading,
+        CancellationToken cancellationToken) => new(
+        position,
+        await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, attachment.Description.FileName?.Value, cancellationToken),
+        attachment.Description.MediaType,
+        attachment.Description.DecodedSizeOctets,
+        reading);
+
+    [Description("Reads on in one message's body.")]
+    private async Task<string> ReadMessageAsync(
+        [Description("The id of the message, as a conversation reading or a search showed it.")] string messageId,
+        [Description("Where to start, in characters from the beginning of the body: the next attribute of the page before. Omit to start at the beginning.")] int? from = null,
+        CancellationToken cancellationToken = default)
+    {
+        await this.ReportAsync(AgentActivity.ReadingThread, cancellationToken);
+
+        if (await this.ReadOneMessageAsync(messageId, cancellationToken) is not { } message)
+        {
+            return "No message with that id is readable here.";
+        }
+
+        var body = message.Body.PlainText.Text;
+        var start = StartWithin(body, from);
+
+        if (start >= body.Length)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"The body holds {body.Length} characters, so nothing remains to read from {from ?? 0}.");
+        }
+
+        var (page, ceilingReached) = this.AdmittedPage(message.StoredEmailId, body, start);
+
+        if (page.Length is 0)
+        {
+            return CeilingReachedStatement;
+        }
+
+        this.readBodies.Add(page);
+
+        var guarded = await this.egressGuard.GuardWithOmissionAsync(SensitiveContentEgressPoint.ChatPrompt, page, cancellationToken);
+        var citation = await this.CiteAsync(message.StoredEmailId, message.Headers.Subject, cancellationToken);
+
+        return AgentConversationReadings.MessagePage(new GuardedMessagePage(
+            message.StoredEmailId,
+            citation.Id,
+            new PageBounds(body.Length, start, start + page.Length, ceilingReached),
+            guarded.Text));
+    }
+
+    [Description("Reads one file a message carries.")]
+    private async Task<string> ReadAttachmentAsync(
+        [Description("The id of the message carrying the file, as a conversation reading or a search showed it.")] string messageId,
+        [Description("The file's position, the attachment attribute a conversation reading or a search showed for it.")] int attachment,
+        [Description("The page, slide, or sheet number to start at, counted from 1. Omit to start at the beginning or to continue with from.")] int? page = null,
+        [Description("Where to continue, in characters from the beginning of the file's words: the next attribute of the page before. Omit to start at the beginning or at the page you named.")] int? from = null,
+        CancellationToken cancellationToken = default)
+    {
+        await this.ReportAsync(AgentActivity.ReadingThread, cancellationToken);
+
+        if (await this.ReadOneMessageAsync(messageId, cancellationToken) is not { } message)
+        {
+            return "No message with that id is readable here.";
+        }
+
+        if (attachment < 0 || attachment >= message.Attachments.Count)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"That message carries {message.Attachments.Count} files, at positions counted from 0; a conversation reading names each.");
+        }
+
+        var content = await this.readers.AttachmentTexts.ReadTextAsync(message.StoredEmailId, attachment, cancellationToken);
+        var citation = await this.CiteAsync(message.StoredEmailId, message.Headers.Subject, cancellationToken);
+        var described = await this.GuardedAttachmentOfAsync(message.Attachments[attachment], attachment, content?.Reading, cancellationToken);
+
+        if (content is not { Reading.WasRead: true } read)
+        {
+            return AgentConversationReadings.AttachmentUnread(message.StoredEmailId, citation.Id, described);
+        }
+
+        if (StartOfPlace(read, page, from) is not { } start)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"The file was read into {read.Reading.PageCount} places numbered from 1; name one of them, or leave the page out.");
+        }
+
+        if (start >= read.Text.Length)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"The file's words hold {read.Text.Length} characters, so nothing remains to read from {start}.");
+        }
+
+        var (window, ceilingReached) = this.AdmittedPage(message.StoredEmailId, read.Text, start);
+
+        if (window.Length is 0)
+        {
+            return CeilingReachedStatement;
+        }
+
+        this.readBodies.Add(window);
+
+        return AgentConversationReadings.AttachmentPage(new GuardedAttachmentPage(
+            message.StoredEmailId,
+            citation.Id,
+            attachment,
+            described.FileName,
+            read.Reading.Kind,
+            read.Reading.PageCount,
+            read.Reading.PageKind,
+            new PageBounds(read.Text.Length, start, start + window.Length, ceilingReached),
+            await this.GuardedPartsAsync(read, start, window.Length, cancellationToken)));
+    }
+
+    /// <summary>Reads one message the person may read, with nothing of its conversation, or nothing where it is not one.</summary>
+    /// <remarks>
+    /// The content read is what admits the message: a message outside the person's scope reads as no message at all,
+    /// which is also what keeps a file's words from being reached by naming an identifier. A message whose provenance
+    /// is gone was removed after it was read and is not shown, for the reason a conversation reading leaves one out.
+    /// </remarks>
+    private async Task<ReadEmailContent?> ReadOneMessageAsync(string messageId, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(messageId, out var parsed))
+        {
+            return null;
+        }
+
+        var named = StoredEmailId.Create(parsed);
+        var opened = await this.readers.ContentReader.ReadContentAsync(
+            GetEmailContentRequest.Create([named]) with { Reader = MailboxReaderKind.ConversationAgent },
+            cancellationToken);
+
+        if (opened.Emails.Count is 0 || opened.Emails[0].Content is not { } message)
+        {
+            return null;
+        }
+
+        var provenance = await this.readers.ProvenanceReader.ReadAsync([named], cancellationToken);
+
+        return provenance.ContainsKey(named) ? message : null;
+    }
+
+    /// <summary>Cuts one page out of a whole, as much of it as the run may still send.</summary>
+    /// <returns>The page, empty once the run's ceiling is spent, and whether the ceiling cut it short.</returns>
+    private (string Page, bool CeilingReached) AdmittedPage(StoredEmailId message, string whole, int start)
+    {
+        var page = MailTextBounds.TruncateAtTextElementBoundary(whole[start..], MaximumPageCharacters);
+        var granted = this.retrieval.RunLedger.AdmitPage(message, page.Length);
+
+        return granted < page.Length
+            ? (MailTextBounds.TruncateAtTextElementBoundary(page, granted), true)
+            : (page, false);
+    }
+
+    /// <summary>Reads where a page begins: at the place named, at a character the model was handed, or at the beginning.</summary>
+    /// <returns>The offset, or <see langword="null" /> where the place named is not one the file was read into.</returns>
+    private static int? StartOfPlace(AttachmentTextContent read, int? place, int? from)
+    {
+        if (from is not null || place is null)
+        {
+            return StartWithin(read.Text, from);
+        }
+
+        return read.Segments.FirstOrDefault(segment => segment.Number == place)?.StartOffset;
+    }
+
+    /// <summary>Reads a start the model wrote, held inside the text and never between the halves of a surrogate pair.</summary>
+    private static int StartWithin(string text, int? from)
+    {
+        var start = Math.Clamp(from ?? 0, 0, text.Length);
+
+        return start > 0 && start < text.Length && char.IsLowSurrogate(text[start]) ? start - 1 : start;
+    }
+
+    /// <summary>Cuts a page of a file's words at the places it crosses and guards each part on its own.</summary>
+    /// <remarks>
+    /// Each part is guarded as a value rather than the page as a whole, for the reason every other reading guards its
+    /// values one by one: a detection running across a page boundary would otherwise take the element between them.
+    /// </remarks>
+    private async Task<IReadOnlyList<GuardedAttachmentPart>> GuardedPartsAsync(
+        AttachmentTextContent read,
+        int start,
+        int length,
+        CancellationToken cancellationToken)
+    {
+        var end = start + length;
+        int[] cuts =
+        [
+            start,
+            .. read.Segments.Select(static segment => segment.StartOffset).Where(offset => offset > start && offset < end),
+            end,
+        ];
+        List<GuardedAttachmentPart> parts = [];
+
+        foreach (var (opens, closes) in cuts.Zip(cuts.Skip(1)))
+        {
+            var guarded = await this.egressGuard.GuardWithOmissionAsync(
+                SensitiveContentEgressPoint.ChatPrompt,
+                read.Text[opens..closes],
+                cancellationToken);
+
+            parts.Add(new GuardedAttachmentPart(AttachmentTextSegment.At(read.Segments, opens), guarded.Text));
+        }
+
+        return parts;
     }
 
     /// <summary>Reads, once per run, which of the person's accounts append their footer to what they send.</summary>

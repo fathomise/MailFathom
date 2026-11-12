@@ -100,6 +100,15 @@ internal sealed class ScriptedEmailKnowledgeSearch : IEmailKnowledgeSearch
     };
 
     /// <inheritdoc />
+    /// <remarks>Nothing a Discover run asks searches inside one message, so no script reaches this.</remarks>
+    public Task<EmailKnowledgeLookup> FindPassagesWithinAsync(
+        MailboxScope scope,
+        StoredEmailId emailId,
+        string queryText,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("A Discover run never searches inside one message.");
+
+    /// <inheritdoc />
     public Task<EmailKnowledgeLookup> FindPassagesAsync(
         MailboxScope scope,
         EmailKnowledgeQuery query,

@@ -5,7 +5,9 @@
 using System.Globalization;
 using MailFathom.AI.Orchestration;
 using MailFathom.Application.Discovery.Presentation.Citations;
+using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Census;
+using MailFathom.Application.Emails.Extraction.Attachments;
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
@@ -13,7 +15,7 @@ using MailFathom.Domain.Tasks;
 
 namespace MailFathom.AI.AgentConversations;
 
-/// <summary>Writes what the Agent's reading tools return: a conversation, a page of the mailbox, a stretch of the calendar, and the task list.</summary>
+/// <summary>Writes what the Agent's reading tools return: a conversation, a page of a message or of a file it carries, a page of the mailbox, a stretch of the calendar, and the task list.</summary>
 /// <remarks>
 /// <para>
 /// Each is a document written through <see cref="AgentTurnDocument" />, because each carries text somebody else wrote
@@ -63,6 +65,78 @@ internal static class AgentConversationReadings
 
     /// <summary>Names the element carrying a message's body.</summary>
     internal const string BodyElementName = "body";
+
+    /// <summary>Names the attribute carrying how many characters a message's whole body holds.</summary>
+    internal const string BodyCharactersAttributeName = "body-characters";
+
+    /// <summary>Names the attribute carrying how many of those characters a conversation reading shows.</summary>
+    internal const string BodyShownAttributeName = "body-shown";
+
+    /// <summary>Names the element one file a message carries is described in.</summary>
+    internal const string AttachedFileElementName = "attached-file";
+
+    /// <summary>Names the attribute carrying the position a file is named by, which reading its words takes.</summary>
+    internal const string AttachmentAttributeName = "attachment";
+
+    /// <summary>Names the attribute carrying the name a file's sender gave it.</summary>
+    internal const string FileAttributeName = "file";
+
+    /// <summary>Names the attribute carrying the media type a file declares, which is its sender's claim.</summary>
+    internal const string MediaTypeAttributeName = "type";
+
+    /// <summary>Names the attribute carrying a file's decoded size in octets.</summary>
+    internal const string SizeAttributeName = "size";
+
+    /// <summary>Names the attribute carrying how many pages, slides, or sheets a file's words were read into.</summary>
+    internal const string PagesAttributeName = "pages";
+
+    /// <summary>Names the attribute carrying which of those three a file's places are.</summary>
+    internal const string PageKindAttributeName = "page-kind";
+
+    /// <summary>Names the attribute carrying how many characters a body or a file's words hold in all.</summary>
+    internal const string CharactersAttributeName = "characters";
+
+    /// <summary>Names the attribute saying whose words a file's text is.</summary>
+    internal const string ReadAsAttributeName = "read-as";
+
+    /// <summary>The value <see cref="ReadAsAttributeName" /> carries for words the file itself holds, a scanned page's transcription among them.</summary>
+    internal const string DocumentReadAs = "document";
+
+    /// <summary>The value <see cref="ReadAsAttributeName" /> carries for a model's account of a picture, which nobody wrote.</summary>
+    internal const string PictureDescriptionReadAs = "picture-description";
+
+    /// <summary>Names the attribute saying why nothing of a file can be read, written only where nothing can.</summary>
+    internal const string UnreadAttributeName = "unread";
+
+    /// <summary>The value <see cref="UnreadAttributeName" /> carries for a file no reading has been stored for.</summary>
+    internal const string NeverReadReason = "never-read";
+
+    /// <summary>Names the element a page of one message's body is read into.</summary>
+    internal const string MessagePageElementName = "message-page";
+
+    /// <summary>Names the element a page of one file's words is read into.</summary>
+    internal const string AttachmentPageElementName = "attachment-page";
+
+    /// <summary>Names the element saying a file has no words to read, and why.</summary>
+    internal const string AttachmentUnreadElementName = "attachment-unread";
+
+    /// <summary>Names the element one place of a file a page reaches is quoted in.</summary>
+    internal const string PartElementName = "part";
+
+    /// <summary>Names the attribute carrying where a page begins, counted in characters from the start of the whole.</summary>
+    internal const string PageStartAttributeName = "start";
+
+    /// <summary>Names the attribute carrying where a page ends, counted the same way.</summary>
+    internal const string PageEndAttributeName = "end";
+
+    /// <summary>Names the attribute carrying where the next page begins, written only where something remains.</summary>
+    internal const string NextAttributeName = "next";
+
+    /// <summary>Names the attribute carrying which kind of place a part was read from.</summary>
+    internal const string SegmentAttributeName = "segment";
+
+    /// <summary>Names the attribute carrying that place's one-based number.</summary>
+    internal const string SegmentNumberAttributeName = "segment-number";
 
     /// <summary>Names the element a page of the mailbox's timeline is read into.</summary>
     internal const string MailboxElementName = "mailbox";
@@ -208,6 +282,8 @@ internal static class AgentConversationReadings
             WriteOptional(document, FromAttributeName, message.SenderAddress);
             WriteOptional(document, SentAttributeName, Instant(message.SentAt));
             document.WriteProvenance(message.Provenance);
+            WriteOptional(document, BodyCharactersAttributeName, message.BodyCharacters?.ToString(CultureInfo.InvariantCulture));
+            WriteOptional(document, BodyShownAttributeName, message.BodyCharacters is null ? null : message.BodyShown.ToString(CultureInfo.InvariantCulture));
 
             if (message.AnsweredWithFooter)
             {
@@ -222,11 +298,163 @@ internal static class AgentConversationReadings
             }
 
             document.WriteQuoted(BodyElementName, message.Body, message.BodyCut);
+
+            foreach (var attachment in message.Attachments ?? [])
+            {
+                WriteAttachedFile(document, attachment);
+            }
+
             document.EndElement();
         }
 
         return document.Complete();
     }
+
+    /// <summary>Writes one page of a message's body, saying what part of the whole it is and where the next begins.</summary>
+    /// <param name="page">The page, its text already guarded.</param>
+    /// <returns>The document.</returns>
+    /// <remarks>
+    /// The offsets are the service's own counts rather than anything the page says, so a body cannot claim to have
+    /// ended where it has not; and the next page's start is written only where something remains, so its absence is
+    /// what says the body has been read to its end.
+    /// </remarks>
+    internal static string MessagePage(GuardedMessagePage page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+
+        using var document = new AgentTurnDocument();
+
+        document.StartElement(MessagePageElementName);
+        document.WriteAttribute(MessageIdAttributeName, page.Id.ToString());
+        document.WriteAttribute(SourceAttributeName, page.Source.Value);
+        WritePageBounds(document, page.Bounds);
+        document.WriteQuotedContent(page.Text, page.Bounds.End < page.Bounds.Characters);
+        document.EndElement();
+
+        return document.Complete();
+    }
+
+    /// <summary>Writes one page of a file's words, each part of it under the page, slide, or sheet it was read from.</summary>
+    /// <param name="page">The page, every text of it already guarded.</param>
+    /// <returns>The document.</returns>
+    /// <remarks>
+    /// The places are attributes and the words are quoted inside them, so nothing a sender put in a document can claim
+    /// to be page one of it, and a model's account of a picture is marked as one on the element rather than left for
+    /// the words to say.
+    /// </remarks>
+    internal static string AttachmentPage(GuardedAttachmentPage page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+
+        using var document = new AgentTurnDocument();
+
+        document.StartElement(AttachmentPageElementName);
+        document.WriteAttribute(MessageIdAttributeName, page.Id.ToString());
+        document.WriteAttribute(SourceAttributeName, page.Source.Value);
+        document.WriteAttribute(AttachmentAttributeName, page.AttachmentPosition.ToString(CultureInfo.InvariantCulture));
+        WriteOptional(document, FileAttributeName, page.FileName);
+        document.WriteAttribute(ReadAsAttributeName, ReadAs(page.Kind));
+        WritePlaces(document, page.PageCount, page.PageKind);
+        WritePageBounds(document, page.Bounds);
+
+        foreach (var part in page.Parts)
+        {
+            document.StartElement(PartElementName);
+
+            if (part.Segment is { } segment)
+            {
+                document.WriteAttribute(SegmentAttributeName, segment.Kind.ToString());
+                document.WriteAttribute(SegmentNumberAttributeName, segment.Number.ToString(CultureInfo.InvariantCulture));
+            }
+
+            document.WriteQuotedContent(part.Text);
+            document.EndElement();
+        }
+
+        document.EndElement();
+
+        return document.Complete();
+    }
+
+    /// <summary>Writes that a file has no words to read, and the reason its reading recorded.</summary>
+    /// <param name="id">The message carrying the file.</param>
+    /// <param name="source">The source this run declared the message as.</param>
+    /// <param name="attachment">The file, its name already guarded.</param>
+    /// <returns>The document.</returns>
+    internal static string AttachmentUnread(StoredEmailId id, PresentationCitationId source, GuardedAttachmentReading attachment)
+    {
+        ArgumentNullException.ThrowIfNull(attachment);
+
+        using var document = new AgentTurnDocument();
+
+        document.StartElement(AttachmentUnreadElementName);
+        document.WriteAttribute(MessageIdAttributeName, id.ToString());
+        document.WriteAttribute(SourceAttributeName, source.Value);
+        WriteFileIdentity(document, attachment);
+        document.WriteAttribute(UnreadAttributeName, UnreadReason(attachment.Reading));
+        document.EndElement();
+
+        return document.Complete();
+    }
+
+    /// <summary>Writes one file a message carries: what it is, and how much of it was read or why nothing was.</summary>
+    /// <remarks>
+    /// Written for every file whether or not anything read it, because a file passed over in silence reads as a message
+    /// that carried none, and an answer about a contract nobody could open would then be given from the covering note
+    /// as though that were all there was.
+    /// </remarks>
+    private static void WriteAttachedFile(AgentTurnDocument document, GuardedAttachmentReading attachment)
+    {
+        document.StartElement(AttachedFileElementName);
+        WriteFileIdentity(document, attachment);
+
+        if (attachment.Reading is { WasRead: true } reading)
+        {
+            document.WriteAttribute(ReadAsAttributeName, ReadAs(reading.Kind));
+            WritePlaces(document, reading.PageCount, reading.PageKind);
+            document.WriteAttribute(CharactersAttributeName, reading.TextLength.ToString(CultureInfo.InvariantCulture));
+        }
+        else
+        {
+            document.WriteAttribute(UnreadAttributeName, UnreadReason(attachment.Reading));
+        }
+
+        document.EndElement();
+    }
+
+    private static void WriteFileIdentity(AgentTurnDocument document, GuardedAttachmentReading attachment)
+    {
+        document.WriteAttribute(AttachmentAttributeName, attachment.Position.ToString(CultureInfo.InvariantCulture));
+        WriteOptional(document, FileAttributeName, attachment.FileName);
+        document.WriteAttribute(MediaTypeAttributeName, attachment.MediaType);
+        document.WriteAttribute(SizeAttributeName, attachment.SizeOctets.ToString(CultureInfo.InvariantCulture));
+    }
+
+    private static void WritePlaces(AgentTurnDocument document, int pageCount, AttachmentTextSegmentKind? pageKind)
+    {
+        if (pageCount > 0)
+        {
+            document.WriteAttribute(PagesAttributeName, pageCount.ToString(CultureInfo.InvariantCulture));
+        }
+
+        WriteOptional(document, PageKindAttributeName, pageKind?.ToString());
+    }
+
+    private static void WritePageBounds(AgentTurnDocument document, PageBounds bounds)
+    {
+        document.WriteAttribute(CharactersAttributeName, bounds.Characters.ToString(CultureInfo.InvariantCulture));
+        document.WriteAttribute(PageStartAttributeName, bounds.Start.ToString(CultureInfo.InvariantCulture));
+        document.WriteAttribute(PageEndAttributeName, bounds.End.ToString(CultureInfo.InvariantCulture));
+        WriteOptional(document, NextAttributeName, bounds.End < bounds.Characters ? bounds.End.ToString(CultureInfo.InvariantCulture) : null);
+        WriteTrue(document, CeilingReachedAttributeName, bounds.CeilingReached);
+    }
+
+    private static string ReadAs(AttachmentTextKind kind) =>
+        kind is AttachmentTextKind.ImageDescription ? PictureDescriptionReadAs : DocumentReadAs;
+
+    /// <summary>Names why a file has no words: the outcome its reading recorded, or that no reading was ever stored.</summary>
+    private static string UnreadReason(AttachmentTextReading? reading) =>
+        string.IsNullOrWhiteSpace(reading?.Outcome) ? NeverReadReason : reading.Outcome;
 
     /// <summary>Writes one page of the mailbox's timeline: each message's headers and state, and nothing of its body.</summary>
     /// <param name="messages">The messages, in the order the page was read in.</param>
@@ -425,6 +653,9 @@ internal static class AgentConversationReadings
 /// <param name="BodyCut">Whether the body was cut, which the reading states.</param>
 /// <param name="Receipts">What the message asked to be told and what its recipients' reports said, every address guarded, where it is one the account sent.</param>
 /// <param name="AnsweredWithFooter">Whether the account holding it appends the person's footer, so an answer to it closes with that footer.</param>
+/// <param name="BodyCharacters">How many characters its whole body holds, or <see langword="null" /> where the reading states no length.</param>
+/// <param name="BodyShown">How many of those characters the reading shows.</param>
+/// <param name="Attachments">Every file it carries, each with what reading it came to, or <see langword="null" /> where the reading names none.</param>
 internal sealed record GuardedThreadReading(
     StoredEmailId Id,
     PresentationCitationId Source,
@@ -435,7 +666,63 @@ internal sealed record GuardedThreadReading(
     string Body,
     bool BodyCut,
     OutgoingEmailReceipts? Receipts = null,
-    bool AnsweredWithFooter = false);
+    bool AnsweredWithFooter = false,
+    int? BodyCharacters = null,
+    int BodyShown = 0,
+    IReadOnlyList<GuardedAttachmentReading>? Attachments = null);
+
+/// <summary>One file a message carries as the Agent is shown it, its name already guarded.</summary>
+/// <param name="Position">The position the file is named by, which reading its words takes.</param>
+/// <param name="FileName">The guarded name its sender gave it, or <see langword="null" /> where it carried none.</param>
+/// <param name="MediaType">The media type it declares.</param>
+/// <param name="SizeOctets">Its decoded size.</param>
+/// <param name="Reading">What reading it came to, or <see langword="null" /> where nothing has read it.</param>
+internal sealed record GuardedAttachmentReading(
+    int Position,
+    string? FileName,
+    string MediaType,
+    long SizeOctets,
+    AttachmentTextReading? Reading);
+
+/// <summary>Where a page of a body or a file lies in the whole, counted by the service in characters.</summary>
+/// <param name="Characters">How many characters the whole holds.</param>
+/// <param name="Start">Where the page begins.</param>
+/// <param name="End">Where it ends, which is where the next page begins.</param>
+/// <param name="CeilingReached">Whether the run's ceiling on retrieved mail cut the page short.</param>
+internal sealed record PageBounds(int Characters, int Start, int End, bool CeilingReached);
+
+/// <summary>One page of a message's body as the Agent is shown it, its text already guarded.</summary>
+/// <param name="Id">The message's identifier.</param>
+/// <param name="Source">The source this run declared it as, which an answer cites.</param>
+/// <param name="Bounds">Where the page lies in the whole body.</param>
+/// <param name="Text">The guarded page.</param>
+internal sealed record GuardedMessagePage(StoredEmailId Id, PresentationCitationId Source, PageBounds Bounds, string Text);
+
+/// <summary>One page of a file's words as the Agent is shown it, every text of it already guarded.</summary>
+/// <param name="Id">The message carrying the file.</param>
+/// <param name="Source">The source this run declared the message as, which an answer cites.</param>
+/// <param name="AttachmentPosition">The position the file is named by.</param>
+/// <param name="FileName">The guarded name its sender gave it, or <see langword="null" /> where it carried none.</param>
+/// <param name="Kind">Whether the words are the file's own or a model's account of a picture.</param>
+/// <param name="PageCount">How many pages, slides, or sheets the whole was read into.</param>
+/// <param name="PageKind">Which of the three those are, or <see langword="null" /> where the reading recorded none.</param>
+/// <param name="Bounds">Where the page lies in the file's whole text.</param>
+/// <param name="Parts">The page cut at the places it crosses, in reading order.</param>
+internal sealed record GuardedAttachmentPage(
+    StoredEmailId Id,
+    PresentationCitationId Source,
+    int AttachmentPosition,
+    string? FileName,
+    AttachmentTextKind Kind,
+    int PageCount,
+    AttachmentTextSegmentKind? PageKind,
+    PageBounds Bounds,
+    IReadOnlyList<GuardedAttachmentPart> Parts);
+
+/// <summary>The part of a page one place of a file contributed, its text already guarded.</summary>
+/// <param name="Segment">The page, slide, or sheet it was read from, or <see langword="null" /> where the reading recorded none.</param>
+/// <param name="Text">The guarded part.</param>
+internal sealed record GuardedAttachmentPart(AttachmentTextSegment? Segment, string Text);
 
 /// <summary>One message of a page of the mailbox as the Agent is shown it, every text of it already guarded.</summary>
 /// <param name="Id">The message's identifier, which a conversation reading and a proposal name it by.</param>

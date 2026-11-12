@@ -131,7 +131,18 @@ internal sealed record AgentConversationScenario(
 
     /// <summary>The tools that read something, one of which an answer resting on evidence has to have called.</summary>
     private static readonly HashSet<string> ReadingTools =
-        [ScopedMailKnowledgeRetrieval.SearchToolName, AgentConversationTools.ListMailToolName, AgentConversationTools.CountMailToolName, "read_thread", "show_thread_state", "read_calendar", "read_tasks"];
+        [
+            ScopedMailKnowledgeRetrieval.SearchToolName,
+            ScopedMailKnowledgeRetrieval.MessageSearchToolName,
+            AgentConversationTools.ListMailToolName,
+            AgentConversationTools.CountMailToolName,
+            AgentConversationTools.ReadThreadToolName,
+            AgentConversationTools.ReadMessageToolName,
+            AgentConversationTools.ReadAttachmentToolName,
+            "show_thread_state",
+            "read_calendar",
+            "read_tasks",
+        ];
 
     /// <summary>Gets every question the Agent is measured on.</summary>
     public static IReadOnlyList<AgentConversationScenario> All { get; } =
@@ -1332,6 +1343,60 @@ internal sealed record AgentConversationScenario(
             Calls = [ScopedMailKnowledgeRetrieval.SearchToolName],
             Category = CategoryReading.Names("subscriptions"),
         },
+
+        // The rest ask about what a first reading does not show: a body past its cut, a clause deep in a long file, a
+        // file longer than the run may read, a file nothing could read, and a photograph whose words a model transcribed.
+        new(
+            "Agent.Long.FactPastTheBodyCut",
+
+            // The report runs well past the cut a conversation reading makes, and the walk is in its last paragraph.
+            "When is the glazing contractor's final snag-list walk, according to this report?",
+            UserLanguage.English,
+            ["24 September", "11:30"],
+            [.. HarboursideSubject, "glazing", "snag", "walk", "foreman", "lobby"])
+        {
+            Conversation = LongMail.SiteReport,
+            Calls = [AgentConversationTools.ReadThreadToolName],
+        },
+        new(
+            "Agent.Long.ClauseDeepInAnAttachment",
+
+            // The break option stands alone on a page past every page the run could read from the lease's start.
+            "How much notice does the break clause in the Harbour Lane lease Clara sent require, and on what date can we break?",
+            UserLanguage.English,
+            ["nine months", "31 March 2029"],
+            LeaseSubject),
+        new(
+            "Agent.Long.WholeDocumentPastTheCeiling",
+
+            // The lease is longer than the run may read, so the right answer summarises the part it read and says so.
+            "Summarise the whole Harbour Lane lease Clara sent, every clause of it.",
+            UserLanguage.English,
+            [],
+            LeaseSubject)
+        {
+            Conversation = LongMail.Lease,
+            Calls = [AgentConversationTools.ReadAttachmentToolName],
+        },
+        new(
+            "Agent.Long.UnreadAttachmentIsNamed",
+
+            // Nothing could read the drawing, so the answer names it as unread rather than describing the plans.
+            "Where did the meeting rooms end up on Ingrid's revised level 3 floor plans?",
+            UserLanguage.English,
+            [LongMail.UnreadDrawing],
+            ["floor plan", "level 3", "meeting room", "partition", "Ingrid", "drawing", "file", "attach", "plan", "dwg"])
+        {
+            MinimumIntentResolution = 3,
+        },
+        new(
+            "Agent.Long.TranscribedScan",
+
+            // The note is a photograph whose words a model read off it, which is stored as the file's own words.
+            "How many cartons did the signed delivery note for order QS-30418 record, and who signed for them?",
+            UserLanguage.English,
+            ["42", "Okafor"],
+            ["QS-30418", "delivery", "note", "carton", "Quayside", "paper", "damage", "sign", "Okafor", "DN-58213"]),
     ];
 
     /// <summary>Gets what this scenario is judged on: a rating for each threshold it records.</summary>
@@ -1341,12 +1406,12 @@ internal sealed record AgentConversationScenario(
         .. this.MinimumTaskAdherence is null ? [] : new IEvaluator[] { new TaskAdherenceEvaluator() },
     ];
 
-    /// <summary>Gets the mailbox every question is searched over: the corpus, the hostile mail, the Polish mail, and the person's unsent replies together.</summary>
+    /// <summary>Gets the mailbox every question is searched over: the corpus, the hostile mail, the Polish mail, the person's unsent replies, and the long mail together.</summary>
     /// <remarks>
     /// The unsent replies are this scenario's alone, because a deployment hands mail nobody received to the person's own
     /// Agent and to no other operation.
     /// </remarks>
-    public static IReadOnlyList<CorpusMessage> Mailbox => [.. PolishCorpus.MixedMailbox, .. UnsentMail.All];
+    public static IReadOnlyList<CorpusMessage> Mailbox => [.. PolishCorpus.MixedMailbox, .. UnsentMail.All, .. LongMail.All];
 
     /// <summary>Gets the proposals the question asks for, each as <see cref="DescriptionOf" /> states it, in any order; none where it asks for none.</summary>
     public IReadOnlyList<string> Proposes { get; init; } = [];
@@ -1518,6 +1583,12 @@ internal sealed record AgentConversationScenario(
 
     private static IReadOnlyList<string> ArchiveBoxSubject =>
         ["archive", "box", "courier", "collect", "collection", "Brightwater", "Solheim", "label", "RB-7", "sign", "Emil", "pick"];
+
+    private static IReadOnlyList<string> HarboursideSubject =>
+        ["Harbourside", "site", "report", "fit-out", "week", "contractor", "programme", "Hamid", "date"];
+
+    private static IReadOnlyList<string> LeaseSubject =>
+        ["Harbour Lane", "lease", "clause", "break", "notice", "rent", "tenant", "landlord", "Clara", "sign", "page", "insurance", "service charge"];
 
     private static IReadOnlyList<string> BillSubject => ["bill", "owe", "amount", "pay", "due", "finance", "EUR"];
 

@@ -434,6 +434,7 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
                 Census: null!,
                 ContentReader: null!,
                 ProvenanceReader: StubEmailProvenanceReader.AllKnownCorrespondents,
+                AttachmentTexts: StoredAttachmentTexts.None,
                 StateBrowser: null!,
                 Calendar: null!,
                 Tasks: null!,

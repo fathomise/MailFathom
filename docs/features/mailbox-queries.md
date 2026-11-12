@@ -257,7 +257,8 @@ layout arranges comes from it, no spam stage judges it, and no conversation's st
 The Agent reads it under a reader of its own, `ConversationAgent`, which sees the folders an agent sees and admits
 this mail where an agent's scope does not, so it can answer what the person wrote and has not sent. Its `search_mail`
 reaches such mail lexically — it carries no vector — `list_mail` lists it in the order mail arrived, `count_mail`
-counts it, and `read_thread` reads it in a conversation, each message marked
+counts it, `read_thread` reads it in a conversation, and `read_message` reads one of its messages on a page at a time,
+each message marked
 with the state it is in, as [where a message came from](mail-answering.md#where-a-message-came-from) describes. The
 Agent's thread state and reply proposal still read as an agent does.
 

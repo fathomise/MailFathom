@@ -11,6 +11,7 @@ using MailFathom.Application.EmailContent;
 using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.EmailContent.Repair;
 using MailFathom.Application.EmailContent.Storage;
+using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Census;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.GetEmailContent;
@@ -66,7 +67,7 @@ internal static class CorpusReaders
     private static readonly OutgoingEmailBounds DeploymentBounds = new MailDeliveryOptions().ToOutgoingEmailBounds();
 
     private static readonly Lazy<IReadOnlyList<IReadOnlyList<CorpusMessage>>> Exchanges = new(static () =>
-        [.. CorpusMessage.Exchanges, .. HostileMail.Exchanges, .. FalseClaimMail.Exchanges, .. PolishCorpus.Exchanges, .. UnsentMail.Exchanges]);
+        [.. CorpusMessage.Exchanges, .. HostileMail.Exchanges, .. FalseClaimMail.Exchanges, .. PolishCorpus.Exchanges, .. UnsentMail.Exchanges, .. LongMail.Exchanges]);
 
     private static readonly Lazy<StubEmailProvenanceReader> Provenance = new(static () => StubEmailProvenanceReader.Answering(
         Exchanges.Value.SelectMany(static exchange => exchange).ToDictionary(static message => message.Id, static message => message.Provenance)));
@@ -129,6 +130,7 @@ internal static class CorpusReaders
                 TimeProvider.System),
             ContentReaderOver(scope, authorization),
             Provenance.Value,
+            new CorpusAttachmentTexts(),
             new MailThreadStateBrowser(PersonalAgenda.ThreadStateReader(), scope, SensitiveContentEgressGuards.Inactive(), authorization),
             new OwnCalendar(
                 authorization,
@@ -296,6 +298,24 @@ internal static class CorpusReaders
 
         public Task<StoredEmailContent?> FindMailDraftContentAsync(MailDraftId draftId, CancellationToken cancellationToken) =>
             throw new NotSupportedException("The Agent never reads a draft.");
+    }
+
+    /// <summary>Reads back what the background reading stored for each file, which only <see cref="LongMail" /> carries; every other corpus file reads as one nothing has reached.</summary>
+    private sealed class CorpusAttachmentTexts : IEmailAttachmentTextReader
+    {
+        public Task<IReadOnlyDictionary<StoredEmailId, IReadOnlyList<AttachmentTextReading>>> ReadReadingsAsync(
+            IReadOnlyList<StoredEmailId> emailIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<StoredEmailId, IReadOnlyList<AttachmentTextReading>>>(
+                emailIds
+                    .Distinct()
+                    .Where(LongMail.Readings.ContainsKey)
+                    .ToDictionary(
+                        static emailId => emailId,
+                        static emailId => (IReadOnlyList<AttachmentTextReading>)[.. LongMail.Readings[emailId].Select(static stored => stored.Reading)]));
+
+        public Task<AttachmentTextContent?> ReadTextAsync(StoredEmailId emailId, int attachmentPosition, CancellationToken cancellationToken) =>
+            Task.FromResult(LongMail.Readings.GetValueOrDefault(emailId, []).FirstOrDefault(stored => stored.Reading.AttachmentPosition == attachmentPosition));
     }
 
     private sealed class NotSynchronized : ISynchronizationFreshnessReader

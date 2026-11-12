@@ -10,6 +10,7 @@ using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Answering.Audit;
+using MailFathom.Domain.Emails;
 using Microsoft.Extensions.AI;
 
 namespace MailFathom.AI.Retrieval;
@@ -52,6 +53,9 @@ internal sealed class ScopedMailKnowledgeRetrieval
     /// lookup.
     /// </remarks>
     internal const string SearchToolName = "search_mail";
+
+    /// <summary>Names the tool the model calls to find where one message, and the files it carries, hold some words.</summary>
+    internal const string MessageSearchToolName = "search_message";
 
     /// <summary>Names the tool's one required argument, which is the text every lookup ranks against.</summary>
     /// <remarks>Published as a constant because the framework reads it off a parameter, and a test scripting a tool call has to name the same thing the schema does.</remarks>
@@ -104,6 +108,16 @@ internal sealed class ScopedMailKnowledgeRetrieval
         + "Which accounts and folders are searched is fixed by the caller and is not yours to set. Each call returns one "
         + "window of the most relevant results that nothing continues, so call it again with a different query or "
         + "narrower filters to reach other mail. Matching nothing is an ordinary empty result rather than an error.";
+
+    /// <summary>What the model is told the search inside one message does, and when it is the tool to reach for.</summary>
+    private const string MessageSearchToolDescription =
+        "Finds where one message — its body and every document it carries — holds the words of a query, and returns "
+        + "the extracts around them, more of them than a search of the whole mailbox returns for any one message, each "
+        + "naming the file and the page, slide, or sheet it came from. Use it for a question about one long message or "
+        + "one long document, such as a clause of a contract or a figure in a report, instead of reading every page; "
+        + "then read on from the page an extract names. It matches the words the query contains rather than what they "
+        + "mean, and never reaches a model's description of a picture, which you read whole instead. Name the message "
+        + "by the id a reading, a listing, or a search showed for it.";
 
     private readonly IEmailKnowledgeSearch knowledgeSearch;
     private readonly MailboxScope scope;
@@ -190,6 +204,17 @@ internal sealed class ScopedMailKnowledgeRetrieval
     internal AIFunction CreateSearchTool() =>
         AIFunctionFactory.Create(this.SearchAsync, SearchToolName, SearchToolDescription);
 
+    /// <summary>Builds the tool that searches inside one message the model names.</summary>
+    /// <returns>The tool, which searches only when the model calls it.</returns>
+    /// <remarks>
+    /// Offered beside the mailbox search rather than folded into it as one more filter, because it answers a different
+    /// question: not which mail holds the words but where in one message they stand, which no ranking over the scope
+    /// would put first. It reaches the same scope, spends the same ceiling, and records into the same report, so an
+    /// answer resting on it cites what it read exactly as one resting on a search does.
+    /// </remarks>
+    internal AIFunction CreateMessageSearchTool() =>
+        AIFunctionFactory.Create(this.SearchMessageAsync, MessageSearchToolName, MessageSearchToolDescription);
+
     /// <summary>Answers one lookup the model asked for, with as much of what it found as this run may still send.</summary>
     /// <remarks>
     /// <para>
@@ -272,6 +297,51 @@ internal sealed class ScopedMailKnowledgeRetrieval
             return RetrievedMailContextFormatter.FormatRefusal(refusal.FilterName, refusal.Message);
         }
 
+        return await this.AdmittedAsync(found, cancellationToken);
+    }
+
+    /// <summary>Answers one search inside a message the model named, with as much of what it found as this run may still send.</summary>
+    /// <remarks>
+    /// An identifier the model wrote that names no message, or a message outside the scope, answers as an empty
+    /// envelope, the same answer a message holding none of the words gets: telling the two apart would tell a model
+    /// which identifiers name mail somebody else reads.
+    /// </remarks>
+    private async Task<string> SearchMessageAsync(
+        [Description("The id of the message to search, as a reading, a listing, or a search showed it.")]
+        string messageId,
+        [Description("The words to find in it, up to 512 characters, written as the message or its documents would write them, in their language. " + EmailSearchQueryText.MatchingDescription)]
+        string queryText,
+        CancellationToken cancellationToken = default)
+    {
+        if (RefusedQueryText(queryText) is { } refused)
+        {
+            return refused;
+        }
+
+        if (!Guid.TryParse(messageId, out var named))
+        {
+            return RetrievedMailContextFormatter.FormatRefusal(
+                "messageId",
+                "Give the id a reading, a listing, or a search showed for the message.");
+        }
+
+        EmailKnowledgeLookup found;
+
+        try
+        {
+            found = await this.knowledgeSearch.FindPassagesWithinAsync(this.scope, StoredEmailId.Create(named), queryText, cancellationToken);
+        }
+        catch (MailboxQueryFilterInvalidException refusal)
+        {
+            return RetrievedMailContextFormatter.FormatRefusal(refusal.FilterName, refusal.Message);
+        }
+
+        return await this.AdmittedAsync(found, cancellationToken);
+    }
+
+    /// <summary>Takes what one lookup found that this run may still send, records it, and writes it into the envelope.</summary>
+    private async Task<string> AdmittedAsync(EmailKnowledgeLookup found, CancellationToken cancellationToken)
+    {
         var admitted = this.RunLedger.AdmitPassages(found.Passages);
 
         lock (this.gate)

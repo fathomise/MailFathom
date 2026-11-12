@@ -1,6 +1,6 @@
 # Attachment text extraction
 
-<!-- describes: backend/src/Application/Emails/Extraction/Attachments/**, backend/src/Application/Emails/Extraction/Images/**, backend/src/Application/Emails/AttachmentText/DerivedAttachmentText.cs, backend/src/Infrastructure/Documents/**, backend/src/Host/Configuration/Embeddings/AttachmentTextOptions.cs -->
+<!-- describes: backend/src/Application/Emails/Extraction/Attachments/**, backend/src/Application/Emails/Extraction/Images/**, backend/src/Application/Emails/AttachmentText/DerivedAttachmentText.cs, backend/src/Application/Emails/AttachmentText/IEmailAttachmentTextReader.cs, backend/src/Infrastructure/Persistence/Emails/EmailAttachmentTextReader.cs, backend/src/Infrastructure/Documents/**, backend/src/Host/Configuration/Embeddings/AttachmentTextOptions.cs -->
 
 MailFathom reads the words inside a document somebody attached, so that a contract or an invoice is findable by what it
 says rather than only by the note it arrived with. `IAttachmentTextExtractor` is the one way that happens: it is handed
@@ -369,6 +369,15 @@ status` reports the deployment, with both periods beside it.
 make, beside the passages it would send, and refuses the activation outright when either estimate is past what one
 period admits — so an operator agreeing to one bill is not handed the other afterwards. The refusal names the key to
 raise.
+
+## Who reads what a reading stored
+
+Two readers come back to the stored rows. Search cuts extracts out of a file's words, and the Agent reads them back:
+what every file of a conversation came to — its outcome, its kind, and how many pages it was read into, without its
+words — and, for one file at a time, its words with the boundaries recorded above, so a page is named by the number its
+reading gave it. Neither checks that the caller may read the message, because each reaches a message only through a
+read of that message under the caller's own scope; [mail answering](mail-answering.md#the-agent-reads-a-long-message-and-a-file-a-page-at-a-time)
+holds what the Agent is shown.
 
 ## Configuration
 
