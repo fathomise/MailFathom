@@ -37,7 +37,7 @@ internal static class InvoiceRunMail
     public const string LatestSupplierName = "Wrenhollow Print";
 
     /// <summary>Where these positions begin, past every other corpus's.</summary>
-    private const int FirstPosition = 70_000;
+    private const int FirstPosition = 80_000;
 
     private const int InvoiceCount = 27;
 
