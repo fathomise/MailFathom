@@ -1347,7 +1347,7 @@ export function Composer({
                             noContextSaid={wide ? 'compose.aiContextNone' : 'compose.aiContextNoneHere'}
                             changedFrom={changedFrom}
                             asked={opening.kind === 'answer' ? (opening.drafting?.asked ?? '') : ''}
-                            busy={drafting}
+                            busy={drafting || rewriteChange !== null}
                             onDraft={(instruction) => {
                                 askForADraft(instruction);
                             }}

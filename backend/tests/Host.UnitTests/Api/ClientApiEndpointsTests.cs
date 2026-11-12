@@ -775,6 +775,29 @@ public sealed class ClientApiEndpointsTests
             write.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
     }
 
+    /// <summary>A rewriting of part of a draft carries a bound sized for the draft, its passages, and the ask rather than the server's default.</summary>
+    [Fact]
+    public void MapClientApi_ThePassageRewriting_CarriesItsOwnRequestBodyBound()
+    {
+        // Arrange
+        var endpoints = BuildRouteBuilder();
+
+        // Act
+        endpoints.MapClientApi();
+
+        // Assert
+        var rewriting = endpoints.Materialize()
+            .OfType<RouteEndpoint>()
+            .Single(endpoint =>
+                $"/{endpoint.RoutePattern.RawText?.TrimStart('/')}"
+                    == $"{ClientEndpointOptions.RoutePrefix}{ClientReplyDraftingEndpoint.PassageRewritingRoute}"
+                && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("POST"));
+
+        Assert.Equal(
+            ClientReplyDraftingEndpoint.MaxPassageRewritingRequestBytes,
+            rewriting.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
+    }
+
     /// <summary>The automatic reply write carries a bound sized for its two texts and its accounts rather than the server's default.</summary>
     [Fact]
     public void MapClientApi_TheAutomaticReplyWrite_CarriesItsOwnRequestBodyBound()

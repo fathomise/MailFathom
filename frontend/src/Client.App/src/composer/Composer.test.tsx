@@ -3410,6 +3410,22 @@ describe('Composer, rewriting a selected part of the message', () => {
         expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
     });
 
+    it('holds the drafting acts and the send shortcut while a rewrite stands over the words', async () => {
+        const { asked } = drawRewriting(rewritingInto(['We accept the price.']).rewriter);
+
+        address('ada@example.invalid');
+        writeWords(written);
+        rewriteShorter('the price');
+
+        expect(await screen.findByRole('button', { name: 'Keep the rewritten text in the message' })).toBeDefined();
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Write a draft' }).disabled).toBe(true);
+
+        fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'Enter', ctrlKey: true });
+
+        expect(screen.queryByRole('dialog', { name: 'Send this message?' })).toBeNull();
+        expect(beyondTheBook(asked)).toHaveLength(0);
+    });
+
     it('hands the keyboard back to the message when the bar is closed', () => {
         drawRewriting(rewritingInto().rewriter);
         writeWords(written);
