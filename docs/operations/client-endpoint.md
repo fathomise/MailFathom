@@ -2289,7 +2289,7 @@ a file arrived on and its position there, and nothing else about the file was ke
 client asks here, under the reader's grant at the moment they press, exactly as the mail screen does. The `404` above is
 what lets the card turn to its gone state: a message removed since the answer, one no longer the reader's to open, and a
 file no longer stored all answer it, and pressing again would change none of them, while every other refusal leaves the
-card offered. [The presentation plan](../features/presentation-plan.md#the-twelve-block-types) holds what the block
+card offered. [The presentation plan](../features/presentation-plan.md#the-thirteen-block-types) holds what the block
 carries.
 
 **It is served from the local copy.** Nothing here contacts a mail server, so downloading a file cannot fetch a message

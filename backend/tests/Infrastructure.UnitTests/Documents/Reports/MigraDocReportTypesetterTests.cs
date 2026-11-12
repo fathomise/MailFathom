@@ -209,6 +209,28 @@ public sealed class MigraDocReportTypesetterTests
         Assert.IsType<ArgumentException>(refused);
     }
 
+    /// <summary>
+    /// A body of nothing but nesting markers is bounded in characters alone, so it builds a tree as deep as it is long;
+    /// setting one still sets its words rather than walking the tree to the bottom of the stack.
+    /// </summary>
+    [Theory]
+    [InlineData("> ")]
+    [InlineData("- ")]
+    [InlineData("1. ")]
+    [InlineData("*")]
+    public void Typeset_ABodyNestedThousandsDeep_SetsItsWords(string marker)
+    {
+        // Arrange
+        var nesting = string.Concat(Enumerable.Repeat(marker, 15_000));
+        var body = marker == "*" ? $"{nesting}Bedrock{nesting}" : $"{nesting}Bedrock";
+
+        // Act
+        var document = this.typesetter.Typeset(Report(body));
+
+        // Assert
+        Assert.Contains("Bedrock", TextOf(document), StringComparison.Ordinal);
+    }
+
     private static AgentReport Report(string body) => new("The move", body, WrittenAt, UserLanguage.English, []);
 
     private static string TextOf(AgentReportDocument document) => string.Concat(PagesOf(document));

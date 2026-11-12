@@ -66,7 +66,8 @@ internal static partial class ReportFindings
     [GeneratedRegex(@"^\s*\|.*\|\s*$", RegexOptions.CultureInvariant)]
     private static partial Regex TableRow();
 
-    [GeneratedRegex(@"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$", RegexOptions.CultureInvariant)]
+    // At least one pipe, so a thematic break or a setext underline, which is dashes alone, is not read as a table.
+    [GeneratedRegex(@"^\s*(\|\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?|:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?)\s*$", RegexOptions.CultureInvariant)]
     private static partial Regex TableSeparator();
 
     [GeneratedRegex(@"^\s{0,3}>", RegexOptions.CultureInvariant)]

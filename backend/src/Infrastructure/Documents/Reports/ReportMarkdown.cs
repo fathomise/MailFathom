@@ -17,7 +17,8 @@ namespace MailFathom.Infrastructure.Documents.Reports;
 /// <para>
 /// <strong>What is set:</strong> headings at three levels under the title, paragraphs, bulleted and numbered lists nested
 /// up to three deep, quotations, tables whose header row repeats on every page they run onto, emphasis, strong emphasis,
-/// code, and a thematic break. A heading is kept with what follows it, so it is never the last line of a page.
+/// code, and a thematic break. A heading is kept with what follows it, so it is never the last line of a page. A body
+/// nested deeper than the parser reads is set as the text it is.
 /// </para>
 /// <para>
 /// <strong>What is set as its words and nothing more:</strong> raw HTML, which the parser is told not to read, so a tag
@@ -41,7 +42,14 @@ internal static partial class ReportMarkdown
     private const double ListIndentPoints = 16;
     private const double ListMarkerPoints = 12;
 
-    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder().UsePipeTables().DisableHtml().Build();
+    // The body is bounded in characters alone, and a body of nothing but `>` or `- ` markers builds a tree as deep as it
+    // is long. The parser refuses one nested past this depth rather than building it, which is what bounds the walk below.
+    private const int DeepestNesting = 32;
+
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder { MaximumNestingDepth = DeepestNesting }
+        .UsePipeTables()
+        .DisableHtml()
+        .Build();
 
     /// <summary>Sets a body of Markdown at the end of a section, cell, or other run of elements.</summary>
     /// <param name="elements">Where the blocks go.</param>
@@ -49,7 +57,20 @@ internal static partial class ReportMarkdown
     /// <param name="sourceCount">How many sources the report lists, which bounds the citations set.</param>
     internal static void Set(DocumentElements elements, string markdown, int sourceCount)
     {
-        var document = Markdown.Parse(WithCitationsCarried(markdown, sourceCount), Pipeline);
+        var carried = WithCitationsCarried(markdown, sourceCount);
+        MarkdownDocument document;
+
+        try
+        {
+            document = Markdown.Parse(carried, Pipeline);
+        }
+        catch (ArgumentException)
+        {
+            // The parser's refusal of a body nested past DeepestNesting; its words are still the report, set as written.
+            SetText(elements.AddParagraph(), carried, lineBreaks: true);
+
+            return;
+        }
 
         SetBlocks(elements, document, listLevel: 0);
     }

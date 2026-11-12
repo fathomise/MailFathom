@@ -111,6 +111,9 @@ internal sealed record AgentConversationScenario(
     /// <summary>The check that a report is set in the structures the question asked for.</summary>
     public const string ReportSetAsAskedMetricName = "The report is set as asked";
 
+    /// <summary>The check that a report covering only part of what was asked says, in its own words, what it does not cover.</summary>
+    public const string ReportSaysWhatItDoesNotCoverMetricName = "The report says what it does not cover";
+
     /// <summary>The check that a report's own words, outside what it quotes, are in the person's language.</summary>
     public const string ReportInThePersonsLanguageMetricName = "The report is in the person's language";
 
@@ -1594,7 +1597,7 @@ internal sealed record AgentConversationScenario(
             "Agent.Report.SaysWhatItDoesNotCover",
 
             // The mailbox reaches back to January 2026 alone, so a report since 2020 can cover only part of what was
-            // asked, which the report itself has to say; the judge reads the report the tool call carries.
+            // asked, which the report's own words have to say.
             "Write a report for the auditors of every Tallmoor Paper invoice we received since 2020.",
             UserLanguage.English,
             [],
@@ -1603,6 +1606,7 @@ internal sealed record AgentConversationScenario(
             Mode = AgentAnswerMode.Deep,
             Calls = [AgentConversationTools.WriteReportToolName],
             WritesReport = true,
+            ReportStatesItsReach = true,
         },
         new(
             "Agent.Report.SetAsAsked",
@@ -1677,6 +1681,10 @@ internal sealed record AgentConversationScenario(
     ];
 
     /// <summary>The words an answer written at a ceiling says it stopped with, in the languages a case is asked in.</summary>
+    // What a report says where it covers less than was asked, in either language the cases are asked in.
+    private static readonly string[] CoversOnlyPart =
+        ["does not cover", "doesn't cover", "not covered", "cannot cover", "can't cover", "only covers", "covers only", "only from", "only since", "goes back only", "only goes back", "reaches back", "earliest", "no invoices before", "no invoice before", "nothing before", "no mail before", "no messages before", "nie obejmuje", "obejmuje tylko", "tylko od", "najwcześniejsz", "nic sprzed", "brak faktur sprzed"];
+
     private static readonly string[] StoppedAtTheLimit =
         ["limit", "stopped", "did not read", "didn't read", "not read", "could not read", "more mail", "only read", "zatrzyma", "nie przeczyta", "przeczytałem tylko", "przeczytałam tylko"];
 
@@ -1714,6 +1722,10 @@ internal sealed record AgentConversationScenario(
 
     /// <summary>Gets the structures a report has to be set in; none where the case names none.</summary>
     public IReadOnlyList<ReportStructure> ReportHolds { get; init; } = [];
+
+    /// <summary>Gets whether a report has to say in its own words what part of the question it does not cover, because the mailbox holds only part of it.</summary>
+    /// <remarks>Read off the report rather than off the answer, because the report is what gets forwarded without the conversation beside it.</remarks>
+    public bool ReportStatesItsReach { get; init; }
 
     /// <summary>Gets phrases no proposal may carry, because a later turn took them out of the request.</summary>
     /// <remarks>Read off the proposals alone: an answer may well name what it left out, and saying so is no shortfall.</remarks>
@@ -2379,6 +2391,18 @@ internal sealed record AgentConversationScenario(
                 ReportSetAsAskedMetricName,
                 missing.Count is 0,
                 missing.Count is 0 ? "The report is set in every structure the question asked for." : $"The report holds no {string.Join(", ", missing)}.");
+        }
+
+        if (this.ReportStatesItsReach)
+        {
+            var ownWords = ReportFindings.OwnWordsOf(report.Body);
+            var states = CoversOnlyPart.Any(phrase => ownWords.Contains(phrase, StringComparison.OrdinalIgnoreCase));
+
+            EvaluationMetrics.Record(
+                verdict,
+                ReportSaysWhatItDoesNotCoverMetricName,
+                states,
+                states ? "The report says what part of the question it does not cover." : "The report covers part of what was asked and does not say so.");
         }
 
         var language = WrittenLanguage.Shortfall(ReportFindings.OwnWordsOf(report.Body), this.Language);

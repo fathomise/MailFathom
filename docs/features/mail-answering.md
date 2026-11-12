@@ -347,7 +347,9 @@ tables, quotations, bold, italics, code, and a thematic break are set as the tem
 a section, since the title is the page's own. A table that runs past a page repeats its header row on the next. A
 quotation's last paragraph opening with `— ` names who wrote it and when, and is set as that line. Raw HTML is printed
 as the characters it was written in, a link and a picture as their words alone, and an autolink as its address in
-plain text: nothing is fetched, followed, or run, and no address is embedded as a link.
+plain text: nothing is fetched, followed, or run, and no address is embedded as a link. A body nesting quotations or
+lists more than 32 deep is not parsed at all and is set as the text it was written in, because its length alone bounds
+how deep it could go.
 
 **Its sources are minted, never written.** The model cites a statement with `[^id]`, naming a message by the id a
 reading, a search, or a listing showed it, or a file the question carries by its `file-id`. The tool resolves each
@@ -864,7 +866,7 @@ The answer text, the links it writes, and the passages the run retrieved. The pa
 what make it checkable: each names a message that can then be fetched whole.
 
 The text is published with its picture markup neutralised and every link in it judged, on the rule
-[the presentation plan](presentation-plan.md#the-twelve-block-types) states for an answer block: a link carries what
+[the presentation plan](presentation-plan.md#the-thirteen-block-types) states for an answer block: a link carries what
 `MailLinkReader` established about it and whether any retrieved passage or attachment extract carries its address. The
 pictures are neutralised after the sensitive-content scanner below, because its placeholder opens with a bracket and a
 mark the model wrote in front of a detected value would otherwise make it a picture, and before the cut to what one

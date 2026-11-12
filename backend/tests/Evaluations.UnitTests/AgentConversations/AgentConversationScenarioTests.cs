@@ -1227,6 +1227,26 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.ReportSetAsAskedMetricName).Value);
     }
 
+    /// <summary>A report asked for more years than the mailbox holds says what it does not cover, so one silently covering the year it found is caught by the coverage check.</summary>
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task RunAsync_AReportAskedForMoreThanTheMailboxHolds_PassesTheCoverageCheckOnlyWhereItSaysWhatItDoesNotCover(bool states, bool passes)
+    {
+        // Arrange
+        var invoice = InvoiceRunMail.All[0].Id.ToString();
+        var reach = states ? "\n\nThe mailbox goes back only to January 2026, so this report does not cover 2020 to 2025." : string.Empty;
+        using var model = new ScriptedAgentChatClient(
+            [ReadThread(invoice), WriteReport("Tallmoor Paper invoices", $"- The first Tallmoor Paper invoice in the mailbox arrived in January 2026.[^{invoice}]{reach}")],
+            "I wrote the report on the Tallmoor Paper invoices.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.Report.SaysWhatItDoesNotCover"), model);
+
+        // Assert
+        Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.ReportSaysWhatItDoesNotCoverMetricName).Value);
+    }
+
     /// <summary>A report asked in Polish is written in Polish, so one written in English is caught by the language check.</summary>
     [Theory]
     [InlineData(true, true)]

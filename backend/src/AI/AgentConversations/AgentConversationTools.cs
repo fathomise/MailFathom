@@ -295,6 +295,8 @@ internal sealed partial class AgentConversationTools
     /// propose onto the calendar or the task list where the grant writes it, and the ones proposing mail where it
     /// drafts and sends. The two over the conversation's own files need no grant beyond the one the run was asked
     /// under, being the person's own files of this conversation, and are offered where it holds a document with words.
+    /// The one writing a report needs none either, writing nothing but a file of the same conversation, and is offered
+    /// wherever the run was handed the conversation to store it in — which every Agent run is.
     /// </returns>
     internal IReadOnlyList<AITool> Create()
     {

@@ -629,7 +629,7 @@ and the link goes to another, `NotApplicable` where the text is not a place at a
 The determination belongs here rather than to each client, so two clients reading one message cannot disagree about how
 loudly to warn, and a client that never learned what a homograph is still shows what this deployment found. The same
 reader judges every link an AI answer writes, which is why it lives in `Application` rather than in the MIME adapter:
-[the presentation plan](presentation-plan.md#the-twelve-block-types) holds what an answer carries beside each judgement.
+[the presentation plan](presentation-plan.md#the-thirteen-block-types) holds what an answer carries beside each judgement.
 
 **An address a message wrote as words carries one too.** A URL with its own scheme, a bare `www.` host, and a mail
 address are each found in the text of a run that is not already inside a link, and each becomes an ordinary

@@ -1835,6 +1835,89 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         Assert.Empty(this.written.OfType<AgentBlockComposed>());
     }
 
+    /// <summary>A report with no title or no body is refused before anything is set, so the model is told what a report has.</summary>
+    [Theory]
+    [InlineData("   ", "Body.")]
+    [InlineData("The move", " \n\t ")]
+    public async Task WriteReport_ABlankTitleOrBody_IsRefusedAndSetsNothing(string title, string markdown)
+    {
+        // Arrange
+        var (files, reporting) = await this.ReportingAsync();
+        var set = this.SettingReports(pages: 1);
+        this.tools = this.Tools(AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead), SensitiveContentEgressGuards.Inactive(), files: files, reporting: reporting);
+
+        // Act
+        var answer = await this.CreatedTool(AgentConversationTools.WriteReportToolName)
+            .InvokeAsync(WritingReport(title, markdown), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("A report has a title and a body.", answer?.ToString());
+        Assert.Empty(set);
+        Assert.Empty(this.written.OfType<AgentBlockComposed>());
+    }
+
+    /// <summary>
+    /// A report the conversation cannot take is handed to nobody, so the model is told why and to give its findings in
+    /// the answer instead: a conversation already holding every file one may, and a store that kept no octets.
+    /// </summary>
+    [Theory]
+    [InlineData(AgentConversationFileBounds.MaximumFilesPerConversation, true, "this conversation already holds the 20 files one may")]
+    [InlineData(0, false, "The report could not be stored.")]
+    public async Task WriteReport_AConversationThatCannotTakeIt_IsRefusedAndPlacesNoBlock(int holding, bool storing, string refusal)
+    {
+        // Arrange
+        var (files, reporting) = await this.ReportingAsync(holding: holding, storing: storing);
+        this.SettingReports(pages: 1);
+        this.tools = this.Tools(AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead), SensitiveContentEgressGuards.Inactive(), files: files, reporting: reporting);
+
+        // Act
+        var answer = await this.CreatedTool(AgentConversationTools.WriteReportToolName)
+            .InvokeAsync(WritingReport("The move", "The move is on 3 October."), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(refusal, answer?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("give them your findings in the answer instead", answer?.ToString(), StringComparison.Ordinal);
+        Assert.Empty(this.written.OfType<AgentBlockComposed>());
+        Assert.Equal(holding, (await files.ListAsync(reporting.Question.Conversation, reporting.Question.User, TestContext.Current.CancellationToken)).Count);
+    }
+
+    /// <summary>A report citing more messages than a report lists keeps the first it cites, so its list of sources stays bounded.</summary>
+    [Fact]
+    public async Task WriteReport_CitingMoreMessagesThanAReportLists_ListsTheFirstItCitesUpToTheBound()
+    {
+        // Arrange
+        var (reader, messages) = ReadingConversation(AgentReportBounds.MaximumSources + 10);
+        var (files, reporting) = await this.ReportingAsync();
+        var set = this.SettingReports(pages: 3);
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            contentReader: reader,
+            runBounds: MailAnsweringRunBounds.Create(1_000_000, 8, 1_000_000),
+            files: files,
+            reporting: reporting);
+        var reading = this.CreatedTool(AgentConversationTools.ReadThreadToolName);
+
+        // A reading shows the stretch ending at the message it names, so naming every tenth shows all of them.
+        foreach (var named in messages.Chunk(10).Select(static stretch => stretch[^1]))
+        {
+            await reading.InvokeAsync(ReadingThreadOf(named.ToString()), TestContext.Current.CancellationToken);
+        }
+
+        var body = string.Concat(messages.Select(static (message, index) => $"- Finding {index + 1}.[^{message}]\n"));
+
+        // Act
+        await this.CreatedTool(AgentConversationTools.WriteReportToolName)
+            .InvokeAsync(WritingReport("Every message", body), TestContext.Current.CancellationToken);
+
+        // Assert
+        var report = Assert.Single(set);
+
+        Assert.Equal(AgentReportBounds.MaximumSources, report.Sources.Count);
+        Assert.Contains($"- Finding {AgentReportBounds.MaximumSources}.[^{AgentReportBounds.MaximumSources}]", report.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain($"[^{AgentReportBounds.MaximumSources + 1}]", report.Body, StringComparison.Ordinal);
+    }
+
     private static AIFunctionArguments WritingReport(string title, string markdown) =>
         new(new Dictionary<string, object?> { ["title"] = title, ["markdown"] = markdown });
 
@@ -1850,15 +1933,27 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
     }
 
     /// <summary>Arranges files a report can be stored into, and the question it would answer, carrying one file of the conversation where a name is given.</summary>
-    private async Task<(AgentConversationFiles Files, AgentConversationReporting Reporting)> ReportingAsync(string? carrying = null)
+    /// <summary>Arranges the conversation a report is written into.</summary>
+    /// <param name="carrying">The name of a file the question carries, or <see langword="null" /> for none.</param>
+    /// <param name="holding">How many files the conversation already holds beside it.</param>
+    /// <param name="storing">Whether storing a file's octets succeeds.</param>
+    private async Task<(AgentConversationFiles Files, AgentConversationReporting Reporting)> ReportingAsync(string? carrying = null, int holding = 0, bool storing = true)
     {
         var store = new InMemoryAgentConversationFileStore();
         var storedFiles = Substitute.For<IStoredFileStore>();
         storedFiles
             .WriteAsync(Arg.Any<UserId>(), Arg.Any<string>(), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult<StoredFileId?>(StoredFileId.Create(Guid.CreateVersion7())));
+            .Returns(_ => Task.FromResult(storing ? StoredFileId.Create(Guid.CreateVersion7()) : (StoredFileId?)null));
         var files = ConversationFiles.Over(store, storedFiles);
         IReadOnlyList<AgentConversationFileId> carried = [];
+
+        foreach (var held in Enumerable.Range(1, holding))
+        {
+            store.Hold(
+                this.conversation,
+                SyntheticUser.Deployment,
+                new AgentConversationFileText(new AgentConversationFile(AgentConversationFileId.Create(Guid.CreateVersion7()), $"Earlier {held}.pdf", AgentConversationFileKind.Document, "application/pdf", 10, Now, Reading: null), string.Empty, []));
+        }
 
         if (carrying is not null)
         {
