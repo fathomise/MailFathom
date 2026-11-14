@@ -251,7 +251,7 @@ public static class ServiceCollectionExtensions
 
     /// <summary>The largest token endpoint response read, beyond which the request fails.</summary>
     /// <remarks>An RFC 6749 token response is a few hundred bytes; even a JWT access token stays well inside this. The limit exists so a replaced or compromised authorization server cannot make a synchronization run buffer an unbounded body.</remarks>
-    private const int MailOAuthTokenResponseSizeLimitInBytes = 64 * 1024;
+    internal const int MailOAuthTokenResponseSizeLimitInBytes = 64 * 1024;
 
     /// <summary>How many response bytes one analyzed character of text may produce, which bounds an analyzer answer.</summary>
     /// <remarks>

@@ -278,8 +278,11 @@ internal sealed class MailOAuthAccessTokenSource : IMailAccessTokenSource
                 OAuthJsonContext.Default.OAuthTokenResponse,
                 cancellationToken);
         }
-        catch (JsonException unreadableAnswer)
+        catch (Exception unreadableAnswer) when (unreadableAnswer is JsonException or NotSupportedException or InvalidOperationException)
         {
+            // An answer naming a character set this platform does not carry never reaches the parser: the transport
+            // raises InvalidOperationException before a byte is read, and a content type it will not read as JSON
+            // raises NotSupportedException. Both are the same answer as a body that does not parse.
             throw new HttpRequestException(
                 "The authorization server's answer could not be read as a token response.",
                 unreadableAnswer,

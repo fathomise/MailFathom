@@ -38,6 +38,12 @@ public sealed class MailOAuthAccessTokenSourceTests
     /// <summary>What a gateway answers with in an authorization server's place: a page for a person, not a token response.</summary>
     private const string GatewayErrorPage = "<html><body><h1>Bad Gateway</h1></body></html>";
 
+    /// <summary>
+    /// A name no encoding provider resolves. A legacy code page would not do: this process registers the code-page
+    /// provider the mail library needs, so a page in one is transcoded and fails in the parser like any other page.
+    /// </summary>
+    private const string CharacterSetNoPlatformCarries = "x-no-such-character-set";
+
     /// <summary>Finer than the shortest backoff the authorization-server budget draws, so no wait is stepped over.</summary>
     private static readonly TimeSpan VirtualTimeStep = TimeSpan.FromMilliseconds(100);
 
@@ -218,6 +224,33 @@ public sealed class MailOAuthAccessTokenSourceTests
     }
 
     /// <summary>
+    /// A page naming a character set this platform does not carry never reaches the parser, so it fails as the
+    /// transport's own exception rather than as a parse failure. It is the same outage and is repeated the same way.
+    /// </summary>
+    [Fact]
+    public async Task GetAccessTokenAsync_AGatewayPageInAnUnsupportedCharacterSet_IsAskedAgain()
+    {
+        // Arrange
+        using var context = TokenEndpointAnswering(
+            GatewayErrorPage,
+            HttpStatusCode.BadGateway,
+            mediaType: MediaTypeNames.Text.Html,
+            characterSet: CharacterSetNoPlatformCarries);
+
+        // Act
+        var failure = await Assert.ThrowsAsync<MailAccessTokenUnavailableException>(
+            () => context.Host.CompleteOnVirtualTimeAsync(
+                context.Source.GetAccessTokenAsync(Account, TestContext.Current.CancellationToken),
+                VirtualTimeStep));
+
+        // Assert
+        var statedByStatus = Assert.IsType<HttpRequestException>(failure.InnerException);
+        Assert.Equal(HttpStatusCode.BadGateway, statedByStatus.StatusCode);
+        Assert.IsType<InvalidOperationException>(statedByStatus.InnerException);
+        Assert.True(context.Handler.RecordedRequests.Count > 1);
+    }
+
+    /// <summary>
     /// An answer that cannot be read and that no outage explains will not read differently the next time: a success
     /// carrying a page is an address that is not a token endpoint, and a rejection carrying one is still a rejection.
     /// </summary>
@@ -338,11 +371,15 @@ public sealed class MailOAuthAccessTokenSourceTests
         string? clientSecret = null,
         string? storedRefreshToken = null,
         MailOAuthGrant? grant = null,
-        string mediaType = MediaTypeNames.Application.Json) =>
+        string mediaType = MediaTypeNames.Application.Json,
+        string? characterSet = null) =>
         TokenEndpointBehind(
-            FakeHttpMessageHandler.AlwaysResponding(() => new HttpResponseMessage(status)
+            FakeHttpMessageHandler.AlwaysResponding(() =>
             {
-                Content = new StringContent(body, Encoding.UTF8, mediaType),
+                var content = new StringContent(body, Encoding.UTF8, mediaType);
+                content.Headers.ContentType!.CharSet = characterSet ?? content.Headers.ContentType.CharSet;
+
+                return new HttpResponseMessage(status) { Content = content };
             }),
             clientSecret,
             storedRefreshToken,
