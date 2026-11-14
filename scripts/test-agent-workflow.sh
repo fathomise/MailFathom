@@ -11582,6 +11582,61 @@ the_dependency_survey_refuses_what_would_write_without_being_asked() {
   "$script" --help > /dev/null
 }
 
+# `scripts/inject-fault.sh` talks to a proxy nobody runs here, so a fake `curl` records each request and answers the
+# one read the script makes. What it must get right is that a fault it started is the fault it removes — by the
+# preset's own name, never a reset of what another run holds — and that a refused argument reaches no proxy at all.
+the_fault_script_removes_the_fault_it_started_and_nothing_else() {
+  local script="$source_repository_root/scripts/inject-fault.sh"
+  local bin_directory="$test_directory/inject-fault-bin"
+  local request_log="$test_directory/inject-fault-requests"
+
+  [[ -x "$script" ]] || {
+    printf 'scripts/inject-fault.sh is not executable\n' >&2
+    return 1
+  }
+
+  mkdir -p "$bin_directory"
+  cat > "$bin_directory/curl" << 'FAKE'
+#!/usr/bin/env bash
+method='GET' body=''
+while (($#)); do
+  case "$1" in
+    --request) method="$2"; shift ;;
+    --data) body="$2"; shift ;;
+    http://*) address="$1" ;;
+  esac
+  shift
+done
+printf '%s %s %s\n' "$method" "$address" "$body" >> "$FAKE_REQUEST_LOG"
+printf '{"enabled": true}'
+FAKE
+  chmod +x "$bin_directory/curl"
+
+  : > "$request_log"
+  (
+    export PATH="$bin_directory:$PATH" FAKE_REQUEST_LOG="$request_log" MAILFATHOM_FAULTS_CONTROL_PORT=9474
+    "$script" --help > /dev/null
+    ! "$script" start no-such-preset > /dev/null 2>&1
+    ! "$script" start imap-slow --for 5x > /dev/null 2>&1
+    ! "$script" stop 'imap.*' > /dev/null 2>&1
+  )
+  if [[ -s "$request_log" ]]; then
+    printf 'a refused argument still reached the proxy:\n%s\n' "$(cat "$request_log")" >&2
+    return 1
+  fi
+
+  PATH="$bin_directory:$PATH" FAKE_REQUEST_LOG="$request_log" MAILFATHOM_FAULTS_CONTROL_PORT=9474 \
+    "$script" start imap-slow --for 1 > /dev/null
+  PATH="$bin_directory:$PATH" FAKE_REQUEST_LOG="$request_log" MAILFATHOM_FAULTS_CONTROL_PORT=9474 \
+    "$script" start smtp-down --for 1 > /dev/null
+
+  assert_contains 'POST http://127.0.0.1:9474/proxies/imap/toxics {"name": "imap-slow", "type": "latency"' "$request_log"
+  assert_contains 'DELETE http://127.0.0.1:9474/proxies/imap/toxics/imap-slow' "$request_log"
+  assert_contains 'POST http://127.0.0.1:9474/proxies/smtp {"enabled": false}' "$request_log"
+  assert_contains 'POST http://127.0.0.1:9474/proxies/smtp {"enabled": true}' "$request_log"
+  assert_excludes '/reset' "$request_log"
+}
+
 # The survey's report is everything a reader has in front of them while deciding whether a bump is worth taking, and
 # the first of the four questions a bump answers — read the upstream release notes — applies to a handful of its rows
 # rather than to all hundred. `breaking_move_of` is what names that handful, so what it must never do is claim one
@@ -13350,6 +13405,7 @@ run_test the_gates_decide_from_the_change_filters_ci_declares
 run_test the_client_job_runs_every_check_the_full_gate_runs
 run_test workflow_scripts_use_flat_manual_layout
 run_test the_dependency_survey_refuses_what_would_write_without_being_asked
+run_test the_fault_script_removes_the_fault_it_started_and_nothing_else
 run_test the_dependency_rewrite_encodes_a_hostile_version_into_a_pin_file
 run_test the_dependency_survey_names_the_bump_that_may_break
 run_test every_hash_commented_file_carries_the_license_header
