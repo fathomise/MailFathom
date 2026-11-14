@@ -26,10 +26,12 @@ MAILFATHOM_FAULTS_SMTP_HOST=smtp.example.com \
 docker compose -f compose.yaml -f compose.faults.yaml up -d
 ```
 
-Leaving either name out fails at once with the reason. Naming files with `-f` stops Compose from reading
-`compose.override.yaml` on its own, so where [the quick start](deployment-compose.md#trying-it-first-with-one-command)
-wrote one, name it as well, before the overlay. To go back to an ordinary deployment, bring the stack down with the
-same files named and start it without the overlay.
+Leaving either name out fails at once with the reason, and it does for every command that names the overlay — `ps`,
+`logs`, and `down` read the file as `up` does — so export both names, or put them in `.env`, for as long as the
+overlay is in use. Naming files with `-f` stops Compose from reading `compose.override.yaml` on its own, so where
+[the quick start](deployment-compose.md#trying-it-first-with-one-command) wrote one, name it as well, before the
+overlay. To go back to an ordinary deployment, bring the stack down with the same files and the same two names, then
+start it without the overlay.
 
 | Variable | Default | What it says |
 |---|---|---|
@@ -76,10 +78,12 @@ scripts/inject-fault.sh start imap-down --for 5m
 scripts/inject-fault.sh stop
 ```
 
-`start` holds the fault for the duration — seconds, or a number followed by `s`, `m`, or `h`, and `60s` when none is
-given — then removes it. Interrupting the script removes it too, so a fault does not outlive the run that started it
-unless that run is killed outright; `stop <preset>` removes one preset's fault, and `stop` alone every fault the proxy
-holds. A preset already active is refused rather than started twice. `list` names the presets and what is active now.
+The script needs `curl` and `jq` on the path. `start` holds the fault for the duration — seconds, or a number followed
+by `s`, `m`, or `h`, and `60s` when none is given — then removes it. Interrupting the script removes it too, and so
+does closing the terminal it runs in, so a fault does not outlive the run that started it unless that run is killed
+outright; `stop <preset>` removes one preset's fault, and `stop` alone every fault the proxy
+holds. A preset already active is refused rather than started twice, and a refusal from the proxy is reported with
+the proxy's own reason. `list` names the presets and what is active now.
 
 | Preset | Connection | What happens |
 |---|---|---|

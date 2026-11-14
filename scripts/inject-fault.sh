@@ -14,12 +14,12 @@ set -euo pipefail
 #   scripts/inject-fault.sh stop [preset]
 #
 # `start` holds the fault for the duration — seconds, or a number followed by s, m, or h, 60s when none is given — and
-# removes it when the duration ends or when the script is interrupted, so a fault never outlives the run that started
-# it unless that run is killed outright. `stop` is for that case: it removes one preset's fault, or with no preset every
-# fault the proxy holds. `list` names the presets and what is active now.
+# removes it when the duration ends, when the script is interrupted, and when it loses its terminal, so a fault never
+# outlives the run that started it unless that run is killed outright. `stop` is for that case: it removes one preset's
+# fault, or with no preset every fault the proxy holds. `list` names the presets and what is active now.
 #
-# The proxy's control API is reached on 127.0.0.1 at MAILFATHOM_FAULTS_CONTROL_PORT, 8474 unless the overlay was
-# started with another. docs/operations/fault-injection.md is the page.
+# It needs curl and jq, and reaches the proxy's control API on 127.0.0.1 at MAILFATHOM_FAULTS_CONTROL_PORT, 8474 unless
+# the overlay was started with another. docs/operations/fault-injection.md is the page.
 
 readonly default_duration='60s'
 readonly control_address="http://127.0.0.1:${MAILFATHOM_FAULTS_CONTROL_PORT:-8474}"
@@ -36,7 +36,7 @@ server-down|client|disable||the client cannot reach the service, and every open 
 server-slow|client|latency|{"latency": 3000, "jitter": 1000}|every answer from the service reaches the client two to four seconds late'
 
 usage() {
-  sed -n '/^# Usage:/,/^# started with another/s/^# \{0,1\}//p' "$0"
+  sed -n '/^# Usage:/,/^# the overlay was started/s/^# \{0,1\}//p' "$0"
 }
 
 fail() {
@@ -52,8 +52,14 @@ control() {
     arguments+=(--header 'Content-Type: application/json' --data "$body")
   fi
 
-  curl "${arguments[@]}" "$control_address$path" \
-    || fail "The proxy's control API at $control_address refused $method $path. Is the overlay up?"
+  # A refusal carries the proxy's own reason in its body, which is what the operator needs rather than a guess at it.
+  local response
+  if ! response="$(curl "${arguments[@]}" "$control_address$path")"; then
+    [[ -n "$response" ]] || fail "No proxy answers at $control_address. Is the overlay up?"
+    fail "The proxy refused $method $path: $response"
+  fi
+
+  printf '%s' "$response"
 }
 
 preset_line() {
@@ -79,14 +85,16 @@ list_presets() {
 }
 
 start_fault() {
-  local line name proxy toxic attributes description
+  local line name proxy toxic attributes description state
 
   line="$(preset_line "$1")"
   IFS='|' read -r name proxy toxic attributes description <<< "$line"
 
   if [[ "$toxic" == 'disable' ]]; then
-    [[ "$(control GET "/proxies/$proxy" | jq -r .enabled)" == 'true' ]] \
-      || fail "The $proxy connection is already refused; another run holds that fault."
+    # Two assignments rather than one pipeline in a test, so an unreachable proxy fails with its own message.
+    state="$(control GET "/proxies/$proxy")"
+    state="$(jq -r .enabled <<< "$state")"
+    [[ "$state" == 'true' ]] || fail "The $proxy connection is already refused; another run holds that fault."
     control POST "/proxies/$proxy" '{"enabled": false}' > /dev/null
   else
     control POST "/proxies/$proxy/toxics" \
@@ -130,13 +138,22 @@ hold_fault() {
 
   # Armed only once the fault exists, so a start that failed removes nothing another run started.
   trap 'kill "${sleeper-}" 2> /dev/null || true; stop_fault "$held_preset"' EXIT
-  trap 'exit 130' INT TERM
+  trap 'exit 130' INT TERM HUP
 
   printf 'Holding it for %s; interrupt to end it sooner.\n' "$duration"
   sleep "$duration" &
   sleeper=$!
   wait "$sleeper"
 }
+
+if [[ "${1-}" == '-h' || "${1-}" == '--help' ]]; then
+  usage
+  exit 0
+fi
+
+for tool in curl jq; do
+  command -v "$tool" > /dev/null || fail "scripts/inject-fault.sh needs $tool on the PATH."
+done
 
 case "${1-}" in
   list)
@@ -156,9 +173,6 @@ case "${1-}" in
   stop)
     (($# <= 2)) || fail "stop takes at most one preset."
     stop_fault "${2-}"
-    ;;
-  -h | --help)
-    usage
     ;;
   *)
     usage >&2

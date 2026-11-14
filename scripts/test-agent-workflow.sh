@@ -11583,18 +11583,22 @@ the_dependency_survey_refuses_what_would_write_without_being_asked() {
 }
 
 # `scripts/inject-fault.sh` talks to a proxy nobody runs here, so a fake `curl` records each request and answers the
-# one read the script makes. What it must get right is that a fault it started is the fault it removes — by the
-# preset's own name, never a reset of what another run holds — and that a refused argument reaches no proxy at all.
+# one read the script makes, and a fake `sleep` stands in for the duration: it returns at once, or, asked to, signals
+# the script the way an interrupted terminal would. What the script must get right is that a fault it started is the
+# fault it removes — by the preset's own name, never a reset of what another run holds — whether the duration ended
+# or the run was stopped, and that a refused argument reaches no proxy at all.
 the_fault_script_removes_the_fault_it_started_and_nothing_else() {
   local script="$source_repository_root/scripts/inject-fault.sh"
   local bin_directory="$test_directory/inject-fault-bin"
   local request_log="$test_directory/inject-fault-requests"
+  local real_sleep status
 
   [[ -x "$script" ]] || {
     printf 'scripts/inject-fault.sh is not executable\n' >&2
     return 1
   }
 
+  real_sleep="$(command -v sleep)"
   mkdir -p "$bin_directory"
   cat > "$bin_directory/curl" << 'FAKE'
 #!/usr/bin/env bash
@@ -11610,31 +11614,60 @@ done
 printf '%s %s %s\n' "$method" "$address" "$body" >> "$FAKE_REQUEST_LOG"
 printf '{"enabled": true}'
 FAKE
-  chmod +x "$bin_directory/curl"
+  cat > "$bin_directory/sleep" << FAKE
+#!/usr/bin/env bash
+[[ -n "\${FAKE_SLEEP_SIGNAL-}" ]] || exit 0
+kill -"\$FAKE_SLEEP_SIGNAL" "\$PPID"
+exec "$real_sleep" 30
+FAKE
+  chmod +x "$bin_directory/curl" "$bin_directory/sleep"
+
+  run_fault_script() {
+    PATH="$bin_directory:$PATH" FAKE_REQUEST_LOG="$request_log" MAILFATHOM_FAULTS_CONTROL_PORT=9474 "$script" "$@"
+  }
 
   : > "$request_log"
-  (
-    export PATH="$bin_directory:$PATH" FAKE_REQUEST_LOG="$request_log" MAILFATHOM_FAULTS_CONTROL_PORT=9474
-    "$script" --help > /dev/null
-    ! "$script" start no-such-preset > /dev/null 2>&1
-    ! "$script" start imap-slow --for 5x > /dev/null 2>&1
-    ! "$script" stop 'imap.*' > /dev/null 2>&1
-  )
+  run_fault_script --help > /dev/null
+  if run_fault_script start no-such-preset > /dev/null 2>&1 \
+    || run_fault_script start imap-slow --for 5x > /dev/null 2>&1 \
+    || run_fault_script stop 'imap.*' > /dev/null 2>&1; then
+    printf 'inject-fault.sh accepted an unknown preset or a malformed duration\n' >&2
+    return 1
+  fi
   if [[ -s "$request_log" ]]; then
     printf 'a refused argument still reached the proxy:\n%s\n' "$(cat "$request_log")" >&2
     return 1
   fi
 
-  PATH="$bin_directory:$PATH" FAKE_REQUEST_LOG="$request_log" MAILFATHOM_FAULTS_CONTROL_PORT=9474 \
-    "$script" start imap-slow --for 1 > /dev/null
-  PATH="$bin_directory:$PATH" FAKE_REQUEST_LOG="$request_log" MAILFATHOM_FAULTS_CONTROL_PORT=9474 \
-    "$script" start smtp-down --for 1 > /dev/null
-
+  run_fault_script start imap-slow --for 5m > /dev/null
   assert_contains 'POST http://127.0.0.1:9474/proxies/imap/toxics {"name": "imap-slow", "type": "latency"' "$request_log"
   assert_contains 'DELETE http://127.0.0.1:9474/proxies/imap/toxics/imap-slow' "$request_log"
-  assert_contains 'POST http://127.0.0.1:9474/proxies/smtp {"enabled": false}' "$request_log"
-  assert_contains 'POST http://127.0.0.1:9474/proxies/smtp {"enabled": true}' "$request_log"
-  assert_excludes '/reset' "$request_log"
+
+  for signal in TERM HUP; do
+    : > "$request_log"
+    status=0
+    FAKE_SLEEP_SIGNAL="$signal" run_fault_script start smtp-down --for 5m > /dev/null || status=$?
+    if ((status != 130)); then
+      printf 'start ended by SIG%s exited %s rather than 130\n' "$signal" "$status" >&2
+      return 1
+    fi
+    assert_contains 'POST http://127.0.0.1:9474/proxies/smtp {"enabled": false}' "$request_log"
+    assert_contains 'POST http://127.0.0.1:9474/proxies/smtp {"enabled": true}' "$request_log"
+  done
+
+  : > "$request_log"
+  run_fault_script stop imap-down > /dev/null
+  run_fault_script stop server-slow > /dev/null
+  printf -v expected '%s\n' \
+    'POST http://127.0.0.1:9474/proxies/imap {"enabled": true}' \
+    'DELETE http://127.0.0.1:9474/proxies/client/toxics/server-slow '
+  if [[ "$(cat "$request_log")"$'\n' != "$expected" ]]; then
+    printf 'stop <preset> sent more or other than its own request:\n%s\n' "$(cat "$request_log")" >&2
+    return 1
+  fi
+
+  run_fault_script stop > /dev/null
+  assert_contains 'POST http://127.0.0.1:9474/reset' "$request_log"
 }
 
 # The survey's report is everything a reader has in front of them while deciding whether a bump is worth taking, and
