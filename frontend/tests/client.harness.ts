@@ -168,6 +168,49 @@ export async function openSignedIn(page: Page, address = '/'): Promise<void> {
     await signIn(page);
 }
 
+// Three spaces are offered only while developer mode is on, so a check about one of them switches it on the way a
+// developer does — five presses on the version line in Settings, which is the only way in and holds until a reload.
+
+/**
+ * The client opened, signed in, and put into developer mode in front of one of the spaces only that mode offers.
+ *
+ * The address is replaced rather than moved to, so the history a check goes back through holds the space it asked for
+ * and not the one the client opened at before the mode was on. A reload forgets the mode, as it does for a developer.
+ */
+export async function openSignedInAsDeveloper(page: Page, address = '/#/discover'): Promise<void> {
+    await openSignedIn(page);
+    await switchDeveloperModeOn(page);
+    await page.evaluate(`window.location.replace(${JSON.stringify(address)})`);
+}
+
+const somethingOpenInTheTopLayer = `document.querySelector(':popover-open, dialog[open]') !== null`;
+
+/** Developer mode switched on from Settings, with everything that was opened on the way closed again. */
+export async function switchDeveloperModeOn(page: Page): Promise<void> {
+    await openSettings(page);
+
+    const settings = page.getByRole('dialog', { name: 'Settings' });
+    const versionLine = settings.getByRole('button', { name: /^MailFathom v/u });
+
+    for (let press = 0; press < 5; press += 1) {
+        await versionLine.click();
+    }
+
+    await settings.getByRole('button', { name: 'Close settings' }).click();
+    await expect(settings).toBeHidden();
+
+    // The account menu the settings row stands in, and on a phone the sheet that menu stands in, are still open.
+    await expect(async () => {
+        if (await page.evaluate<boolean>(somethingOpenInTheTopLayer)) {
+            await page.keyboard.press('Escape');
+        }
+
+        expect(await page.evaluate<boolean>(somethingOpenInTheTopLayer)).toBe(false);
+    }).toPass();
+
+    await nothingStandsOverTheScreen(page);
+}
+
 /** The account menu at the foot of the navigation opened, which is where the preferences and signing out live. */
 export async function openAccountMenu(page: Page): Promise<void> {
     const control = page.getByRole('button', { name: 'Account and preferences' });

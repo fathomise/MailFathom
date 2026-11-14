@@ -105,10 +105,11 @@ pins, so *Today*, *This week* and *Later* are each reachable whichever weekday a
 also writes one record of its own through its screen and removes it again, which is where the client's own write path
 is held to account and what keeps the files runnable in any order.
 
-**Discover is held to the screen somebody lands on, and not to an answer.** The client opens there, and pressing one
-of the questions it offers starts a real run — but composing an answer needs a chat provider and this run configures
+**Discover is held to the screen it opens on, and not to an answer.** The client offers it, as it does Tasks and
+Calendar, only while developer mode is on, so a spec reaching one of the three switches that on from the version line
+in *Settings* first. Pressing one of the questions it offers starts a real run — but composing an answer needs a chat provider and this run configures
 none, so a spec that waited for a block would be waiting on a model nothing here provides. What the spec holds is that
-landing reaches the screen, that the questions it offers are there to press, and that its own question field stands on
+the space reaches its screen, that the questions it offers are there to press, and that its own question field stands on
 it.
 
 **They route nothing.** The bundle the deployment serves reaches the surface that deployment serves, over one origin,

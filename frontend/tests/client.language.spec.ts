@@ -11,21 +11,21 @@ import type { FakeDeployment } from './fakeDeployment';
 // choice that outranks it across a reload.
 
 test('opens again in the language that was chosen, after the page is loaded afresh', async ({ page }) => {
-    await openSignedIn(page);
+    await openSignedIn(page, '/#/mail');
 
-    const discover = page.getByRole('heading', { name: 'Discover', level: 1 });
-    await expect(discover).toBeVisible();
+    const mail = page.getByRole('main', { name: 'Mail' });
+    await expect(mail).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 
     await openApplicationSettings(page);
     await page.getByRole('group', { name: 'Language' }).getByText('Polski', { exact: true }).click();
     await page.reload();
 
-    // The assertion is the English heading being gone and the document declaring the other language, rather than the
+    // The assertion is the English name being gone and the document declaring the other language, rather than the
     // Polish one being present — the catalogue is the one file in this repository deliberately not in English, and a
     // second copy of its wording here would be a string to keep in step with it and a word for the spell check to
     // object to.
-    await expect(discover).toHaveCount(0);
+    await expect(mail).toHaveCount(0);
     await expect(page.locator('html')).toHaveAttribute('lang', 'pl');
 });
 

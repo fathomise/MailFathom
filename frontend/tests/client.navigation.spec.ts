@@ -4,15 +4,26 @@
 
 import { expect } from '@playwright/test';
 
-import { declaredVersion, messageRegion, openSettings, openSignedIn, phoneWindow, test } from './client.harness';
+import {
+    declaredVersion,
+    messageRegion,
+    openSettings,
+    openSignedIn,
+    openSignedInAsDeveloper,
+    phoneWindow,
+    switchDeveloperModeOn,
+    test,
+} from './client.harness';
 
 // Moving between spaces the way a document with a history does, and finding each one — and the folder tree — where it
 // was left after a reload.
 
-test('opens in Discover, under the version it was built from and the one the deployment answered', async ({ page }) => {
+test('opens in the Agent, under the version it was built from and the one the deployment answered', async ({
+    page,
+}) => {
     await openSignedIn(page);
 
-    await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
+    await expect(page.getByRole('main', { name: 'Agent' })).toBeVisible();
 
     // The client's own is substituted into the bundle at build time, which is the half only a built bundle proves; the
     // deployment's arrives over the wire beside it. Both are read at the foot of the settings screen, which is where
@@ -23,7 +34,39 @@ test('opens in Discover, under the version it was built from and the one the dep
 
     // A first load at the root is written back to the address the space is actually reached at, which is what makes
     // the next assertion — reloading it — mean anything.
-    await expect(page).toHaveURL(/#\/discover$/);
+    await expect(page).toHaveURL(/#\/agent$/);
+});
+
+// Discover, Tasks, and Calendar are at an early stage, so the client offers them to a developer and to nobody else: no
+// destination, no address, and — which is what the requests say — nothing read for a space nobody can reach.
+test('offers the early spaces only while developer mode is on, and reads nothing for them before', async ({
+    page,
+    deployment,
+}) => {
+    deployment.grant('mailfathom.tasks.read');
+    deployment.grant('mailfathom.tasks.write');
+    await openSignedIn(page, '/#/tasks');
+
+    const navigation = page.getByRole('navigation', { name: 'Spaces' });
+
+    await expect(page.getByRole('main', { name: 'Agent' })).toBeVisible();
+    await expect(page).toHaveURL(/#\/agent$/u);
+    await expect(navigation.getByRole('link', { name: 'Mail' })).toBeVisible();
+    await expect(navigation.getByRole('link', { name: 'Discover' })).toHaveCount(0);
+    await expect(navigation.getByRole('link', { name: 'Tasks' })).toHaveCount(0);
+    expect(deployment.requests('GET', '/tasks')).toStrictEqual([]);
+
+    await switchDeveloperModeOn(page);
+
+    await expect(navigation.getByRole('link', { name: 'Discover' })).toBeVisible();
+    await navigation.getByRole('link', { name: 'Tasks' }).click();
+    await expect(page.getByRole('main', { name: 'Tasks' })).toBeVisible();
+
+    // Developer mode lasts as long as the page, so a reload withdraws the spaces and answers the address as before.
+    await page.reload();
+
+    await expect(page.getByRole('main', { name: 'Agent' })).toBeVisible();
+    await expect(navigation.getByRole('link', { name: 'Tasks' })).toHaveCount(0);
 });
 
 test('reaches each space by its own address, and reloads there', async ({ page }) => {
@@ -41,13 +84,13 @@ test('reaches each space by its own address, and reloads there', async ({ page }
 
 test('moves back and forward through its own spaces without leaving the application', async ({ page }) => {
     await openSignedIn(page);
-    await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
+    await expect(page.getByRole('main', { name: 'Agent' })).toBeVisible();
 
     await page.getByRole('link', { name: 'Mail' }).click();
     await expect(page.getByRole('main', { name: 'Mail' })).toBeVisible();
 
     await page.goBack();
-    await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
+    await expect(page.getByRole('main', { name: 'Agent' })).toBeVisible();
 
     await page.goForward();
     await expect(page.getByRole('main', { name: 'Mail' })).toBeVisible();
@@ -60,7 +103,7 @@ test('goes back one screen at a time on a phone, from the message to the list an
 }) => {
     await page.setViewportSize(phoneWindow);
     await openSignedIn(page);
-    await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
+    await expect(page.getByRole('main', { name: 'Agent' })).toBeVisible();
 
     await page.getByRole('link', { name: 'Mail' }).click();
     await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
@@ -72,7 +115,7 @@ test('goes back one screen at a time on a phone, from the message to the list an
     await expect(page).toHaveURL(/#\/mail$/u);
 
     await page.goBack();
-    await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
+    await expect(page.getByRole('main', { name: 'Agent' })).toBeVisible();
 });
 
 test('goes back from a person to the address book on a phone, rather than out of People', async ({
@@ -117,7 +160,7 @@ test('closes a dialog with the back gesture and leaves the screen it stood over 
 // Discover's field is Discover's alone, so what is carried is the sentence surviving a visit elsewhere — and what is
 // proven beside it is that no space visited shows it in a field of its own, nor puts its own text into Discover's.
 test('keeps the question in Discover alone across a visit to other spaces', async ({ page }) => {
-    await openSignedIn(page);
+    await openSignedInAsDeveloper(page);
 
     const question = page.getByRole('searchbox', { name: 'Ask your mail' });
     await question.fill('the renewal Nordwind sent');

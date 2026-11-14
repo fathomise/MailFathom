@@ -5,6 +5,7 @@
 import { StrictMode } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
+import { lockDeveloperInformation, pressesToUnlock, pressVersionLine } from './developerInformation/developerAccess';
 import {
     defaultTelemetryLevel,
     sessionExchangeRoute,
@@ -878,6 +879,13 @@ export function resetsBetweenTests(): void {
     const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
 
     beforeEach(() => {
+        // Developer mode on, because this family was written against every space the credential may open and three of
+        // them are offered only under it. A test about the client as it opens for anybody else locks it before it
+        // renders, with `lockDeveloperInformation`.
+        for (let press = 0; press < pressesToUnlock; press += 1) {
+            pressVersionLine();
+        }
+
         // A new record rather than the last one emptied: the doubles the previous test made still hold that one, and
         // `asked` says why what they are asked from here on is no business of this test.
         asked = [];
@@ -898,6 +906,7 @@ export function resetsBetweenTests(): void {
             Object.defineProperty(window, 'matchMedia', declaredMatchMedia);
         }
 
+        lockDeveloperInformation();
         vi.useRealTimers();
         vi.restoreAllMocks();
         openingAt('/');

@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import type { DeploymentSession, MailFathomPermission } from '@mailfathom/client-backend';
-import { spaces, type Space } from '../routing/spaces';
+import { earlySpaces, spaces, type Space } from '../routing/spaces';
 
 // What the client offers follows the grant the deployment reported for the credential that signed in, so a capability
 // the credential does not carry is absent rather than present and refused when it is pressed. The service is what
@@ -90,7 +90,16 @@ export function withheldFrom(session: DeploymentSession): readonly ClientCapabil
     return clientCapabilities.filter((capability) => !offers(session, capability));
 }
 
-/** The spaces this credential may open, which is what the navigation is drawn from and what an address is answered against. */
-export function spacesOffered(session: DeploymentSession): readonly Space[] {
-    return spaces.filter((space) => spaceCapabilities[space].every((needed) => offers(session, needed)));
+/**
+ * The spaces this credential may open, which is what the navigation is drawn from, what an address is answered
+ * against, and what is mounted at all.
+ *
+ * @param developerMode Whether developer mode is on, which is what offers the spaces still at an early stage.
+ */
+export function spacesOffered(session: DeploymentSession, developerMode: boolean): readonly Space[] {
+    return spaces.filter(
+        (space) =>
+            (developerMode || !earlySpaces.includes(space)) &&
+            spaceCapabilities[space].every((needed) => offers(session, needed)),
+    );
 }

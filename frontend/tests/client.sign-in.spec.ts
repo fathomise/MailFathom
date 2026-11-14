@@ -49,7 +49,7 @@ test('asks for a credential before any mail, and opens the frame once one is acc
 
     await signIn(page);
 
-    await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
+    await expect(page.getByRole('main', { name: 'Agent' })).toBeVisible();
 });
 
 test('sends the password once to the exchange, and the session it was given on every request after', async ({
@@ -100,7 +100,7 @@ test('stays signed in across a reload, and asks again in a tab that was not sign
 
     // A reload is a cold start for a single-page application, so surviving one is the whole of what keeping the
     // credential buys — and only a real document reloaded a second time proves it was read back rather than held.
-    await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
+    await expect(page.getByRole('main', { name: 'Agent' })).toBeVisible();
 
     const secondTab = await context.newPage();
     await secondTab.goto('/');

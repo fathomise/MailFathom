@@ -1584,8 +1584,9 @@ it. Turning it back on begins at that moment and reaches back over nothing.
 with the requests on the wire and their headers, the signals the hub delivered, and what the page measured about
 itself, and keeps the latest 200 of each kind in memory, the oldest giving way first, whether its surface is open or
 closed. The surface draws that record newest first, and closing it lets nothing go. Nothing it hears leaves the page
-or is written anywhere, and a reload forgets developer mode and the record with it. Until it is switched on it
-observes nothing, with two exceptions that cost no running work: the Web Vitals, which the browser buffers on its own,
+or is written anywhere, and a reload forgets developer mode and the record with it. The one thing it changes
+beyond that view is which spaces the client offers: Discover, Tasks, and Calendar are offered only while it is on.
+Until it is switched on it observes nothing, with two exceptions that cost no running work: the Web Vitals, which the browser buffers on its own,
 and whether the signal hub's connection stands and since when, which is noted only as a connection opens or ends.
 Because it is a developer's tool it shows the identifiers of the person, their organization, their accounts, their
 runs, and their requests, and the revision of the deployment's image. It never shows what anybody wrote or was sent:

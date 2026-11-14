@@ -4,14 +4,7 @@
 
 import { expect } from '@playwright/test';
 
-import {
-    holdTheClock,
-    messageRegion,
-    openSignedIn,
-    openTheFirstMessage,
-    silentAnswerInterval,
-    test,
-} from './client.harness';
+import { holdTheClock, messageRegion, openSignedInAsDeveloper, silentAnswerInterval, test } from './client.harness';
 import * as discovery from './fixtures/discovery';
 
 // Asking a question in Discover and following the run that answers it: the field that records the question, the run
@@ -25,7 +18,7 @@ test('follows a question asked in Discover from its first block to the finished 
     deployment,
 }) => {
     await page.clock.install();
-    await openSignedIn(page);
+    await openSignedInAsDeveloper(page);
     await holdTheClock(page);
 
     deployment.startNextAnswerRunning();
@@ -66,7 +59,8 @@ test('asks Discover about all mail while a passage of the message being read is 
     page,
     deployment,
 }) => {
-    await openTheFirstMessage(page);
+    await openSignedInAsDeveloper(page, '/#/mail');
+    await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
 
     const passage = 'You wrote: send me the list.';
 
@@ -89,7 +83,7 @@ test('asks Discover about all mail while a passage of the message being read is 
 });
 
 test('carries a question from Discover into the agent', async ({ page, deployment }) => {
-    await openSignedIn(page, '/#/discover');
+    await openSignedInAsDeveloper(page);
 
     const question = page.getByRole('searchbox', { name: 'Ask your mail' });
     await question.fill('How many bays were confirmed?');

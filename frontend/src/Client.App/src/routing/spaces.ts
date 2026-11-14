@@ -38,7 +38,17 @@ export const barSpaces: readonly Space[] = ['discover', 'agent', 'mail'];
 /** The rest, which the bar reaches through its overflow, in the order the overflow lists them. */
 export const overflowSpaces: readonly Space[] = ['tasks', 'calendar', 'people'];
 
-/** Where the client opens, and where an address naming no space resolves to. */
+// Three of the six are at an early stage and are offered to nobody but a developer: a session is offered them only
+// while developer mode is on, so with it off they stand in no navigation, answer no address, and are never mounted —
+// which is what keeps a space nobody can reach from reading the deployment behind the one in front.
+
+/** The spaces only developer mode offers, whatever the credential carries. */
+export const earlySpaces: readonly Space[] = ['discover', 'tasks', 'calendar'];
+
+/**
+ * Where the client opens and where an address naming no space resolves to, wherever this space is offered. Where it is
+ * not, the first space that is offered takes both over.
+ */
 export const defaultSpace: Space = 'discover';
 
 /** What each space is called on the screen. Exhaustive by its own type, so a new space fails to compile until it has a name. */
