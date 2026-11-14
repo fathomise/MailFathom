@@ -137,6 +137,9 @@ test('moves a keyboard through a narrow window in the order the window shows', a
     // Discover is reached in developer mode, and arriving in a space puts the keyboard at the start of that space, so
     // the walk goes back from there: one step back is the strip, and one more leaves the document, nothing in it
     // holding the keyboard — which is what says the strip is the first stop. A step forward is the strip again.
+    // The move into Discover puts that focus there in an effect, so it is waited for before the first key.
+    await expect(page.getByRole('main', { name: 'Discover' })).toBeFocused();
+
     await page.keyboard.press('Shift+Tab');
     await expect(page.getByRole('region', { name: 'What this credential may not do here' })).toBeFocused();
 
