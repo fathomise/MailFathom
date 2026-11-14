@@ -13,16 +13,25 @@ set -euo pipefail
 #   scripts/inject-fault.sh start <preset> [--for <duration>]
 #   scripts/inject-fault.sh stop [preset]
 #
-# `start` holds the fault for the duration — seconds, or a number followed by s, m, or h, 60s when none is given — and
-# removes it when the duration ends, when the script is interrupted, and when it loses its terminal, so a fault never
-# outlives the run that started it unless that run is killed outright. `stop` is for that case: it removes one preset's
-# fault, or with no preset every fault the proxy holds. `list` names the presets and what is active now.
+# `start` adds the fault and returns at once. The fault lasts for the duration — seconds, or a number followed by s, m,
+# or h, 60s when none is given — and a timer left behind removes it then, whether or not the terminal it was started
+# from is still open. Several faults can be active at once, each on its own duration. `stop` ends one sooner: it
+# removes one preset's fault, or with no preset every fault the proxy holds. `list` names the presets, what is active
+# now, and how long each active fault has left.
 #
 # It needs curl and jq, and reaches the proxy's control API on 127.0.0.1 at MAILFATHOM_FAULTS_CONTROL_PORT, 8474 unless
 # the overlay was started with another. docs/operations/fault-injection.md is the page.
 
 readonly default_duration='60s'
-readonly control_address="http://127.0.0.1:${MAILFATHOM_FAULTS_CONTROL_PORT:-8474}"
+readonly control_port="${MAILFATHOM_FAULTS_CONTROL_PORT:-8474}"
+readonly control_address="http://127.0.0.1:$control_port"
+
+# One file per fault a timer will end, named after its preset and holding when it ends and which start it belongs to.
+# It is what `list` reads the time left from, and what a timer checks before it removes anything: a fault stopped
+# sooner, or stopped and started again, is no longer the one that timer was left for. Per user and per control port,
+# so two overlays on one machine keep their timers apart.
+user_id="$(id -u)"
+readonly timers="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/mailfathom-faults-$user_id-$control_port"
 
 # One line per preset: its name, the proxy it acts on, the toxic it adds or `disable` for a refused connection, the
 # toxic's attributes, and what a reader sees. The toxic is named after the preset, which is what lets `stop` remove
@@ -69,19 +78,55 @@ preset_line() {
   printf '%s' "$line"
 }
 
+time_left() {
+  local seconds="$1"
+
+  if ((seconds >= 3600)); then
+    printf '%dh %02dm' $((seconds / 3600)) $((seconds % 3600 / 60))
+  elif ((seconds >= 60)); then
+    printf '%dm %02ds' $((seconds / 60)) $((seconds % 60))
+  else
+    printf '%ds' "$seconds"
+  fi
+}
+
 list_presets() {
-  local state
+  local state active proxy name ends now left
 
   printf 'Presets:\n'
   printf '%s\n' "$presets" | awk -F'|' '{ printf "  %-16s %s\n", $1, $5 }'
 
+  # A refused connection is a proxy switched off rather than a toxic with a name, so it is listed with no name and
+  # given its preset's below.
   state="$(control GET /proxies)"
+  active="$(jq -r '.[] | (select(.enabled | not) | "\(.name)\t"), (.name as $proxy | .toxics[] | "\($proxy)\t\(.name)")' \
+    <<< "$state")"
+
   printf '\nActive now:\n'
-  jq -r '
-    [ .[] | (select(.enabled | not) | "  \(.name): connection refused"),
-            (.name as $proxy | .toxics[] | "  \($proxy): \(.name) (\(.type))") ]
-    | if length == 0 then "  nothing" else .[] end
-  ' <<< "$state"
+  if [[ -z "$active" ]]; then
+    printf '  nothing\n'
+    return
+  fi
+
+  now="$(date +%s)"
+  while IFS=$'\t' read -r proxy name; do
+    if [[ -z "$name" ]]; then
+      name="$(printf '%s\n' "$presets" | awk -F'|' -v proxy="$proxy" '$2 == proxy && $3 == "disable" { print $1 }')"
+    fi
+
+    # What the proxy holds is the truth; the timer only adds when. A fault with none here was started on another
+    # machine or by another tool, or its timer was lost, and it stays until somebody stops it.
+    ends=''
+    if [[ -f "$timers/$name" ]]; then
+      read -r ends _ < "$timers/$name" || true
+    fi
+
+    if [[ "$ends" =~ ^[0-9]+$ ]] && ((left = 10#$ends - now, left > 0)); then
+      printf '  %-16s ends in %s\n' "${name:-$proxy}" "$(time_left "$left")"
+    else
+      printf '  %-16s held until stopped\n' "${name:-$proxy}"
+    fi
+  done <<< "$active"
 }
 
 start_fault() {
@@ -109,6 +154,7 @@ stop_fault() {
 
   if [[ -z "${1-}" ]]; then
     control POST /reset > /dev/null
+    rm -rf "$timers"
     printf 'Removed every fault; all three connections pass through again.\n'
     return
   fi
@@ -122,28 +168,43 @@ stop_fault() {
     control DELETE "/proxies/$proxy/toxics/$name" > /dev/null
   fi
 
+  # After the fault is gone rather than before: where the proxy did not answer, the file stays, so `list` still names
+  # the fault and `stop` can still end it. Nothing tries again on its own.
+  rm -f "$timers/$name"
   printf 'Removed %s.\n' "$name"
 }
 
-# The preset and the sleep are globals rather than locals, because the trap that ends them runs after this function
-# has returned.
 hold_fault() {
-  held_preset="$1"
-  local duration="$2"
+  local preset="$1" duration="$2" seconds claim
 
-  [[ "$duration" =~ ^[1-9][0-9]*[smh]?$ ]] \
+  [[ "$duration" =~ ^([1-9][0-9]*)([smh]?)$ ]] \
     || fail "A duration is a number of seconds, or a number followed by s, m, or h; '$duration' is neither."
 
-  start_fault "$held_preset"
+  case "${BASH_REMATCH[2]}" in
+    m) seconds=$((BASH_REMATCH[1] * 60)) ;;
+    h) seconds=$((BASH_REMATCH[1] * 3600)) ;;
+    *) seconds="${BASH_REMATCH[1]}" ;;
+  esac
 
-  # Armed only once the fault exists, so a start that failed removes nothing another run started.
-  trap 'kill "${sleeper-}" 2> /dev/null || true; stop_fault "$held_preset"' EXIT
-  trap 'exit 130' INT TERM HUP
+  # Before the fault exists, so a directory that cannot be written leaves no fault without a timer.
+  mkdir -p "$timers"
+  chmod 700 "$timers"
+  start_fault "$preset"
 
-  printf 'Holding it for %s; interrupt to end it sooner.\n' "$duration"
-  sleep "$duration" &
-  sleeper=$!
-  wait "$sleeper"
+  claim="$(($(date +%s) + seconds)) $$"
+  printf '%s\n' "$claim" > "$timers/$preset"
+
+  # The timer ignores the two signals a terminal sends, and holds none of this script's streams, so it outlives both
+  # the script and the terminal. Nothing ever kills it: `stop` takes its file away, and a timer that wakes to a file
+  # that is gone or belongs to a later start removes nothing.
+  (
+    trap '' HUP INT
+    sleep "$seconds"
+    [[ "$(cat "$timers/$preset" 2> /dev/null)" == "$claim" ]] || exit 0
+    stop_fault "$preset"
+  ) < /dev/null > /dev/null 2>&1 &
+
+  printf 'It ends in %s; scripts/inject-fault.sh stop %s ends it sooner.\n' "$duration" "$preset"
 }
 
 if [[ "${1-}" == '-h' || "${1-}" == '--help' ]]; then
