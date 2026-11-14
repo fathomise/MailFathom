@@ -131,13 +131,11 @@ interface TakenRow extends ReturningRow<MailTimelineEntry> {
 
 /** Whether a row went out under the act this claim still asks for: the same act, out of the same folder. */
 function sameLeaving(under: AskedAct | undefined, asked: AskedAct | undefined): boolean {
-    return (
-        under !== undefined &&
-        asked !== undefined &&
-        under.act === asked.act &&
-        under.from === asked.from &&
-        under.destroys === asked.destroys
-    );
+    if (under === undefined || asked === undefined) {
+        return false;
+    }
+
+    return under.act === asked.act && under.from === asked.from && under.destroys === asked.destroys;
 }
 
 // The accounts whose Drafts folder this list is, which is where the drafts out of step with their server are drawn: the

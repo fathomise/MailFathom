@@ -151,7 +151,7 @@ describe('withReturning', () => {
 
     it('draws a row the last read no longer carried in front of the row it stood in front of', () => {
         const held = readForward(1);
-        const taken = rowAt(held, 1) as MailTimelineEntry;
+        const taken = message(1);
         const read = withoutLeaving(held, (email) => email.id === taken.id);
 
         const shown = withReturning(read, [{ row: taken, before: 'message-2' }], identityOf);
@@ -163,7 +163,7 @@ describe('withReturning', () => {
 
     it('draws it at the leading end where the row it stood in front of is no longer held', () => {
         const held = readForward(1);
-        const taken = { ...(rowAt(held, 1) as MailTimelineEntry), id: 'message-gone' };
+        const taken = { ...message(1), id: 'message-gone' };
 
         const shown = withReturning(held, [{ row: taken, before: 'message-nowhere' }], identityOf);
 
@@ -173,7 +173,7 @@ describe('withReturning', () => {
 
     it('answers with the list itself where the deployment already lists the row, and where nothing returns', () => {
         const held = readForward(1);
-        const listed = rowAt(held, 1) as MailTimelineEntry;
+        const listed = message(1);
 
         expect(withReturning(held, [{ row: listed, before: null }], identityOf)).toBe(held);
         expect(withReturning(held, [], identityOf)).toBe(held);
