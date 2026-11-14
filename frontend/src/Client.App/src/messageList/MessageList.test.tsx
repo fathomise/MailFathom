@@ -955,7 +955,9 @@ describe('MessageList', () => {
     // A drafts folder holds what somebody was writing rather than what arrived, so the reading pane is the wrong
     // surface for one: what a reader asked for is the words back under their own cursor.
     it('opens a draft in the composer rather than in the reading pane, and leaves the pane where it was', async () => {
-        renderList(answering(wholeFolder), { acts: { ...nothingActed, folderRoleOf: () => 'Drafts', holdsDraft: () => true } });
+        renderList(answering(wholeFolder), {
+            acts: { ...nothingActed, folderRoleOf: () => 'Drafts', holdsDraft: () => true },
+        });
 
         await rows();
         fireEvent.pointerDown(row(2));
