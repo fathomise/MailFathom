@@ -170,7 +170,6 @@ export async function openSignedIn(page: Page, address = '/'): Promise<void> {
 
 // Three spaces are offered only while developer mode is on, so a check about one of them switches it on the way a
 // developer does — five presses on the version line in Settings, which is the only way in and holds until a reload.
-const somethingOpenInTheTopLayer = `document.querySelector(':popover-open, dialog[open]') !== null`;
 
 /**
  * The client opened, signed in, and put into developer mode in front of one of the spaces only that mode offers.
@@ -183,6 +182,8 @@ export async function openSignedInAsDeveloper(page: Page, address = '/#/discover
     await switchDeveloperModeOn(page);
     await page.evaluate(`window.location.replace(${JSON.stringify(address)})`);
 }
+
+const somethingOpenInTheTopLayer = `document.querySelector(':popover-open, dialog[open]') !== null`;
 
 /** Developer mode switched on from Settings, with everything that was opened on the way closed again. */
 export async function switchDeveloperModeOn(page: Page): Promise<void> {

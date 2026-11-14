@@ -466,6 +466,7 @@ reload forgets. Until then they stand in no navigation, an address naming one re
 does, and none of them is mounted — so none reads anything from the deployment. `earlySpaces` in
 `src/routing/spaces.ts` names the three and `spacesOffered` in `src/shell/capabilities.ts` is the one place that
 decides, so the client opens in **Agent**, the first space still offered.
+
 The frame is one tree laid out by the width it is given, and nothing in it reads which head or which platform it is
 running on. Three `@theme` breakpoints decide it, and between them they give the four compositions the design
 frames: below `workspace` the destinations are a bottom bar under a single pane, and every side panel is a drawer;

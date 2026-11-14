@@ -134,9 +134,16 @@ test('moves a keyboard through a narrow window in the order the window shows', a
     // Before the space, the strip saying what this credential may not do. It is a scroller, having a ceiling rather
     // than growing out of the frame, and a scroller with nothing focusable in it is a stop of its own — which is what
     // lets somebody reach the sentences past the ceiling with a keyboard. It is named, so the stop announces itself.
-    // The walk starts on it rather than at the top of the document: Discover is reached in developer mode, and arriving
-    // in a space puts the keyboard at the start of that space.
-    await page.getByRole('region', { name: 'What this credential may not do here' }).focus();
+    // Discover is reached in developer mode, and arriving in a space puts the keyboard at the start of that space, so
+    // the walk goes back from there: one step back is the strip, and one more leaves the document, nothing in it
+    // holding the keyboard — which is what says the strip is the first stop. A step forward is the strip again.
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.getByRole('region', { name: 'What this credential may not do here' })).toBeFocused();
+
+    await page.keyboard.press('Shift+Tab');
+    await expect.poll(() => page.evaluate<boolean>('document.activeElement === document.body')).toBe(true);
+
+    await page.keyboard.press('Tab');
     await expect(page.getByRole('region', { name: 'What this credential may not do here' })).toBeFocused();
 
     await page.keyboard.press('Tab');

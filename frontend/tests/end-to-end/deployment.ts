@@ -53,12 +53,6 @@ export async function openSpace(page: Page, space: string): Promise<void> {
     await goToSpace(page, space);
 }
 
-/**
- * Moves to one of the client's spaces on a page that is already signed in, which is what a reload leaves behind.
- *
- * The space is reached by its own link rather than by its address, because that is the move a person makes and because
- * a fragment typed into the bar would prove the router rather than the navigation.
- */
 const earlySpaces = ['Discover', 'Tasks', 'Calendar'];
 
 /** Developer mode switched on the way a developer does it: five presses on the version line in Settings. */
@@ -81,6 +75,12 @@ async function switchDeveloperModeOn(page: Page): Promise<void> {
     await expect(page.getByRole('button', { name: 'Sign out' })).toBeHidden();
 }
 
+/**
+ * Moves to one of the client's spaces on a page that is already signed in, which is what a reload leaves behind.
+ *
+ * The space is reached by its own link rather than by its address, because that is the move a person makes and because
+ * a fragment typed into the bar would prove the router rather than the navigation.
+ */
 export async function goToSpace(page: Page, space: string): Promise<void> {
     const navigation = page.getByRole('navigation', { name: 'Spaces' });
     const link = navigation.getByRole('link', { name: space });

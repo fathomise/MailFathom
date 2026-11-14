@@ -45,7 +45,10 @@ export const overflowSpaces: readonly Space[] = ['tasks', 'calendar', 'people'];
 /** The spaces only developer mode offers, whatever the credential carries. */
 export const earlySpaces: readonly Space[] = ['discover', 'tasks', 'calendar'];
 
-/** Where the client opens, and where an address naming no space resolves to. */
+/**
+ * Where the client opens and where an address naming no space resolves to, wherever this space is offered. Where it is
+ * not, the first space that is offered takes both over.
+ */
 export const defaultSpace: Space = 'discover';
 
 /** What each space is called on the screen. Exhaustive by its own type, so a new space fails to compile until it has a name. */
