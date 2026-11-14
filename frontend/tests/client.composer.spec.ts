@@ -682,6 +682,11 @@ async function chooseFrom(page: Page, named: string, holding: string, choice: st
     // The menu closing is a render after the choice, and the control pressed next reads the selection the words hold:
     // pressed while the menu is still closing, it acts on a selection the closing is about to take.
     await expect(menu).toHaveCount(0);
+
+    // The choice is applied to the selection the menu held, and the region is drawn again from what was written: the
+    // next control holds whatever is selected the moment it is pressed, so it waits for the words to be selected again
+    // rather than taking a caret and formatting nothing.
+    await expect.poll(() => page.evaluate(`window.getSelection()?.isCollapsed ?? true`)).toBe(false);
 }
 
 const cellStyle = 'border:1px solid #d0d5dd;padding:4px 8px;vertical-align:top;text-align:left';
