@@ -267,8 +267,11 @@ endpoint that is not absolute HTTPS, and a `refresh_token` grant with no refresh
   once spends what MailFathom stored; one whose token never has is served from its configured reference. Both are
   handled the same way from there.
 - **A refused grant is not retried.** An authorization server answering `invalid_grant` or `invalid_client` has
-  decided, and repeating the request only spends the account's rate limit. An unreachable server is retried, bounded
-  and jittered, under the `MailAuthorizationServerInvocation` resilience budget.
+  decided, and repeating the request only spends the account's rate limit, whatever status the refusal arrived under.
+  An unreachable server is retried, bounded and jittered, under the `MailAuthorizationServerInvocation` resilience
+  budget, and so is one whose answer states no error under `408`, `429`, or a `5xx` status — a gateway's page in the
+  server's place, or an overloaded server's bare `503`. An answer that states none and cannot be read as a token
+  response under any other status is not retried: the same address would answer the same thing again.
 
 ## Rotation
 

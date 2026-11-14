@@ -32,6 +32,12 @@ public sealed class MailOAuthTokenTransportTests
 {
     private static readonly Uri TokenEndpoint = new("https://sso.example.test/oauth2/token");
 
+    /// <summary>Far past anything an authorization server issues, and past any bound a token transport would carry.</summary>
+    private const int OversizedAnswerBytes = 1024 * 1024;
+
+    /// <summary>About what a token response carrying a long access token and a refresh token weighs.</summary>
+    private const int TokenResponseBytes = 4 * 1024;
+
     /// <summary>The transport carries no retry of its own, so a refusal is one request rather than a burst of them.</summary>
     [Fact]
     public async Task MailOAuthTransport_ComposedUnderTheServiceDefaults_ReachesARefusingServerOnce()
@@ -73,6 +79,45 @@ public sealed class MailOAuthTokenTransportTests
         // Assert
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.True(refusingServer.RecordedRequests.Count > 1);
+    }
+
+    /// <summary>
+    /// A token response is a few hundred bytes, so the transport reads no more than a bound far above that and refuses
+    /// the rest. Without it an endpoint that keeps sending is buffered whole, by a client that authenticates nobody.
+    /// </summary>
+    [Fact]
+    public async Task MailOAuthTransport_AnAnswerFarPastATokenResponse_IsRefusedRatherThanBuffered()
+    {
+        // Arrange
+        using var authorizationServer = FakeHttpMessageHandler.AlwaysResponding(
+            () => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[OversizedAnswerBytes]) });
+
+        await using var provider = ComposedServices(authorizationServer);
+        using var transport = provider.GetRequiredService<IHttpClientFactory>()
+            .CreateClient(MailOAuthAccessTokenSource.TransportName);
+
+        // Act, Assert
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => transport.GetAsync(TokenEndpoint, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>The refusal above is the bound's, so an answer the size of a real token response still arrives.</summary>
+    [Fact]
+    public async Task MailOAuthTransport_AnAnswerTheSizeOfATokenResponse_IsRead()
+    {
+        // Arrange
+        using var authorizationServer = FakeHttpMessageHandler.AlwaysResponding(
+            () => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[TokenResponseBytes]) });
+
+        await using var provider = ComposedServices(authorizationServer);
+        using var transport = provider.GetRequiredService<IHttpClientFactory>()
+            .CreateClient(MailOAuthAccessTokenSource.TransportName);
+
+        // Act
+        using var response = await transport.GetAsync(TokenEndpoint, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(TokenResponseBytes, response.Content.Headers.ContentLength);
     }
 
     private static ServiceProvider ComposedServices(FakeHttpMessageHandler authorizationServer)

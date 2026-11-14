@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Net.Http.Json;
+using System.Text.Json;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Resilience;
 using MailFathom.Common.OAuth;
@@ -217,13 +218,9 @@ internal sealed class MailOAuthAccessTokenSource : IMailAccessTokenSource
             using var content = new FormUrlEncodedContent(form);
             using var response = await transport.PostAsync(settings.TokenEndpoint, content, cancellationToken);
 
-            // The status code is not the verdict. RFC 6749 requires a rejected grant to arrive as 400 carrying a
-            // machine-readable `error`, which says far more than the status does, so the body is read either way.
-            payload = await response.Content.ReadFromJsonAsync(
-                OAuthJsonContext.Default.OAuthTokenResponse,
-                cancellationToken);
+            payload = await ReadTokenResponseAsync(response, cancellationToken);
         }
-        catch (Exception failure) when (failure is HttpRequestException or System.Text.Json.JsonException)
+        catch (HttpRequestException failure)
         {
             throw new MailAccessTokenUnavailableException(settings.AccountId, failure);
         }
@@ -251,6 +248,53 @@ internal sealed class MailOAuthAccessTokenSource : IMailAccessTokenSource
         var lifetime = TimeSpan.FromSeconds(payload.ExpiresInSeconds ?? 3600);
 
         return new MailAccessToken(accessToken, this.timeProvider.GetUtcNow() + lifetime);
+    }
+
+    /// <summary>Reads what the authorization server answered, or fails as the status it answered under.</summary>
+    /// <remarks>
+    /// <para>
+    /// The status code is not the verdict while the answer states one of its own. RFC 6749 requires a rejected grant to
+    /// arrive as 400 carrying a machine-readable <c>error</c>, which says far more than the status does, so an answer
+    /// that states one is returned whatever status carried it.
+    /// </para>
+    /// <para>
+    /// An answer that states none is a different thing: a gateway's page in the server's place, or an overloaded
+    /// server's bare <c>503</c>. Nothing in it refuses the grant, so the status is all it said, and it is raised as that
+    /// status. Retry classification then reads an outage as an outage, where a parse failure or a missing token would
+    /// have ended the exchange on the first attempt and reported a brief outage as a token nobody would issue. An
+    /// unreadable answer under a success status is raised the same way and is not repeated, because the same address
+    /// answers the same page again.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="HttpRequestException">Thrown, carrying the status, when the answer cannot be read or states no error under a failing status.</exception>
+    private static async Task<OAuthTokenResponse?> ReadTokenResponseAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        OAuthTokenResponse? payload;
+        try
+        {
+            payload = await response.Content.ReadFromJsonAsync(
+                OAuthJsonContext.Default.OAuthTokenResponse,
+                cancellationToken);
+        }
+        catch (JsonException unreadableAnswer)
+        {
+            throw new HttpRequestException(
+                "The authorization server's answer could not be read as a token response.",
+                unreadableAnswer,
+                response.StatusCode);
+        }
+
+        if (payload?.Error is null && !response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                "The authorization server answered under a failing status and stated no error.",
+                inner: null,
+                response.StatusCode);
+        }
+
+        return payload;
     }
 
     /// <summary>Stores the refresh token the authorization server issued in place of the one this request spent.</summary>
