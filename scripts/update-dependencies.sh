@@ -549,10 +549,14 @@ collect_image_references() {
     grep -oE '^ARG +[A-Z_]+_IMAGE=[^ ]+' 'deploy/docker/Dockerfile' | sed -E 's|^ARG +[A-Z_]+_IMAGE=||'
   fi
 
-  # Compose writes the same shape: an environment variable with the pin as its default.
-  if [[ -f 'deploy/compose/compose.yaml' ]]; then
-    grep -oE 'image: \$\{[A-Z_]+:-[^}]+\}' 'deploy/compose/compose.yaml' | sed -E 's|^.*:-([^}]+)\}$|\1|'
-  fi
+  # Compose writes the same shape: an environment variable with the pin as its default. The fault-injection overlay
+  # pins an image of its own; the nightly overlay pins none, and its registry default would read as one.
+  local compose_file
+  for compose_file in 'deploy/compose/compose.yaml' 'deploy/compose/compose.faults.yaml'; do
+    if [[ -f "$compose_file" ]]; then
+      grep -oE 'image: \$\{[A-Z_]+:-[^}]+\}' "$compose_file" | sed -E 's|^.*:-([^}]+)\}$|\1|'
+    fi
+  done
 
   # The AppHost states an image and its tag as consecutive quoted strings, whether that is `AddContainer(name, image,
   # tag)` on one line, the same call wrapped over three, or `WithImage(...)` followed by `WithImageTag(...)`. Keeping

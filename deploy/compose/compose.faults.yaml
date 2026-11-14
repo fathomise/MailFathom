@@ -1,0 +1,90 @@
+# Copyright © 2026 Krzysztof Kasprowicz
+# Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
+# Project repository: https://github.com/fathomise/MailFathom
+
+# Network fault injection. A testing tool, never part of a deployment anybody depends on.
+#
+#   MAILFATHOM_FAULTS_IMAP_HOST=imap.example.com \
+#   MAILFATHOM_FAULTS_SMTP_HOST=smtp.example.com \
+#   docker compose -f compose.yaml -f compose.faults.yaml up -d
+#
+# then scripts/inject-fault.sh takes a connection away and gives it back. docs/operations/fault-injection.md is the
+# page: what each preset does, what a TCP proxy cannot inject, and why the mailbox under test should be a test mailbox.
+#
+# One Toxiproxy instance sits on three connections, as three proxies: `imap` and `smtp`, between this deployment and
+# the mail servers named above, and `client`, between a client and this deployment's HTTP port. Nothing in the product
+# knows it is there. The mail host names resolve to the proxy inside the `mailfathom` container alone, so the TLS
+# session is still the one MailFathom opens with the real server, under the real server's name, and a mail account is
+# configured exactly as it is without this file. The proxy itself resolves them through ordinary DNS.
+
+services:
+  mailfathom:
+    # The names an account already carries, pointed at the proxy. /etc/hosts is read before DNS even in the chiseled
+    # image, which carries no nsswitch.conf: the C library's default order is files first.
+    extra_hosts:
+      - "${MAILFATHOM_FAULTS_IMAP_HOST:?Name the IMAP server the mail account under test connects to.}=${MAILFATHOM_FAULTS_PROXY_ADDRESS:-172.30.199.10}"
+      - "${MAILFATHOM_FAULTS_SMTP_HOST:?Name the SMTP server the mail account under test sends through.}=${MAILFATHOM_FAULTS_PROXY_ADDRESS:-172.30.199.10}"
+    networks:
+      - faults
+    # The HTTP port is published by the proxy below instead, so a client reaches this deployment only through it. The
+    # administrative and health ports stay published directly, so mfctl and the probes keep answering while a fault is
+    # active on the client's connection.
+    ports: !override
+      - "${MAILFATHOM_ADMIN_BIND:-127.0.0.1}:${MAILFATHOM_ADMIN_PORT:-8090}:8090"
+      - "${MAILFATHOM_HEALTH_BIND:-127.0.0.1}:${MAILFATHOM_HEALTH_PORT:-8081}:8081"
+
+  toxiproxy:
+    image: ${MAILFATHOM_TOXIPROXY_IMAGE:-ghcr.io/shopify/toxiproxy:2.13.0}
+    restart: unless-stopped
+    command:
+      - -host=0.0.0.0
+      - -config=/etc/toxiproxy/proxies.json
+    configs:
+      - source: toxiproxy-proxies
+        target: /etc/toxiproxy/proxies.json
+    # The image runs as root by default. As nobody instead, the mail ports below 1024 are opened by lowering this
+    # network namespace's unprivileged port floor rather than by granting a capability; the sysctl reaches this
+    # container's own namespace and nothing outside it.
+    #
+    # Not read-only, unlike the services in compose.yaml: Compose copies an inline config into the container and
+    # refuses to into a read-only one. The image is one static binary with nothing beside it to rewrite.
+    user: "65534:65534"
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    ports:
+      - "${MAILFATHOM_HTTP_BIND:-127.0.0.1}:${MAILFATHOM_HTTP_PORT:-8080}:8080"
+      # The control API answers anybody who reaches it, with no credential, so it is published on loopback whatever
+      # the other ports are bound to.
+      - "127.0.0.1:${MAILFATHOM_FAULTS_CONTROL_PORT:-8474}:8474"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      faults:
+        ipv4_address: ${MAILFATHOM_FAULTS_PROXY_ADDRESS:-172.30.199.10}
+    logging:
+      driver: json-file
+      options:
+        max-size: ${MAILFATHOM_LOG_MAX_SIZE:-10m}
+        max-file: ${MAILFATHOM_LOG_MAX_FILES:-3}
+
+networks:
+  # A network of its own, because the proxy needs an address fixed before the `mailfathom` container starts and an
+  # address is fixed only on a network whose subnet is stated. Change both values together if the subnet is taken.
+  faults:
+    ipam:
+      config:
+        - subnet: ${MAILFATHOM_FAULTS_SUBNET:-172.30.199.0/24}
+
+configs:
+  # The three proxies, created enabled when the proxy starts, so the mail connections pass through untouched until a
+  # fault is injected. The ports are the ones the account connects to: implicit TLS for IMAP and submission for SMTP
+  # by default.
+  toxiproxy-proxies:
+    content: |
+      [
+        {"name": "imap", "listen": "0.0.0.0:${MAILFATHOM_FAULTS_IMAP_PORT:-993}", "upstream": "${MAILFATHOM_FAULTS_IMAP_HOST}:${MAILFATHOM_FAULTS_IMAP_PORT:-993}", "enabled": true},
+        {"name": "smtp", "listen": "0.0.0.0:${MAILFATHOM_FAULTS_SMTP_PORT:-587}", "upstream": "${MAILFATHOM_FAULTS_SMTP_HOST}:${MAILFATHOM_FAULTS_SMTP_PORT:-587}", "enabled": true},
+        {"name": "client", "listen": "0.0.0.0:8080", "upstream": "mailfathom:8080", "enabled": true}
+      ]

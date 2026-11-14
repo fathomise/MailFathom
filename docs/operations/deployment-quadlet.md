@@ -36,6 +36,7 @@ credential path and the unit-level bounds, and it does it with less to arrange.
 | Rootless or root | Either | Rootless only — `UserNS=keep-id` is not supported for a root container |
 | Building from a checkout | `docker compose up --build` | No. It runs a published release image |
 | Nightly builds | `compose.nightly.yaml` | No overlay; edit `Image=` deliberately |
+| [Injecting network faults](fault-injection.md) | `compose.faults.yaml`, a testing overlay | None |
 | Bringing it up | One command | Five unit files, `systemctl --user` per service; each optional service is one or two more |
 
 ## What it needs

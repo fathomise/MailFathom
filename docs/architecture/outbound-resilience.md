@@ -438,6 +438,8 @@ validated-snapshot layer the mail and persistence settings already have, not a c
   already carry the pipeline name and the exception type, which is what an operator reads here.
 - **Chaos injection** is not wired up. Polly's chaos strategies ship inside `Polly.Core`, so adopting them later costs
   no new dependency, but injecting faults is only meaningful against the real adapters and belongs with the
-  integration-test foundation rather than with the pipelines themselves.
+  integration-test foundation rather than with the pipelines themselves. Faults on the network between a running
+  deployment and its mail servers are injected outside the process instead, by
+  [the fault-injection overlay](../operations/fault-injection.md).
 - **Distributed rate limiting and cross-process circuit state** are out of scope. Every limit here is per process, and
   within a process per dependency instance.

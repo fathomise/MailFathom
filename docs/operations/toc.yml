@@ -116,6 +116,9 @@
     - name: The end-to-end client run
       href: end-to-end-client-run.md
       description: The pipeline that stands a throwaway deployment up and drives the real client against it, what each of its steps produces, and why it gates nothing.
+    - name: Injecting network faults
+      href: fault-injection.md
+      description: Putting a proxy on a Compose deployment's mail and client connections, breaking one on purpose, and what a TCP-level fault cannot reproduce.
     - name: The agent workflow
       href: agent-workflow.md
       description: The scripts and skills a repository change passes through, what each one asserts, and how a review runs on a pull request.
