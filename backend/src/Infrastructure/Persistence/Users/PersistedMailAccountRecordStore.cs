@@ -327,6 +327,8 @@ internal sealed class PersistedMailAccountRecordStore(
                 // assignment already standing, or the account is assigned to as many users as it may be where it
                 // belongs. Inside an organization somebody else's assignment is not a conflict — the key is the pair —
                 // so an account several members are assigned takes each of them without the others being consulted.
+                // Outside every organization it is: the clause names no target, so it covers the sole-user index too,
+                // and an assignment the count could not see still inserts nothing and is answered the same way.
                 if (assigned == 0)
                 {
                     return new MailAccountWrite(await WhyNotAssignedAsync(context, accountId, userId, organization, token), 0);

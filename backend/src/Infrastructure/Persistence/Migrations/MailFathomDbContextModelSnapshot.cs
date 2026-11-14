@@ -1953,6 +1953,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("MailAccountId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AccountInNoOrganization")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("boolean");
+
                     b.Property<DateTimeOffset>("AssignedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1960,6 +1964,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("MailAccountId")
                         .HasDatabaseName("ix_mail_account_assignments_mail_account_id");
+
+                    b.HasIndex(new[] { "MailAccountId" }, "ix_mail_account_assignments_sole_user_outside_organization")
+                        .IsUnique()
+                        .HasFilter("\"AccountInNoOrganization\"");
 
                     b.ToTable("mail_account_assignments", (string)null);
                 });

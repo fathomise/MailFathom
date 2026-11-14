@@ -19,4 +19,13 @@ internal sealed class MailAccountAssignmentEntity
     public Guid MailAccountId { get; set; }
 
     public DateTimeOffset AssignedAt { get; set; }
+
+    /// <summary>Gets whether the account stands in no organization, which is what holds it to this one assignment.</summary>
+    /// <remarks>
+    /// A copy of the account's own <c>OrganizationId</c> being null, kept by two triggers rather than by any writer: one
+    /// computes it on every insert and update of an assignment, and one rewrites it on every assignment of an account
+    /// whose organization changes. So whatever wrote the row — this build, an older one, or a statement typed at the
+    /// database — the index over it reads the account as it stands.
+    /// </remarks>
+    public bool AccountInNoOrganization { get; private set; }
 }

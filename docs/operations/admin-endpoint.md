@@ -2365,9 +2365,17 @@ assigned to more than one user, naming how many, and unassigns nobody:
 The mail account is assigned to 3 users, and an account in no organization is assigned to one person, because a mailbox is shared only inside an organization. Nothing was changed and nobody was unassigned. Unassign all but one of them first, or leave the account in an organization.
 ```
 
-An account in none that held several assignments before this rule keeps them. Nothing is unassigned on an operator's
-behalf, and every later assignment of it is held to the rule. One address is held by one account in the whole
-deployment whatever organization holds it, which this changes nothing about.
+The count is not the guarantee. PostgreSQL holds the rule itself, with a unique index over an account's assignments
+while it is in no organization, so a second user written past the endpoint — by a statement typed at the database, or
+by a writer added later — is refused there as well, and an assignment through the endpoint that meets the index is
+answered with the same refusal. The schema page's [users a mailbox serves](../architecture/stored-email-schema.md#the-users-a-mailbox-serves) holds the
+index and what keeps it in step with the account.
+
+The migration that brought the index ended the assignments an account in none still held beyond its first: the account
+stays with the user it was assigned to earliest, and every later one is unassigned exactly as an unassignment does it —
+their drafts and recurring sends of that account go, and the mailbox and its mail stay. An operator who wants such an
+account to stay shared moves it and every user it is assigned to into one organization before upgrading. One address is
+held by one account in the whole deployment whatever organization holds it, which this changes nothing about.
 
 **A move never leaves an assignment straddling two organizations, and never unassigns anything.** Moving a mail account
 is refused with `409` while it is assigned to any user the target would not admit, naming how many; moving a user is
