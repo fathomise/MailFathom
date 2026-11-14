@@ -27,6 +27,7 @@ import {
     wantedFor,
     withoutLeaving,
     withoutRepeats,
+    withReturning,
     type HeldTimeline,
     type TimelinePage,
     type TimelineRead,
@@ -138,6 +139,53 @@ describe('withoutLeaving', () => {
         const shown = withoutLeaving(held, (email) => email.id === 'message-7');
 
         expect(cursorAfter(shown)).toBe(cursorAfter(held));
+    });
+});
+
+// A way back puts a row in at the press, as an act takes one out at the press: the deployment goes on answering the
+// folder without the message until the reverse move has reached the mail server.
+describe('withReturning', () => {
+    const identityOf = (email: MailTimelineEntry): string => email.id;
+
+    it('draws a row the last read no longer carried in front of the row it stood in front of', () => {
+        const held = readForward(1);
+        const taken = message(1);
+        const read = withoutLeaving(held, (email) => email.id === taken.id);
+
+        const shown = withReturning(read, [{ row: taken, before: 'message-2' }], identityOf);
+
+        expect(rowCountOf(shown)).toBe(rowsPerPage);
+        expect(rowAt(shown, 1)?.id).toBe('message-1');
+        expect(rowAt(shown, 2)?.id).toBe('message-2');
+    });
+
+    it('draws it at the leading end where the row it stood in front of is no longer held', () => {
+        const held = readForward(1);
+        const taken = { ...message(1), id: 'message-gone' };
+
+        const shown = withReturning(held, [{ row: taken, before: 'message-nowhere' }], identityOf);
+
+        expect(rowAt(shown, 0)?.id).toBe('message-gone');
+        expect(rowCountOf(shown)).toBe(rowsPerPage + 1);
+    });
+
+    it('draws a row that stood last behind every row the list holds', () => {
+        const held = readForward(1);
+        const taken = { ...message(1), id: 'message-last' };
+
+        const shown = withReturning(held, [{ row: taken, before: null }], identityOf);
+
+        expect(rowCountOf(shown)).toBe(rowsPerPage + 1);
+        expect(rowAt(shown, rowsPerPage)?.id).toBe('message-last');
+        expect(rowAt(shown, 0)?.id).toBe('message-0');
+    });
+
+    it('answers with the list itself where the deployment already lists the row, and where nothing returns', () => {
+        const held = readForward(1);
+        const listed = message(1);
+
+        expect(withReturning(held, [{ row: listed, before: null }], identityOf)).toBe(held);
+        expect(withReturning(held, [], identityOf)).toBe(held);
     });
 });
 

@@ -140,7 +140,7 @@ describe('MailboxActControls', () => {
         expect(within(asked).getByText('You can take this back for 5 seconds afterwards.')).toBeDefined();
     });
 
-    it('asks about destroying rather than filing where the messages are already in the trash, and offers no way back', () => {
+    it('asks about destroying rather than filing where the messages are already in the trash, and says the way back stands as long', () => {
         drawControls({ deletesPermanently: () => true }, [invoice, receipt]);
         fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
@@ -152,7 +152,7 @@ describe('MailboxActControls', () => {
                 'Already in the trash - deleting now removes 2 messages together with attachments.',
             ),
         ).toBeDefined();
-        expect(within(asked).getByText('This cannot be undone.')).toBeDefined();
+        expect(within(asked).getByText('You can take this back for 5 seconds afterwards.')).toBeDefined();
         expect(within(asked).getByRole('button', { name: 'Delete' })).toBeDefined();
     });
 

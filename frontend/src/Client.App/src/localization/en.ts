@@ -960,6 +960,8 @@ export const en = {
     'act.messages.other': '{count} messages',
     'act.undo': 'Undo',
     'act.undone': 'Put back where it was',
+    'act.notTakenBack': 'Not taken back - it is already being deleted',
+    'act.takeBackUnanswered': 'The server did not answer - this may still be deleted',
     'act.failed': 'That change was not made: {reason}.',
     'act.someNotChanged':
         'Some of those messages were not changed. The server no longer serves them where the list drew them.',
@@ -993,7 +995,6 @@ export const en = {
         'Already in the trash - deleting now removes {count} messages together with attachments.',
     'act.purgeConsequence.other':
         'Already in the trash - deleting now removes {count} messages together with attachments.',
-    'act.purgeReversal': 'This cannot be undone.',
     'act.purgeConfirm': 'Delete',
     'act.purging': 'Deleting…',
     'act.moveTitle': 'File in another folder',

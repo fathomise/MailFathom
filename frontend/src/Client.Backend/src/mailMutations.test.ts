@@ -14,6 +14,7 @@ import {
     moveMail,
     readMailMutationRecords,
     releaseMailDeletes,
+    withdrawMailDeletes,
 } from './mailMutations';
 import type { ClientSession } from './session';
 import type { ClientRequest, ClientResponse, MailFathomTransport } from './transport';
@@ -615,9 +616,12 @@ describe('deleteMail', () => {
     });
 });
 
-// The end of the wait in front of a delete. It names records rather than messages and answers with each record as it
+// The two ends of the wait in front of a delete. Each names records rather than messages and answers with each record as it
 // now stands, so what a client learns from it is read exactly as a read of those records is.
-describe.each([['releaseMailDeletes', releaseMailDeletes, 'releases']] as const)('%s', (_, ask, route) => {
+describe.each([
+    ['releaseMailDeletes', releaseMailDeletes, 'releases'],
+    ['withdrawMailDeletes', withdrawMailDeletes, 'withdrawals'],
+] as const)('%s', (_, ask, route) => {
     it(`names the records on the client surface’s delete ${route} route`, async () => {
         const { transport, requests } = recording({ status: 200, body: JSON.stringify({ changes: [] }) });
 

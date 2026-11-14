@@ -73,7 +73,9 @@ import {
     trimmedAround,
     wantedFor,
     withoutLeaving,
+    withReturning,
     type HeldTimeline,
+    type ReturningRow,
 } from './heldTimeline';
 import { ListedByConversation } from './ListedByConversation';
 import { ListPull } from './ListPull';
@@ -109,6 +111,32 @@ import { Departing } from '../shell/Departing';
 // How long after scrolling stops before where the reader is is written down. Long enough that a flick through a folder
 // writes once rather than per frame, short enough that leaving immediately afterwards keeps the position.
 const restingBeforeRemembered = 400;
+
+/**
+ * How long a row somebody took back is drawn ahead of the listing, counted from the first read after the press.
+ *
+ * A ceiling rather than a measurement: the reverse move reaches a mail server in seconds, and past this the listing is
+ * believed over the press, so a message something else has since removed does not stand in the list for good. A mail
+ * server slower than this draws the row late; the upgrade is to follow the move's own record to its end.
+ */
+const returningDrawnFor = 60_000;
+
+/**
+ * A row an act took out of the list, and when a way back was first seen asking for it again: `null` before one, and
+ * `'over'` once it has been drawn ahead of the listing for as long as it may be.
+ */
+interface TakenRow extends ReturningRow<MailTimelineEntry> {
+    readonly since: number | 'over' | null;
+}
+
+/** Whether a row went out under the act this claim still asks for: the same act, out of the same folder. */
+function sameLeaving(under: AskedAct | undefined, asked: AskedAct | undefined): boolean {
+    if (under === undefined || asked === undefined) {
+        return false;
+    }
+
+    return under.act === asked.act && under.from === asked.from && under.destroys === asked.destroys;
+}
 
 // The accounts whose Drafts folder this list is, which is where the drafts out of step with their server are drawn: the
 // one account's where one Drafts folder is open, and every account's where the Drafts of all of them are.
@@ -245,6 +273,21 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
     // what keeps the second press of the same act on the same message from skipping its animation. It grows by one
     // entry per message somebody files in one sitting, and every entry a message gains again replaces its own.
     const [goneRows, setGoneRows] = useState<ReadonlyMap<string, AskedAct>>(() => new Map());
+
+    // A row is through its animation for one asking of one act and no longer. The claim it went out under is replaced
+    // by a new object when the deployment answers it, so what is compared is what the two say rather than which object
+    // says it — an answer arriving after the row has gone must not draw it going a second time — and a row whose claim
+    // has since been let go of, or replaced by another act, is forgotten here, which is what makes the same act pressed
+    // again on the same message leave with its animation. Adjusted while rendering rather than in an effect, because
+    // it is derived from the claims and a commit drawn from the stale half is a row skipping the animation it is owed.
+    if ([...goneRows].some(([id, under]) => !sameLeaving(under, acts.asked.get(id)))) {
+        setGoneRows(new Map([...goneRows].filter(([id, under]) => sameLeaving(under, acts.asked.get(id)))));
+    }
+
+    // The rows an act took out of this list, each as it was last drawn and in front of what, kept from the moment a
+    // read of the folder is about to replace them: that read may no longer carry the row, and it is the only copy a
+    // way back has to draw the message from until the mail server has been seen to agree. Bounded as the rows gone are.
+    const [takenRows, setTakenRows] = useState<ReadonlyMap<string, TakenRow>>(() => new Map());
     const [failure, setFailure] = useState<ClientFailure | null>(null);
 
     const [scrollTop, setScrollTop] = useState(0);
@@ -321,10 +364,20 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
             return false;
         }
 
-        return !watched || goneRows.get(email.id) === acts.asked.get(email.id);
+        return !watched || sameLeaving(goneRows.get(email.id), acts.asked.get(email.id));
     }
 
-    const shown = withoutLeaving(held, hasLeft);
+    // The rows a way back is filing in this folder again, which are drawn from the press whether or not the last read
+    // still carried them.
+    const returning = [...takenRows.values()].filter(
+        ({ row, since }) => since !== 'over' && acts.asked.get(row.id)?.returnsTo === row.folder,
+    );
+
+    function asDrawn(all: HeldTimeline<MailTimelineEntry>): HeldTimeline<MailTimelineEntry> {
+        return withReturning(withoutLeaving(all, hasLeft), returning, (email) => email.id);
+    }
+
+    const shown = asDrawn(held);
 
     const rowCount = rowCountOf(shown);
     const drawn = windowOf(rowCount, rowHeight, scrollTop, viewport);
@@ -380,6 +433,47 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
             // selection are outside this column and the identities the workspace holds say neither which account a
             // message is in nor which folder it would be leaving.
             listed.drew(emails, askedAt);
+
+            // What an act has taken out of this folder is kept as it stands now, before the page replaces it. A row
+            // being filed back is kept from the first page read after the way back was taken and for no longer than
+            // `returningDrawnFor`: by then the listing is what says where the message is.
+            const standing = heldRows(held);
+            const now = Date.now();
+
+            setTakenRows((current) => {
+                let taken = current;
+
+                for (const [at, email] of standing.entries()) {
+                    const leaving = actLeaving(acts, email);
+
+                    // A row leaving afresh starts over, so a second way back is given its own time.
+                    if (leaving || acts.asked.get(email.id)?.returnsTo === email.folder) {
+                        taken = rowWentOut(taken, email.id, {
+                            row: email,
+                            // The next row that is staying, since one leaving beside it is not there to stand
+                            // in front of once the folder is read again.
+                            before: standing.slice(at + 1).find((next) => !actLeaving(acts, next))?.id ?? null,
+                            since: leaving ? null : (taken.get(email.id)?.since ?? null),
+                        });
+                    }
+                }
+
+                const left = new Map(taken);
+
+                for (const [id, kept] of taken) {
+                    if (acts.asked.get(id)?.returnsTo !== kept.row.folder) {
+                        continue;
+                    }
+
+                    if (kept.since === null) {
+                        left.set(id, { ...kept, since: now });
+                    } else if (kept.since !== 'over' && now - kept.since > returningDrawnFor) {
+                        left.set(id, { ...kept, since: 'over' });
+                    }
+                }
+
+                return left;
+            });
 
             // What this page's arrival amounts to, read against what the reader has already been shown: the rows that
             // are new to them land, the rows the page draws differently are washed, and the rows it repeats — which is
@@ -522,7 +616,7 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
         const moved = windowOf(rowCount, rowHeight, top, viewport);
         const last = moved.first + moved.count - 1;
 
-        setHeld((current) => trimmedAround(current, moved.first, last, (drawn) => withoutLeaving(drawn, hasLeft)));
+        setHeld((current) => trimmedAround(current, moved.first, last, asDrawn));
 
         // What the rows that moved are let go of, and it is a scroll rather than an animation that does it: a row
         // carried out of the window is unmounted, and an unmounted row never reports its own animation ending. Asked

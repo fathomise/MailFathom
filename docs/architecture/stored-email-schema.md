@@ -1657,7 +1657,7 @@ stored by name, so it needed no migration.
 
 `HeldUntil` is the one way a record at `Recorded` is kept from the account's pass. It is null on every record but a
 delete a person asked for through the client endpoint, where it is the instant their own notification time and a
-ten-second grace run out: until then the pass does not take the record in hand, and a withdrawal can still reach
+five-second grace run out: until then the pass does not take the record in hand, and a withdrawal can still reach
 `Cancelled` because nothing has been issued. It is written with the row rather than computed from the person's current
 preference, so the window a delete opened under is the window it keeps whatever that preference is changed to while it
 waits. A client that stops offering the way back clears it to null, which ends the wait at once; a client that
