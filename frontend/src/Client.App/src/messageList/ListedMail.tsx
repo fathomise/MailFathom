@@ -66,6 +66,7 @@ export function ListedMailProvider({ children }: { readonly children: ReactNode 
         stand: (view) => {
             mailbox.current?.stand(view);
         },
+        conversations: (selected) => mailbox.current?.conversations?.(selected) ?? null,
         listing: (list) => {
             mailbox.current = list;
         },

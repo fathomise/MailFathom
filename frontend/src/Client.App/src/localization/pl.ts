@@ -968,6 +968,7 @@ export const pl: Catalogue = {
         'Przeciągnij, aby zmienić szerokość listy. Dwuklik lub klawisz Home przywraca szerokość początkową.',
 
     'select.bar': 'Działania na zaznaczonych wiadomościach',
+    'select.threadBar': 'Akcje na zaznaczonych wątkach',
     'select.count.one': '{count} zaznaczona',
     'select.count.few': '{count} zaznaczone',
     'select.count.many': '{count} zaznaczonych',
@@ -1538,6 +1539,10 @@ export const pl: Catalogue = {
     'threadList.aiTitle': 'Tytuł AI:',
     'threadList.updating': 'Aktualizuję po nowej wiadomości…',
     'threadList.attachments': 'Załączniki w tym wątku',
+    'threadList.selectThreads': 'Zaznacz wątki',
+    'threadAct.notRead': 'Nic nie zostało zmienione, bo nie udało się odczytać wątku. Spróbuj ponownie.',
+    'threadAct.nothingTaken': '{control} - żadna wiadomość w wątku nie podlega tej akcji.',
+    'threadAct.cut': 'Wątek ma więcej wiadomości, niż odczytuje się naraz, więc jego część została bez zmian.',
     'list.reading': 'Wczytywanie poczty…',
     'list.readingMore': 'Wczytywanie dalszych wiadomości…',
     'list.rowArriving': 'Ponowne wczytywanie tej wiadomości…',

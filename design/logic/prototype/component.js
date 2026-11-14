@@ -1569,12 +1569,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.notify((turnOn ? "Flagged " : "Flag removed - ") + this.countWord(t.length), false);
     };
 
+    /* Whether any of those threads holds an unread message, which is what turns the read control round by thread. */
+    threadsUnread = (ids) => { const u = this.state.unread || DEFAULT_UNREAD; return this.opTargets(ids).some(id => !!u[id]); };
+
     markUnread = (ids) => {
       const t = this.opTargets(ids);
       const unread = Object.assign({}, this.state.unread || DEFAULT_UNREAD);
-      t.forEach(id => { unread[id] = true; });
+      /* Read by thread the one control goes both ways: any unread message among them and every thread is marked
+         read, none and every thread is marked unread. */
+      const toRead = !!this.state.convMail && this.threadsUnread(ids);
+      t.forEach(id => { unread[id] = !toRead; });
       this.setState({ unread: unread, sel: [] });
-      this.notify("Marked as unread - " + this.countWord(t.length), false);
+      this.notify((toRead ? "Marked as read - " : "Marked as unread - ") + this.countWord(t.length), false);
     };
 
     accountMenu = (key, label) => [
@@ -2210,7 +2216,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             (rcpt ? " - " + rcpt.word : "") +
             (th.localOnly ? " - Local only" : "") +
             (th.encrypted ? " - " + ENC_STATES[th.encrypted].name : ""),
-          items: [
+          /* Read by thread, the row is the whole conversation, so its menu holds what is done to all of it and
+             nothing that belongs to one message: no summary, no answer, no flag and no details. Each act says which
+             of the conversation's messages it takes in state-inventory.md, *Acts on a thread*. */
+          items: this.state.convMail ? [
+            { icon: "check_box", label: "Select threads", run: () => this.toggleSelect(id) },
+            ai && { icon: "auto_awesome", label: "Ask the agent", run: () => this.goAgentWith("thread “" + (th.subject || "mail") + "”") },
+            { icon: "archive", label: "Archive", run: () => this.archiveThreads([id]) },
+            this.threadsUnread([id])
+              ? { icon: "mark_email_read", label: "Mark as read", run: () => this.markUnread([id]) }
+              : { icon: "mark_email_unread", label: "Mark as unread", run: () => this.markUnread([id]) },
+            !sp.spam && { icon: "report", label: "Spam\u2026", run: () => this.toggleSpam([id]) },
+            { icon: "drive_file_move", label: "Move\u2026", run: () => this.setState({ moveFor: [id] }) },
+            { icon: "delete", label: "Delete", danger: true, run: () => this.deleteThreads([id]) },
+          ].filter(Boolean) : [
             ai && { icon: "auto_awesome", label: "AI summary", run: () => this.openAiSum(id) },
             { icon: "check_box", label: "Select messages", run: () => this.toggleSelect(id) },
             ai && { icon: "auto_awesome", label: "Ask the agent", run: () => this.goAgentWith("thread “" + (th.subject || "mail") + "”") },
@@ -2855,7 +2874,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     /* While the status is offline every control that writes says so before it is pressed rather than failing after:
        drawn as a control that cannot act (aria-disabled, at 60%), its name bubble - a tap under a finger - naming the
        control and *no connection to the MailFathom server*. Reading, opening and composing stay as they are. */
-    static WRITE_ACTS = ["archive", "delete", "flag", "mark_email_unread", "drive_file_move", "report", "report_off", "send", "save"];
+    static WRITE_ACTS = ["archive", "delete", "flag", "mark_email_unread", "mark_email_read", "drive_file_move", "report", "report_off", "send", "save"];
     noop = () => {};
     writeRefused(act) {
       return this.connNow().status === "offline" && Component.WRITE_ACTS.indexOf(act) >= 0;
@@ -5521,6 +5540,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         delete: () => this.deleteThreads(),
         flag: () => this.toggleFlagThreads(),
         mark_email_unread: () => this.markUnread(),
+        mark_email_read: () => this.markUnread(),
         drive_file_move: () => this.openMove(),
         report: () => this.toggleSpam(),
         report_off: () => this.toggleSpam(),
@@ -8387,12 +8407,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         selectionActions: [
           { icon: "archive", label: "Archive" },
           { icon: "delete", label: "Delete" },
-          { icon: "flag", label: "Flag" },
-          { icon: "mark_email_unread", label: "Unread" },
+          /* Read by thread a selection is whole conversations: no flag, and the read control goes both ways. */
+          !convMail && { icon: "flag", label: "Flag" },
+          convMail && this.threadsUnread(sel) ? { icon: "mark_email_read", label: "Read" } : { icon: "mark_email_unread", label: "Unread" },
           /* *Not spam* only while every selected message is spam; a mix reads *Spam* and is refused when pressed. */
-          sel.length && sel.every(id => this.spamOf(id).spam) ? { icon: "report_off", label: "Not spam" } : { icon: "report", label: "Spam" },
+          !convMail && sel.length && sel.every(id => this.spamOf(id).spam) ? { icon: "report_off", label: "Not spam" } : { icon: "report", label: "Spam" },
           { icon: "drive_file_move", label: "Move" },
-        ].map(a => ({ icon: a.icon, title: this.writeRefusedTitle(a.icon, a.label), label: tbFull ? a.label : "", run: this.writeRefused(a.icon) ? this.noop : mailAct[a.icon], refused: this.writeRefused(a.icon), style: (tbFull ? selBtn : tbIcon + ";flex:0 0 auto;color:var(--accent-d)") + this.writeRefusedStyle(a.icon) })),
+        ].filter(Boolean).map(a => ({ icon: a.icon, title: this.writeRefusedTitle(a.icon, a.label), label: tbFull ? a.label : "", run: this.writeRefused(a.icon) ? this.noop : mailAct[a.icon], refused: this.writeRefused(a.icon), style: (tbFull ? selBtn : tbIcon + ";flex:0 0 auto;color:var(--accent-d)") + this.writeRefusedStyle(a.icon) })),
         aiSumOpen: !!aiSumThread,
         aiSumSubject: aiSumThread ? aiSumThread.subject : "",
         /* Wide: a reading and its passage side by side, one hairline between readings and no cards

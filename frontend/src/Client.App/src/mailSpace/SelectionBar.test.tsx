@@ -216,4 +216,50 @@ describe('SelectionBar', () => {
 
         expect(carried().selected).toStrictEqual([]);
     });
+
+    it('draws the acts of whole conversations over a list read by conversation, with no flag, and hands each to the list', () => {
+        const ask = vi.fn();
+
+        drawBar(
+            ['newest-1'],
+            { spamOffered: true },
+            {
+                conversations: () => ({
+                    threads: [
+                        {
+                            threadId: 'thread-1',
+                            account: 'work',
+                            messageCount: 3,
+                            unreadCount: 1,
+                            hasAttachments: false,
+                            participants: [],
+                            moreParticipantsNotNamed: false,
+                            newest: {
+                                id: 'newest-1',
+                                subject: 'The figures',
+                                receivedAt: null,
+                                senderAddress: null,
+                                senderDisplayName: null,
+                                preview: null,
+                                own: false,
+                                senderPhoto: null,
+                            },
+                            newestReceivedSender: null,
+                            title: null,
+                            categories: [],
+                        },
+                    ],
+                    ask,
+                }),
+            },
+        );
+
+        expect(screen.getByRole('toolbar', { name: 'Actions on the threads selected' })).toBeDefined();
+        expect(screen.getByText('1 selected')).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Flag' })).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Mark read' }));
+
+        expect(ask).toHaveBeenCalledWith('markRead', expect.any(Function));
+    });
 });

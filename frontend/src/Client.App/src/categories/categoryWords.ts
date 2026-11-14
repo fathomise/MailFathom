@@ -41,3 +41,19 @@ export function drawnCategories(categories: readonly MailCategory[], translate: 
         return word === null ? [] : [{ identity: category.identity, name: translate(word) }];
     });
 }
+
+/** Who a row is from, followed by every category it holds, which is the line under a row menu's header. */
+export function categoriesDetail(
+    who: string | undefined,
+    categories: readonly DrawnCategory[],
+    translate: Translate,
+): string | undefined {
+    return categories.reduce<string | undefined>(
+        (detail, category) =>
+            translate('category.rowDetail', {
+                who: detail ?? translate('list.senderUnknown'),
+                category: category.name,
+            }),
+        who,
+    );
+}

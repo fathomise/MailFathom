@@ -6,6 +6,8 @@ import type { ListedMailThread } from '@mailfathom/client-backend';
 import { RowCategories } from '../categories/CategoryLabels';
 import { drawnCategories } from '../categories/categoryWords';
 import { useContactPhoto } from '../contactBook/contactPhotos';
+import type { MenuPoint } from '../contextMenu/menuPlacement';
+import { useRowPress } from '../contextMenu/rowPress';
 import { Icon } from '../controls/Icon';
 import { LocalOnlyMark } from '../controls/MessageMarkers';
 import { ReceivedAt } from '../controls/ReceivedAt';
@@ -23,11 +25,19 @@ import { newestAuthor, participantsNamed, rowVariantOf, titleStateOf, type Threa
 //
 // The row is one press, so everything on it is read out as the press's name rather than offered as a control of its own
 // — the sender mark is the mark alone, and its details are a press away on the opened message's head.
+//
+// What is done to the conversation is asked of the row's menu — the pointer's own menu gesture, the menu key, or a
+// finger held on it — and a row is picked out as a message row is: a modified press, the menu's first item, or any
+// press while a selection is held.
 
 export function ThreadRow({
     thread,
     open,
+    selected,
+    selecting,
     onOpen,
+    onToggle,
+    onMenu,
     onElement,
 }: {
     readonly thread: ListedMailThread;
@@ -35,7 +45,19 @@ export function ThreadRow({
     /** Whether this is the conversation the reading column stands on. */
     readonly open: boolean;
 
+    /** Whether the conversation is picked out for an act. */
+    readonly selected: boolean;
+
+    /** Whether a selection is being held, which turns a plain press into picking the row out. */
+    readonly selecting: boolean;
+
     readonly onOpen: () => void;
+
+    /** Puts the row into the selection, or takes it out. */
+    readonly onToggle: () => void;
+
+    /** Opens the row's menu at the point it was asked for. */
+    readonly onMenu: (at: MenuPoint) => void;
 
     /** Hands the drawn row over to be measured, since a row is as tall as what its title says. */
     readonly onElement: (element: HTMLLIElement | null) => void;
@@ -51,6 +73,7 @@ export function ThreadRow({
     const picture = useContactPhoto(thread.newest.own ? null : thread.newest.senderPhoto);
     const categories = drawnCategories(thread.categories, translate);
     const categorized = categories.length > 0;
+    const press = useRowPress(onMenu);
 
     // The avatar is the correspondent's, so a conversation ending in the reader's own reply shows who it is with.
     const correspondent = thread.newest.own
@@ -70,9 +93,31 @@ export function ThreadRow({
             <button
                 type="button"
                 aria-current={open ? 'true' : undefined}
-                onClick={onOpen}
+                aria-pressed={selecting ? selected : undefined}
+                onContextMenu={press.onContextMenu}
+                onPointerDown={press.onPointerDown}
+                onPointerMove={press.onPointerMove}
+                onPointerUp={press.onPointerUp}
+                onPointerCancel={press.onPointerCancel}
+                onClick={(event) => {
+                    // The tap that follows a hold which opened the menu is the hold's, not a press of its own.
+                    if (press.tapSuppressed()) {
+                        return;
+                    }
+
+                    if (event.ctrlKey || event.metaKey || selecting) {
+                        onToggle();
+                    } else {
+                        onOpen();
+                    }
+                }}
+                // Marked at the edge as a message row is: the rows picked out for an act, and the row that is open.
                 className={`flex w-full cursor-pointer flex-col gap-1.5 border-s-4 py-3.5 ps-3 pe-4 text-start transition workspace:gap-1.25 workspace:py-3 workspace:ps-2.5 workspace:pe-3.5 ${
-                    open ? 'border-s-accent-strong bg-accent-soft' : 'border-s-transparent bg-panel hover:bg-hover'
+                    selected
+                        ? 'border-s-accent bg-accent-soft'
+                        : open
+                          ? 'border-s-accent-strong bg-accent-soft'
+                          : 'border-s-transparent bg-panel hover:bg-hover'
                 }`}
             >
                 <span className="flex w-full items-center gap-2">

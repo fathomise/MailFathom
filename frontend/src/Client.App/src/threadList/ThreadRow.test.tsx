@@ -49,7 +49,16 @@ function drawing(listed: ListedMailThread, onOpen: () => void = () => undefined)
     render(
         <LocalizationProvider>
             <ul>
-                <ThreadRow thread={listed} open={false} onOpen={onOpen} onElement={() => undefined} />
+                <ThreadRow
+                    thread={listed}
+                    open={false}
+                    selected={false}
+                    selecting={false}
+                    onOpen={onOpen}
+                    onToggle={() => undefined}
+                    onMenu={() => undefined}
+                    onElement={() => undefined}
+                />
             </ul>
         </LocalizationProvider>,
     );
@@ -87,7 +96,16 @@ describe('ThreadRow, the External chip', () => {
             <LocalizationProvider>
                 <ExternalMarkingContext value={{ accounts: new Set(marked), organization: 'Nordwind' }}>
                     <ul>
-                        <ThreadRow thread={listed} open={false} onOpen={() => undefined} onElement={() => undefined} />
+                        <ThreadRow
+                            thread={listed}
+                            open={false}
+                            selected={false}
+                            selecting={false}
+                            onOpen={() => undefined}
+                            onToggle={() => undefined}
+                            onMenu={() => undefined}
+                            onElement={() => undefined}
+                        />
                     </ul>
                 </ExternalMarkingContext>
             </LocalizationProvider>,
@@ -220,5 +238,66 @@ describe('ThreadRow', () => {
         fireEvent.click(drawing(thread(), onOpen));
 
         expect(onOpen).toHaveBeenCalledOnce();
+    });
+});
+
+describe('ThreadRow, picked out and asked what it offers', () => {
+    function drawingPicked(selecting: boolean): {
+        readonly row: HTMLElement;
+        readonly opened: ReturnType<typeof vi.fn>;
+        readonly toggled: ReturnType<typeof vi.fn>;
+        readonly asked: ReturnType<typeof vi.fn>;
+    } {
+        const opened = vi.fn();
+        const toggled = vi.fn();
+        const asked = vi.fn();
+
+        render(
+            <LocalizationProvider>
+                <ul>
+                    <ThreadRow
+                        thread={thread()}
+                        open={false}
+                        selected={selecting}
+                        selecting={selecting}
+                        onOpen={opened}
+                        onToggle={toggled}
+                        onMenu={asked}
+                        onElement={() => undefined}
+                    />
+                </ul>
+            </LocalizationProvider>,
+        );
+
+        return { row: screen.getByRole('button'), opened, toggled, asked };
+    }
+
+    it('opens its menu where the pointer asked for it, and does not open the conversation', () => {
+        const { row, opened, asked } = drawingPicked(false);
+
+        fireEvent.contextMenu(row, { clientX: 40, clientY: 60 });
+
+        expect(asked).toHaveBeenCalledWith({ x: 40, y: 60 });
+        expect(opened).not.toHaveBeenCalled();
+    });
+
+    it('is picked out by a modified press rather than opened', () => {
+        const { row, opened, toggled } = drawingPicked(false);
+
+        fireEvent.click(row, { ctrlKey: true });
+
+        expect(toggled).toHaveBeenCalledTimes(1);
+        expect(opened).not.toHaveBeenCalled();
+    });
+
+    it('is taken out of a selection by a plain press while one is held, and says it is picked out', () => {
+        const { row, opened, toggled } = drawingPicked(true);
+
+        expect(row.getAttribute('aria-pressed')).toBe('true');
+
+        fireEvent.click(row);
+
+        expect(toggled).toHaveBeenCalledTimes(1);
+        expect(opened).not.toHaveBeenCalled();
     });
 });

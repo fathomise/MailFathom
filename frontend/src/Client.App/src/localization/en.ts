@@ -943,6 +943,7 @@ export const en = {
         'Drag to change the list width. Double-click, or press Home, to return it to where it started.',
 
     'select.bar': 'Actions on the messages selected',
+    'select.threadBar': 'Actions on the threads selected',
     'select.count.one': '{count} selected',
     'select.count.few': '{count} selected',
     'select.count.many': '{count} selected',
@@ -1505,6 +1506,10 @@ export const en = {
     'threadList.aiTitle': 'AI title:',
     'threadList.updating': 'Updating with the new message…',
     'threadList.attachments': 'Attachments in this thread',
+    'threadList.selectThreads': 'Select threads',
+    'threadAct.notRead': 'Nothing was changed, because the conversation could not be read. Try again.',
+    'threadAct.nothingTaken': '{control} - no message in the conversation is one this applies to.',
+    'threadAct.cut': 'A conversation holds more messages than are read at once, so part of it was left as it was.',
     'list.reading': 'Reading your mail…',
     'list.readingMore': 'Reading more…',
     'list.rowArriving': 'Reading this message again…',

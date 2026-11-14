@@ -11,23 +11,31 @@ import type {
     MailFathomTransport,
     MailTimelinePageDirection,
 } from '@mailfathom/client-backend';
+import type { MenuPoint } from '../contextMenu/menuPlacement';
+import { withToggled } from '../contextMenu/rowSelection';
 import { Skeleton } from '../controls/Skeleton';
 import { useLocalization } from '../localization/useLocalization';
+import { useMailboxActs } from '../mailboxActs/useMailboxActs';
 import { windowOfHeights } from '../messageRows/rowWindow';
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { drawsCategories } from '../categories/categoryWords';
 import { rowVariantOf, titleStateOf, type ThreadRowVariant } from '../threadList/threadRows';
+import type { ConversationAct } from '../threadList/conversationMessages';
 import { ThreadRow } from '../threadList/ThreadRow';
+import { ThreadRowMenu } from '../threadList/ThreadRowMenu';
+import { useConversationActs } from '../threadList/useConversationActs';
 import { scopeReaches, type MailScope } from '../workspace/mailScope';
 import { useWorkspace } from '../workspace/useWorkspace';
 import {
     cursorAfter,
+    heldRows,
     nothingHeld,
     refillsHeldRows,
     refreshAsked,
     rowAt,
     trimmedWithoutRepeats,
     wantedFor,
+    withoutLeaving,
     withoutRepeats,
     type HeldTimeline,
     type TimelineRead,
@@ -37,13 +45,15 @@ import { ListSettings } from './ListSettings';
 import { emptyReason, narrowedToView, type MailListing } from './listing';
 import { rememberedListing, rememberListing } from './rememberedListings';
 import { conversationPages, usePageReads, useSignalledPages } from './timelinePages';
-import { useListedMail } from './useListedMail';
+import { mostPlacesRemembered, useListedMail } from './useListedMail';
 
 // The mail list grouped by conversation: one row per conversation of the account picked, or of every account, standing
 // where its newest message that passed the filters does. It is the message list read another way rather than a list
 // of its own — the same route, the same filters and order, the same window of pages either side of the screen, and the
 // same rule for reading a page again — so what is here is only what a conversation's row needs that a message's does
-// not, and what a list of messages has that this one does not have at all: no selection, no acts, no row menu.
+// not. A row is the whole conversation, so its menu and the bar over a selection ask acts of the conversation rather
+// than of a message — `threadList/useConversationActs.tsx` — and a conversation is picked out by its newest message,
+// the message its row is drawn from, so a selection here is still the list of messages the workspace holds.
 //
 // A row is as tall as what its title says — a subject alone, a framed topic, or a framed topic with a line under it —
 // and whether its categories stand a line of their own, so the window is laid out from the height each of those
@@ -160,8 +170,10 @@ export function ListedByConversation({
     ) => void;
 }) {
     const { translate } = useLocalization();
-    const { workspace } = useWorkspace();
+    const { workspace, revise } = useWorkspace();
     const listed = useListedMail();
+    const acts = useMailboxActs();
+    const conversationActs = useConversationActs(session, transport);
     const signalledChanges = useSignalledChanges();
 
     // How the list is read, which is kept across a visit as a folder's is: the order and the filters, and with them the
@@ -185,9 +197,32 @@ export function ListedByConversation({
     const scroller = useRef<HTMLDivElement>(null);
     const rowElements = useRef(new Map<string, HTMLLIElement>());
 
+    // The conversation whose menu is open and where it was asked for. Named rather than held as a row, because the
+    // rows move under an open menu.
+    const [pressed, setPressed] = useState<{ readonly threadId: string; readonly at: MenuPoint } | null>(null);
+
+    // Every conversation a page has drawn, by its newest message, which is what a selection names it by: the bar over
+    // a selection asks for conversations the list has since scrolled away from. Bounded as the message list's own
+    // places are, oldest given up first.
+    const drawnThreads = useRef(new Map<string, ListedMailThread>());
+
+    // The conversations a delete was asked of from this list, by the message each row was drawn from.
+    const [deletedHere, setDeletedHere] = useState<ReadonlySet<string>>(() => new Set());
+
     // A conversation that moved to the top since a page further down was read stands on both until that page is read
     // again, and it is drawn once — where the page that moved it put it.
-    const shown = withoutRepeats(held, conversationOf);
+    //
+    // A conversation asked to be deleted leaves at the press, as a deleted message does, rather than when the mailbox
+    // is seen to agree. It is gone only while the delete still stands for the message its row is drawn from, so taking
+    // the delete back draws it again — and only where the delete was asked of the conversation, since deleting that
+    // one message from inside it leaves the rest of the conversation listed.
+    const shown = withoutLeaving(
+        withoutRepeats(held, conversationOf),
+        (thread) => deletedHere.has(thread.newest.id) && acts.asked.get(thread.newest.id)?.act === 'delete',
+    );
+    const pressedThread =
+        pressed === null ? null : (heldRows(shown).find((thread) => thread.threadId === pressed.threadId) ?? null);
+    const selecting = workspace.selected.length > 0;
     const heights = heightsOf(shown, drawnAs, measured);
     const rowCount = heights.length;
     const drawn = windowOfHeights(heights, scrollTop, viewport);
@@ -213,6 +248,18 @@ export function ListedByConversation({
         setHeld,
         setFailure,
         onPage: (threads, _askedAt, asked) => {
+            for (const thread of threads) {
+                drawnThreads.current.set(thread.newest.id, thread);
+            }
+
+            for (const oldest of drawnThreads.current.keys()) {
+                if (drawnThreads.current.size <= mostPlacesRemembered) {
+                    break;
+                }
+
+                drawnThreads.current.delete(oldest);
+            }
+
             setDrawnAs((current) =>
                 new Map(current).set(pageKey(asked.cursor, asked.direction), threads.map(drawnRowOf)),
             );
@@ -326,12 +373,50 @@ export function ListedByConversation({
         setScrollTop(0);
     }
 
+    function ask(act: ConversationAct, threads: readonly ListedMailThread[], onActed?: () => void): void {
+        conversationActs.ask(act, threads, () => {
+            if (act === 'delete') {
+                setDeletedHere((current) => new Set([...current, ...threads.map((thread) => thread.newest.id)]));
+            }
+
+            onActed?.();
+        });
+    }
+
+    function toggle(thread: ListedMailThread): void {
+        revise({ selected: withToggled(workspace.selected, thread.newest.id) });
+    }
+
+    // Closing the menu puts focus back on the row it was opened from, which is where the reader was.
+    function closeMenu(): void {
+        if (pressed !== null) {
+            rowElements.current.get(pressed.threadId)?.querySelector('button')?.focus();
+        }
+
+        setPressed(null);
+    }
+
     // A press on an AI filter is a shortcut to filters on the list in front of the reader, and lands here as any other
-    // filter change does. Selecting everything and taking focus back belong to a list of messages, which this is not.
+    // filter change does. Registered on every render, as the message list registers, because what is registered closes
+    // over the rows held at that moment.
     useEffect(() => {
         listed.listing({
-            selectAll: () => undefined,
-            takeFocus: () => undefined,
+            selectAll: () => {
+                revise({ selected: heldRows(shown).map((thread) => thread.newest.id) });
+            },
+            takeFocus: () => {
+                scroller.current?.querySelector('button')?.focus();
+            },
+            conversations: (selected) => {
+                const threads = selected.flatMap((newest) => drawnThreads.current.get(newest) ?? []);
+
+                return {
+                    threads,
+                    ask: (act, onActed) => {
+                        ask(act, threads, onActed);
+                    },
+                };
+            },
             stand: (view) => {
                 readWith({ ...listing, filters: narrowedToView(listing.filters, view, new Date()) });
             },
@@ -386,7 +471,7 @@ export function ListedByConversation({
 
                     <ul
                         aria-label={translate('threadList.label')}
-                        aria-busy={wanted !== null}
+                        aria-busy={wanted !== null || conversationActs.reading}
                         className="flex flex-col"
                     >
                         {Array.from({ length: drawn.count }, (_, at) => drawn.first + at).map((row) => {
@@ -399,8 +484,16 @@ export function ListedByConversation({
                                     key={thread.threadId}
                                     thread={thread}
                                     open={workspace.conversation?.threadId === thread.threadId}
+                                    selected={workspace.selected.includes(thread.newest.id)}
+                                    selecting={selecting}
                                     onOpen={() => {
                                         onOpen(thread.newest.id, thread.newest.subject, thread.threadId, true);
+                                    }}
+                                    onToggle={() => {
+                                        toggle(thread);
+                                    }}
+                                    onMenu={(at) => {
+                                        setPressed({ threadId: thread.threadId, at });
                                     }}
                                     onElement={(element) => {
                                         measure(thread.threadId, element);
@@ -419,6 +512,25 @@ export function ListedByConversation({
                     ) : null}
                 </div>
             )}
+
+            {/* The row's own menu, outside the scroller because it is placed against the window. */}
+            {pressed === null || pressedThread === null ? null : (
+                <ThreadRowMenu
+                    thread={pressedThread}
+                    at={pressed.at}
+                    onSelect={() => {
+                        toggle(pressedThread);
+                    }}
+                    onAsk={(act) => {
+                        ask(act, [pressedThread]);
+                    }}
+                    onClose={closeMenu}
+                />
+            )}
+
+            {/* The two questions an act stands behind, here rather than in the menu, which is gone once an item is
+                chosen. */}
+            {conversationActs.questions}
         </div>
     );
 }

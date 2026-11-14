@@ -2,11 +2,14 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ClientRequest, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
+import type { ClientRequest, ClientSession, MailFathomTransport, MailFolderRole } from '@mailfathom/client-backend';
+import { listedSender } from '../../../../tests/fixtures/senders';
 import { LocalizationProvider } from '../localization/Localization';
+import { MailboxActsContext, nothingActed, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { SignalledChangesContext, nothingSignalled, type SignalListener } from '../signals/signalledChanges';
+import { ToastsProvider } from '../toasts/Toasts';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { MessageList } from './MessageList';
 import { ListedMailContext, nothingListed, type ListedMailbox } from './useListedMail';
@@ -102,8 +105,12 @@ function drawing(
     {
         online = true,
         onOpen = () => undefined,
+        acts = {},
     }: {
         readonly online?: boolean;
+
+        /** What the mailbox acts answer, over a client that otherwise changes nothing. */
+        readonly acts?: Partial<MailboxActs>;
         readonly onOpen?: (
             storedEmailId: string,
             subject: string | null,
@@ -117,39 +124,43 @@ function drawing(
 
     render(
         <LocalizationProvider>
-            <WorkspaceProvider>
-                <ListedMailContext
-                    value={{
-                        ...nothingListed,
-                        listing: (list) => {
-                            listedNow = list;
-                        },
-                    }}
-                >
-                    <SignalledChangesContext
+            <ToastsProvider>
+                <WorkspaceProvider>
+                    <ListedMailContext
                         value={{
-                            ...nothingSignalled,
-                            listen: (listener) => {
-                                listeners.push(listener);
-
-                                return () => {
-                                    listeners.splice(listeners.indexOf(listener), 1);
-                                };
+                            ...nothingListed,
+                            listing: (list) => {
+                                listedNow = list;
                             },
                         }}
                     >
-                        <MessageList
-                            listMode="threads"
-                            session={session}
-                            transport={transport}
-                            scope={{ kind: 'account', accountId: 'work' }}
-                            accounts={[]}
-                            online={online}
-                            onOpen={onOpen}
-                        />
-                    </SignalledChangesContext>
-                </ListedMailContext>
-            </WorkspaceProvider>
+                        <SignalledChangesContext
+                            value={{
+                                ...nothingSignalled,
+                                listen: (listener) => {
+                                    listeners.push(listener);
+
+                                    return () => {
+                                        listeners.splice(listeners.indexOf(listener), 1);
+                                    };
+                                },
+                            }}
+                        >
+                            <MailboxActsContext value={{ ...nothingActed, ...acts }}>
+                                <MessageList
+                                    listMode="threads"
+                                    session={session}
+                                    transport={transport}
+                                    scope={{ kind: 'account', accountId: 'work' }}
+                                    accounts={[]}
+                                    online={online}
+                                    onOpen={onOpen}
+                                />
+                            </MailboxActsContext>
+                        </SignalledChangesContext>
+                    </ListedMailContext>
+                </WorkspaceProvider>
+            </ToastsProvider>
         </LocalizationProvider>,
     );
 
@@ -466,5 +477,196 @@ describe('MessageList read by conversation', () => {
 
         expect(screen.getByText('The quarterly figures')).toBeDefined();
         expect(screen.queryByRole('alert')).toBeNull();
+    });
+});
+
+/** One message of a conversation as the thread route lists it, kept in the named folder. */
+function member(id: string, folder: string, unread = false): Readonly<Record<string, unknown>> {
+    return {
+        position: 0,
+        answeredId: null,
+        email: {
+            id,
+            account: 'work',
+            folder,
+            threadId: 'thread-1',
+            subject: 'The figures',
+            receivedAt: '2026-08-31T09:41:00+00:00',
+            sentAt: '2026-08-31T09:40:00+00:00',
+            senderAddress: 'anna@example.invalid',
+            senderDisplayName: 'Anna Nowak',
+            toAddresses: ['user@example.invalid'],
+            unread,
+            flagged: false,
+            answered: false,
+            hasAttachments: false,
+            attachmentCount: 0,
+            categories: [],
+            sizeOctets: 1_024,
+            preview: 'The figures are attached.',
+            sender: listedSender('unrecognized'),
+        },
+    };
+}
+
+/** A deployment listing one conversation and answering the thread route with its messages. */
+function deploymentHolding(
+    members: readonly Readonly<Record<string, unknown>>[],
+    unreadCount = 0,
+): MailFathomTransport {
+    return (request) =>
+        Promise.resolve({
+            status: 200,
+            headers: {},
+            body: request.path.includes('/threads/')
+                ? JSON.stringify({
+                      threadId: 'thread-1',
+                      messages: members,
+                      participants: [{ address: 'anna@example.invalid', displayName: 'Anna Nowak', messageCount: 1 }],
+                      messageCount: members.length,
+                      moreMessagesNotAssembled: false,
+                      moreParticipantsNotNamed: false,
+                      nextCursor: null,
+                      pageSize: 100,
+                  })
+                : pageOf([{ ...listed('thread-1', 'The figures'), unreadCount }]),
+        });
+}
+
+const everyFolder = [
+    member('received', 'inbox', true),
+    member('sent', 'sent'),
+    member('trashed', 'trash'),
+    member('drafted', 'drafts'),
+];
+
+const rolesPlayed: Readonly<Record<string, MailFolderRole>> = {
+    inbox: 'Inbox',
+    sent: 'Sent',
+    trash: 'Trash',
+    drafts: 'Drafts',
+};
+
+// What the mailbox acts answer in these tests: every act is offered, and a folder plays the role it is named for.
+function offering(perform: MailboxActs['perform']): Partial<MailboxActs> {
+    return {
+        refusalOf: () => null,
+        spamOffered: true,
+        folderRoleOf: (message) => rolesPlayed[message.folder] ?? null,
+        perform,
+    };
+}
+
+describe('MessageList read by conversation, acting on a conversation', () => {
+    it('offers what is done to the whole conversation from the row’s menu, and no flag', async () => {
+        drawing(deploymentHolding(everyFolder), { acts: offering(vi.fn()) });
+
+        fireEvent.contextMenu(await screen.findByRole('button', { name: /The figures/ }));
+
+        expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toStrictEqual([
+            'Select threads',
+            'Archive',
+            'Mark as unread',
+            'Spam…',
+            'Move…',
+            'Delete',
+        ]);
+    });
+
+    it('marks every unread message of the conversation read where the row holds one', async () => {
+        const perform = vi.fn();
+        drawing(deploymentHolding(everyFolder, 1), { acts: offering(perform) });
+        fireEvent.contextMenu(await screen.findByRole('button', { name: /The figures/ }));
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Mark as read' }));
+
+        await waitFor(() => {
+            expect(perform).toHaveBeenCalledTimes(1);
+        });
+        expect(perform.mock.calls[0]?.[0]).toBe('markRead');
+        expect(
+            (perform.mock.calls[0]?.[1] as readonly { storedEmailId: string }[]).map((taken) => taken.storedEmailId),
+        ).toStrictEqual(['received']);
+    });
+
+    it('archives the received mail of the conversation and leaves what the reader sent where it is', async () => {
+        const perform = vi.fn();
+        drawing(deploymentHolding(everyFolder), { acts: offering(perform) });
+        fireEvent.contextMenu(await screen.findByRole('button', { name: /The figures/ }));
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }));
+
+        await waitFor(() => {
+            expect(perform).toHaveBeenCalledTimes(1);
+        });
+        expect(
+            (perform.mock.calls[0]?.[1] as readonly { storedEmailId: string }[]).map((taken) => taken.storedEmailId),
+        ).toStrictEqual(['received']);
+    });
+
+    it('says nothing was changed when the conversation cannot be read, and performs nothing', async () => {
+        const perform = vi.fn();
+        const holding = deploymentHolding(everyFolder);
+        drawing(
+            (request) =>
+                request.path.includes('/threads/')
+                    ? Promise.resolve({ status: 503, body: '', headers: {} })
+                    : holding(request),
+            { acts: offering(perform) },
+        );
+        fireEvent.contextMenu(await screen.findByRole('button', { name: /The figures/ }));
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }));
+
+        expect(
+            await screen.findByText('Nothing was changed, because the conversation could not be read. Try again.'),
+        ).toBeDefined();
+        expect(perform).not.toHaveBeenCalled();
+    });
+
+    it('asks before deleting, counts what it files in the trash, and takes the row away once it is asked', async () => {
+        // A delete already stands for the message the row is drawn from — asked from inside the conversation, of that
+        // one message — which leaves the conversation listed.
+        const perform = vi.fn();
+        drawing(deploymentHolding(everyFolder), {
+            acts: {
+                ...offering(perform),
+                asked: new Map([
+                    [
+                        'thread-1-newest',
+                        { act: 'delete', from: 'inbox', leaves: true, destroys: false, awaiting: false },
+                    ],
+                ]),
+            },
+        });
+        fireEvent.contextMenu(await screen.findByRole('button', { name: /The figures/ }));
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+
+        const asked = await screen.findByRole('dialog', { name: 'Delete 2 messages?' });
+        expect(perform).not.toHaveBeenCalled();
+
+        fireEvent.click(within(asked).getByRole('button', { name: 'Move to the trash' }));
+
+        expect(perform.mock.calls[0]?.[0]).toBe('delete');
+        expect(
+            (perform.mock.calls[0]?.[1] as readonly { storedEmailId: string }[]).map((taken) => taken.storedEmailId),
+        ).toStrictEqual(['received', 'sent']);
+
+        // Deleted as a conversation, the row leaves at the press.
+        await waitFor(() => {
+            expect(screen.queryByRole('button', { name: /The figures/ })).toBeNull();
+        });
+    });
+
+    it('picks a conversation out from its menu, by the message its row is drawn from', async () => {
+        const drawn = drawing(deploymentHolding(everyFolder), { acts: offering(vi.fn()) });
+        fireEvent.contextMenu(await screen.findByRole('button', { name: /The figures/ }));
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Select threads' }));
+
+        const picked = drawn.list()?.conversations?.(['thread-1-newest']);
+        expect(picked?.threads.map((thread) => thread.threadId)).toStrictEqual(['thread-1']);
+        expect((await screen.findByRole('button', { name: /The figures/ })).getAttribute('aria-pressed')).toBe('true');
     });
 });
