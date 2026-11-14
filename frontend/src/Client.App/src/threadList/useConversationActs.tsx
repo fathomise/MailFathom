@@ -84,6 +84,14 @@ export function useConversationActs(session: ClientSession, transport: MailFatho
         setDeletedThrough(new Map([...deletedThrough].filter(([, storedEmailId]) => deleteStands(storedEmailId))));
     }
 
+    // The acts as the newest render holds them, which is what a read that has just answered asks: the folders may have
+    // been read while it was under way, and the render that started it would still say they were not.
+    const held = useRef(acts);
+
+    useEffect(() => {
+        held.current = acts;
+    });
+
     // Whether the list is still on the screen when a read answers, since an answer is not something to act on for a
     // surface that has gone.
     const listening = useRef(true);
@@ -115,6 +123,8 @@ export function useConversationActs(session: ClientSession, transport: MailFatho
 
         setReading(nothingRead);
 
+        const mailbox = held.current;
+
         const control = translate(act === 'spam' ? 'spam.spam' : actsDrawn[act].label);
 
         if (answered.outcome === 'failed') {
@@ -141,7 +151,7 @@ export function useConversationActs(session: ClientSession, transport: MailFatho
         }
 
         const placeOf = (message: ActedMessage): FolderPlace => {
-            const folder = acts.folderOf(message);
+            const folder = mailbox.folderOf(message);
 
             return folder === null ? { known: false } : { known: true, role: folder.role };
         };
@@ -155,7 +165,7 @@ export function useConversationActs(session: ClientSession, transport: MailFatho
         }
 
         const taken = messagesTaken(act, answered.value.messages, placeOf, (message) =>
-            isSpam(drawnSpam(acts, { id: message.storedEmailId, spam: message.spam })),
+            isSpam(drawnSpam(mailbox, { id: message.storedEmailId, spam: message.spam })),
         );
 
         if (taken.length === 0) {
@@ -164,7 +174,7 @@ export function useConversationActs(session: ClientSession, transport: MailFatho
             return;
         }
 
-        const refusal = act === 'spam' ? null : acts.refusalOf(act, taken);
+        const refusal = act === 'spam' ? null : mailbox.refusalOf(act, taken);
 
         if (refusal !== null) {
             toasts.raise({ kind: 'warning', title: translate(refusalSaid[refusal], { control }) });
@@ -177,7 +187,7 @@ export function useConversationActs(session: ClientSession, transport: MailFatho
         }
 
         if (act === 'spam') {
-            acts.toggleSpam(taken, onActed);
+            mailbox.toggleSpam(taken, onActed);
         } else if (act === 'delete' || act === 'move') {
             const { conversationOf } = answered.value;
 
@@ -210,7 +220,7 @@ export function useConversationActs(session: ClientSession, transport: MailFatho
             });
             (act === 'delete' ? deleting : filing).current?.showModal();
         } else {
-            acts.perform(act, taken);
+            mailbox.perform(act, taken);
             onActed?.();
         }
     }

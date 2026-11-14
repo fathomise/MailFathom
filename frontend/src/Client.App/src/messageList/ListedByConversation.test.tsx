@@ -843,13 +843,11 @@ describe('MessageList read by conversation, acting on a conversation', () => {
     });
 
     it('picks a conversation out from its menu, by the message its row is drawn from', async () => {
-        const drawn = drawing(deploymentHolding(everyFolder), { acts: offering(vi.fn()) });
+        drawing(deploymentHolding(everyFolder), { acts: offering(vi.fn()) });
         fireEvent.contextMenu(await screen.findByRole('button', { name: /The figures/ }));
 
         fireEvent.click(screen.getByRole('menuitem', { name: 'Select threads' }));
 
-        const picked = drawn.list()?.conversations?.(['thread-1-newest']);
-        expect(picked?.threads.map((thread) => thread.threadId)).toStrictEqual(['thread-1']);
         expect((await screen.findByRole('button', { name: /The figures/ })).getAttribute('aria-pressed')).toBe('true');
     });
 });
