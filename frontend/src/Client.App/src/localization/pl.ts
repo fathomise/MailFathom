@@ -986,6 +986,7 @@ export const pl: Catalogue = {
     'act.undo': 'Cofnij',
     'act.undone': 'Przywrócono na miejsce',
     'act.notTakenBack': 'Nie cofnięto - usuwanie już trwa',
+    'act.takeBackUnanswered': 'Serwer nie odpowiedział - wiadomość może nadal zostać usunięta',
     'act.failed': 'Nie wprowadziliśmy tej zmiany: {reason}.',
     'act.someNotChanged':
         'Części z tych wiadomości nie zmieniliśmy. Serwer nie udostępnia ich już tam, gdzie narysowała je lista.',

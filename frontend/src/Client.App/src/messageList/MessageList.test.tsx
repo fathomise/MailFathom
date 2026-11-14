@@ -300,6 +300,7 @@ function animationEnded(element: Element): void {
 
 afterEach(() => {
     window.sessionStorage.clear();
+    vi.useRealTimers();
 });
 
 describe('MessageList', () => {
@@ -447,6 +448,100 @@ describe('MessageList', () => {
         expect(standing.indexOf(row(2))).toBe(standing.indexOf(row(1)) + 1);
         expect(standing.indexOf(row(3))).toBe(standing.indexOf(row(2)) + 1);
         expect(standing.length).toBe(listed);
+    });
+
+    // The row is drawn ahead of the listing, and only for so long: a folder that goes on answering without the message
+    // a minute after the first read that followed the press is believed over the press, or a message something else
+    // had removed would stand in the list for good. Only the date is faked, so every wait below runs on real timers.
+    it('stops drawing a message taken back once the folder has answered without it for a minute, and gives the next way back a minute of its own', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-03-02T10:00:00Z'));
+
+        const deployment = deploymentSaying();
+        const without = pageOf(Array.from({ length: rowsPerPage }, (_, at) => message(at)).filter((_, at) => at !== 2));
+        let carries = true;
+        let reads = 0;
+        const transport: MailFathomTransport = () => {
+            reads += 1;
+
+            return Promise.resolve({ status: 200, body: carries ? wholeFolder : without, headers: {} });
+        };
+        const claimed = (asked: AskedAct): MailboxActs => ({ ...nothingActed, asked: new Map([['message-2', asked]]) });
+        const deleted = claimed({ act: 'delete', from: 'INBOX', leaves: true, destroys: false, awaiting: false });
+        const takenBack = claimed({
+            act: 'move',
+            from: 'TRASH',
+            leaves: true,
+            destroys: false,
+            awaiting: false,
+            returnsTo: 'INBOX',
+        });
+        const going = (): HTMLElement | null =>
+            screen.queryByRole('option', { name: /Message 2 Moving to the trash/ });
+        const standing = (): HTMLElement | null => screen.queryByRole('option', { name: /Message 2$/ });
+
+        // The folder read again, and the answer landed: the read is counted as it goes out, and what it answered is
+        // written a task later.
+        async function readAgain(): Promise<void> {
+            const before = reads;
+
+            act(() => {
+                deployment.say({ kind: 'refresh' });
+            });
+            await waitFor(() => {
+                expect(reads).toBe(before + 1);
+            });
+            await act(async () => {
+                await new Promise((resolve) => {
+                    setTimeout(resolve, 0);
+                });
+            });
+        }
+
+        const drawn = renderList(transport, { changes: deployment.changes, acts: deleted });
+
+        await rows();
+        carries = false;
+        await readAgain();
+        await waitFor(() => {
+            expect(going()).toBeNull();
+        });
+
+        drawn.rerender(listUnder(transport, { changes: deployment.changes, acts: takenBack }));
+        await waitFor(() => {
+            expect(standing()).not.toBeNull();
+        });
+
+        // The first read after the press is where the minute starts, and a read inside it changes nothing.
+        await readAgain();
+        vi.setSystemTime(new Date('2026-03-02T10:00:59Z'));
+        await readAgain();
+        expect(standing()).not.toBeNull();
+
+        vi.setSystemTime(new Date('2026-03-02T10:01:01Z'));
+        await readAgain();
+        await waitFor(() => {
+            expect(standing()).toBeNull();
+        });
+
+        // The message is listed again, deleted again, and taken back again: a row leaving afresh starts over.
+        carries = true;
+        drawn.rerender(listUnder(transport, { changes: deployment.changes, acts: deleted }));
+        await readAgain();
+        await waitFor(() => {
+            expect(going()).not.toBeNull();
+        });
+
+        carries = false;
+        await readAgain();
+        await waitFor(() => {
+            expect(going()).toBeNull();
+        });
+
+        drawn.rerender(listUnder(transport, { changes: deployment.changes, acts: takenBack }));
+        await waitFor(() => {
+            expect(standing()).not.toBeNull();
+        });
     });
 
     // A row above an open menu finishing its way out moves every row below it up by one, so a menu that read its row

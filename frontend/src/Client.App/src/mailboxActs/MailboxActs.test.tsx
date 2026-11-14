@@ -153,12 +153,13 @@ interface Deployment {
  * A deployment answering the folders it has, and every submitted batch with the outcomes it was told to answer.
  *
  * A recorded message is answered with one record named after it, so a withdrawal can be read back as the records it
- * named; a withdrawal answers each record as `withdrawn` says it then stands, which is `cancelled` where it was in time.
+ * named; a withdrawal answers each record `cancelled`, which is what being in time is, but for the messages `late`
+ * names, whose records are already `converging`, and it answers with `withdrawalStatus` where one is given.
  */
 function deploymentAnswering(
     outcomes: Readonly<Record<string, MailMutationOutcome>> = {},
     status = 200,
-    withdrawn: 'cancelled' | 'converging' = 'cancelled',
+    { late = [], withdrawalStatus = status }: { readonly late?: readonly string[]; readonly withdrawalStatus?: number } = {},
 ): Deployment {
     const requests: ClientRequest[] = [];
 
@@ -175,12 +176,12 @@ function deploymentAnswering(
                 const { recordIds } = JSON.parse(request.body ?? '{}') as { recordIds: string[] };
 
                 return Promise.resolve({
-                    status,
+                    status: withdrawalStatus,
                     body: JSON.stringify({
                         changes: recordIds.map((recordId) => ({
                             recordId,
                             storedEmailId: recordId.replace('record-', ''),
-                            state: withdrawn,
+                            state: late.includes(recordId.replace('record-', '')) ? 'converging' : 'cancelled',
                             outcomeUnknown: false,
                         })),
                     }),
@@ -652,7 +653,7 @@ describe('MailboxActsProvider', () => {
     });
 
     it('says a permanent delete was not taken back where the deployment had stopped holding it, and draws it going', async () => {
-        const deployment = deploymentAnswering({}, 200, 'converging');
+        const deployment = deploymentAnswering({}, 200, { late: ['message-3'] });
         const { held } = acting(deployment);
 
         await waitFor(() => {
@@ -671,6 +672,71 @@ describe('MailboxActsProvider', () => {
             leaves: true,
             destroys: true,
             awaiting: false,
+        });
+    });
+
+    // One answer may hold both: each record stands where the deployment says it does, and each message follows its own.
+    it('puts back the messages whose records were cancelled and draws the rest going, from one answer', async () => {
+        const first: ActedMessage = { ...discarded, storedEmailId: 'message-7' };
+        const second: ActedMessage = { ...discarded, storedEmailId: 'message-8' };
+        const deployment = deploymentAnswering({}, 200, { late: [second.storedEmailId] });
+        const { held } = acting(deployment);
+
+        await waitFor(() => {
+            expect(held().deletesPermanently([first, second])).toBe(true);
+        });
+
+        perform(held, 'delete', [first, second]);
+        fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+
+        await screen.findByText('Put back where it was');
+        await screen.findByText('Not taken back - it is already being deleted');
+
+        await waitFor(() => {
+            expect(held().asked.get(second.storedEmailId)?.destroys).toBe(true);
+        });
+        expect(held().asked.has(first.storedEmailId)).toBe(false);
+    });
+
+    // A withdrawal nobody answered may have been made, so nothing says the delete is going ahead and nothing claims
+    // the message as destroyed again: the next read of the folder is what says where it is.
+    it('says a withdrawal nobody answered may not have been made, and claims nothing about the message', async () => {
+        const deployment = deploymentAnswering({}, 200, { withdrawalStatus: 503 });
+        const { held } = acting(deployment);
+
+        await waitFor(() => {
+            expect(held().deletesPermanently([discarded])).toBe(true);
+        });
+
+        perform(held, 'delete', [discarded]);
+        fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+
+        await screen.findByText('The server did not answer - this may still be deleted');
+
+        expect(screen.queryByText('Not taken back - it is already being deleted')).toBeNull();
+        expect(screen.queryByText('Put back where it was')).toBeNull();
+        await waitFor(() => {
+            expect(held().asked.has('message-3')).toBe(false);
+        });
+    });
+
+    // A refusal is an answer: nothing was withdrawn, so the delete is going ahead and the row says so again.
+    it('says a withdrawal the server refused was not made, with the reason, and draws the message going', async () => {
+        const deployment = deploymentAnswering({}, 200, { withdrawalStatus: 403 });
+        const { held } = acting(deployment);
+
+        await waitFor(() => {
+            expect(held().deletesPermanently([discarded])).toBe(true);
+        });
+
+        perform(held, 'delete', [discarded]);
+        fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+
+        const refused = await screen.findByText('Not taken back - it is already being deleted');
+
+        expect(refused.closest('li')?.textContent).toContain('unauthorized');
+        await waitFor(() => {
+            expect(held().asked.get('message-3')?.destroys).toBe(true);
         });
     });
 

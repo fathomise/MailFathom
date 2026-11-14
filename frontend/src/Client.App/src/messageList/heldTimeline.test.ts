@@ -142,8 +142,6 @@ describe('withoutLeaving', () => {
     });
 });
 
-// A conversation stands where its newest message does, so one that moved to the top since a page further down was read
-// is on both pages until that page is read again. Rows here stand for a conversation by their subject.
 // A way back puts a row in at the press, as an act takes one out at the press: the deployment goes on answering the
 // folder without the message until the reverse move has reached the mail server.
 describe('withReturning', () => {
@@ -180,6 +178,8 @@ describe('withReturning', () => {
     });
 });
 
+// A conversation stands where its newest message does, so one that moved to the top since a page further down was read
+// is on both pages until that page is read again. Rows here stand for a conversation by their subject.
 describe('withoutRepeats', () => {
     const conversationOf = (email: MailTimelineEntry): string => email.subject ?? '';
 

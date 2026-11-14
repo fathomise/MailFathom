@@ -961,6 +961,7 @@ export const en = {
     'act.undo': 'Undo',
     'act.undone': 'Put back where it was',
     'act.notTakenBack': 'Not taken back - it is already being deleted',
+    'act.takeBackUnanswered': 'The server did not answer - this may still be deleted',
     'act.failed': 'That change was not made: {reason}.',
     'act.someNotChanged':
         'Some of those messages were not changed. The server no longer serves them where the list drew them.',

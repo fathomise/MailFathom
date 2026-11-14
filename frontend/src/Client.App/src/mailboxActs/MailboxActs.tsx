@@ -166,18 +166,24 @@ function appliedTo(batches: readonly Submitted[]): ReadonlySet<string> {
 }
 
 /**
- * The records a submission wrote down, which is what ending a permanent delete's wait names.
+ * The records a submission wrote down, each beside the message it was written for, which is what taking a permanent
+ * delete back names.
  *
  * Records rather than messages, because a record is the unit the deployment holds, cancels, and takes in hand — and a
- * message it answered `recorded` for is exactly a message whose changes carry one.
+ * message it answered `recorded` for is exactly a message whose changes carry one. The message travels with it because
+ * a withdrawal nobody answered says nothing about its records, and what the screen does next is about messages.
  */
-function recordsWritten(batches: readonly Submitted[]): readonly string[] {
-    return batches.flatMap(({ answer }) =>
-        answer.outcome === 'read'
-            ? answer.value
-                  .filter((result) => result.outcome === 'recorded')
-                  .flatMap((result) => result.changes.map((change) => change.recordId))
-            : [],
+function recordsWritten(batches: readonly Submitted[]): ReadonlyMap<string, string> {
+    return new Map(
+        batches.flatMap(({ answer }) =>
+            answer.outcome === 'read'
+                ? answer.value
+                      .filter((result) => result.outcome === 'recorded')
+                      .flatMap((result) =>
+                          result.changes.map((change) => [change.recordId, result.storedEmailId] as const),
+                      )
+                : [],
+        ),
     );
 }
 
@@ -357,7 +363,7 @@ export function MailboxActsProvider({
     /** Whether this credential may file mail in another folder, which is a grant of its own. */
     readonly moves: boolean;
 
-    /** Whether this credential may delete mail, which is the grant with no way back. */
+    /** Whether this credential may delete mail, which is a grant of its own because it is the act that destroys. */
     readonly deletes: boolean;
 
     /**
@@ -731,7 +737,7 @@ export function MailboxActsProvider({
         recorded: readonly ActedMessage[],
         destination: MoveDestination | undefined,
         destroying: boolean,
-        records: readonly string[] = [],
+        records: ReadonlyMap<string, string> = new Map(),
     ): void {
         if (recorded.length === 0 || changesAFlag(act)) {
             return;
@@ -892,9 +898,9 @@ export function MailboxActsProvider({
      * only for a record the withdrawal came too late for.
      *
      * @param messages The messages the delete was written down for.
-     * @param records The records it was written down as.
+     * @param records The records it was written down as, each beside its message.
      */
-    function takeBackDelete(messages: readonly ActedMessage[], records: readonly string[]): void {
+    function takeBackDelete(messages: readonly ActedMessage[], records: ReadonlyMap<string, string>): void {
         const asking = signedIn.current;
         const askingFor = person.current;
 
@@ -907,39 +913,61 @@ export function MailboxActsProvider({
             'delete',
         );
 
-        void Promise.all(batchesOf(records).map((batch) => withdrawMailDeletes(asking, transport, batch))).then(
-            (answers) => {
-                if (person.current !== askingFor) {
-                    return;
-                }
+        const batches = batchesOf([...records.keys()]);
 
-                const stand = answers.flatMap((answer) => (answer.outcome === 'read' ? answer.value : []));
-                const back = new Set(
-                    stand.filter((record) => record.state === 'cancelled').map((record) => record.storedEmailId),
-                );
-                const failure = answers.find((answer) => answer.outcome === 'failed');
+        void Promise.all(batches.map((batch) => withdrawMailDeletes(asking, transport, batch))).then((answers) => {
+            if (person.current !== askingFor) {
+                return;
+            }
 
-                // Whatever was not taken back is still being deleted, so it is claimed again and leaves again: a row
-                // left standing in the trash over a delete that is going ahead would be the screen saying otherwise.
-                const going = messages.filter((message) => !back.has(message.storedEmailId));
+            const stand = answers.flatMap((answer) => (answer.outcome === 'read' ? answer.value : []));
+            const back = new Set(
+                stand.filter((record) => record.state === 'cancelled').map((record) => record.storedEmailId),
+            );
 
-                if (going.length > 0) {
-                    remember('delete', going, true, true, false);
-                    toasts.raise({
-                        kind: 'warning',
-                        title: translate('act.notTakenBack'),
-                        body:
-                            failure?.outcome === 'failed'
-                                ? translate(failureLabels[failure.failure.reason])
-                                : counted(going.length),
-                    });
-                }
+            // A withdrawal nobody answered is not known to have failed, exactly as an act nobody answered is not: the
+            // deployment may have cancelled the record, so its messages are neither claimed as destroyed again nor
+            // said to be going. They are said to be unknown, and stand as the next read of the folder draws them.
+            const unknown = new Set(
+                answers.flatMap((answer, at) =>
+                    answer.outcome === 'failed' && wentUnanswered(answer.failure)
+                        ? (batches[at] ?? []).flatMap((recordId) => records.get(recordId) ?? [])
+                        : [],
+                ),
+            );
+            const refused = answers.find((answer) => answer.outcome === 'failed' && !wentUnanswered(answer.failure));
 
-                if (back.size > 0) {
-                    toasts.raise({ kind: 'neutral', title: translate('act.undone'), body: counted(back.size) });
-                }
-            },
-        );
+            // Whatever is known not to have been taken back is still being deleted, so it is claimed again and leaves
+            // again: a row left standing in the trash over a delete that is going ahead would be the screen saying
+            // otherwise.
+            const going = messages.filter(
+                (message) => !back.has(message.storedEmailId) && !unknown.has(message.storedEmailId),
+            );
+
+            if (going.length > 0) {
+                remember('delete', going, true, true, false);
+                toasts.raise({
+                    kind: 'warning',
+                    title: translate('act.notTakenBack'),
+                    body:
+                        refused?.outcome === 'failed'
+                            ? translate(failureLabels[refused.failure.reason])
+                            : counted(going.length),
+                });
+            }
+
+            if (unknown.size > 0) {
+                toasts.raise({
+                    kind: 'warning',
+                    title: translate('act.takeBackUnanswered'),
+                    body: counted(unknown.size),
+                });
+            }
+
+            if (back.size > 0) {
+                toasts.raise({ kind: 'neutral', title: translate('act.undone'), body: counted(back.size) });
+            }
+        });
     }
 
     /**
@@ -1087,7 +1115,7 @@ export function MailboxActsProvider({
         const destroying = act === 'delete' && destroys(messages);
 
         // Whether the message is leaving the list it was acted in, which every act that files it does — a delete that
-        // destroys the mail included, since nothing is offered that would bring it back.
+        // destroys the mail included, since the row goes at the press whichever of the two a delete is.
         const leaves = !changesAFlag(act);
 
         // The act and how many messages it was asked over. Which messages is a list of stored identities and is not
