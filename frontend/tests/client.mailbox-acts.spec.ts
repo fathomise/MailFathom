@@ -145,7 +145,6 @@ test('destroys a message deleted from the trash only after the question saying s
     await folder(page, 'Trash').click();
     await expect(row(page, 'Message 2')).toBeVisible();
 });
-});
 
 test('files a message by the menu and another by dragging it onto a folder, and the folder holds both', async ({
     page,

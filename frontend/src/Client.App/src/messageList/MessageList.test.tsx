@@ -965,6 +965,21 @@ describe('MessageList', () => {
         expect(carried().selection).toBeNull();
     });
 
+    // What makes a message one to carry on writing is the folder it stands in, never what it once was: a draft deleted
+    // into the trash is mail to read there, and opening it in the composer would edit something already thrown away.
+    it('opens a draft standing in the trash in the reading pane, as the mail it is there', async () => {
+        renderList(answering(wholeFolder), { acts: { ...nothingActed, folderRoleOf: () => 'Trash' } });
+
+        await rows();
+        fireEvent.pointerDown(row(2));
+        fireEvent.pointerUp(row(2));
+
+        await waitFor(() => {
+            expect(carried().selection).toBe('message-2');
+        });
+        expect(composing.compose).not.toHaveBeenCalled();
+    });
+
     it('picks a message out rather than opening it while others are already picked out', async () => {
         renderList(answering(wholeFolder));
 
