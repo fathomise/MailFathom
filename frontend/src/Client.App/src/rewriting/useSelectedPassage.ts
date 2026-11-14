@@ -115,9 +115,13 @@ export function useSelectedPassage(
         });
     });
 
+    // A floating bar would be left behind by the scroll, so it goes; the selection stays, because a scroll is not
+    // somebody letting go of what they selected — and the composer scrolls by itself when a formatting choice redraws
+    // the words, which would otherwise leave the next choice acting on nothing.
     const scrolled = useEffectEvent(() => {
         if (!docked && (selected !== null || open)) {
-            close();
+            setSelected(null);
+            setOpen(false);
         }
     });
 
