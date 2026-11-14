@@ -5,6 +5,7 @@
 import { Control } from '../controls/Control';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { ConversationActControls } from '../threadList/ConversationActControls';
 import { MailboxActControls } from '../mailboxActs/MailboxActControls';
 import { actedMessages, useListedMail } from '../messageList/useListedMail';
 import { useWorkspace } from '../workspace/useWorkspace';
@@ -48,6 +49,11 @@ export function SelectionBar() {
     // a count of what pressing an act would not touch.
     const messages = actedMessages(listed, workspace.selected);
 
+    // Read by conversation, what is picked out is conversations: the count is theirs, and so are the acts, which the
+    // list carries out because an act on a conversation first reads its messages.
+    const conversations = listed.conversations(workspace.selected);
+    const picked = conversations === null ? messages.length : conversations.threads.length;
+
     // Words beside the symbols for as long as they fit the bar, and the symbols alone once they do not — measured
     // rather than decided at a width, which is the rule `useStripFit.ts` states. The name is on the control either
     // way, so nothing is lost to a reader who is not looking at it.
@@ -66,7 +72,7 @@ export function SelectionBar() {
         <div
             ref={strip}
             role="toolbar"
-            aria-label={translate('select.bar')}
+            aria-label={translate(conversations === null ? 'select.bar' : 'select.threadBar')}
             className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-accent-line bg-accent-soft px-3 py-2"
         >
             <Control label={translate('select.clear')} icon="close" shape="selectedSymbol" onPress={clear} />
@@ -74,14 +80,24 @@ export function SelectionBar() {
             {/* Said rather than only drawn: a reader who picked out four messages with the keyboard hears how many
                 they are holding, and hears it change as they pick out a fifth. */}
             <p role="status" className="me-1.5 ps-0.5 text-base font-semibold whitespace-nowrap text-accent-deep">
-                {translate(selectionCounted[new Intl.PluralRules(locale).select(messages.length)], {
-                    count: new Intl.NumberFormat(locale).format(messages.length),
+                {translate(selectionCounted[new Intl.PluralRules(locale).select(picked)], {
+                    count: new Intl.NumberFormat(locale).format(picked),
                 })}
             </p>
 
             <span aria-hidden="true" className="mx-0.5 w-px self-stretch bg-accent-line" />
 
-            <MailboxActControls messages={messages} shape={actShape} spam="strip" onActed={clear} />
+            {conversations === null ? (
+                <MailboxActControls messages={messages} shape={actShape} spam="strip" onActed={clear} />
+            ) : (
+                <ConversationActControls
+                    threads={conversations.threads}
+                    shape={actShape}
+                    onAsk={(act) => {
+                        conversations.ask(act, clear);
+                    }}
+                />
+            )}
 
             {/* Against the far edge, which is a margin the measurement above knows to leave out of what the bar
                 needs. Words at every width, as the design draws it: no symbol names it, so narrowed to one it would be

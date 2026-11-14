@@ -1508,7 +1508,8 @@ export function App({
                                                                                                                             preferences.listMode
                                                                                                                         }
                                                                                                                         // The Outbox is reached from a folder row, which the list read by
-                                                                                                                        // conversation has none of, so turning the list over closes it.
+                                                                                                                        // conversation has none of, so turning the list over closes it. A selection goes
+                                                                                                                        // with it: what is picked out in one reading is not what the other lists.
                                                                                                                         onChoose={(
                                                                                                                             mode,
                                                                                                                         ) => {
@@ -1518,6 +1519,8 @@ export function App({
                                                                                                                             revise(
                                                                                                                                 {
                                                                                                                                     outbox: null,
+                                                                                                                                    selected:
+                                                                                                                                        [],
                                                                                                                                 },
                                                                                                                             );
                                                                                                                         }}

@@ -641,6 +641,13 @@ both answer the deployment's signals with. So a refresh costs the same however f
 filter pressed narrows the conversations as it narrows messages, and a conversation that moved to the top while a page
 further down still holds it is drawn once. `src/threadList/` keeps what is a conversation's own: its row, and the
 column beside the list, which offers the accounts rather than the folders because a conversation spans folders.
+A row is the whole conversation, so its menu and the bar over a selection ask acts of the conversation rather than of a
+message: `src/threadList/conversationMessages.ts` says which of its messages each act takes, wherever they are kept,
+and `src/threadList/useConversationActs.tsx` reads those messages and carries the act out through the calls the
+message list makes. A conversation is picked out by its newest message, so a selection is the same list of messages
+the workspace holds either way. While the messages are read the rows the act was asked of say so; a read that fails
+changes nothing and names the reason, and an act that depends on where a message is kept is refused while one of the
+messages sits in a folder this client has not read.
 Opening a row opens the conversation above with what arrived since it was last read unfolded and marked new.
 
 **No package windows either list, and that is a measurement rather than a preference.** Every row of the folder's list

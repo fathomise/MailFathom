@@ -3,8 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { createContext, useContext } from 'react';
-import type { MailSpamVerdict } from '@mailfathom/client-backend';
+import type { ListedMailThread, MailSpamVerdict } from '@mailfathom/client-backend';
 import type { ActedMessage } from '../mailboxActs/useMailboxActs';
+import type { ConversationAct } from '../threadList/conversationMessages';
 import type { StandingView } from './listing';
 
 // The message list as the surfaces outside it reach it, which is two questions and nothing else: where a message the
@@ -69,6 +70,21 @@ export interface ListedMail {
 
     /** Puts one of the tree's standing views in force on the list, and does nothing where no list is on the screen. */
     readonly stand: (view: StandingView) => void;
+
+    /**
+     * The conversations picked out and how an act is asked of them, or `null` where the list on the screen is read by
+     * message — which is what tells the bar over a selection whose acts to draw.
+     */
+    readonly conversations: (selected: readonly string[]) => PickedConversations | null;
+}
+
+/** A selection of conversations, as the bar standing over it reads it. */
+export interface PickedConversations {
+    /** The conversations picked out that the list has drawn, in the order they were picked. */
+    readonly threads: readonly ListedMailThread[];
+
+    /** Asks one act of them, which the list carries out because it is what can read their messages. */
+    readonly ask: (act: ConversationAct, onActed: () => void) => void;
 }
 
 /** One message as a page drew it: where it is, and how its two flags and its spam verdict stood. */
@@ -91,6 +107,12 @@ export interface ListedMailbox {
      * is: what a view sets is filters on the folder in front of the reader, and the folder's filters are the list's.
      */
     readonly stand: (view: StandingView) => void;
+
+    /**
+     * Answers for a selection where the list is read by conversation, and is absent on a list read by message. A
+     * conversation is picked out by its newest message, which is the message its row is drawn from.
+     */
+    readonly conversations?: (selected: readonly string[]) => PickedConversations;
 }
 
 /** What a tree with no provider above it reads, which is a client where nothing outside a list can reach into one. */
@@ -102,6 +124,7 @@ export const nothingListed: ListedMail = {
     takeFocus: () => undefined,
     listing: () => undefined,
     stand: () => undefined,
+    conversations: () => null,
 };
 
 export const ListedMailContext = createContext<ListedMail>(nothingListed);
