@@ -159,7 +159,10 @@ interface Deployment {
 function deploymentAnswering(
     outcomes: Readonly<Record<string, MailMutationOutcome>> = {},
     status = 200,
-    { late = [], withdrawalStatus = status }: { readonly late?: readonly string[]; readonly withdrawalStatus?: number } = {},
+    {
+        late = [],
+        withdrawalStatus = status,
+    }: { readonly late?: readonly string[]; readonly withdrawalStatus?: number } = {},
 ): Deployment {
     const requests: ClientRequest[] = [];
 

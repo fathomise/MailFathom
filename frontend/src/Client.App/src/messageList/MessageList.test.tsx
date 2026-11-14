@@ -476,8 +476,7 @@ describe('MessageList', () => {
             awaiting: false,
             returnsTo: 'INBOX',
         });
-        const going = (): HTMLElement | null =>
-            screen.queryByRole('option', { name: /Message 2 Moving to the trash/ });
+        const going = (): HTMLElement | null => screen.queryByRole('option', { name: /Message 2 Moving to the trash/ });
         const standing = (): HTMLElement | null => screen.queryByRole('option', { name: /Message 2$/ });
 
         // The folder read again, and the answer landed: the read is counted as it goes out, and what it answered is
