@@ -135,8 +135,7 @@ public sealed class MailOAuthAccessTokenSourceTests
     public async Task GetAccessTokenAsync_ATokenEndpointThatCannotBeReached_IsAskedAgainAndReportsTheTransportFailure()
     {
         // Arrange
-        using var context = TokenEndpointBehind(new FakeHttpMessageHandler(
-            static (_, _) => throw new HttpRequestException("connection refused")));
+        using var context = TokenEndpointThatCannotBeReached();
 
         // Act
         var failure = await Assert.ThrowsAsync<MailAccessTokenUnavailableException>(
@@ -384,6 +383,11 @@ public sealed class MailOAuthAccessTokenSourceTests
             clientSecret,
             storedRefreshToken,
             grant);
+
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The handler is handed to the returned context, whose Dispose releases it; disposing it here would return a context over a closed handler.")]
+    private static TokenEndpointContext TokenEndpointThatCannotBeReached() =>
+        TokenEndpointBehind(new FakeHttpMessageHandler(
+            static (_, _) => throw new HttpRequestException("connection refused")));
 
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Each object is handed to the returned context, whose Dispose releases all of them; disposing them here would return a context of closed resources.")]
     private static TokenEndpointContext TokenEndpointBehind(
