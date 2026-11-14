@@ -5,8 +5,9 @@
 
 set -euo pipefail
 
-### Breaks one of a Compose deployment's connections on purpose, through the proxy deploy/compose/compose.faults.yaml
-### starts, and mends it again.
+### Breaks one of a deployment's connections on purpose, through the proxy deploy/compose/compose.faults.yaml starts in
+### front of a Compose deployment or the one the app model starts under `EndToEndClient=true FaultProxy=true`, and mends
+### it again.
 #
 # Usage:
 #   scripts/inject-fault.sh list
@@ -20,7 +21,8 @@ set -euo pipefail
 # now, and how long each active fault has left.
 #
 # It needs curl and jq, and reaches the proxy's control API on 127.0.0.1 at MAILFATHOM_FAULTS_CONTROL_PORT, 8474 unless
-# the overlay was started with another. docs/operations/fault-injection.md is the page.
+# the overlay was started with another; the app model publishes its proxy's on a port of its own, which
+# scripts/run-end-to-end-client.sh hands its specs. docs/operations/fault-injection.md is the page.
 
 readonly default_duration='60s'
 readonly control_port="${MAILFATHOM_FAULTS_CONTROL_PORT:-8474}"
@@ -45,7 +47,7 @@ server-down|client|disable||the client cannot reach the service, and every open 
 server-slow|client|latency|{"latency": 3000, "jitter": 1000}|every answer from the service reaches the client two to four seconds late'
 
 usage() {
-  sed -n '/^# Usage:/,/^# the overlay was started/s/^# \{0,1\}//p' "$0"
+  sed -n '/^# Usage:/,/fault-injection.md is the page\.$/s/^# \{0,1\}//p' "$0"
 }
 
 fail() {
@@ -155,7 +157,7 @@ stop_fault() {
   if [[ -z "${1-}" ]]; then
     control POST /reset > /dev/null
     rm -rf "$timers"
-    printf 'Removed every fault; all three connections pass through again.\n'
+    printf 'Removed every fault; every connection passes through again.\n'
     return
   fi
 

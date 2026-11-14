@@ -53,6 +53,18 @@ if (runsIntegrationTests && runsEndToEndClient)
         $"'{OrchestrationContract.IntegrationTestingArgument}' and '{OrchestrationContract.EndToEndClientArgument}' select different topologies and cannot be passed together. State one of them.");
 }
 
+// The fault proxy, which stands between a MailFathom and the mail server so scripts/inject-fault.sh can take that
+// connection away and give it back. Refused outside the end-to-end client topology rather than ignored there: that is
+// the one topology whose MailFathom is started outside this app model and can be pointed at the proxy, so anywhere else
+// the switch would start a proxy nothing reaches and a run that asked for faults would get none.
+var runsFaultProxy = OrchestrationContract.RunsFaultProxy(args);
+
+if (runsFaultProxy && !runsEndToEndClient)
+{
+    throw new InvalidOperationException(
+        $"'{OrchestrationContract.FaultProxyArgument}' is accepted only beside '{OrchestrationContract.EndToEndClientArgument}', the one topology whose MailFathom can be pointed at the proxy.");
+}
+
 // Both ephemeral topologies name their containers and volumes under the run prefix, keep nothing across runs, and are
 // removed by whatever started them. Everything below that distinguishes them is about MailFathom rather than about the
 // servers underneath it.
@@ -224,6 +236,55 @@ if (runsEphemeralServers)
             port: runsEndToEndClient ? OrchestrationContract.EndToEndClientMailServerApiPort : null,
             name: OrchestrationContract.MailServerApiEndpointName)
         .WithHttpHealthCheck("/api/service/readiness", endpointName: OrchestrationContract.MailServerApiEndpointName);
+}
+
+if (runsFaultProxy)
+{
+    // The image and the pin deploy/compose/compose.faults.yaml names, and the two proxies its `imap` and `smtp` are,
+    // under the same names: scripts/inject-fault.sh addresses a proxy by name, so every preset that acts on the mail
+    // connections acts on this proxy unchanged. The third proxy of the overlay, `client`, is absent: the MailFathom this
+    // topology serves is a process the end-to-end run starts on the host, and a container cannot reach back to a host
+    // loopback listener the same way under every runtime this repository supports. A preset aimed at it is refused by
+    // the proxy, and the script says so.
+    //
+    // The mail server is reached by its resource name, which is how one container finds another on the network the app
+    // model puts them on, and on its own ports inside that network. The proxies are created enabled, so the connection
+    // passes untouched until a fault is injected; the corpus is still replayed on the mail server's own published ports,
+    // so a fault reaches MailFathom and never the run's seeding.
+    const string proxyDefinitionDirectory = "/etc/toxiproxy";
+
+    builder.AddContainer(OrchestrationContract.FaultProxyResourceName, "ghcr.io/shopify/toxiproxy", "2.13.0")
+        .WithContainerName($"{ephemeralResourceNamePrefix}-fault-proxy")
+        .WithArgs("-host=0.0.0.0", $"-config={proxyDefinitionDirectory}/proxies.json")
+        .WithContainerFiles(
+            proxyDefinitionDirectory,
+            [
+                new ContainerFile
+                {
+                    Name = "proxies.json",
+                    Contents = $$"""
+                        [
+                          {"name": "imap", "listen": "0.0.0.0:3143", "upstream": "{{OrchestrationContract.MailServerResourceName}}:3143", "enabled": true},
+                          {"name": "smtp", "listen": "0.0.0.0:3025", "upstream": "{{OrchestrationContract.MailServerResourceName}}:3025", "enabled": true}
+                        ]
+                        """,
+                },
+            ])
+        .WithEndpoint(
+            targetPort: 3143,
+            port: OrchestrationContract.EndToEndClientFaultProxyImapPort,
+            scheme: "tcp",
+            name: OrchestrationContract.FaultProxyImapEndpointName)
+        .WithEndpoint(
+            targetPort: 3025,
+            port: OrchestrationContract.EndToEndClientFaultProxySmtpPort,
+            scheme: "tcp",
+            name: OrchestrationContract.FaultProxySmtpEndpointName)
+        .WithHttpEndpoint(
+            targetPort: 8474,
+            port: OrchestrationContract.EndToEndClientFaultProxyControlPort,
+            name: OrchestrationContract.FaultProxyControlEndpointName)
+        .WithHttpHealthCheck("/version", endpointName: OrchestrationContract.FaultProxyControlEndpointName);
 }
 
 if (runsEndToEndClient)

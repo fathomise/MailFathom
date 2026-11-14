@@ -48,10 +48,10 @@ that never reached the mailbox and a client that cannot draw a list are two diff
 | --- | --- |
 | The client bundle | `pnpm install --frozen-lockfile` and `pnpm build`, the two commands the published image's client stage runs |
 | The schema artifact | `scripts/build-schema-artifact.sh`, the same artifact a release attaches and an operator applies |
-| The database and the mail server | The app model, on the topology `EndToEndClient=true` selects: PostgreSQL and GreenMail under the ephemeral run prefix, and no MailFathom |
+| The database, the mail server, and the fault proxy | The app model, on the topology `EndToEndClient=true FaultProxy=true` selects: PostgreSQL, GreenMail, and the Toxiproxy instance [Injecting network faults](fault-injection.md#in-the-end-to-end-client-run) describes in front of GreenMail, under the ephemeral run prefix, and no MailFathom |
 | The schema | The artifact applied with `psql` inside the database container, the route [the schema page](database-schema.md) gives an operator whose database is not reachable from where they stand |
 | MailFathom | `dotnet publish` of `Host`, the bundle copied to `wwwroot/` beside it as the image does, started with the client endpoint on and serving the page |
-| The mailbox | `POST /api/admin/users` recording the user this run serves — the database it created holds nobody — then `POST /api/admin/mail-accounts` creating the mail account and assigning it to that user, because no configuration source declares a mailbox — the mailbox is served from that write, without a restart. The record states the account's language and carries an `env:` reference to the mailbox password rather than the password, because MailFathom refuses a secret's material into a persisted record whatever wrote it |
+| The mailbox | `POST /api/admin/users` recording the user this run serves — the database it created holds nobody — then `POST /api/admin/mail-accounts` creating the mail account — reading the mailbox through the fault proxy's IMAP port rather than GreenMail's own — and assigning it to that user, because no configuration source declares a mailbox — the mailbox is served from that write, without a restart. The record states the account's language and carries an `env:` reference to the mailbox password rather than the password, because MailFathom refuses a secret's material into a persisted record whatever wrote it |
 | The role | `POST /api/admin/role-assignments` giving that user the seeded `User` role at their own scope, found by its name in `GET /api/admin/roles`, because a recorded user holds no permission until a role is assigned and the credential below takes the user's own |
 | The credential | `POST /api/admin/users/{id}/credentials` on [the administrative endpoint](admin-endpoint.md), so the password this run signs in with was made the way an operator makes one |
 | The mail | `SyntheticMail replay` of `backend/tools/SyntheticMail/corpora/office-en.zip` into the mailbox over SMTP |
@@ -61,7 +61,7 @@ that never reached the mailbox and a client that cannot draw a list are two diff
 Everything created is removed when the run ends, whether it passed, failed, or was interrupted: the containers and their
 volumes are named under this run's own identifier and deleted by name, so a concurrent integration suite keeps its own.
 
-**The app model owns the two servers and this script owns nothing that runs in a container.** The pipeline declares no
+**The app model owns the servers and this script owns nothing that runs in a container.** The pipeline declares no
 image, no tag, and no container configuration of its own, for the reason [the integration suite](local-development.md)
 gives about the same thing: what the run exercises has to be the PostgreSQL and the mail server every other run of this
 repository exercises, at the same pins. `EndToEndClient=true` is an argument rather than a variable, so an ambient value
@@ -74,6 +74,16 @@ so the suite spends that budget inside its first minute and every request after 
 refusal as *the deployment did not answer*, which reads as a broken screen and is not one. The run therefore states a
 budget no suite can exhaust rather than switching the limiter off, so a request still takes the path it takes in a
 deployment.
+
+**The mail connection's budgets are shortened for this run, for the outage spec.** At the shipped values an account
+runs every five minutes, waits up to half an hour between runs while they keep failing, retries a session it could not
+establish three times over a growing backoff, and keeps the circuit of one it gave up on open for half a minute — so a
+mailbox taken away would be noticed minutes late and its return later still. The run sets
+`MailSynchronization:Interval` and `MailSynchronization:MaxFailureBackoff` to ten seconds, and for both
+`Resilience:MailboxSessionEstablishment` and `Resilience:MailboxDataRetrieval` two attempts, a backoff of one to two
+seconds, and a five-second break. Each is a value an operator could write, and each moves when an outage is noticed and
+when its end is, never whether it is: the fault proxy passes every byte untouched until a spec injects a fault, so every
+other spec meets the mailbox exactly as before, only read more often.
 
 **Every wait is on a condition rather than on a duration.** The database is waited for with `pg_isready` over TCP —
 over the socket it would report ready against the temporary server the image runs while it initializes its data
@@ -104,6 +114,13 @@ opens. Every day in it is an offset from the day the run happens on, stated in U
 pins, so *Today*, *This week* and *Later* are each reachable whichever weekday a run lands on. Each of the three spaces
 also writes one record of its own through its screen and removes it again, which is where the client's own write path
 is held to account and what keeps the files runnable in any order.
+
+**One spec takes the mailbox away.** `outage.spec.ts` opens Mail on a deployment whose freshness line says every
+account is current, starts `imap-down` through `scripts/inject-fault.sh` on the proxy the run asked for, and waits for
+the line to say the account is not current — which `design/` draws once an account's mail server has been unreachable
+for a minute — and to open onto *Mail server unreachable*. It then interrupts the script, which removes the fault, and
+waits for every account to be current again. It is the only spec that injects a fault, and it ends the fault whatever
+happened in between, so the file after it meets the mailbox it met.
 
 **Discover is held to the screen it opens on, and not to an answer.** The client offers it, as it does Tasks and
 Calendar, only while developer mode is on, so a spec reaching one of the three switches that on from the version line

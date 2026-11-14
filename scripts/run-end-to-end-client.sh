@@ -17,7 +17,7 @@ set -euo pipefail
 #
 #   1. the client's bundle, built exactly as the published image builds it
 #   2. the schema artifact, built exactly as a release builds it
-#   3. the database and the mail server, started from this repository's own app model
+#   3. the database, the mail server, and the fault proxy in front of it, started from this repository's own app model
 #   4. the schema artifact applied to that database
 #   5. MailFathom published and started against both servers, serving the bundle from its client endpoint
 #   6. the user this run serves, then their mailbox, recorded through the administrative API
@@ -69,6 +69,8 @@ imap_port="$(read_orchestration_constant int EndToEndClientImapPort)"
 smtp_port="$(read_orchestration_constant int EndToEndClientSmtpPort)"
 postgres_port="$(read_orchestration_constant int EndToEndClientPostgresPort)"
 mail_server_api_port="$(read_orchestration_constant int EndToEndClientMailServerApiPort)"
+fault_proxy_imap_port="$(read_orchestration_constant int EndToEndClientFaultProxyImapPort)"
+fault_proxy_control_port="$(read_orchestration_constant int EndToEndClientFaultProxyControlPort)"
 mailbox_login="$(read_orchestration_constant string MailServerAccountUserName)"
 mailbox_address="$(read_orchestration_constant string MailServerAccountEmailAddress)"
 mailbox_password="$(read_orchestration_constant string MailServerAccountPassword)"
@@ -239,12 +241,16 @@ if [[ ! -s "$schema_artifact" ]]; then
   exit 1
 fi
 
-step 'starting the orchestrated database and mail server'
+step 'starting the orchestrated database, mail server, and fault proxy'
 
 # The repository's own app model, selected onto the topology that starts those two servers and no MailFathom at all.
 # Nothing here declares a container: the images, their pins, and their configuration are the app model's, so this run
 # exercises the same PostgreSQL and the same mail server every other run of this repository exercises.
-dotnet run --project backend/src/AppHost/AppHost.csproj -- EndToEndClient=true \
+#
+# The fault proxy is asked for as well, so the mailbox MailFathom reads passes through it. It forwards every byte
+# untouched until a spec takes the connection away with scripts/inject-fault.sh, which is how the suite proves what the
+# client shows while the mail server cannot be reached and that it recovers once the server is back.
+dotnet run --project backend/src/AppHost/AppHost.csproj -- EndToEndClient=true FaultProxy=true \
   > "$run_directory/orchestration.log" 2>&1 &
 app_model_pid=$!
 
@@ -260,6 +266,9 @@ wait_until 'The orchestrated PostgreSQL server' 300 "$app_model_pid" \
 
 wait_until 'The orchestrated mail server' 300 "$app_model_pid" \
   curl --fail --silent "http://$loopback:$mail_server_api_port/api/service/readiness"
+
+wait_until 'The orchestrated fault proxy' 300 "$app_model_pid" \
+  curl --fail --silent "http://$loopback:$fault_proxy_control_port/version"
 
 step 'applying the schema artifact'
 
@@ -314,6 +323,11 @@ cp --recursive frontend/src/Client.App/dist/. "$host_directory/wwwroot"
 # after it is refused — which reaches the screen as *the deployment did not answer*, reads as a broken client, and is
 # neither. The limiter stays switched on rather than being turned off, so the path a request takes here is still the
 # path it takes in a deployment; what changes is a budget no suite can exhaust.
+#
+# The mail connection's budgets are shortened for the same kind of reason: the outage spec takes the mailbox away and
+# gives it back, and at the shipped values an account waits up to five minutes between runs and half an hour while its
+# runs keep failing, and a session establishment it gave up on keeps its circuit open for half a minute. Each value
+# below is one an operator could write, and each changes when an outage is noticed and when its end is, never whether.
 env --chdir="$host_directory" \
   ConnectionStrings__mailfathom="Host=$loopback;Port=$postgres_port;Database=$database_name;Username=$postgres_user_name;Password=$postgres_password" \
   DataEncryption__ActiveKeyId="$data_encryption_key_id" \
@@ -321,6 +335,16 @@ env --chdir="$host_directory" \
   DataEncryption__Keys__0__Material__Name="$data_encryption_key_name" \
   DataEncryption__Keys__0__Material__SecretReference="plaintext:$data_encryption_key_material" \
   MailSynchronization__Enabled='true' \
+  MailSynchronization__Interval='00:00:10' \
+  MailSynchronization__MaxFailureBackoff='00:00:10' \
+  Resilience__MailboxSessionEstablishment__MaxAttempts='2' \
+  Resilience__MailboxSessionEstablishment__BaseDelay='00:00:01' \
+  Resilience__MailboxSessionEstablishment__MaxDelay='00:00:02' \
+  Resilience__MailboxSessionEstablishment__CircuitBreakerBreakDuration='00:00:05' \
+  Resilience__MailboxDataRetrieval__MaxAttempts='2' \
+  Resilience__MailboxDataRetrieval__BaseDelay='00:00:01' \
+  Resilience__MailboxDataRetrieval__MaxDelay='00:00:02' \
+  Resilience__MailboxDataRetrieval__CircuitBreakerBreakDuration='00:00:05' \
   ClientEndpoint__Enabled='true' \
   ClientEndpoint__BindAddress="$loopback" \
   ClientEndpoint__Port="$client_endpoint_port" \
@@ -360,11 +384,12 @@ served_user="$(
     | jq --raw-output '.id'
 )"
 
-# The mailbox is a mail account record of its own, assigned to that user as it is created. The three transport opt-ins
-# are here rather than in the environment for one reason: the mail server beside this run speaks no TLS, and a
-# deployment reaching a clear-text server has to say so wherever the mailbox is declared. The language is stated for a
-# different reason: every account names the one MailFathom writes about its mail in, and this run replays an English
-# corpus.
+# The mailbox is a mail account record of its own, assigned to that user as it is created, and it reads the mail server
+# through the fault proxy's port rather than the server's own, which is what lets a spec take it away. The three
+# transport opt-ins are here rather than in the environment for one reason: the mail server beside this run speaks no
+# TLS, and a deployment reaching a clear-text server has to say so wherever the mailbox is declared. The language is
+# stated for a different reason: every account names the one MailFathom writes about its mail in, and this run replays
+# an English corpus.
 
 # A refusal answers 200 with the reasons rather than a failing status, because every one of them is something the caller
 # composes the next attempt from. So the outcome is read rather than the status code.
@@ -377,7 +402,7 @@ mailbox_declaration="$(
         --arg user "$served_user" \
         --arg emailAddress "$mailbox_address" \
         --arg host "$loopback" \
-        --argjson port "$imap_port" \
+        --argjson port "$fault_proxy_imap_port" \
         --arg userName "$mailbox_login" \
         --arg passwordReference "env:$mailbox_password_variable" \
         '{
@@ -496,6 +521,7 @@ wait_until 'The account synchronization run' 600 "$host_pid" account_synchronize
 step 'driving the client in a browser'
 
 MAILFATHOM_CLIENT_ORIGIN="$client_origin" \
+  MAILFATHOM_FAULTS_CONTROL_PORT="$fault_proxy_control_port" \
   MAILFATHOM_CLIENT_USERNAME="$client_username" \
   MAILFATHOM_CLIENT_PASSWORD="$client_password" \
   pnpm --dir frontend run test:end-to-end "$@"
