@@ -59,9 +59,37 @@ export async function openSpace(page: Page, space: string): Promise<void> {
  * The space is reached by its own link rather than by its address, because that is the move a person makes and because
  * a fragment typed into the bar would prove the router rather than the navigation.
  */
+const earlySpaces = ['Discover', 'Tasks', 'Calendar'];
+
+/** Developer mode switched on the way a developer does it: five presses on the version line in Settings. */
+async function switchDeveloperModeOn(page: Page): Promise<void> {
+    await page.getByRole('button', { name: 'Account and preferences' }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+
+    const settings = page.getByRole('dialog', { name: 'Settings' });
+    const versionLine = settings.getByRole('button', { name: /^MailFathom v/u });
+
+    for (let press = 0; press < 5; press += 1) {
+        await versionLine.click();
+    }
+
+    await settings.getByRole('button', { name: 'Close settings' }).click();
+    await expect(settings).toBeHidden();
+
+    // The account menu the settings row stands in is still open, and Escape is what closes it.
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeHidden();
+}
+
 export async function goToSpace(page: Page, space: string): Promise<void> {
     const navigation = page.getByRole('navigation', { name: 'Spaces' });
     const link = navigation.getByRole('link', { name: space });
+
+    // Discover, Tasks, and Calendar are offered only while developer mode is on, and a reload forgets it, so a move to
+    // one of them switches it on wherever the link is not standing yet.
+    if (earlySpaces.includes(space) && !(await link.isVisible())) {
+        await switchDeveloperModeOn(page);
+    }
 
     // The narrow composition hides three of the six spaces behind an overflow. This suite runs at 1280 by 720, where
     // the rail carries all six, so a link that is not there is a failure rather than a case to handle — asserted

@@ -6,6 +6,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ClientResponse } from '@mailfathom/client-backend';
 import type { DeploymentTransport } from './deployment/sendToDeployment';
+import { lockDeveloperInformation } from './developerInformation/developerAccess';
 import { startingListWidthIn, storeListWidth } from './mailSpace/listWidth';
 import {
     accepted,
@@ -127,6 +128,27 @@ describe('App', () => {
         renderApp();
 
         expect(await screen.findByRole('heading', { name: 'Discover', level: 1 })).toBeDefined();
+    });
+
+    it('offers no space still at an early stage, and mounts none, while developer mode is off', async () => {
+        lockDeveloperInformation();
+        openingAt('/#/tasks');
+        renderApp();
+
+        expect(await screen.findByRole('main', { name: 'Agent' })).toBeDefined();
+        await waitFor(() => {
+            expect(window.location.hash).toBe('#/agent');
+        });
+
+        const navigation = within(screen.getByRole('navigation', { name: 'Spaces' }));
+
+        expect(navigation.getByRole('link', { name: /^Mail/u })).toBeDefined();
+        expect(navigation.queryByRole('link', { name: /^Discover/u })).toBeNull();
+        expect(navigation.queryByRole('link', { name: /^Tasks/u })).toBeNull();
+        expect(navigation.queryByRole('link', { name: /^Calendar/u })).toBeNull();
+        expect(screen.queryByRole('main', { name: 'Discover', hidden: true })).toBeNull();
+        expect(screen.queryByRole('main', { name: 'Tasks', hidden: true })).toBeNull();
+        expect(screen.queryByRole('main', { name: 'Calendar', hidden: true })).toBeNull();
     });
 
     it('writes the space it is showing into an address that named none, so it can be reloaded', async () => {

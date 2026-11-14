@@ -3,27 +3,26 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { expect, test } from '@playwright/test';
-import { signIn } from './deployment';
+import { openSpace } from './deployment';
 
-// Discover, which is where the client opens.
+// Discover, which the client offers while developer mode is on.
 //
-// **What this file holds is the screen a deployment lands somebody on, and not an answer.** The space draws the
+// **What this file holds is the screen the space opens on, and not an answer.** The space draws the
 // questions it offers, and pressing one starts a real run over `POST /api/client/discovery/runs` — but composing an
 // answer needs a chat provider, and this run configures none. So a check that pressed a suggestion and waited for a
 // block would be waiting on a model nothing here provides, and one that asserted a particular ending would be pinning
 // which failure a deployment with no provider reports — a service decision this file is not the place to fix.
 //
-// What is worth holding is that landing reaches the screen, that the questions it offers are there to press, and that
+// What is worth holding is that the space reaches its screen, that the questions it offers are there to press, and that
 // the question field stands on it, because a space in front is exactly where a frame regression shows.
 //
 // The answered canvas is the unit suite's claim, over a transport handed the run the corpus states, and the browser
 // suite's for what a built bundle draws. What would move here is a run this deployment can actually answer, which is a
 // provider configured for the run rather than a line in this file.
 
-test('opens in Discover, on the questions it offers', async ({ page }) => {
-    await signIn(page);
+test('opens Discover on the questions it offers', async ({ page }) => {
+    await openSpace(page, 'Discover');
 
-    // Signing in lands here rather than navigating to it, which is the claim `defaultSpace` makes.
     await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
 
     const discover = page.getByRole('main', { name: 'Discover' });
@@ -40,7 +39,7 @@ test('opens in Discover, on the questions it offers', async ({ page }) => {
 test('reaches Discover again from another space, and keeps the question that was typed into it', async ({ page }) => {
     const question = 'What did the archive ask for last week?';
 
-    await signIn(page);
+    await openSpace(page, 'Discover');
 
     await page.getByRole('searchbox', { name: 'Ask your mail' }).fill(question);
 

@@ -4,7 +4,7 @@
 
 import { expect, type Page } from '@playwright/test';
 
-import { holdTheDay, openSignedIn, test } from './client.harness';
+import { holdTheDay, openSignedInAsDeveloper, test } from './client.harness';
 
 // An event written, amended, and deleted through the calendar, and each of the four views read after every act. A
 // view reads its own span again rather than correcting what another one held, so what each draws is what the next read
@@ -64,7 +64,7 @@ test('draws an event it wrote, amended, and deleted the same in the week, the da
 }) => {
     const day = await holdTheDay(page, deployment);
 
-    await openSignedIn(page, '/#/calendar');
+    await openSignedInAsDeveloper(page, '/#/calendar');
 
     await page.getByRole('button', { name: 'New event' }).click();
 

@@ -38,6 +38,7 @@ import { Containment } from './containment/Containment';
 import { BrandMark } from './controls/BrandMark';
 import { PlannedControl } from './controls/PlannedControl';
 import { VersionLine } from './controls/VersionLine';
+import { useDeveloperAccess } from './developerInformation/developerAccess';
 import { DeveloperInformation } from './developerInformation/DeveloperInformation';
 import { DeveloperInformationButton } from './developerInformation/DeveloperInformationButton';
 import type { DeveloperContext } from './developerInformation/DeveloperSections';
@@ -441,7 +442,8 @@ export function App({
     useGrantRenewal(grant, onTheWire, connection.online, grantRenewed, grantEnded);
 
     const deploymentSession = connection.session?.outcome === 'read' ? connection.session.value : null;
-    const offeredSpaces = deploymentSession === null ? [] : spacesOffered(deploymentSession);
+    const developerMode = useDeveloperAccess().unlocked;
+    const offeredSpaces = deploymentSession === null ? [] : spacesOffered(deploymentSession, developerMode);
     const space = useSpace(offeredSpaces);
     useNavigationTelemetry(space);
     const withheld = deploymentSession === null ? [] : withheldFrom(deploymentSession);

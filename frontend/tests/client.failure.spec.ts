@@ -45,9 +45,9 @@ test('keeps the frame usable when the reading pane throws while it is being draw
     await expect(page.getByRole('alert')).toContainText('This part of MailFathom stopped working.');
     await expect(page.getByRole('listbox', { name: 'Messages' })).toBeVisible();
 
-    await page.getByRole('link', { name: 'Discover' }).click();
+    await page.getByRole('link', { name: 'Agent' }).click();
 
-    await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
+    await expect(page.getByRole('main', { name: 'Agent' })).toBeVisible();
 });
 
 // The way out the pane offers, taken after whatever made it fail has stopped: the region is drawn again, and the

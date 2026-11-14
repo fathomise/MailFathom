@@ -14,6 +14,7 @@ import {
     messageRegion,
     narrowWindow,
     openSignedIn,
+    openSignedInAsDeveloper,
     openTheFirstMessage,
     phoneWindow,
     readOnward,
@@ -65,7 +66,7 @@ const theBoxAroundTheFocusedAskField = `
 `;
 
 test('lights the whole ask field on focus rather than drawing a second border inside it', async ({ page }) => {
-    await openSignedIn(page);
+    await openSignedInAsDeveloper(page);
     await page.getByRole('searchbox', { name: 'Ask your mail' }).focus();
 
     expect(await page.evaluate<string>(theFocusedAskFieldsOwnOutline)).toBe('none');
@@ -74,7 +75,7 @@ test('lights the whole ask field on focus rather than drawing a second border in
 
 test('puts the navigation beside the workspace in a wide window and under it in a narrow one', async ({ page }) => {
     await page.setViewportSize(wideWindow);
-    await openSignedIn(page);
+    await openSignedInAsDeveloper(page);
 
     const navigation = page.getByRole('navigation', { name: 'Spaces' });
     const space = page.getByRole('main');
@@ -120,7 +121,7 @@ test('puts the navigation beside the workspace in a wide window and under it in 
 
 test('moves a keyboard through a narrow window in the order the window shows', async ({ page }) => {
     await page.setViewportSize(narrowWindow);
-    await openSignedIn(page);
+    await openSignedInAsDeveloper(page);
 
     // The narrow composition draws the navigation at the bottom of the screen, and the keyboard follows the document
     // rather than the layout — so a document that put the navigation first would hand a reader the bottom bar before
@@ -133,7 +134,9 @@ test('moves a keyboard through a narrow window in the order the window shows', a
     // Before the space, the strip saying what this credential may not do. It is a scroller, having a ceiling rather
     // than growing out of the frame, and a scroller with nothing focusable in it is a stop of its own — which is what
     // lets somebody reach the sentences past the ceiling with a keyboard. It is named, so the stop announces itself.
-    await page.keyboard.press('Tab');
+    // The walk starts on it rather than at the top of the document: Discover is reached in developer mode, and arriving
+    // in a space puts the keyboard at the start of that space.
+    await page.getByRole('region', { name: 'What this credential may not do here' }).focus();
     await expect(page.getByRole('region', { name: 'What this credential may not do here' })).toBeFocused();
 
     await page.keyboard.press('Tab');
@@ -170,7 +173,7 @@ test('moves a keyboard through a narrow window in the order the window shows', a
 
 test('stays usable at the narrowest width a supported head presents', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
-    await openSignedIn(page);
+    await openSignedInAsDeveloper(page);
 
     // 320 CSS pixels is the bar `frontend/src/AGENTS.md` sets, and what is asked of it is that the frame still holds
     // everything rather than that it looks the same: the space, the intent field, and every destination the design
@@ -803,7 +806,7 @@ test('names two categories on a row, one where the list is narrow, and ends a lo
 // the page stood still again, so a reading taken once it has settled measures nothing.
 test('holds the page still while each space the navigation reaches arrives', async ({ page }) => {
     await page.setViewportSize(desktopWindow);
-    await openSignedIn(page, '/#/mail');
+    await openSignedInAsDeveloper(page, '/#/mail');
     await expect(page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first()).toBeVisible();
 
     const navigation = page.getByRole('navigation', { name: 'Spaces' });

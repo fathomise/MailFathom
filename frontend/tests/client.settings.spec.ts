@@ -70,7 +70,7 @@ test('opens the account menu from its control and hands focus back to it on Esca
     await expect(page.getByRole('switch', { name: /Tab mode/u })).toBeFocused();
 
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('radio', { name: 'Auto' })).toBeFocused();
+    await expect(page.getByRole('radio', { name: 'Auto', exact: true })).toBeFocused();
 
     // Escape is pressed from the way out rather than from a chooser, which takes the key for its own list.
     await page.getByRole('button', { name: 'Sign out' }).focus();

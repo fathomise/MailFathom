@@ -394,6 +394,11 @@ dropping it is not, and neither is asserting it in jsdom where it would pass for
 - **`fakeDeployment.spec.ts` proves the fake itself**, asking it directly with no page: that each write reaches the read
   after it. A journey stands on that, and a fake that got it wrong would make a journey pass or fail for a reason nobody
   could see on the screen.
+- **A check about Discover, Tasks, or Calendar opens with `openSignedInAsDeveloper`.** The client offers those three
+  only while developer mode is on, so `client.harness.ts` switches it on the way a developer does — five presses on the
+  version line in Settings — and every other check signs in to the client as anybody else meets it, which opens in the
+  Agent. A reload forgets the mode, so a check that reloads and still needs one of the three calls
+  `switchDeveloperModeOn` again.
 - **Nothing here retries.** A check that passes on a second attempt has reported that the client is flaky rather than
   that it works.
 - **A geometry read after `setViewportSize` waits for the composition it is about.** The width is the browser's the
@@ -482,11 +487,11 @@ the way an operator stands one up, with mail that arrived at a mail server and w
   again. A spec that had to build its own furniture first would assert against what it had just done, and the order the
   files happen to run in would become part of what they prove; a spec that left its record behind would do the same to
   the file after it.
-- **Discover is held to the screen a deployment lands somebody on, and not to an answer.** Pressing one of the
+- **Discover is held to the screen it opens on, and not to an answer.** Pressing one of the
   questions it offers starts a real run, but composing an answer needs a chat provider and this run configures none —
   so a spec that waited for a block would be waiting on a model nothing here provides, and one that asserted a
   particular ending would be pinning which failure a deployment with no provider reports. What `discover.spec.ts` holds
-  is that landing reaches the screen, that the questions it offers are there to press, and that the question field
+  is that the space reaches its screen, that the questions it offers are there to press, and that the question field
   stands on it with no scope to choose. What would move that is a provider configured for the run, not a line in the
   file.
 - **It keeps its traces and its screenshots**, which is the one place this directory's privacy rule reads the other
