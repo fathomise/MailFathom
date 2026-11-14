@@ -76,8 +76,8 @@ budget no suite can exhaust rather than switching the limiter off, so a request 
 deployment.
 
 **The mail connection's budgets are shortened for this run, for the outage spec.** At the shipped values an account
-runs every five minutes, waits up to half an hour between runs while they keep failing, retries a session it could not
-establish three times over a growing backoff, and keeps the circuit of one it gave up on open for half a minute — so a
+runs every five minutes, waits up to half an hour between runs while they keep failing, makes three attempts at a session
+it could not establish — the first and two retries — over a growing backoff, and keeps the circuit of one it gave up on open for half a minute — so a
 mailbox taken away would be noticed minutes late and its return later still. The run sets
 `MailSynchronization:Interval` and `MailSynchronization:MaxFailureBackoff` to ten seconds, and for both
 `Resilience:MailboxSessionEstablishment` and `Resilience:MailboxDataRetrieval` two attempts, a backoff of one to two
