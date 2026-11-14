@@ -168,7 +168,8 @@ stop_fault() {
     control DELETE "/proxies/$proxy/toxics/$name" > /dev/null
   fi
 
-  # After the fault is gone rather than before, so a proxy that did not answer leaves the timer to try again.
+  # After the fault is gone rather than before: where the proxy did not answer, the file stays, so `list` still names
+  # the fault and `stop` can still end it. Nothing tries again on its own.
   rm -f "$timers/$name"
   printf 'Removed %s.\n' "$name"
 }

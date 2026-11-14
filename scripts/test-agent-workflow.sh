@@ -11587,12 +11587,14 @@ the_dependency_survey_refuses_what_would_write_without_being_asked() {
 # exists, so the test decides when a fault's time is up. What the script must get right is that `start` returns while
 # the fault is still held, that two faults are held at once and `list` says when each ends, that a timer removes the
 # fault it was left for — by the preset's own name, never a reset of what another run holds — and nothing at all once
-# that fault was stopped sooner, and that a refused argument reaches no proxy.
+# that fault was stopped sooner, a fault of the same preset started again since included, and that a refused argument
+# reaches no proxy.
 the_fault_script_holds_a_fault_in_the_background_and_removes_only_that_one() {
   local script="$source_repository_root/scripts/inject-fault.sh"
   local bin_directory="$test_directory/inject-fault-bin"
   local request_log="$test_directory/inject-fault-requests"
   local gate="$test_directory/inject-fault-gate"
+  local later_gate="$test_directory/inject-fault-later-gate"
   local listing="$test_directory/inject-fault-listing"
   local real_sleep waited
 
@@ -11636,7 +11638,7 @@ FAKE
   chmod +x "$bin_directory/curl" "$bin_directory/sleep"
 
   run_fault_script() {
-    PATH="$bin_directory:$PATH" FAKE_REQUEST_LOG="$request_log" FAKE_SLEEP_GATE="$gate" \
+    PATH="$bin_directory:$PATH" FAKE_REQUEST_LOG="$request_log" FAKE_SLEEP_GATE="${held_by:-$gate}" \
       XDG_RUNTIME_DIR="$test_directory/inject-fault-runtime" MAILFATHOM_FAULTS_CONTROL_PORT=9474 "$script" "$@"
   }
 
@@ -11673,9 +11675,12 @@ FAKE
     return 1
   fi
 
-  # One is stopped sooner, then both durations end: the timer of the one still held removes it, and the timer of the
-  # one already stopped removes nothing.
+  # One is stopped sooner and started again, on a duration of its own that ends later. Then the first two durations
+  # end: the timer of the fault still held removes it, and the timer of the one stopped sooner removes nothing — the
+  # fault now standing under its preset's name belongs to the later start.
   run_fault_script stop imap-slow > /dev/null
+  : > "$later_gate"
+  held_by="$later_gate" run_fault_script start imap-slow --for 5m > /dev/null
   rm "$gate"
   for ((waited = 0; waited < 100; waited += 1)); do
     ! grep -Fq 'POST http://127.0.0.1:9474/proxies/smtp {"enabled": true}' "$request_log" || break
@@ -11684,7 +11689,23 @@ FAKE
   assert_contains 'POST http://127.0.0.1:9474/proxies/smtp {"enabled": true}' "$request_log"
   "$real_sleep" 0.3
   if [[ "$(grep -Fc 'DELETE http://127.0.0.1:9474/proxies/imap/toxics/imap-slow' "$request_log")" != 1 ]]; then
-    printf 'a fault stopped sooner was removed again when its duration ended:\n%s\n' "$(cat "$request_log")" >&2
+    printf 'the timer of a fault stopped sooner removed the fault started after it:\n%s\n' "$(cat "$request_log")" >&2
+    return 1
+  fi
+  run_fault_script list > "$listing"
+  if ! grep -Eq '^  imap-slow +ends in ' "$listing"; then
+    printf 'a fault started again lost its timer to the one before it:\n%s\n' "$(cat "$listing")" >&2
+    return 1
+  fi
+
+  # The later start's own duration ends, and its timer is the one that removes it.
+  rm "$later_gate"
+  for ((waited = 0; waited < 100; waited += 1)); do
+    [[ "$(grep -Fc 'DELETE http://127.0.0.1:9474/proxies/imap/toxics/imap-slow' "$request_log")" != 2 ]] || break
+    "$real_sleep" 0.05
+  done
+  if [[ "$(grep -Fc 'DELETE http://127.0.0.1:9474/proxies/imap/toxics/imap-slow' "$request_log")" != 2 ]]; then
+    printf 'a fault started again was not removed when its own duration ended:\n%s\n' "$(cat "$request_log")" >&2
     return 1
   fi
 
