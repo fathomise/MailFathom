@@ -179,6 +179,20 @@ function inDraftsOrSentTree(directory: MailFolderDirectory | null, message: Acte
 }
 
 /**
+ * Whether the folder is the account's drafts folder or one somebody made beneath it, which is what makes a message in
+ * it one to carry on writing. The folder playing the role stays the drafts folder; the tree is what holds drafts.
+ */
+export function inDraftsTree(
+    directory: MailFolderDirectory | null,
+    message: Pick<ActedMessage, 'account' | 'folder'>,
+): boolean {
+    const folders = foldersOf(directory, message.account);
+    const tree = keptTreeOf(folders, message.folder);
+
+    return tree !== null && folders.find((folder) => folder.id === tree)?.role === 'Drafts';
+}
+
+/**
  * Whether filing those messages back where they were would be admitted, which is what decides whether an act offers
  * the way back at all.
  *

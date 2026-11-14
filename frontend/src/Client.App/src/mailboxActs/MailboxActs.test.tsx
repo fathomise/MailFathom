@@ -838,6 +838,7 @@ describe('MailboxActsProvider', () => {
             leaves: true,
             destroys: false,
             awaiting: false,
+            returnsTo: 'work-inbox',
         });
     });
 

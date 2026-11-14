@@ -11,6 +11,7 @@ import {
     filesIntoTrash,
     filingFor,
     folderWithRole,
+    inDraftsTree,
     mayBeTakenBack,
     refusalFor,
 } from './mailboxDestinations';
@@ -212,6 +213,21 @@ describe('destinationsFor, around the drafts and the sent tree', () => {
         expect(dropping(draft, 'work-drafts-clients')?.folderId).toBe('work-drafts-clients');
         expect(dropping(sent, 'work-sent-2026')?.folderId).toBe('work-sent-2026');
         expect(dropping(sent, 'work-trash')?.folderId).toBe('work-trash');
+    });
+});
+
+// The folder playing the role stays the drafts folder, and the folders somebody made beneath it hold drafts as it does.
+describe('inDraftsTree', () => {
+    it('says the drafts folder and a folder beneath it hold drafts', () => {
+        expect(inDraftsTree(withDraftsAndSent, inWorkDrafts('message-1'))).toBe(true);
+        expect(inDraftsTree(withDraftsAndSent, { account: 'work', folder: 'work-drafts-clients' })).toBe(true);
+    });
+
+    it('says the trash, the sent tree, and every other folder hold none, and so does a tree nobody has read', () => {
+        expect(inDraftsTree(withDraftsAndSent, { account: 'work', folder: 'work-trash' })).toBe(false);
+        expect(inDraftsTree(withDraftsAndSent, inWorkSent('message-1'))).toBe(false);
+        expect(inDraftsTree(withDraftsAndSent, inWork('message-1'))).toBe(false);
+        expect(inDraftsTree(null, inWorkDrafts('message-1'))).toBe(false);
     });
 });
 

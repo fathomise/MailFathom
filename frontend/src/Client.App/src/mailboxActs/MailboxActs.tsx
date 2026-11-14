@@ -40,6 +40,7 @@ import {
     destinationsFor,
     filesIntoTrash,
     filingFor,
+    inDraftsTree,
     mayBeTakenBack,
     refusalFor,
     type ActRefusal,
@@ -1056,6 +1057,10 @@ export function MailboxActsProvider({
         );
     }
 
+    function holdsDraft(message: Pick<ActedMessage, 'account' | 'folder'>): boolean {
+        return inDraftsTree(held.directory, message);
+    }
+
     function folderRoleOf(message: ActedMessage): MailFolderRole | null {
         return folderOf(message)?.role ?? null;
     }
@@ -1242,12 +1247,13 @@ export function MailboxActsProvider({
         session === null
             ? nothingActed
             : !(flags || moves || deletes)
-              ? { ...nothingActed, folderRoleOf, folderOf }
+              ? { ...nothingActed, folderRoleOf, folderOf, holdsDraft }
               : {
                     asked: held.asked,
                     refusalOf,
                     folderRoleOf,
                     folderOf,
+                    holdsDraft,
                     destinationsOf: (messages) => destinationsFor(held.directory, messages),
                     deletesPermanently: destroys,
                     perform,

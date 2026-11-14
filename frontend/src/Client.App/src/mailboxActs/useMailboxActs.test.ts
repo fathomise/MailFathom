@@ -298,15 +298,30 @@ describe('allDrawnSpam', () => {
     });
 });
 
-// Where a message opens is decided by what its own account calls the folder it is in rather than by what the folder
-// is named: a deployment whose drafts folder is `Entwürfe` still opens one in the composer.
+// Where a message opens is decided by where it stands in its own account's folders rather than by what a folder is
+// named: a deployment whose drafts folder is `Entwürfe` still opens one in the composer.
 describe('opensAsDraft', () => {
-    it('says a message in the folder its account labels for drafts is one to carry on writing', () => {
-        expect(opensAsDraft({ ...nothingActed, folderRoleOf: () => 'Drafts' }, email)).toBe(true);
+    it('says a message standing in its account’s drafts tree is one to carry on writing', () => {
+        const asked: unknown[] = [];
+        const acts = {
+            ...nothingActed,
+            holdsDraft: (message: unknown) => {
+                asked.push(message);
+
+                return true;
+            },
+        };
+
+        expect(opensAsDraft(acts, email)).toBe(true);
+        expect(asked).toStrictEqual([{ account: email.account, folder: email.folder }]);
     });
 
-    it('says a message in any other folder is one to read', () => {
-        expect(opensAsDraft({ ...nothingActed, folderRoleOf: () => 'Inbox' }, email)).toBe(false);
+    // The role of the folder is not what is asked: a draft deleted into the trash, or mail in a folder that merely
+    // plays some role, is mail to read.
+    it('says a message standing anywhere else is one to read, whatever role its folder plays', () => {
+        expect(opensAsDraft({ ...nothingActed, folderRoleOf: () => 'Trash', holdsDraft: () => false }, email)).toBe(
+            false,
+        );
     });
 
     // A session that may not file mail reads no folders at all, so nothing says which folder is for drafts — and a

@@ -955,7 +955,7 @@ describe('MessageList', () => {
     // A drafts folder holds what somebody was writing rather than what arrived, so the reading pane is the wrong
     // surface for one: what a reader asked for is the words back under their own cursor.
     it('opens a draft in the composer rather than in the reading pane, and leaves the pane where it was', async () => {
-        renderList(answering(wholeFolder), { acts: { ...nothingActed, folderRoleOf: () => 'Drafts' } });
+        renderList(answering(wholeFolder), { acts: { ...nothingActed, folderRoleOf: () => 'Drafts', holdsDraft: () => true } });
 
         await rows();
         fireEvent.pointerDown(row(2));
@@ -968,7 +968,9 @@ describe('MessageList', () => {
     // What makes a message one to carry on writing is the folder it stands in, never what it once was: a draft deleted
     // into the trash is mail to read there, and opening it in the composer would edit something already thrown away.
     it('opens a draft standing in the trash in the reading pane, as the mail it is there', async () => {
-        renderList(answering(wholeFolder), { acts: { ...nothingActed, folderRoleOf: () => 'Trash' } });
+        renderList(answering(wholeFolder), {
+            acts: { ...nothingActed, folderRoleOf: () => 'Trash', holdsDraft: () => false },
+        });
 
         await rows();
         fireEvent.pointerDown(row(2));

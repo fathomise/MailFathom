@@ -216,6 +216,12 @@ export interface MailboxActs {
      */
     readonly folderOf: (message: Pick<ActedMessage, 'account' | 'folder'>) => MailFolder | null;
 
+    /**
+     * Whether that message stands in its account's drafts folder or in a folder beneath it, which is what makes it a
+     * draft to carry on writing rather than mail to read. `false` where this client has not read the user's folders.
+     */
+    readonly holdsDraft: (message: Pick<ActedMessage, 'account' | 'folder'>) => boolean;
+
     /** The folders those messages could be filed into, under the one account they are all in. */
     readonly destinationsOf: (messages: readonly ActedMessage[]) => readonly MoveDestinationGroup[];
 
@@ -282,6 +288,7 @@ export const nothingActed: MailboxActs = {
     refusalOf: () => 'notOffered',
     folderRoleOf: () => null,
     folderOf: () => null,
+    holdsDraft: () => false,
     destinationsOf: () => [],
     deletesPermanently: () => false,
     perform: () => undefined,
@@ -303,10 +310,11 @@ export function useMailboxActs(): MailboxActs {
  * Whether opening that message is opening a draft, which is the composer rather than the reading pane.
  *
  * A draft is a message somebody was writing, so pressing it puts them back where they were writing it. What decides
- * that is the role its folder plays rather than anything on the message: a mail server files a draft where its own
- * configuration says drafts go, and a folder called `Entwürfe` is the drafts folder as surely as one called `Drafts`.
- * That reading holds because nothing else is filed there: `mailboxDestinations.ts` offers the drafts folder to drafts
- * alone, and the deployment refuses any other move into it.
+ * that is where it stands rather than anything on the message: in the folder its account labels for drafts — a folder
+ * called `Entwürfe` is the drafts folder as surely as one called `Drafts` — or in a folder somebody made beneath it.
+ * That reading holds because nothing else is filed there: `mailboxDestinations.ts` offers the drafts tree to drafts
+ * alone, and the deployment refuses any other move into it. A draft deleted into the trash stands outside that tree,
+ * so it opens there as the mail it has become.
  *
  * Stated once, beside the acts, because two lists open a message — the mailbox's own and the search's — and a second
  * reading of *this is a draft* is how the two come to open the same message differently.
@@ -320,16 +328,7 @@ export function useMailboxActs(): MailboxActs {
  * shares is the upgrade, and it closes this window in the same move as it closes the second read.
  */
 export function opensAsDraft(acts: MailboxActs, email: MailTimelineEntry): boolean {
-    return (
-        acts.folderRoleOf({
-            storedEmailId: email.id,
-            account: email.account,
-            folder: email.folder,
-            unread: email.unread,
-            flagged: email.flagged,
-            spam: email.spam,
-        }) === 'Drafts'
-    );
+    return acts.holdsDraft({ account: email.account, folder: email.folder });
 }
 
 /**

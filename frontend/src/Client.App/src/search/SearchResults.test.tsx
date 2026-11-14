@@ -465,7 +465,7 @@ describe('SearchResults', () => {
 
         render(
             resultsUnder(answering(pageOf([result(1)])), {
-                acts: { ...nothingActed, folderRoleOf: () => 'Drafts' },
+                acts: { ...nothingActed, folderRoleOf: () => 'Drafts', holdsDraft: () => true },
                 onOpenDraft: carriedOn,
             }),
         );
@@ -483,7 +483,7 @@ describe('SearchResults', () => {
     // opens as any other does, rather than being a row that answers nothing when it is pressed.
     it('opens a draft in the reading pane where the frame offered no composer to carry it on in', async () => {
         render(
-            resultsUnder(answering(pageOf([result(1)])), { acts: { ...nothingActed, folderRoleOf: () => 'Drafts' } }),
+            resultsUnder(answering(pageOf([result(1)])), { acts: { ...nothingActed, folderRoleOf: () => 'Drafts', holdsDraft: () => true } }),
         );
 
         const found = await rows();
@@ -702,7 +702,7 @@ describe('SearchResults, the sender mark', () => {
 
     it('marks no sender on a result that is a draft', async () => {
         render(
-            resultsUnder(answering(pageOf([result(1)])), { acts: { ...nothingActed, folderRoleOf: () => 'Drafts' } }),
+            resultsUnder(answering(pageOf([result(1)])), { acts: { ...nothingActed, folderRoleOf: () => 'Drafts', holdsDraft: () => true } }),
         );
 
         await rows();
