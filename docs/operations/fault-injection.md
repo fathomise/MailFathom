@@ -75,15 +75,28 @@ read-only container. Its control API answers anybody who reaches it, with no cre
 ```bash
 scripts/inject-fault.sh list
 scripts/inject-fault.sh start imap-down --for 5m
-scripts/inject-fault.sh stop
+scripts/inject-fault.sh start server-slow
+scripts/inject-fault.sh stop imap-down
 ```
 
-The script needs `curl` and `jq` on the path. `start` holds the fault for the duration — seconds, or a number followed
-by `s`, `m`, or `h`, and `60s` when none is given — then removes it. Interrupting the script removes it too, and so
-does closing the terminal it runs in, so a fault does not outlive the run that started it unless that run is killed
-outright; `stop <preset>` removes one preset's fault, and `stop` alone every fault the proxy
-holds. A preset already active is refused rather than started twice, and a refusal from the proxy is reported with
-the proxy's own reason. `list` names the presets and what is active now.
+The script needs `curl` and `jq` on the path. `start` adds the fault and returns at once, so the terminal is free
+while the fault lasts. It lasts for the duration — seconds, or a number followed by `s`, `m`, or `h`, and `60s` when
+none is given — and a timer the script leaves behind removes it then, whether or not the terminal it was started from
+is still open. Several faults can be active at once, each on its own duration; a preset already active is refused
+rather than started twice, and a refusal from the proxy is reported with the proxy's own reason.
+
+`stop <preset>` ends one preset's fault sooner, and `stop` alone removes every fault the proxy holds. `list` names the
+presets, each fault active now, and how long it has left:
+
+```text
+Active now:
+  imap-down        ends in 4m 12s
+  server-slow      ends in 48s
+```
+
+A fault reads `held until stopped` where no timer on this machine will end it: one added by another tool, or one
+whose timer went with a restart of the machine. The timers are kept per user and per control port, so a fault started
+by somebody else on the same machine is theirs to end, or `stop` ends it for them.
 
 | Preset | Connection | What happens |
 |---|---|---|

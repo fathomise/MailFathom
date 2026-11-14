@@ -11583,15 +11583,18 @@ the_dependency_survey_refuses_what_would_write_without_being_asked() {
 }
 
 # `scripts/inject-fault.sh` talks to a proxy nobody runs here, so a fake `curl` records each request and answers the
-# one read the script makes, and a fake `sleep` stands in for the duration: it returns at once, or, asked to, signals
-# the script the way an interrupted terminal would. What the script must get right is that a fault it started is the
-# fault it removes — by the preset's own name, never a reset of what another run holds — whether the duration ended
-# or the run was stopped, and that a refused argument reaches no proxy at all.
-the_fault_script_removes_the_fault_it_started_and_nothing_else() {
+# two reads the script makes, and a fake `sleep` stands in for the duration: it lasts for as long as a gate file
+# exists, so the test decides when a fault's time is up. What the script must get right is that `start` returns while
+# the fault is still held, that two faults are held at once and `list` says when each ends, that a timer removes the
+# fault it was left for — by the preset's own name, never a reset of what another run holds — and nothing at all once
+# that fault was stopped sooner, and that a refused argument reaches no proxy.
+the_fault_script_holds_a_fault_in_the_background_and_removes_only_that_one() {
   local script="$source_repository_root/scripts/inject-fault.sh"
   local bin_directory="$test_directory/inject-fault-bin"
   local request_log="$test_directory/inject-fault-requests"
-  local real_sleep status
+  local gate="$test_directory/inject-fault-gate"
+  local listing="$test_directory/inject-fault-listing"
+  local real_sleep waited
 
   [[ -x "$script" ]] || {
     printf 'scripts/inject-fault.sh is not executable\n' >&2
@@ -11599,7 +11602,7 @@ the_fault_script_removes_the_fault_it_started_and_nothing_else() {
   }
 
   real_sleep="$(command -v sleep)"
-  mkdir -p "$bin_directory"
+  mkdir -p "$bin_directory" "$test_directory/inject-fault-runtime"
   cat > "$bin_directory/curl" << 'FAKE'
 #!/usr/bin/env bash
 method='GET' body=''
@@ -11612,18 +11615,29 @@ while (($#)); do
   shift
 done
 printf '%s %s %s\n' "$method" "$address" "$body" >> "$FAKE_REQUEST_LOG"
-printf '{"enabled": true}'
+case "$method $address" in
+  'GET '*/proxies)
+    printf '%s' '{"imap": {"name": "imap", "enabled": true, "toxics": [{"name": "imap-slow", "type": "latency"}]},
+      "smtp": {"name": "smtp", "enabled": false, "toxics": []},
+      "client": {"name": "client", "enabled": true, "toxics": [{"name": "server-slow", "type": "latency"}]}}'
+    ;;
+  *) printf '{"enabled": true}' ;;
+esac
 FAKE
+  # Bounded, so a `start` that waited out its own duration would end in a failed assertion below rather than in a
+  # suite that never finishes.
   cat > "$bin_directory/sleep" << FAKE
 #!/usr/bin/env bash
-[[ -n "\${FAKE_SLEEP_SIGNAL-}" ]] || exit 0
-kill -"\$FAKE_SLEEP_SIGNAL" "\$PPID"
-exec "$real_sleep" 30
+for ((waited = 0; waited < 200; waited += 1)); do
+  [[ -e "\$FAKE_SLEEP_GATE" ]] || exit 0
+  "$real_sleep" 0.05
+done
 FAKE
   chmod +x "$bin_directory/curl" "$bin_directory/sleep"
 
   run_fault_script() {
-    PATH="$bin_directory:$PATH" FAKE_REQUEST_LOG="$request_log" MAILFATHOM_FAULTS_CONTROL_PORT=9474 "$script" "$@"
+    PATH="$bin_directory:$PATH" FAKE_REQUEST_LOG="$request_log" FAKE_SLEEP_GATE="$gate" \
+      XDG_RUNTIME_DIR="$test_directory/inject-fault-runtime" MAILFATHOM_FAULTS_CONTROL_PORT=9474 "$script" "$@"
   }
 
   : > "$request_log"
@@ -11639,21 +11653,40 @@ FAKE
     return 1
   fi
 
+  # Two faults started one after the other, both still held when the second `start` has returned.
+  : > "$gate"
   run_fault_script start imap-slow --for 5m > /dev/null
+  run_fault_script start smtp-down > /dev/null
   assert_contains 'POST http://127.0.0.1:9474/proxies/imap/toxics {"name": "imap-slow", "type": "latency"' "$request_log"
-  assert_contains 'DELETE http://127.0.0.1:9474/proxies/imap/toxics/imap-slow' "$request_log"
+  assert_contains 'POST http://127.0.0.1:9474/proxies/smtp {"enabled": false}' "$request_log"
+  if grep -Eq 'DELETE|"enabled": true' "$request_log"; then
+    printf 'a fault was removed while its duration was still running:\n%s\n' "$(cat "$request_log")" >&2
+    return 1
+  fi
 
-  for signal in TERM HUP; do
-    : > "$request_log"
-    status=0
-    FAKE_SLEEP_SIGNAL="$signal" run_fault_script start smtp-down --for 5m > /dev/null || status=$?
-    if ((status != 130)); then
-      printf 'start ended by SIG%s exited %s rather than 130\n' "$signal" "$status" >&2
-      return 1
-    fi
-    assert_contains 'POST http://127.0.0.1:9474/proxies/smtp {"enabled": false}' "$request_log"
-    assert_contains 'POST http://127.0.0.1:9474/proxies/smtp {"enabled": true}' "$request_log"
+  # The proxy's answer names three faults: the two started here, and one nothing here left a timer for.
+  run_fault_script list > "$listing"
+  if ! grep -Eq '^  imap-slow +ends in [45]m [0-9]{2}s$' "$listing" \
+    || ! grep -Eq '^  smtp-down +ends in (1m 00|5[0-9])s$' "$listing" \
+    || ! grep -Eq '^  server-slow +held until stopped$' "$listing"; then
+    printf 'list did not name the active faults and when each ends:\n%s\n' "$(cat "$listing")" >&2
+    return 1
+  fi
+
+  # One is stopped sooner, then both durations end: the timer of the one still held removes it, and the timer of the
+  # one already stopped removes nothing.
+  run_fault_script stop imap-slow > /dev/null
+  rm "$gate"
+  for ((waited = 0; waited < 100; waited += 1)); do
+    ! grep -Fq 'POST http://127.0.0.1:9474/proxies/smtp {"enabled": true}' "$request_log" || break
+    "$real_sleep" 0.05
   done
+  assert_contains 'POST http://127.0.0.1:9474/proxies/smtp {"enabled": true}' "$request_log"
+  "$real_sleep" 0.3
+  if [[ "$(grep -Fc 'DELETE http://127.0.0.1:9474/proxies/imap/toxics/imap-slow' "$request_log")" != 1 ]]; then
+    printf 'a fault stopped sooner was removed again when its duration ended:\n%s\n' "$(cat "$request_log")" >&2
+    return 1
+  fi
 
   : > "$request_log"
   run_fault_script stop imap-down > /dev/null
@@ -13438,7 +13471,7 @@ run_test the_gates_decide_from_the_change_filters_ci_declares
 run_test the_client_job_runs_every_check_the_full_gate_runs
 run_test workflow_scripts_use_flat_manual_layout
 run_test the_dependency_survey_refuses_what_would_write_without_being_asked
-run_test the_fault_script_removes_the_fault_it_started_and_nothing_else
+run_test the_fault_script_holds_a_fault_in_the_background_and_removes_only_that_one
 run_test the_dependency_rewrite_encodes_a_hostile_version_into_a_pin_file
 run_test the_dependency_survey_names_the_bump_that_may_break
 run_test every_hash_commented_file_carries_the_license_header
