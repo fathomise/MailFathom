@@ -144,6 +144,68 @@ export function withoutLeaving<Row>(held: HeldTimeline<Row>, leaving: (row: Row)
     };
 }
 
+/** A row a list drew once and is asked to draw again, and the row it stood in front of then, or `null` at the end. */
+export interface ReturningRow<Row> {
+    readonly row: Row;
+    readonly before: string | null;
+}
+
+/**
+ * The list with the rows somebody has just taken back drawn where they stood, which is the other half of
+ * {@link withoutLeaving}: an act takes a row out at the press, and its way back puts the row in at the press.
+ *
+ * The deployment answers the folder without the message for as long as the reverse move takes to reach the mail
+ * server, so a list that drew only what it was last answered would show a way back that did nothing for seconds. A row
+ * the list already holds is left where the deployment put it, which is how this stops once a read carries the message.
+ *
+ * @param held What the list knows.
+ * @param returning The rows to draw again, each as it was last drawn.
+ * @param identityOf What names a row.
+ * @returns The list as it is drawn, and the same object where nothing returns or no page holds rows to stand among.
+ */
+export function withReturning<Row>(
+    held: HeldTimeline<Row>,
+    returning: readonly ReturningRow<Row>[],
+    identityOf: (row: Row) => string,
+): HeldTimeline<Row> {
+    if (returning.length === 0) {
+        return held;
+    }
+
+    const holds = new Set(held.slots.flatMap((slot) => slot.rows ?? []).map(identityOf));
+    const slots = held.slots.map((slot) => (slot.rows === null ? null : [...slot.rows]));
+    const leading = slots.findIndex((rows) => rows !== null);
+    let placed = false;
+
+    for (const { row, before } of returning) {
+        if (holds.has(identityOf(row)) || leading < 0) {
+            continue;
+        }
+
+        // In front of the row it stood in front of where that row is still held, and at the leading end otherwise:
+        // the place is a courtesy to the reader's eye, and the next read of the page is what orders it.
+        const among = slots.find((rows) => rows?.some((other) => identityOf(other) === before) === true);
+        const into = among ?? slots[leading];
+        const at = among?.findIndex((other) => identityOf(other) === before) ?? 0;
+
+        into?.splice(Math.max(at, 0), 0, row);
+        holds.add(identityOf(row));
+        placed = true;
+    }
+
+    if (!placed) {
+        return held;
+    }
+
+    return {
+        slots: held.slots.map((slot, at) => {
+            const rows = slots[at] ?? null;
+
+            return rows === null || rows.length === slot.rows?.length ? slot : { ...slot, rowCount: rows.length, rows };
+        }),
+    };
+}
+
 /**
  * The list with every row after the first standing for the same thing left out, which is what a list grouped by
  * conversation is drawn from.

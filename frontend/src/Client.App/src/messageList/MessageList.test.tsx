@@ -337,6 +337,118 @@ describe('MessageList', () => {
         expect(row(2)).toBeDefined();
     });
 
+    // The deployment's answer replaces the claim with a new object saying the act is no longer under way. An answer
+    // slower than the animation therefore arrives after the row has gone, and a row held as gone against the object it
+    // went out under would be drawn again and leave a second time, under the toast reporting the act.
+    it('keeps a row gone when the deployment answers the act after the row has finished leaving', async () => {
+        const transport = answering(wholeFolder);
+        const asked = { act: 'archive', from: 'INBOX', leaves: true, destroys: false } as const;
+        const drawn = renderList(transport, {
+            acts: { ...nothingActed, asked: new Map([['message-2', { ...asked, awaiting: true }]]) },
+        });
+
+        await rows();
+
+        act(() => {
+            animationEnded(going2() as Element);
+        });
+
+        await waitFor(() => {
+            expect(going2()).toBeNull();
+        });
+
+        drawn.rerender(
+            listUnder(transport, {
+                acts: { ...nothingActed, asked: new Map([['message-2', { ...asked, awaiting: false }]]) },
+            }),
+        );
+
+        expect(going2()).toBeNull();
+    });
+
+    it('draws a row leaving again where the same act is asked of it a second time', async () => {
+        const transport = answering(wholeFolder);
+        const asked = { act: 'archive', from: 'INBOX', leaves: true, destroys: false, awaiting: true } as const;
+        const leaving: MailboxActs = { ...nothingActed, asked: new Map([['message-2', asked]]) };
+        const drawn = renderList(transport, { acts: leaving });
+
+        await rows();
+
+        act(() => {
+            animationEnded(going2() as Element);
+        });
+
+        await waitFor(() => {
+            expect(going2()).toBeNull();
+        });
+
+        drawn.rerender(listUnder(transport, { acts: nothingActed }));
+        drawn.rerender(
+            listUnder(transport, { acts: { ...nothingActed, asked: new Map([['message-2', { ...asked }]]) } }),
+        );
+
+        expect(going2()).not.toBeNull();
+    });
+
+    // Taking a delete back is a move the mail server has yet to make, and by then the folder has usually been read
+    // again without the message. The row is drawn from the press all the same, from what the list last drew of it.
+    it('draws a message taken back where it stood, although the folder was read again without it', async () => {
+        const deployment = deploymentSaying();
+        const without = pageOf(Array.from({ length: rowsPerPage }, (_, at) => message(at)).filter((_, at) => at !== 2));
+        let reads = 0;
+        const transport: MailFathomTransport = () => {
+            reads += 1;
+
+            return Promise.resolve({ status: 200, body: reads === 1 ? wholeFolder : without, headers: {} });
+        };
+        const deleted: MailboxActs = {
+            ...nothingActed,
+            asked: new Map([
+                ['message-2', { act: 'delete', from: 'INBOX', leaves: true, destroys: false, awaiting: false }],
+            ]),
+        };
+        const drawn = renderList(transport, { changes: deployment.changes, acts: deleted });
+        const listed = (await rows()).length;
+
+        act(() => {
+            deployment.say({ kind: 'refresh' });
+        });
+
+        // The second read has landed once the row it no longer carries has stopped being drawn on its way out.
+        await waitFor(() => {
+            expect(screen.queryByRole('option', { name: /Message 2 Moving to the trash/ })).toBeNull();
+        });
+
+        const takenBack: MailboxActs = {
+            ...nothingActed,
+            asked: new Map([
+                [
+                    'message-2',
+                    {
+                        act: 'move',
+                        from: 'TRASH',
+                        leaves: true,
+                        destroys: false,
+                        awaiting: true,
+                        returnsTo: 'INBOX',
+                    },
+                ],
+            ]),
+        };
+
+        drawn.rerender(listUnder(transport, { changes: deployment.changes, acts: takenBack }));
+
+        await waitFor(() => {
+            expect(row(2)).toBeDefined();
+        });
+
+        const standing = await rows();
+
+        expect(standing.indexOf(row(2))).toBe(standing.indexOf(row(1)) + 1);
+        expect(standing.indexOf(row(3))).toBe(standing.indexOf(row(2)) + 1);
+        expect(standing.length).toBe(listed);
+    });
+
     // A row above an open menu finishing its way out moves every row below it up by one, so a menu that read its row
     // again would act on whichever message had moved into that place.
     it('acts on the message its menu was opened on after a row above it has gone', async () => {

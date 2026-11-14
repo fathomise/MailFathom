@@ -1533,7 +1533,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (this.inTrash()) {
         this.askDel({
           title: t.length === 1 ? "Delete this thread permanently?" : "Delete " + this.countWord(t.length) + " permanently?",
-          text: "Already in Trash - deleting now removes " + this.countWord(t.length) + " together with attachments. This cannot be undone.",
+          text: "Already in Trash - deleting now removes " + this.countWord(t.length) + " together with attachments. You can take this back for 5 seconds afterwards.",
           label: "Delete permanently",
           run: () => this.purgeThreads(t),
         });
@@ -1548,9 +1548,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
 
     purgeThreads = (t) => {
-      this.setState({ lastOp: null, sel: [], mailPane: "list" });
-      this.animateRowsOut(t, () => this.setState(s => ({ deleted: (s.deleted || []).concat(t) })), "del");
-      this.notify("Permanently deleted - " + this.countWord(t.length), false);
+      /* Taken back like a delete into the trash: the server holds a permanent delete for as long as the notice stands. */
+      const op = { kind: "delete", ids: t };
+      this.setState({ lastOp: op, sel: [], mailPane: "list" });
+      this.animateRowsOut(t, () => { if (op.undone) return; this.setState(s => ({ deleted: (s.deleted || []).concat(t) })); }, "del");
+      this.notify("Permanently deleted - " + this.countWord(t.length), true);
     };
 
     doDeleteThreads = (t) => {

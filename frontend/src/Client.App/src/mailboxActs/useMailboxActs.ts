@@ -162,6 +162,14 @@ export interface AskedAct {
     readonly appliedAt?: number;
 
     /**
+     * The folder this move files the message back in, on the move that takes an act back and on no other.
+     *
+     * A message taken back is drawn in that folder from the press, including by a list whose last read of it no longer
+     * carried the row, rather than once the mail server has been seen to agree.
+     */
+    readonly returnsTo?: string;
+
+    /**
      * The act still asked of the *other* flag, where one was asked in the same folder before this one and has not been
      * let go of.
      *

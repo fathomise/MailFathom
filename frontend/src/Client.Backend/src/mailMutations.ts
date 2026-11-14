@@ -50,6 +50,14 @@ export const mailDeleteMutationsRoute = '/mutations/deletes';
 export const mailDeleteReleasesRoute = '/mutations/deletes/releases';
 
 /**
+ * The route recorded deletes are taken back at while the deployment still holds them, relative to the client prefix.
+ *
+ * The other end of the same wait: a delete is held for the person's own notification time and a little longer, and for
+ * that long a record named here is cancelled, so the message is never deleted anywhere.
+ */
+export const mailDeleteWithdrawalsRoute = '/mutations/deletes/withdrawals';
+
+/**
  * The route the person's own spam verdict on a batch is recorded at, relative to the client prefix.
  *
  * A route of its own because the verdict is not a flag a mail server keeps: it is MailFathom's record, recorded at once,
@@ -416,6 +424,23 @@ export function releaseMailDeletes(
     recordIds: readonly string[],
 ): Promise<ClientResult<readonly MailMutationRecord[]>> {
     return overRecords(session, transport, mailDeleteReleasesRoute, recordIds);
+}
+
+/**
+ * Takes back deletes the deployment is still holding, which is the way back a notification offers.
+ *
+ * @param session Who is asking and where.
+ * @param transport How a request reaches the deployment.
+ * @param recordIds The records to take back, at most {@link mostMessagesPerMutation} of them.
+ * @returns Each named record as it now stands — `cancelled` where it was taken back, and whatever it had already
+ *   become where the wait had ended — or an expected failure as a value.
+ */
+export function withdrawMailDeletes(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    recordIds: readonly string[],
+): Promise<ClientResult<readonly MailMutationRecord[]>> {
+    return overRecords(session, transport, mailDeleteWithdrawalsRoute, recordIds);
 }
 
 // The route names records rather than messages and answers the same document the read route does. The answer is

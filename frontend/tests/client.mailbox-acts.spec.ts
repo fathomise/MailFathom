@@ -43,9 +43,9 @@ function leaving(page: Page, subject: string): Locator {
         .getByRole('option', { name: new RegExp(`\\b${subject}\\b`, 'u') });
 }
 
-/** Every record the page asked to release, in the order it asked. */
-function recordsReleased(deployment: FakeDeployment): string[] {
-    return bodiesOf(deployment, '/mutations/deletes/releases').flatMap((body) =>
+/** Every record the page asked to take back, in the order it asked. */
+function recordsWithdrawn(deployment: FakeDeployment): string[] {
+    return bodiesOf(deployment, '/mutations/deletes/withdrawals').flatMap((body) =>
         typeof body === 'object' && body !== null && 'recordIds' in body && Array.isArray(body.recordIds)
             ? body.recordIds.map(String)
             : [],
@@ -89,7 +89,7 @@ test('files a deleted message into the trash and puts it back where it was on un
     await expect(row(page, 'Message 0')).toBeVisible();
 });
 
-test('destroys a message deleted from the trash only after the question saying so, and names nothing to move', async ({
+test('destroys a message deleted from the trash only after the question saying so, and puts it back in the trash on undo', async ({
     page,
     deployment,
 }) => {
@@ -107,7 +107,7 @@ test('destroys a message deleted from the trash only after the question saying s
 
     const question = page.getByRole('dialog', { name: 'Delete 1 message?' });
 
-    await expect(question).toContainText('This cannot be undone.');
+    await expect(question).toContainText('You can take this back for 5 seconds afterwards.');
 
     const deleting = page.waitForResponse(
         (response) =>
@@ -117,25 +117,34 @@ test('destroys a message deleted from the trash only after the question saying s
     await question.getByRole('button', { name: 'Delete', exact: true }).click();
 
     await expect(notice(page, 'Deleting…')).toContainText('1 message');
-    await expect(notice(page, 'Deleting…').getByRole('button', { name: 'Undo' })).toHaveCount(0);
     await expect(page.getByText('There is no mail in this folder.')).toBeVisible();
 
     // Asked in the trash, the delete takes the route of its own rather than a move into the folder the message is
-    // already in, and the deployment is told at once that nobody is being offered the way back it would hold it for.
+    // already in, and nothing tells the deployment to stop holding it: the way back is on the notice.
     expect(bodiesOf(deployment, '/mutations/deletes')).toStrictEqual([{ deletes: [{ storedEmailId: 'message-2' }] }]);
     expect(bodiesOf(deployment, '/mutations/moves')).toHaveLength(1);
-    await expect
-        .poll(() => bodiesOf(deployment, '/mutations/deletes/releases'))
-        .toStrictEqual([{ recordIds: [expect.any(String)] }]);
 
-    // What is released is the record the delete answered with, rather than any record the page happened to be holding.
+    await notice(page, 'Deleting…').getByRole('button', { name: 'Undo' }).click();
+
+    await expect(notice(page, 'Put back where it was')).toContainText('1 message');
+    await expect(row(page, 'Message 2')).toBeVisible();
+    expect(bodiesOf(deployment, '/mutations/deletes/releases')).toHaveLength(0);
+
+    // What is taken back is the record the delete answered with, rather than any record the page happened to be holding.
     const written: unknown = await (await deleting).json();
 
     expect(written).toMatchObject({
         results: [
-            { storedEmailId: 'message-2', outcome: 'recorded', change: { recordId: recordsReleased(deployment)[0] } },
+            { storedEmailId: 'message-2', outcome: 'recorded', change: { recordId: recordsWithdrawn(deployment)[0] } },
         ],
     });
+
+    // The message is still in the trash on a read made afresh, which is what says the delete was withdrawn rather
+    // than merely no longer drawn.
+    await page.reload();
+    await folder(page, 'Trash').click();
+    await expect(row(page, 'Message 2')).toBeVisible();
+});
 });
 
 test('files a message by the menu and another by dragging it onto a folder, and the folder holds both', async ({

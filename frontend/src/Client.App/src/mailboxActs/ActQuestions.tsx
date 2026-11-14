@@ -22,7 +22,8 @@ import { useMailboxActs, type ActedMessage } from './useMailboxActs';
 //
 // **Deleting asks one question and explains it one of two ways, read off where the mail already is.** A message
 // somewhere else is filed in the trash, which stands for a while and can be undone from the toast; a message already in
-// the trash is destroyed, and the explanation names what that costs and offers nothing afterwards.
+// the trash is destroyed, and the explanation names what that costs. Both say for how long the toast offers the way
+// back, because the deployment holds a destroying delete for as long as that toast stands.
 //
 // **Choosing the trash as a folder is deleting**, so the move dialog hands that choice to this same question rather than
 // filing the messages itself: the trash is one place, and reaching it by a dialog, a menu or a drop is one act.
@@ -123,11 +124,7 @@ export function DeleteQuestion({
                     {destroys ? translate(purgeConsequences[form], counted) : translate('act.deleteConsequence')}
                 </p>
             }
-            reversal={
-                destroys
-                    ? { kind: 'permanent', said: translate('act.purgeReversal') }
-                    : { kind: 'undoable', forSeconds: toastLifetime / 1000 }
-            }
+            reversal={{ kind: 'undoable', forSeconds: toastLifetime / 1000 }}
             ways={[
                 { said: translate('act.cancel'), manner: 'back' },
                 {

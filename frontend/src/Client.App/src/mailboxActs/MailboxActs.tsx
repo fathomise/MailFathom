@@ -9,8 +9,8 @@ import {
     mostMessagesPerMutation,
     moveMail,
     readMailFolders,
-    releaseMailDeletes,
     wentUnanswered,
+    withdrawMailDeletes,
     type ClientFailure,
     type ClientFailureReason,
     type ClientResult,
@@ -71,10 +71,9 @@ import {
 // than on the control that was pressed, and the way back the three that file a message elsewhere offer as that toast's
 // single action. Taking one back is the reverse move rather than a withdrawal of the first: a change
 // already on its way to a mail server cannot be unsaid, and pretending otherwise would leave the mailbox and the screen
-// disagreeing. The one act that offers no way back is the
-// delete that destroys the mail, which is what *delete* means for a message already in the trash — there is no message
-// left to move back, which is why the question in front of it says so before it is performed, and why the deployment is
-// told at once that nobody will be offered one.
+// disagreeing. The delete that destroys the mail, which is what *delete* means for a message already in the trash,
+// is the one act taken back another way: the deployment holds it for as long as the notification reporting it
+// stands, so its way back withdraws the record and nothing was ever deleted anywhere.
 //
 // **Filing into the trash is deleting**, whichever surface named the folder: a move naming the account's trash is
 // performed as the delete it is, so it is reported, drawn and taken back exactly as the delete control's is.
@@ -182,8 +181,16 @@ function recordsWritten(batches: readonly Submitted[]): readonly string[] {
 }
 
 /** An asked act on its own, without what it held beside it. */
-function alone({ act, from, leaves, destroys, awaiting, appliedAt }: AskedAct): AskedAct {
-    return { act, from, leaves, destroys, awaiting, ...(appliedAt === undefined ? {} : { appliedAt }) };
+function alone({ act, from, leaves, destroys, awaiting, appliedAt, returnsTo }: AskedAct): AskedAct {
+    return {
+        act,
+        from,
+        leaves,
+        destroys,
+        awaiting,
+        ...(appliedAt === undefined ? {} : { appliedAt }),
+        ...(returnsTo === undefined ? {} : { returnsTo }),
+    };
 }
 
 /**
@@ -534,6 +541,8 @@ export function MailboxActsProvider({
      *
      * The folder each message was in is written down with it, because an act is about a message *in a place*: it is
      * what the sentence a row wears is drawn against, and what says the row is to leave this list and no other.
+     *
+     * @param returning The folder each message is being filed back in, by the message, where this is a way back.
      */
     function remember(
         act: MailboxAct,
@@ -541,12 +550,14 @@ export function MailboxActsProvider({
         leaves: boolean,
         destroys: boolean,
         awaiting = true,
+        returning?: ReadonlyMap<string, string>,
     ): void {
         setKept((current) => {
             const asked = new Map(current.signedInAs === signedInAs ? current.asked : []);
 
             for (const message of messages) {
                 const beside = otherFlagAsked(asked.get(message.storedEmailId), act, message.folder);
+                const returnsTo = returning?.get(message.storedEmailId);
 
                 asked.set(message.storedEmailId, {
                     act,
@@ -554,6 +565,7 @@ export function MailboxActsProvider({
                     leaves,
                     destroys,
                     awaiting,
+                    ...(returnsTo === undefined ? {} : { returnsTo }),
                     ...(beside === undefined ? {} : { beside }),
                 });
             }
@@ -718,6 +730,7 @@ export function MailboxActsProvider({
         recorded: readonly ActedMessage[],
         destination: MoveDestination | undefined,
         destroying: boolean,
+        records: readonly string[] = [],
     ): void {
         if (recorded.length === 0 || changesAFlag(act)) {
             return;
@@ -733,10 +746,20 @@ export function MailboxActsProvider({
         );
 
         toasts.raise(
-            // A delete that destroys the mail offers nothing to take back, which is the design's own: the
-            // question in front of it has already said it cannot be undone.
+            // A delete that destroys the mail is taken back by withdrawing it, which is the design's own: the
+            // deployment holds it for as long as this notification stands, so the way back is offered on it.
             destroying
-                ? { kind: 'neutral', title: translate('act.purging'), body: counted(recorded.length) }
+                ? {
+                      kind: 'neutral',
+                      title: translate('act.purging'),
+                      body: counted(recorded.length),
+                      action: {
+                          label: translate('act.undo'),
+                          take: () => {
+                              takeBackDelete(recorded, records);
+                          },
+                      },
+                  }
                 : {
                       kind: 'neutral',
                       title: translate(actReported[act], {
@@ -848,7 +871,7 @@ export function MailboxActsProvider({
         }
     }
 
-    /** Splits records into the batches the release route admits, which are bounded exactly as a submission is. */
+    /** Splits records into the batches the withdrawal route admits, which are bounded exactly as a submission is. */
     function batchesOf(records: readonly string[]): readonly (readonly string[])[] {
         const batches: (readonly string[])[] = [];
 
@@ -860,24 +883,62 @@ export function MailboxActsProvider({
     }
 
     /**
-     * Tells the deployment it need not hold a permanent delete back, since nobody is being offered a way to take it back.
+     * Takes a permanent delete back while the deployment still holds it, which is the way back its notification offers.
      *
-     * The deployment holds every delete it writes down for a window of its own, which is there for a client that offers
-     * a way back. This one offers none, so waiting it out would only keep a message somebody destroyed on the mail
-     * server for longer than they were told.
+     * A withdrawal rather than a reverse act, because there is nothing to reverse: the deployment holds every delete it
+     * writes down for the person's own notification time and a little longer, and until then nothing has been deleted
+     * anywhere. So the claim is let go from the press and the row stands in the trash again, and it is claimed again
+     * only for a record the withdrawal came too late for.
+     *
+     * @param messages The messages the delete was written down for.
+     * @param records The records it was written down as.
      */
-    function release(records: readonly string[]): void {
+    function takeBackDelete(messages: readonly ActedMessage[], records: readonly string[]): void {
         const asking = signedIn.current;
+        const askingFor = person.current;
 
-        if (asking === null) {
+        if (asking === null || askingFor === null || askingFor !== signedInAs || !deletes) {
             return;
         }
 
-        for (const batch of batchesOf(records)) {
-            // Nothing is reported and nothing is waited for: what this asks for is what would have happened anyway
-            // once the window ran out, so a request that never arrives costs the delete a wait rather than an outcome.
-            void releaseMailDeletes(asking, transport, batch);
-        }
+        forget(
+            messages.map((message) => message.storedEmailId),
+            'delete',
+        );
+
+        void Promise.all(batchesOf(records).map((batch) => withdrawMailDeletes(asking, transport, batch))).then(
+            (answers) => {
+                if (person.current !== askingFor) {
+                    return;
+                }
+
+                const stand = answers.flatMap((answer) => (answer.outcome === 'read' ? answer.value : []));
+                const back = new Set(
+                    stand.filter((record) => record.state === 'cancelled').map((record) => record.storedEmailId),
+                );
+                const failure = answers.find((answer) => answer.outcome === 'failed');
+
+                // Whatever was not taken back is still being deleted, so it is claimed again and leaves again: a row
+                // left standing in the trash over a delete that is going ahead would be the screen saying otherwise.
+                const going = messages.filter((message) => !back.has(message.storedEmailId));
+
+                if (going.length > 0) {
+                    remember('delete', going, true, true, false);
+                    toasts.raise({
+                        kind: 'warning',
+                        title: translate('act.notTakenBack'),
+                        body:
+                            failure?.outcome === 'failed'
+                                ? translate(failureLabels[failure.failure.reason])
+                                : counted(going.length),
+                    });
+                }
+
+                if (back.size > 0) {
+                    toasts.raise({ kind: 'neutral', title: translate('act.undone'), body: counted(back.size) });
+                }
+            },
+        );
     }
 
     /**
@@ -971,6 +1032,8 @@ export function MailboxActsProvider({
             messages.map((message) => ({ ...message, folder: filedIn.get(message.storedEmailId) ?? message.folder })),
             true,
             false,
+            true,
+            new Map(messages.map((message) => [message.storedEmailId, message.folder])),
         );
 
         const back = batched(
@@ -1125,8 +1188,8 @@ export function MailboxActsProvider({
                 recorded.filter((message) => !applied.has(message.storedEmailId)),
                 destination,
                 true,
+                recordsWritten(answered),
             );
-            release(recordsWritten(answered));
         } else {
             report(act, recorded, destination, destroying);
         }

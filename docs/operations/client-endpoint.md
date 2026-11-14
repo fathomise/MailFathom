@@ -2707,10 +2707,10 @@ is in decides nothing on this surface: the rule that MailFathom's own client off
 trash is that client's sentence to its reader, and the grant is the whole of what this route enforces.
 
 **A delete written here waits before it takes effect, and can be taken back while it does.** Every
-record a batch writes is held for the signed-in person's own [`notificationSeconds`](#the-preferences-routes) plus ten
+record a batch writes is held for the signed-in person's own [`notificationSeconds`](#the-preferences-routes) plus five
 seconds, read once for the whole batch so a selection deleted as one act can be taken back as one. The account's pass
 does not see a held record, so for that long `POST /api/client/mutations/deletes/withdrawals` cancels it exactly as the
-other two withdrawal routes cancel theirs, and under `mailfathom.mail.delete`, the grant that wrote it. The ten seconds
+other two withdrawal routes cancel theirs, and under `mailfathom.mail.delete`, the grant that wrote it. The five seconds
 are for a client that never gets to say it has stopped offering the way back — a tab closed, a network gone, a machine
 put to sleep — so that a delete does not reach the server while the offer is still on somebody's screen. The
 confirmation a client asks in front of the act stays: it is answered before anybody has seen what happened, and the

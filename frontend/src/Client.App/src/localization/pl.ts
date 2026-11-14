@@ -985,6 +985,7 @@ export const pl: Catalogue = {
     'act.messages.other': '{count} wiadomości',
     'act.undo': 'Cofnij',
     'act.undone': 'Przywrócono na miejsce',
+    'act.notTakenBack': 'Nie cofnięto - usuwanie już trwa',
     'act.failed': 'Nie wprowadziliśmy tej zmiany: {reason}.',
     'act.someNotChanged':
         'Części z tych wiadomości nie zmieniliśmy. Serwer nie udostępnia ich już tam, gdzie narysowała je lista.',
@@ -1016,7 +1017,6 @@ export const pl: Catalogue = {
         'To już jest w koszu – usunięcie teraz kasuje {count} wiadomości razem z załącznikami.',
     'act.purgeConsequence.other':
         'To już jest w koszu – usunięcie teraz kasuje {count} wiadomości razem z załącznikami.',
-    'act.purgeReversal': 'Tego nie da się cofnąć.',
     'act.purgeConfirm': 'Usuń',
     'act.purging': 'Usuwamy…',
     'act.moveTitle': 'Przenieś do innego katalogu',

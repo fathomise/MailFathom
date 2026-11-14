@@ -124,10 +124,10 @@ internal static class ClientMailMutationsEndpoint
     /// <remarks>
     /// What it covers is a client that cannot say <c>now</c> — one whose tab was closed, whose network went, or whose
     /// machine was put to sleep while the notification stood. Without it such a delete would take effect at
-    /// the very moment the way back was still on somebody's screen; with it the mailbox waits ten seconds nobody
+    /// the very moment the way back was still on somebody's screen; with it the mailbox waits five seconds nobody
     /// notices, and every client that does say <c>now</c> gives them back.
     /// </remarks>
-    internal static readonly TimeSpan DeleteWithdrawalGrace = TimeSpan.FromSeconds(10);
+    internal static readonly TimeSpan DeleteWithdrawalGrace = TimeSpan.FromSeconds(5);
 
     /// <summary>The greatest number of messages, moves, or withdrawals one request may carry in its body.</summary>
     /// <remarks>

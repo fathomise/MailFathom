@@ -152,10 +152,14 @@ interface Deployment {
 /**
  * A deployment answering the folders it has, and every submitted batch with the outcomes it was told to answer.
  *
- * A recorded message is answered with one record named after it, so a release can be read back as the records it
- * named; a release leaves each record pending, the answer the route gives.
+ * A recorded message is answered with one record named after it, so a withdrawal can be read back as the records it
+ * named; a withdrawal answers each record as `withdrawn` says it then stands, which is `cancelled` where it was in time.
  */
-function deploymentAnswering(outcomes: Readonly<Record<string, MailMutationOutcome>> = {}, status = 200): Deployment {
+function deploymentAnswering(
+    outcomes: Readonly<Record<string, MailMutationOutcome>> = {},
+    status = 200,
+    withdrawn: 'cancelled' | 'converging' = 'cancelled',
+): Deployment {
     const requests: ClientRequest[] = [];
 
     return {
@@ -167,7 +171,7 @@ function deploymentAnswering(outcomes: Readonly<Record<string, MailMutationOutco
                 return Promise.resolve({ status: 200, body: folders, headers: {} });
             }
 
-            if (request.path.endsWith('/releases')) {
+            if (request.path.endsWith('/withdrawals')) {
                 const { recordIds } = JSON.parse(request.body ?? '{}') as { recordIds: string[] };
 
                 return Promise.resolve({
@@ -176,7 +180,7 @@ function deploymentAnswering(outcomes: Readonly<Record<string, MailMutationOutco
                         changes: recordIds.map((recordId) => ({
                             recordId,
                             storedEmailId: recordId.replace('record-', ''),
-                            state: 'pending',
+                            state: withdrawn,
                             outcomeUnknown: false,
                         })),
                     }),
@@ -353,7 +357,7 @@ function acting(
  * What was submitted to a mutation route, which is the whole of what the deployment was asked to write down.
  *
  * Every act carries the key it is repeated under, which is asserted here and left out of the body each test compares:
- * the key is generated, and what a test states is what the act asked for. A release names records rather than mail
+ * the key is generated, and what a test states is what the act asked for. A withdrawal names records rather than mail
  * and takes none.
  */
 function submitted(deployment: Deployment): { readonly path: string; readonly body: unknown }[] {
@@ -362,7 +366,7 @@ function submitted(deployment: Deployment): { readonly path: string; readonly bo
         .map((request) => {
             const { requestId, ...body } = JSON.parse(request.body ?? '{}') as { requestId?: string };
 
-            if (!request.path.endsWith('/releases')) {
+            if (!request.path.endsWith('/withdrawals')) {
                 expect(requestId).toMatch(/\S/u);
             }
 
@@ -400,10 +404,10 @@ const heapedInTrash: ActedMessage[] = Array.from({ length: mostMessagesPerMutati
     spam: null,
 }));
 
-/** The records each call to a delete's release route named, one list per call. */
-function recordIdsReleased(deployment: Deployment): string[][] {
+/** The records each call to a delete's withdrawal route named, one list per call. */
+function recordIdsWithdrawn(deployment: Deployment): string[][] {
     return submitted(deployment)
-        .filter(({ path }) => path.endsWith('/mutations/deletes/releases'))
+        .filter(({ path }) => path.endsWith('/mutations/deletes/withdrawals'))
         .map(({ body }) => (body as { recordIds: string[] }).recordIds);
 }
 
@@ -594,9 +598,9 @@ describe('MailboxActsProvider', () => {
         expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
     });
 
-    // Deleting from the trash is said plainly and offered no way back, because the question before it already said
-    // the messages cannot be recovered — an Undo after that would contradict the confirmation somebody just answered.
-    it('deletes a message already in the trash, saying so plainly and offering no way back', async () => {
+    // Deleting from the trash is said plainly, and the way back is offered on the toast as it is for every other act
+    // that takes a message out of a folder: the deployment holds the delete for as long as that toast stands.
+    it('deletes a message already in the trash, saying so plainly and offering the way back', async () => {
         const deployment = deploymentAnswering();
         const { held } = acting(deployment);
 
@@ -608,11 +612,13 @@ describe('MailboxActsProvider', () => {
 
         await screen.findByText('Deleting…');
 
-        expect(submitted(deployment)[0]).toStrictEqual({
-            path: 'https://mail.example.invalid/api/client/mutations/deletes',
-            body: { deletes: [{ storedEmailId: 'message-3' }] },
-        });
-        expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+        expect(submitted(deployment)).toStrictEqual([
+            {
+                path: 'https://mail.example.invalid/api/client/mutations/deletes',
+                body: { deletes: [{ storedEmailId: 'message-3' }] },
+            },
+        ]);
+        expect(screen.getByRole('button', { name: 'Undo' })).toBeDefined();
         await waitFor(() => {
             expect(held().asked.get('message-3')).toStrictEqual({
                 act: 'delete',
@@ -624,9 +630,9 @@ describe('MailboxActsProvider', () => {
         });
     });
 
-    // Nobody is offered the way back, so nothing is waited for: the deployment is told to carry the delete as soon as
-    // it has written it down, rather than left to sit out a window nobody can use.
-    it('asks the deployment to stop waiting as soon as the delete is written down', async () => {
+    // Nothing has been deleted anywhere while the deployment holds the record, so the way back withdraws it rather
+    // than reversing anything, and the row stands in the trash again from the press.
+    it('takes a permanent delete back by withdrawing the record the deployment is holding', async () => {
         const deployment = deploymentAnswering();
         const { held } = acting(deployment);
 
@@ -635,16 +641,40 @@ describe('MailboxActsProvider', () => {
         });
 
         perform(held, 'delete', [discarded]);
+        fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+
+        expect(held().asked.has('message-3')).toBe(false);
+
+        await screen.findByText('Put back where it was');
+
+        expect(recordIdsWithdrawn(deployment)).toStrictEqual([['record-message-3']]);
+        expect(held().asked.has('message-3')).toBe(false);
+    });
+
+    it('says a permanent delete was not taken back where the deployment had stopped holding it, and draws it going', async () => {
+        const deployment = deploymentAnswering({}, 200, 'converging');
+        const { held } = acting(deployment);
 
         await waitFor(() => {
-            expect(submitted(deployment)[1]).toStrictEqual({
-                path: 'https://mail.example.invalid/api/client/mutations/deletes/releases',
-                body: { recordIds: ['record-message-3'] },
-            });
+            expect(held().deletesPermanently([discarded])).toBe(true);
+        });
+
+        perform(held, 'delete', [discarded]);
+        fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+
+        await screen.findByText('Not taken back - it is already being deleted');
+
+        expect(screen.queryByText('Put back where it was')).toBeNull();
+        expect(held().asked.get('message-3')).toStrictEqual({
+            act: 'delete',
+            from: 'work-trash',
+            leaves: true,
+            destroys: true,
+            awaiting: false,
         });
     });
 
-    it('lets go of a delete of more messages than one call may name, a batch at a time', async () => {
+    it('takes back a delete of more messages than one call may name, a batch at a time', async () => {
         const deployment = deploymentAnswering();
         const { held } = acting(deployment);
 
@@ -653,12 +683,13 @@ describe('MailboxActsProvider', () => {
         });
 
         perform(held, 'delete', heapedInTrash);
+        fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
 
         await waitFor(() => {
-            expect(recordIdsReleased(deployment)).toHaveLength(2);
+            expect(recordIdsWithdrawn(deployment)).toHaveLength(2);
         });
 
-        const posted = recordIdsReleased(deployment);
+        const posted = recordIdsWithdrawn(deployment);
 
         expect(posted.map((batch) => batch.length).sort((left, right) => left - right)).toStrictEqual([
             1,
@@ -830,6 +861,7 @@ describe('MailboxActsProvider', () => {
             leaves: true,
             destroys: false,
             awaiting: true,
+            returnsTo: 'work-inbox',
         });
     });
 
