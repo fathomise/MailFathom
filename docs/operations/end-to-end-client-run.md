@@ -118,7 +118,7 @@ is held to account and what keeps the files runnable in any order.
 **One spec takes the mailbox away.** `outage.spec.ts` opens Mail on a deployment whose freshness line says every
 account is current, starts `imap-down` through `scripts/inject-fault.sh` on the proxy the run asked for, and waits for
 the line to say the account is not current — which `design/` draws once an account's mail server has been unreachable
-for a minute — and to open onto *Mail server unreachable*. It then interrupts the script, which removes the fault, and
+for a minute — and to open onto *Mail server unreachable*. It then ends the fault with the same script's `stop` and
 waits for every account to be current again. It is the only spec that injects a fault, and it ends the fault whatever
 happened in between, so the file after it meets the mailbox it met.
 

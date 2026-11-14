@@ -2,8 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { resolve } from 'node:path';
+import { promisify } from 'node:util';
 import { expect, test } from '@playwright/test';
 import { required, signIn } from './deployment';
 
@@ -15,56 +16,25 @@ import { required, signIn } from './deployment';
 // server unreachable* inside it, and green again afterwards.
 //
 // The fault is started with `scripts/inject-fault.sh` rather than through the proxy's API, so the preset is the one a
-// developer types and nothing about it is defined twice. The script removes the fault when it is interrupted, which is
-// how the spec ends it — and its exit status says whether that removal succeeded.
+// developer types and nothing about it is defined twice. `start` returns once the proxy holds the fault and `stop` is
+// how the spec ends it, whatever happened in between; the duration is only a bound on an outage a killed run left
+// behind.
 
-const faultScript = resolve(import.meta.dirname, '../../../scripts/inject-fault.sh');
+const faultScriptPath = resolve(import.meta.dirname, '../../../scripts/inject-fault.sh');
 
 // Read rather than defaulted, for the reason every value the run hands over is: the script's own default is the port the
 // Compose overlay publishes, and a developer running one beside this suite would have the spec break the wrong proxy.
 const faultControlPort = required('MAILFATHOM_FAULTS_CONTROL_PORT');
 
-// What the script exits with once an interruption removed the fault, which no other path reaches.
-const removedOnInterruption = 130;
+const runFaultScript = promisify(execFile);
 
-/** Starts a preset and answers once the proxy holds it, with the run that ends it when interrupted. */
-function holdFault(preset: string): Promise<ChildProcess> {
-    return new Promise((started, failed) => {
-        const fault = spawn('bash', [faultScript, 'start', preset, '--for', '10m'], {
-            env: { ...process.env, MAILFATHOM_FAULTS_CONTROL_PORT: faultControlPort },
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        let said = '';
-
-        fault.stdout.on('data', (chunk: Buffer) => {
-            said += chunk.toString();
-
-            if (said.includes(`Started ${preset}:`)) {
-                started(fault);
-            }
-        });
-        fault.stderr.on('data', (chunk: Buffer) => {
-            said += chunk.toString();
-        });
-        fault.on('exit', (code) => {
-            failed(new Error(`inject-fault.sh ended with ${String(code)} before ${preset} stood: ${said}`));
-        });
-    });
-}
-
-/** Interrupts the run holding a fault and answers with its exit status, which says whether the fault was removed. */
-async function endFault(fault: ChildProcess): Promise<number | null> {
-    if (fault.exitCode !== null) {
-        return fault.exitCode;
-    }
-
-    const ended = new Promise<number | null>((exited) => {
-        fault.once('exit', exited);
+/** Runs the fault script and answers with what it printed; a refusal rejects with the script's own reason. */
+async function faultScript(...command: string[]): Promise<string> {
+    const { stdout } = await runFaultScript('bash', [faultScriptPath, ...command], {
+        env: { ...process.env, MAILFATHOM_FAULTS_CONTROL_PORT: faultControlPort },
     });
 
-    fault.kill('SIGTERM');
-
-    return ended;
+    return stdout;
 }
 
 test('says the mail server cannot be reached while it is away, and that every account is current once it is back', async ({
@@ -83,8 +53,9 @@ test('says the mail server cannot be reached while it is away, and that every ac
 
     await expect(current).toBeVisible();
 
-    const fault = await holdFault('imap-down');
-    let removal: number | null;
+    expect(await faultScript('start', 'imap-down', '--for', '10m')).toContain('Started imap-down:');
+
+    let stopped: string;
 
     try {
         await expect(notCurrent).toBeVisible({ timeout: 3 * 60_000 });
@@ -94,10 +65,10 @@ test('says the mail server cannot be reached while it is away, and that every ac
         await expect(page.getByText('Mail server unreachable', { exact: true })).toBeVisible();
         await expect(page.getByText(/^Its mail server cannot be reached/u)).toBeVisible();
     } finally {
-        removal = await endFault(fault);
+        stopped = await faultScript('stop', 'imap-down');
     }
 
-    expect(removal, 'inject-fault.sh did not remove the fault it started').toBe(removedOnInterruption);
+    expect(stopped).toContain('Removed imap-down.');
 
     await expect(current).toBeVisible({ timeout: 2 * 60_000 });
     await expect(notCurrent).toHaveCount(0);
