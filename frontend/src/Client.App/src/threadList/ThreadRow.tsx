@@ -35,6 +35,7 @@ export function ThreadRow({
     open,
     selected,
     selecting,
+    reading,
     onOpen,
     onToggle,
     onMenu,
@@ -50,6 +51,9 @@ export function ThreadRow({
 
     /** Whether a selection is being held, which turns a plain press into picking the row out. */
     readonly selecting: boolean;
+
+    /** Whether the conversation's messages are being read for an act asked of it, which nothing has changed yet. */
+    readonly reading: boolean;
 
     readonly onOpen: () => void;
 
@@ -89,7 +93,19 @@ export function ThreadRow({
             : externalMarkOf(externalMarking, thread.account, thread.newestReceivedSender);
 
     return (
-        <li ref={onElement} data-thread-row={rowVariantOf(titled, categorized)} className="border-b border-b-sunken">
+        <li
+            ref={onElement}
+            data-thread-row={rowVariantOf(titled, categorized)}
+            aria-busy={reading}
+            // An act under way is said where its answer will appear: the row waits, dimmed as a control that cannot
+            // act yet is, until the act has read what it is about.
+            className={`border-b border-b-sunken transition-opacity ${reading ? 'opacity-60' : ''}`}
+        >
+            {reading ? (
+                <span role="status" className="sr-only">
+                    {translate('threadAct.reading')}
+                </span>
+            ) : null}
             <button
                 type="button"
                 aria-current={open ? 'true' : undefined}

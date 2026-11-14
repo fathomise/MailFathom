@@ -3,11 +3,18 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ClientRequest, ClientSession, MailFathomTransport, MailFolderRole } from '@mailfathom/client-backend';
+import type {
+    ClientRequest,
+    ClientSession,
+    MailFathomTransport,
+    MailFolder,
+    MailFolderRole,
+} from '@mailfathom/client-backend';
 import { listedSender } from '../../../../tests/fixtures/senders';
 import { LocalizationProvider } from '../localization/Localization';
-import { MailboxActsContext, nothingActed, type MailboxActs } from '../mailboxActs/useMailboxActs';
+import { MailboxActsContext, nothingActed, type AskedAct, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { SignalledChangesContext, nothingSignalled, type SignalListener } from '../signals/signalledChanges';
 import { ToastsProvider } from '../toasts/Toasts';
 import { WorkspaceProvider } from '../workspace/Workspace';
@@ -98,6 +105,58 @@ function deploymentServing(pages: Readonly<Record<string, string>>): {
 interface Drawn {
     readonly say: (signal: Parameters<SignalListener>[0]) => void;
     readonly list: () => ListedMailbox | null;
+
+    /** Makes those messages the ones a delete stands for, as asking and taking back a delete of each would. */
+    readonly deleteStandsFor: (storedEmailIds: readonly string[]) => void;
+}
+
+const deleteAsked: AskedAct = { act: 'delete', from: 'inbox', leaves: true, destroys: false, awaiting: false };
+
+/**
+ * The mailbox acts over a client that changes nothing but remembers what a delete was asked of, which is the one thing
+ * the list reads back from them.
+ */
+function Acting({
+    acts,
+    onAsking,
+    children,
+}: {
+    readonly acts: Partial<MailboxActs>;
+    readonly onAsking: (deleteStandsFor: (storedEmailIds: readonly string[]) => void) => void;
+    readonly children: ReactNode;
+}): ReactNode {
+    const [asked, setAsked] = useState<ReadonlyMap<string, AskedAct>>(acts.asked ?? nothingActed.asked);
+
+    useEffect(() => {
+        onAsking((storedEmailIds) => {
+            setAsked(new Map(storedEmailIds.map((storedEmailId) => [storedEmailId, deleteAsked])));
+        });
+    }, [onAsking]);
+
+    return (
+        <MailboxActsContext
+            value={{
+                ...nothingActed,
+                ...acts,
+                asked,
+                perform: (asking, messages, destination) => {
+                    acts.perform?.(asking, messages, destination);
+
+                    if (asking === 'delete') {
+                        setAsked(
+                            (current) =>
+                                new Map([
+                                    ...current,
+                                    ...messages.map((message) => [message.storedEmailId, deleteAsked] as const),
+                                ]),
+                        );
+                    }
+                },
+            }}
+        >
+            {children}
+        </MailboxActsContext>
+    );
 }
 
 function drawing(
@@ -121,6 +180,10 @@ function drawing(
 ): Drawn {
     const listeners: SignalListener[] = [];
     let listedNow: ListedMailbox | null = null;
+    let deleteStandsFor: (storedEmailIds: readonly string[]) => void = () => undefined;
+    const onAsking = (asking: typeof deleteStandsFor): void => {
+        deleteStandsFor = asking;
+    };
 
     render(
         <LocalizationProvider>
@@ -146,7 +209,7 @@ function drawing(
                                 },
                             }}
                         >
-                            <MailboxActsContext value={{ ...nothingActed, ...acts }}>
+                            <Acting acts={acts} onAsking={onAsking}>
                                 <MessageList
                                     listMode="threads"
                                     session={session}
@@ -156,7 +219,7 @@ function drawing(
                                     online={online}
                                     onOpen={onOpen}
                                 />
-                            </MailboxActsContext>
+                            </Acting>
                         </SignalledChangesContext>
                     </ListedMailContext>
                 </WorkspaceProvider>
@@ -173,6 +236,11 @@ function drawing(
             });
         },
         list: () => listedNow,
+        deleteStandsFor: (storedEmailIds) => {
+            act(() => {
+                deleteStandsFor(storedEmailIds);
+            });
+        },
     };
 }
 
@@ -552,7 +620,22 @@ function offering(perform: MailboxActs['perform']): Partial<MailboxActs> {
     return {
         refusalOf: () => null,
         spamOffered: true,
-        folderRoleOf: (message) => rolesPlayed[message.folder] ?? null,
+        folderOf: (message): MailFolder | null => {
+            const role = rolesPlayed[message.folder];
+
+            return role === undefined
+                ? null
+                : {
+                      id: message.folder,
+                      role,
+                      path: [message.folder],
+                      storedEmailCount: 0,
+                      unreadEmailCount: 0,
+                      synchronizationState: null,
+                      lastSynchronizedAt: null,
+                      behind: false,
+                  };
+        },
         perform,
     };
 }
@@ -604,14 +687,20 @@ describe('MessageList read by conversation, acting on a conversation', () => {
         ).toStrictEqual(['received']);
     });
 
-    it('says nothing was changed when the conversation cannot be read, and performs nothing', async () => {
+    it('says why the conversation could not be read and that nothing changed, and carries the act out when asked again', async () => {
         const perform = vi.fn();
         const holding = deploymentHolding(everyFolder);
+        let refused = false;
         drawing(
-            (request) =>
-                request.path.includes('/threads/')
-                    ? Promise.resolve({ status: 503, body: '', headers: {} })
-                    : holding(request),
+            (request) => {
+                if (request.path.includes('/threads/') && !refused) {
+                    refused = true;
+
+                    return Promise.resolve({ status: 503, body: '', headers: {} });
+                }
+
+                return holding(request);
+            },
             { acts: offering(perform) },
         );
         fireEvent.contextMenu(await screen.findByRole('button', { name: /The figures/ }));
@@ -619,9 +708,86 @@ describe('MessageList read by conversation, acting on a conversation', () => {
         fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }));
 
         expect(
-            await screen.findByText('Nothing was changed, because the conversation could not be read. Try again.'),
+            await screen.findByText(
+                'Archive - nothing was changed, because the conversation could not be read: unavailable.',
+            ),
         ).toBeDefined();
         expect(perform).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+        await waitFor(() => {
+            expect(perform).toHaveBeenCalledTimes(1);
+        });
+        expect(perform.mock.calls[0]?.[0]).toBe('archive');
+    });
+
+    it('offers no second try where the service refused the read, which asking again would not change', async () => {
+        const holding = deploymentHolding(everyFolder);
+        drawing(
+            (request) =>
+                request.path.includes('/threads/')
+                    ? Promise.resolve({ status: 403, body: '', headers: {} })
+                    : holding(request),
+            { acts: offering(vi.fn()) },
+        );
+        fireEvent.contextMenu(await screen.findByRole('button', { name: /The figures/ }));
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }));
+
+        expect(
+            await screen.findByText(
+                'Archive - nothing was changed, because the conversation could not be read: unauthorized.',
+            ),
+        ).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    });
+
+    it('files nothing while a message of the conversation is kept in a folder it has not read, and says so', async () => {
+        const perform = vi.fn();
+        drawing(deploymentHolding([...everyFolder, member('unplaced', 'elsewhere')]), { acts: offering(perform) });
+        fireEvent.contextMenu(await screen.findByRole('button', { name: /The figures/ }));
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }));
+
+        expect(
+            await screen.findByText(
+                'Archive - MailFathom has not read your folders, so it cannot say where this would go.',
+            ),
+        ).toBeDefined();
+        expect(perform).not.toHaveBeenCalled();
+    });
+
+    it('says on the row that the conversation is being read until the read answers', async () => {
+        const perform = vi.fn();
+        const holding = deploymentHolding(everyFolder);
+        let answer: () => void = () => undefined;
+        drawing(
+            (request) =>
+                request.path.includes('/threads/')
+                    ? new Promise((resolve) => {
+                          answer = () => {
+                              void holding(request).then(resolve);
+                          };
+                      })
+                    : holding(request),
+            { acts: offering(perform) },
+        );
+        fireEvent.contextMenu(await screen.findByRole('button', { name: /The figures/ }));
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }));
+
+        expect((await screen.findByText('Reading this conversation before changing it…')).getAttribute('role')).toBe(
+            'status',
+        );
+        expect(perform).not.toHaveBeenCalled();
+
+        answer();
+
+        await waitFor(() => {
+            expect(perform).toHaveBeenCalledTimes(1);
+        });
+        expect(screen.queryByText('Reading this conversation before changing it…')).toBeNull();
     });
 
     it('asks before deleting, counts what it files in the trash, and takes the row away once it is asked', async () => {
@@ -629,15 +795,7 @@ describe('MessageList read by conversation, acting on a conversation', () => {
         // one message — which leaves the conversation listed.
         const perform = vi.fn();
         drawing(deploymentHolding(everyFolder), {
-            acts: {
-                ...offering(perform),
-                asked: new Map([
-                    [
-                        'thread-1-newest',
-                        { act: 'delete', from: 'inbox', leaves: true, destroys: false, awaiting: false },
-                    ],
-                ]),
-            },
+            acts: { ...offering(perform), asked: new Map([['thread-1-newest', deleteAsked]]) },
         });
         fireEvent.contextMenu(await screen.findByRole('button', { name: /The figures/ }));
 
@@ -657,6 +815,31 @@ describe('MessageList read by conversation, acting on a conversation', () => {
         await waitFor(() => {
             expect(screen.queryByRole('button', { name: /The figures/ })).toBeNull();
         });
+    });
+
+    it('draws the row again once the delete is taken back, and keeps it when its messages are then deleted one by one', async () => {
+        const drawn = drawing(deploymentHolding(everyFolder), { acts: offering(vi.fn()) });
+        fireEvent.contextMenu(await screen.findByRole('button', { name: /The figures/ }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+        fireEvent.click(
+            within(await screen.findByRole('dialog', { name: 'Delete 2 messages?' })).getByRole('button', {
+                name: 'Move to the trash',
+            }),
+        );
+        await waitFor(() => {
+            expect(screen.queryByRole('button', { name: /The figures/ })).toBeNull();
+        });
+
+        drawn.deleteStandsFor([]);
+
+        expect(await screen.findByRole('button', { name: /The figures/ })).toBeDefined();
+
+        // Deleted from inside the conversation now, message by message: that is not the conversation's delete.
+        for (const storedEmailId of ['received', 'sent']) {
+            drawn.deleteStandsFor([storedEmailId]);
+
+            expect(screen.getByRole('button', { name: /The figures/ })).toBeDefined();
+        }
     });
 
     it('picks a conversation out from its menu, by the message its row is drawn from', async () => {

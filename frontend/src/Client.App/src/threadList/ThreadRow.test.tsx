@@ -54,6 +54,7 @@ function drawing(listed: ListedMailThread, onOpen: () => void = () => undefined)
                     open={false}
                     selected={false}
                     selecting={false}
+                    reading={false}
                     onOpen={onOpen}
                     onToggle={() => undefined}
                     onMenu={() => undefined}
@@ -101,6 +102,7 @@ describe('ThreadRow, the External chip', () => {
                             open={false}
                             selected={false}
                             selecting={false}
+                            reading={false}
                             onOpen={() => undefined}
                             onToggle={() => undefined}
                             onMenu={() => undefined}
@@ -260,6 +262,7 @@ describe('ThreadRow, picked out and asked what it offers', () => {
                         open={false}
                         selected={selecting}
                         selecting={selecting}
+                        reading={false}
                         onOpen={opened}
                         onToggle={toggled}
                         onMenu={asked}
@@ -299,5 +302,30 @@ describe('ThreadRow, picked out and asked what it offers', () => {
 
         expect(toggled).toHaveBeenCalledTimes(1);
         expect(opened).not.toHaveBeenCalled();
+    });
+});
+
+describe('ThreadRow, while an act asked of it reads its messages', () => {
+    it('says the conversation is being read, on the row the act was asked of', () => {
+        render(
+            <LocalizationProvider>
+                <ul>
+                    <ThreadRow
+                        thread={thread()}
+                        open={false}
+                        selected={false}
+                        selecting={false}
+                        reading
+                        onOpen={() => undefined}
+                        onToggle={() => undefined}
+                        onMenu={() => undefined}
+                        onElement={() => undefined}
+                    />
+                </ul>
+            </LocalizationProvider>,
+        );
+
+        expect(screen.getByRole('listitem').getAttribute('aria-busy')).toBe('true');
+        expect(screen.getByRole('status').textContent).toBe('Reading this conversation before changing it…');
     });
 });

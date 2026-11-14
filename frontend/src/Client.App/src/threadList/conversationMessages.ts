@@ -32,47 +32,66 @@ export function readActOver(threads: readonly Pick<ListedMailThread, 'unreadCoun
 }
 
 /**
+ * Where a message is kept, as far as this client knows: the role its folder plays, which may be none, or that the
+ * folder is not one this client has read — which is a different answer from a folder playing no role, since nothing
+ * about such a message says whether the reader received it.
+ */
+export type FolderPlace = { readonly known: true; readonly role: MailFolderRole | null } | { readonly known: false };
+
+/** Whether an act reads where each message is kept, which every one but marking read does. */
+export function readsFolders(act: ConversationAct): boolean {
+    return act !== 'markRead';
+}
+
+/**
  * The messages of the conversations read that one act takes.
+ *
+ * A message kept somewhere this client has not read is taken by no act that reads where a message is kept: it could
+ * be the reader's own, or already in the trash.
  *
  * @param act What was asked of the conversations.
  * @param members Every message of them, wherever each is kept.
- * @param roleOf The role the folder a message is kept in plays, which is what tells received mail from the reader's own.
+ * @param placeOf Where a message is kept, which is what tells received mail from the reader's own.
  * @param spam Whether a message is drawn as spam, the person's own verdict from this session included.
  */
 export function messagesTaken(
     act: ConversationAct,
     members: readonly ActedMessage[],
-    roleOf: (message: ActedMessage) => MailFolderRole | null,
+    placeOf: (message: ActedMessage) => FolderPlace,
     spam: (message: ActedMessage) => boolean,
 ): readonly ActedMessage[] {
-    // Received mail outside the trash, which is what every act but deleting and marking read starts from.
-    const received = (message: ActedMessage): boolean => {
-        const role = roleOf(message);
-
-        return marksSender(role) && role !== 'Trash';
-    };
-    const kept = (message: ActedMessage): boolean => received(message) && roleOf(message) !== 'Junk' && !spam(message);
-
-    switch (act) {
-        case 'delete':
-            // Never what is already in the trash, so a conversation's row destroys nothing, and never a draft, which is
-            // something the reader is still writing.
-            return members.filter((message) => {
-                const role = roleOf(message);
-
-                return role !== 'Trash' && role !== 'Drafts';
-            });
-        case 'markRead':
-            return members.filter((message) => message.unread);
-        case 'markUnread':
-            return members.filter((message) => kept(message) && !message.unread);
-        case 'archive':
-            return members.filter((message) => kept(message) && roleOf(message) !== 'Archive');
-        case 'move':
-            return members.filter(kept);
-        case 'spam':
-            return members.filter((message) => received(message) && !spam(message));
+    if (act === 'markRead') {
+        return members.filter((message) => message.unread);
     }
+
+    return members.filter((message) => {
+        const place = placeOf(message);
+
+        if (!place.known) {
+            return false;
+        }
+
+        const { role } = place;
+
+        // Received mail outside the trash, which is what every act but deleting starts from.
+        const received = marksSender(role) && role !== 'Trash';
+        const kept = received && role !== 'Junk' && !spam(message);
+
+        switch (act) {
+            case 'delete':
+                // Never what is already in the trash, so a conversation's row destroys nothing, and never a draft,
+                // which is something the reader is still writing.
+                return role !== 'Trash' && role !== 'Drafts';
+            case 'markUnread':
+                return kept && !message.unread;
+            case 'archive':
+                return kept && role !== 'Archive';
+            case 'move':
+                return kept;
+            case 'spam':
+                return received && !spam(message);
+        }
+    });
 }
 
 /**
@@ -113,6 +132,9 @@ export interface ConversationMembers {
 
     /** Whether a conversation holds more messages than the read reached, so an act over these reaches part of it. */
     readonly cut: boolean;
+
+    /** The conversation each message was read from, by the message's stored identity. */
+    readonly conversationOf: ReadonlyMap<string, string>;
 }
 
 // The most pages of one conversation read for an act. The service assembles five pages' worth of a conversation at
@@ -131,6 +153,7 @@ export async function readConversationMembers(
     threadIds: readonly string[],
 ): Promise<ClientResult<ConversationMembers>> {
     const messages: ActedMessage[] = [];
+    const conversationOf = new Map<string, string>();
     let cut = false;
 
     for (const threadId of threadIds) {
@@ -144,6 +167,7 @@ export async function readConversationMembers(
             }
 
             for (const { email } of answered.value.messages) {
+                conversationOf.set(email.id, threadId);
                 messages.push({
                     storedEmailId: email.id,
                     account: email.account,
@@ -166,5 +190,5 @@ export async function readConversationMembers(
         cut ||= cursor !== null;
     }
 
-    return { outcome: 'read', value: { messages, cut } };
+    return { outcome: 'read', value: { messages, cut, conversationOf } };
 }

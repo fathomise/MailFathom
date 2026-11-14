@@ -15,12 +15,10 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { withToggled } from '../contextMenu/rowSelection';
 import { Skeleton } from '../controls/Skeleton';
 import { useLocalization } from '../localization/useLocalization';
-import { useMailboxActs } from '../mailboxActs/useMailboxActs';
 import { windowOfHeights } from '../messageRows/rowWindow';
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { drawsCategories } from '../categories/categoryWords';
 import { rowVariantOf, titleStateOf, type ThreadRowVariant } from '../threadList/threadRows';
-import type { ConversationAct } from '../threadList/conversationMessages';
 import { ThreadRow } from '../threadList/ThreadRow';
 import { ThreadRowMenu } from '../threadList/ThreadRowMenu';
 import { useConversationActs } from '../threadList/useConversationActs';
@@ -172,7 +170,6 @@ export function ListedByConversation({
     const { translate } = useLocalization();
     const { workspace, revise } = useWorkspace();
     const listed = useListedMail();
-    const acts = useMailboxActs();
     const conversationActs = useConversationActs(session, transport);
     const signalledChanges = useSignalledChanges();
 
@@ -206,19 +203,14 @@ export function ListedByConversation({
     // places are, oldest given up first.
     const drawnThreads = useRef(new Map<string, ListedMailThread>());
 
-    // The conversations a delete was asked of from this list, by the message each row was drawn from.
-    const [deletedHere, setDeletedHere] = useState<ReadonlySet<string>>(() => new Set());
-
     // A conversation that moved to the top since a page further down was read stands on both until that page is read
     // again, and it is drawn once — where the page that moved it put it.
     //
     // A conversation asked to be deleted leaves at the press, as a deleted message does, rather than when the mailbox
-    // is seen to agree. It is gone only while the delete still stands for the message its row is drawn from, so taking
-    // the delete back draws it again — and only where the delete was asked of the conversation, since deleting that
-    // one message from inside it leaves the rest of the conversation listed.
-    const shown = withoutLeaving(
-        withoutRepeats(held, conversationOf),
-        (thread) => deletedHere.has(thread.newest.id) && acts.asked.get(thread.newest.id)?.act === 'delete',
+    // is seen to agree, and is drawn again once the delete is taken back. Deleting one message from inside it is not
+    // deleting the conversation, and leaves it listed.
+    const shown = withoutLeaving(withoutRepeats(held, conversationOf), (thread) =>
+        conversationActs.deleted(thread.threadId),
     );
     const pressedThread =
         pressed === null ? null : (heldRows(shown).find((thread) => thread.threadId === pressed.threadId) ?? null);
@@ -373,16 +365,6 @@ export function ListedByConversation({
         setScrollTop(0);
     }
 
-    function ask(act: ConversationAct, threads: readonly ListedMailThread[], onActed?: () => void): void {
-        conversationActs.ask(act, threads, () => {
-            if (act === 'delete') {
-                setDeletedHere((current) => new Set([...current, ...threads.map((thread) => thread.newest.id)]));
-            }
-
-            onActed?.();
-        });
-    }
-
     function toggle(thread: ListedMailThread): void {
         revise({ selected: withToggled(workspace.selected, thread.newest.id) });
     }
@@ -413,7 +395,7 @@ export function ListedByConversation({
                 return {
                     threads,
                     ask: (act, onActed) => {
-                        ask(act, threads, onActed);
+                        conversationActs.ask(act, threads, onActed);
                     },
                 };
             },
@@ -471,7 +453,7 @@ export function ListedByConversation({
 
                     <ul
                         aria-label={translate('threadList.label')}
-                        aria-busy={wanted !== null || conversationActs.reading}
+                        aria-busy={wanted !== null}
                         className="flex flex-col"
                     >
                         {Array.from({ length: drawn.count }, (_, at) => drawn.first + at).map((row) => {
@@ -486,6 +468,7 @@ export function ListedByConversation({
                                     open={workspace.conversation?.threadId === thread.threadId}
                                     selected={workspace.selected.includes(thread.newest.id)}
                                     selecting={selecting}
+                                    reading={conversationActs.reading.has(thread.threadId)}
                                     onOpen={() => {
                                         onOpen(thread.newest.id, thread.newest.subject, thread.threadId, true);
                                     }}
@@ -522,7 +505,7 @@ export function ListedByConversation({
                         toggle(pressedThread);
                     }}
                     onAsk={(act) => {
-                        ask(act, [pressedThread]);
+                        conversationActs.ask(act, [pressedThread]);
                     }}
                     onClose={closeMenu}
                 />
