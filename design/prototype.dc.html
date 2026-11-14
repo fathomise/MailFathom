@@ -3402,31 +3402,53 @@ Project repository: https://github.com/fathomise/MailFathom
             <div style="display:flex;flex-direction:column;gap:9px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;padding:15px 17px">
               <div style="display:flex;align-items:center;gap:9px">
                 <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Relationship state</div>
-                <div style="font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:2px 6px">AI</div>
+                <sc-if value="{{ personAiBadgeShown }}" hint-placeholder-val="{{ true }}"><div style="font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:2px 6px">AI</div></sc-if>
               </div>
-              <div style="font-size:15px;line-height:1.55;color:var(--text2);text-wrap:pretty">{{ personNote }}</div>
+              <sc-if value="{{ personNoteShown }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:15px;line-height:1.55;color:var(--text2);text-wrap:pretty">{{ personNote }}</div>
+                <div style="display:flex;flex-wrap:wrap;column-gap:12px;row-gap:2px">
+                  <sc-for list="{{ personNoteSources }}" as="ns" hint-placeholder-count="1">
+                    <div onClick="{{ ns.open }}" style="{{ ns.style }}" style-hover="cursor:pointer;text-decoration:underline"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1;flex:0 0 auto">forum</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ns.label }}</span></div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ personReading }}" hint-placeholder-val="{{ false }}">
+                <div role="status" style="font-size:14px;line-height:1.5;color:var(--muted)">Reading this correspondence…</div>
+              </sc-if>
               <sc-if value="{{ personHasNext }}" hint-placeholder-val="{{ true }}">
                 <div style="display:flex;flex-direction:column;gap:8px;background:var(--accent-soft);border-radius:8px;padding:12px 14px">
                   <div style="font-size:11px;color:var(--accent-d);font-family:'Geist',system-ui,sans-serif;font-weight:600">Suggested next action</div>
                   <div style="font-size:14px;line-height:1.5;text-wrap:pretty">{{ personNext }}</div>
+                  <div style="display:flex;flex-wrap:wrap;column-gap:12px;row-gap:2px">
+                    <sc-for list="{{ personNextSources }}" as="nx" hint-placeholder-count="1">
+                      <div onClick="{{ nx.open }}" style="{{ nx.style }}" style-hover="cursor:pointer;text-decoration:underline"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1;flex:0 0 auto">forum</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ nx.label }}</span></div>
+                    </sc-for>
+                  </div>
                   <div style="display:flex;gap:8px;flex-wrap:wrap">
                     <div onClick="{{ personWrite }}" style="font-size:12px;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:7px 13px" style-hover="cursor:pointer;opacity:0.9">Draft a reply</div>
                     <div style="font-size:12px;color:var(--accent-d);border:1px solid var(--accent-line);border-radius:8px;padding:7px 13px" style-hover="cursor:pointer;background:var(--panel)">Schedule a reminder</div>
                   </div>
                 </div>
               </sc-if>
+              <sc-if value="{{ personPatternsShown }}" hint-placeholder-val="{{ true }}">
               <div style="display:flex;gap:7px;flex-wrap:wrap">
-                <sc-for list="{{ personPatterns }}" as="pp" hint-placeholder-count="3">
+                <sc-for list="{{ personPatterns }}" as="pp" hint-placeholder-count="1">
                   <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:5px 11px">
                     <span style="font-size:11px;color:var(--muted)">{{ pp.label }}</span>{{ pp.value }}
                   </div>
                 </sc-for>
               </div>
+              </sc-if>
               <div style="{{ personStatsStyle }}">
-                <sc-for list="{{ personStats }}" as="ps" hint-placeholder-count="3">
+                <sc-for list="{{ personStats }}" as="ps" hint-placeholder-count="2">
                   <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;background:var(--sub);border-radius:8px;padding:10px 12px">
                     <div style="font-size:11px;color:var(--muted);font-weight:600">{{ ps.label }}</div>
                     <div style="font-size:14px;line-height:1.35;text-wrap:pretty">{{ ps.value }}</div>
+                    <div style="display:flex;flex-wrap:wrap;column-gap:12px;row-gap:2px">
+                      <sc-for list="{{ ps.sources }}" as="pss" hint-placeholder-count="1">
+                        <div onClick="{{ pss.open }}" style="{{ pss.style }}" style-hover="cursor:pointer;text-decoration:underline"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1;flex:0 0 auto">forum</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ pss.label }}</span></div>
+                      </sc-for>
+                    </div>
                   </div>
                 </sc-for>
               </div>

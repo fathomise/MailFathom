@@ -656,8 +656,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     });
     return Object.keys(map).map(k => {
       const c = map[k];
-      c.note = "Contact created automatically from received mail - " + c.msgs + (c.msgs === 1 ? " message" : " messages") +
-        " across " + c.threads.length + (c.threads.length === 1 ? " thread" : " threads") + ". Not in the address book; add to your own to fill in role and notes.";
       return c;
     });
   };
@@ -5905,6 +5903,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         .filter(g => g.rows.length);
       const person = allContacts.find(c => c.id === st.personId) || shownContacts[0] || allContacts[0];
       const personAi = CONTACT_AI[person.id] || {};
+      // Each line of the relationship reading leads to the conversations it rests on.
+      const personSourceStyle = "display:inline-flex;align-items:center;gap:5px;max-width:100%;min-width:0;font-size:12px;color:var(--accent-d);" + (touch ? "min-height:44px;" : "");
+      const personCitations = ids => (ids || []).map(id => person.threads.find(t => t.id === id)).filter(Boolean).map(t => ({
+        label: t.label, style: personSourceStyle,
+        open: () => this.setState({ screen: "mail", threadId: t.id, mailPane: "thread", threadOpen: true, cameFrom: false }),
+      }));
       const personIsMember = person.kind === "member";
       const personIsOrg = person.kind === "organization";
       const personSeen = seenPresence(person.presence);
@@ -7793,7 +7797,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             peoplePane: "detail",
             extraContacts: (s2.extraContacts || []).concat([{
               id, kind: "own", name, mail, mails: mails.map(x => Object.assign({}, x, { preferred: x.mail === mail })), phones, last: "no correspondence yet",
-              owed: "-", note: "Contact added manually. After the first exchange of messages the relationship state appears here.",
+              owed: "-",
               threads: [], docs: [],
             }]),
           }));
@@ -8114,7 +8118,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           extraContacts: (s2.extraContacts || []).concat([{
             id: "own-" + person.id, kind: "own", name: person.name, mail: person.mail, phones: [],
             last: person.last, owed: person.owed, threads: person.threads, docs: person.docs,
-            note: "Contact moved from collected. The data comes only from mail headers - add a photo and phone numbers.",
           }]),
         })),
         peopleListStyle: isMobile
@@ -8156,7 +8159,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         personRoleShown: personIsMember || !!person.collected,
         personRoleLine: personIsMember ? [person.role, person.department, person.org].filter(Boolean).join(" · ") : person.role + " · " + person.org,
         personMail: person.mail,
-        personNote: person.note,
+        personNote: personAi.note || "",
+        personNoteShown: !!personAi.note,
+        personNoteSources: personCitations(personAi.sources),
+        personReading: !!personAi.reading,
+        // Open is a conversation state's own sentence, so it is the model's writing even with no note beside it.
+        personAiBadgeShown: !!personAi.note || !!personAi.reading || (person.owed !== "-" && person.owed !== "None"),
         personInitials: initialsOf(person.name),
         personAvatarImgStyle: "width:52px;height:52px;flex:0 0 52px;border-radius:50%;background-color:var(--border2);background-position:center;background-size:cover;background-repeat:no-repeat;background-image:url(" + avatarOf(person.name) + ")",
         personHasAvatar: !!avatarOf(person.name),
@@ -8191,19 +8199,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14px"
           : "flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:14px;padding:18px max(24px, calc((100% - 1160px) / 2))",
         personStatsStyle: isMobile || narrow ? "display:flex;flex-direction:column;gap:9px" : "display:flex;gap:10px",
-        // A member's contact draws the relationship reading only where one exists; everybody else's always does.
+        // A member's contact draws the relationship card only where something is known; everybody else's always does.
         personAiShown: !personIsMember || !!CONTACT_AI[person.id],
         personNext: personAi.next || "",
         personHasNext: !!personAi.next,
-        personPatterns: [
-          { label: "Replies", value: personAi.reply || "" },
-          { label: "Most active", value: personAi.peak || "" },
-          { label: "Style", value: personAi.style || "" },
-        ].filter(p => !!p.value),
+        personNextSources: personCitations(personAi.nextFrom),
+        personPatterns: [{ label: "Most active", value: personAi.peak || "" }].filter(p => !!p.value),
+        personPatternsShown: !!personAi.peak,
         personStats: [
-          { label: "Last contact", value: person.last },
-          { label: "Open", value: person.owed },
-        ],
+          { label: "Last contact", value: person.last, sources: [] },
+          { label: "Open", value: person.owed, sources: personCitations(personAi.openFrom) },
+        ].filter(s => s.value !== "-"),
         personColsStyle: isMobile || narrow ? "display:flex;flex-direction:column;gap:12px" : "display:flex;gap:12px",
         // Contact details: every address with the preferred one marked, and every phone number as a link that calls it.
         personAddresses: (person.mails || [{ mail: person.mail, preferred: true }]).map((m, i, all) => ({
