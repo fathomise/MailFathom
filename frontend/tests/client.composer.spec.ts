@@ -678,6 +678,10 @@ async function chooseFrom(page: Page, named: string, holding: string, choice: st
 
     await expect(menu.getByRole('menuitemradio', { name: holding, exact: true })).toBeFocused();
     await menu.getByRole('menuitemradio', { name: choice, exact: true }).click();
+
+    // The menu closing is a render after the choice, and the control pressed next reads the selection the words hold:
+    // pressed while the menu is still closing, it acts on a selection the closing is about to take.
+    await expect(menu).toHaveCount(0);
 }
 
 const cellStyle = 'border:1px solid #d0d5dd;padding:4px 8px;vertical-align:top;text-align:left';
