@@ -182,13 +182,19 @@ export function withReturning<Row>(
             continue;
         }
 
-        // In front of the row it stood in front of where that row is still held, and at the leading end otherwise:
-        // the place is a courtesy to the reader's eye, and the next read of the page is what orders it.
+        // In front of the row it stood in front of where that row is still held, behind every held row where it stood
+        // last, and at the leading end where the row it stood in front of is gone: the place is a courtesy to the
+        // reader's eye, and the next read of the page is what orders it.
         const among = slots.find((rows) => rows?.some((other) => identityOf(other) === before) === true);
-        const into = among ?? slots[leading];
-        const at = among?.findIndex((other) => identityOf(other) === before) ?? 0;
 
-        into?.splice(Math.max(at, 0), 0, row);
+        if (among === undefined && before === null) {
+            slots.findLast((rows) => rows !== null)?.push(row);
+        } else {
+            const at = among?.findIndex((other) => identityOf(other) === before) ?? 0;
+
+            (among ?? slots[leading])?.splice(Math.max(at, 0), 0, row);
+        }
+
         holds.add(identityOf(row));
         placed = true;
     }

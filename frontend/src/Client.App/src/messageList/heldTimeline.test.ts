@@ -169,6 +169,17 @@ describe('withReturning', () => {
         expect(rowCountOf(shown)).toBe(rowsPerPage + 1);
     });
 
+    it('draws a row that stood last behind every row the list holds', () => {
+        const held = readForward(1);
+        const taken = { ...message(1), id: 'message-last' };
+
+        const shown = withReturning(held, [{ row: taken, before: null }], identityOf);
+
+        expect(rowCountOf(shown)).toBe(rowsPerPage + 1);
+        expect(rowAt(shown, rowsPerPage)?.id).toBe('message-last');
+        expect(rowAt(shown, 0)?.id).toBe('message-0');
+    });
+
     it('answers with the list itself where the deployment already lists the row, and where nothing returns', () => {
         const held = readForward(1);
         const listed = message(1);

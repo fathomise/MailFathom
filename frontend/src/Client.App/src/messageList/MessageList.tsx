@@ -450,7 +450,9 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
                     if (leaving || acts.asked.get(email.id)?.returnsTo === email.folder) {
                         taken = rowWentOut(taken, email.id, {
                             row: email,
-                            before: standing[at + 1]?.id ?? null,
+                            // The next row that is staying, since one leaving beside it is not there to stand
+                            // in front of once the folder is read again.
+                            before: standing.slice(at + 1).find((next) => !actLeaving(acts, next))?.id ?? null,
                             since: leaving ? null : (taken.get(email.id)?.since ?? null),
                         });
                     }
