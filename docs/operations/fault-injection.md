@@ -1,13 +1,14 @@
 # Injecting network faults
 
-<!-- describes: deploy/compose/compose.faults.yaml, scripts/inject-fault.sh -->
+<!-- describes: deploy/compose/compose.faults.yaml, scripts/inject-fault.sh, frontend/tests/end-to-end/outage.spec.ts -->
 
 `deploy/compose/compose.faults.yaml` puts one [Toxiproxy](https://github.com/Shopify/toxiproxy) instance on three
 connections of a [Compose deployment](deployment-compose.md), and `scripts/inject-fault.sh` breaks one of them on
 purpose and mends it again: the IMAP server taken away, a mailbox that stops answering, a connection cut halfway
 through a transfer, a client that can no longer reach the service. It exists so the behaviour of a running deployment
 and of every client head during an outage is watched against the real service and a real mail server, rather than
-against the fake deployment the client's browser suite answers from.
+against the fake deployment the client's browser suite answers from. The same proxy also stands in the development
+orchestration, in front of its mail server, [for the end-to-end client run](#in-the-end-to-end-client-run).
 
 **It is a testing tool.** Nothing of it exists in a deployment that does not name the overlay: it adds no production
 code, no configuration key, and no endpoint, and the service never knows the proxy is there. Run it against a test
@@ -108,6 +109,44 @@ by somebody else on the same machine is theirs to end, or `stop` ends it for the
 | `server-down` | Client | The service cannot be reached, and every open connection to it is closed |
 | `server-slow` | Client | Every answer from the service reaches the client two to four seconds late |
 
+## In the end-to-end client run
+
+The development orchestration starts the same image, at the same pin, in front of its own mail server when it is run
+as `EndToEndClient=true FaultProxy=true` — the topology [the end-to-end client run](end-to-end-client-run.md) selects,
+and the only one that accepts the switch, because it is the only one whose MailFathom is started outside the
+orchestration and can be pointed at the proxy. Without the switch nothing of it starts, so the integration suite and
+every other run of the orchestration are unchanged. Asking for it beside any other topology fails at once with the
+reason.
+
+It carries the overlay's `imap` and `smtp` proxies under the same names, forwarding to the mail server's IMAP and SMTP
+ports on the orchestration's own container network, so every IMAP and SMTP preset above works unchanged. Each is
+published on a loopback port of its own, beside the mail server's, rather than instead of it:
+
+| What | Port |
+|---|---|
+| IMAP through the proxy | `24144` |
+| SMTP through the proxy | `24026` |
+| The control API | `24474` |
+
+The ports are `OrchestrationContract`'s, so nothing else states them. The mail account the run records reads its
+mailbox on the proxy's IMAP port, while the corpus is still replayed and read back on the mail server's own ports, so a
+fault reaches MailFathom and never the run's seeding. The run declares no delivery, so nothing sends through the SMTP
+proxy yet; it is there so a run that does reaches the server the same way. Point `scripts/inject-fault.sh` at it with
+`MAILFATHOM_FAULTS_CONTROL_PORT=24474`, which the run hands its specs. The control port is not the overlay's `8474`, so
+a Compose overlay running on the same machine is never the one a spec breaks.
+
+There is no `client` proxy here, and `server-down` and `server-slow` are refused by the proxy, which the script
+reports. The overlay's third proxy works because the client reaches a container's published port; here MailFathom is a
+process the run starts on the machine itself, and a container reaching back to a listener on the host's loopback
+address does so differently under every container runtime this repository supports. What the client draws when it
+cannot reach its deployment is held by the browser suite against its fake one instead.
+
+`frontend/tests/end-to-end/outage.spec.ts` is the specification that uses it: it opens Mail on a deployment whose
+mailbox is current, starts `imap-down`, waits for the freshness line to say the account is not current and opens it
+onto *Mail server unreachable*, then stops the fault and waits for every account to be current again. The run
+shortens the mail connection's budgets so that takes minutes rather than an hour — what the run sets, and why, is on
+[its own page](end-to-end-client-run.md#what-it-stands-up-in-order).
+
 ## What it cannot inject
 
 The proxy sees TCP connections and the bytes on them, and none of what those bytes mean, because the mail
@@ -121,8 +160,8 @@ connections are encrypted end to end. So it cannot:
 - break one folder, one command, or one connection while others on the same proxy pass.
 
 Those need injection inside the service, and nothing here provides it. The overlay also covers one IMAP host and one
-SMTP host, and neither an OAuth provider nor an AI provider; and it exists for Compose alone, with nothing equivalent in
-the Helm chart or the Quadlet units.
+SMTP host, and neither an OAuth provider nor an AI provider; and among the deployment shapes it exists for Compose
+alone, with nothing equivalent in the Helm chart or the Quadlet units.
 
 ## Related
 

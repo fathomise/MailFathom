@@ -494,6 +494,12 @@ the way an operator stands one up, with mail that arrived at a mail server and w
   is that the space reaches its screen, that the questions it offers are there to press, and that the question field
   stands on it with no scope to choose. What would move that is a provider configured for the run, not a line in the
   file.
+- **An outage is injected below the service, never faked above it.** `outage.spec.ts` takes the mailbox away through
+  the fault proxy the run puts between MailFathom and the mail server, with `scripts/inject-fault.sh` and one of its
+  presets, so what it proves is that the service noticed, reported, and recovered as well as what the client drew. A
+  spec that breaks something ends what it broke whatever its assertions did, because the file after it meets the same
+  deployment; [Injecting network faults](../../docs/operations/fault-injection.md) holds the presets and what a TCP
+  proxy cannot inject.
 - **It keeps its traces and its screenshots**, which is the one place this directory's privacy rule reads the other
   way. Every message a run reads is fabricated, delivered into a container that is destroyed with the run, so a capture
   shows nobody's mailbox and a trace carries a credential that exists for the length of one run. The pull-request suite

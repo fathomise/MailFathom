@@ -44,7 +44,8 @@ test('opens somebody, and says what the deployment found about their corresponde
     const opened = page.getByRole('region', { name: theOpenedContact.displayName });
 
     await expect(opened).toBeVisible();
-    await expect(opened.getByText(theOpenedContact.address)).toBeVisible();
+    // The address stands twice, under the name and again among the ways to reach them, so either is the proof.
+    await expect(opened.getByText(theOpenedContact.address).first()).toBeVisible();
 
     // The deployment correlated this person against the mail it synchronized and found nothing, which is the right
     // answer: every address in the sample book is invented and the corpus names none of them. What it proves is that

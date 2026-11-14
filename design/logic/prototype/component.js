@@ -3736,8 +3736,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this._agAway = el.scrollHeight - el.clientHeight - el.scrollTop > 40;
     };
 
-    /* A bar standing over a passage would be left behind by the scroll; one docked above the field is not. */
-    closeFloatingSelBar = () => { if (this.state.selBar && !this._passageDocked) { this.dropSelection(); this.setState({ selBar: null }); } };
+    /* A bar standing over a passage would be left behind by the scroll; one docked above the field is not. The
+       selection stays: a scroll is not letting go of it, and no selection event follows one to open the bar again. */
+    closeFloatingSelBar = () => { if (this.state.selBar && !this._passageDocked) this.setState({ selBar: null }); };
     onAgentScroll = (e) => {
       const el = e.target;
       this.closeFloatingSelBar();
@@ -9062,7 +9063,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* A rewrite waiting in the composer holds the editor and stands in the foot in place of *Send*. */
         composeEditable: st.cChange ? "false" : "true",
         composeFootRef: this.composeFootRef,
-        composeEditorScroll: () => { if (st.selBar && st.selBar.kind === "compose" && !this._passageDocked) this.closeSelBar(); },
+        composeEditorScroll: () => { if (st.selBar && st.selBar.kind === "compose" && !this._passageDocked) this.setState({ selBar: null, selAsk: "" }); },
         composeIdle: !st.cChange,
         composeHasChange: !!st.cChange,
         composeChangeBusy: !!(st.cChange && st.cChange.busy),

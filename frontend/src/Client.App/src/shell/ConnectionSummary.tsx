@@ -224,6 +224,7 @@ function NotCurrent({
     const { translate } = useLocalization();
     const [open, setOpen] = useState(false);
     const detailsId = useId();
+    const sentenceId = useId();
     const first = stale[0];
     const sentence =
         stale.length === 1 && first !== undefined
@@ -256,13 +257,17 @@ function NotCurrent({
                 type="button"
                 aria-expanded={open}
                 aria-controls={open ? detailsId : undefined}
+                // Named by the sentence it carries, pointed at rather than left to the content: the sentence is a live
+                // region, and a browser computing a button's name from its content passes over a status inside it,
+                // which left this control with no name at all outside jsdom.
+                aria-labelledby={sentenceId}
                 onClick={() => {
                     setOpen((was) => !was);
                 }}
                 className="-mx-1.5 flex min-h-7.5 items-center gap-2 rounded-md px-1.5 text-start text-text-soft transition hover:bg-hover"
             >
                 <Dot tone="attention" />
-                <span role="status" className="min-w-0 flex-1 text-pretty">
+                <span id={sentenceId} role="status" className="min-w-0 flex-1 text-pretty">
                     {sentence}
                 </span>
                 <Icon name={open ? 'expand_more' : 'expand_less'} className="size-icon-sm shrink-0 text-muted" />

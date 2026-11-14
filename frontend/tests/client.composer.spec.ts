@@ -685,8 +685,20 @@ async function chooseFrom(page: Page, named: string, holding: string, choice: st
 
     // The choice is applied to the selection the menu held, and the region is drawn again from what was written: the
     // next control holds whatever is selected the moment it is pressed, so it waits for the words to be selected again
-    // rather than taking a caret and formatting nothing.
-    await expect.poll(() => page.evaluate(`window.getSelection()?.isCollapsed ?? true`)).toBe(false);
+    // rather than taking a caret and formatting nothing. Inside the words, not merely somewhere: the control holds a
+    // selection only where the words contain it, so one standing anywhere else is held as nothing and the next choice
+    // lands on a caret.
+    await expect
+        .poll(() =>
+            page.evaluate(`(() => {
+                const selection = window.getSelection();
+                const anchor = selection?.anchorNode ?? null;
+                const element = anchor instanceof Element ? anchor : (anchor?.parentElement ?? null);
+
+                return selection !== null && !selection.isCollapsed && element?.closest('[contenteditable="true"]') != null;
+            })()`),
+        )
+        .toBe(true);
 }
 
 const cellStyle = 'border:1px solid #d0d5dd;padding:4px 8px;vertical-align:top;text-align:left';

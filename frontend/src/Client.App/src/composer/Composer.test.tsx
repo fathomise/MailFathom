@@ -3322,6 +3322,19 @@ describe('Composer, rewriting a selected part of the message', () => {
         expect(screen.getByText('select any part and the agent rewrites just that')).toBeDefined();
     });
 
+    it('takes the floating rewrite button away when the message scrolls, and leaves what was selected selected', () => {
+        drawRewriting(rewritingInto().rewriter);
+        writeWords(written);
+        selectInTheWords('the price');
+
+        expect(screen.getByRole('button', { name: 'Rewrite this part with AI' })).toBeDefined();
+
+        fireEvent.scroll(screen.getByRole('textbox', { name: 'Message' }));
+
+        expect(screen.queryByRole('button', { name: 'Rewrite this part with AI' })).toBeNull();
+        expect(window.getSelection()?.toString()).toBe('the price');
+    });
+
     it('rewrites the whole sentence a selection touches, struck beside the new one, with the foot standing in for Send', async () => {
         const deployment = rewritingInto(['We accept the price.']);
 

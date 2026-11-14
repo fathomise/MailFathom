@@ -320,6 +320,28 @@ public sealed class OrchestrationContractTests
     }
 
     [Fact]
+    public void RunsFaultProxy_FaultProxyArgumentIsPresent_PutsTheProxyInFrontOfTheMailServer()
+    {
+        // Act
+        var runsFaultProxy = OrchestrationContract.RunsFaultProxy(
+            [OrchestrationContract.EndToEndClientArgument, OrchestrationContract.FaultProxyArgument]);
+
+        // Assert
+        Assert.True(runsFaultProxy);
+    }
+
+    [Fact]
+    public void RunsFaultProxy_OnlyTheEndToEndArgumentIsPresent_LeavesTheTopologyWithoutTheProxy()
+    {
+        // Act
+        var runsFaultProxy = OrchestrationContract.RunsFaultProxy(
+            [OrchestrationContract.EndToEndClientArgument, "FaultProxy=false"]);
+
+        // Assert
+        Assert.False(runsFaultProxy);
+    }
+
+    [Fact]
     public void ResolveOpenSslConfigurationPath_NormalTopologyWithNoOverride_UsesTheShippedDevelopmentPolicy()
     {
         // Arrange

@@ -286,6 +286,18 @@ describe('ConnectionSummary', () => {
         expect(screen.getByText('Catching up')).toBeDefined();
     });
 
+    // jsdom names a button from a status inside it and Chromium does not, so the name has to be pointed at: what is
+    // asserted is the pointer, which is the one thing both engines read alike.
+    it('names the line that opens the reading by the sentence it says, pointed at rather than read from its content', () => {
+        renderSummary(showing(directory(true, [workAccount, archiveAccount])));
+
+        const line = screen.getByRole('button', { name: 'Archive is not up to date.' });
+
+        expect(document.getElementById(line.getAttribute('aria-labelledby') ?? '')?.textContent).toBe(
+            'Archive is not up to date.',
+        );
+    });
+
     it('names each account that is not current and its state, then one line for the rest, and no time', () => {
         renderSummary(showing(directory(true, [workAccount, failingAccount, archiveAccount])));
 

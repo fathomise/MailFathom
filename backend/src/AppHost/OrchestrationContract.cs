@@ -686,6 +686,50 @@ public static class OrchestrationContract
     /// <remarks>Stated for the reason <see cref="EndToEndClientPostgresPort" /> is.</remarks>
     public const int EndToEndClientMailServerApiPort = 24080;
 
+    /// <summary>The whole app host argument that puts the fault proxy between the service and the mail server.</summary>
+    /// <remarks>
+    /// Matched against the argument list for the reason <see cref="IntegrationTestingArgument" /> is, and accepted only
+    /// beside <see cref="EndToEndClientArgument" />: that is the one topology whose MailFathom stands outside the app
+    /// model and can therefore be pointed at the proxy instead of the mail server, while the integration topology's
+    /// hosts are composed here against the mail server itself and the ordinary one has no mail server to proxy. The
+    /// app host refuses it anywhere else rather than ignoring it, so a run that asked for faults cannot start without
+    /// them. <c>scripts/run-end-to-end-client.sh</c> is the only caller, and <c>scripts/inject-fault.sh</c> drives what
+    /// it starts.
+    /// </remarks>
+    public const string FaultProxyArgument = "FaultProxy=true";
+
+    /// <summary>The proxy that can refuse, stall, slow, or cut the connections to the mail server.</summary>
+    public const string FaultProxyResourceName = "fault-proxy";
+
+    /// <summary>The fault proxy endpoint a mail account reads the mail server through.</summary>
+    public const string FaultProxyImapEndpointName = "imap";
+
+    /// <summary>The fault proxy endpoint a mail account would send through.</summary>
+    public const string FaultProxySmtpEndpointName = "smtp";
+
+    /// <summary>The fault proxy's control API, which <c>scripts/inject-fault.sh</c> talks to.</summary>
+    public const string FaultProxyControlEndpointName = "control";
+
+    /// <summary>The host port the end-to-end client run's mail account reads the mailbox on, through the fault proxy.</summary>
+    /// <remarks>
+    /// Stated for the reason <see cref="EndToEndClientPostgresPort" /> is, and beside rather than instead of
+    /// <see cref="EndToEndClientImapPort" />: the corpus is still replayed and read back on the mail server's own port,
+    /// so a fault a spec injects reaches the service and never the run's own seeding.
+    /// </remarks>
+    public const int EndToEndClientFaultProxyImapPort = 24144;
+
+    /// <summary>The host port the end-to-end client run would send through, through the fault proxy.</summary>
+    /// <remarks>Stated for the reason <see cref="EndToEndClientFaultProxyImapPort" /> is.</remarks>
+    public const int EndToEndClientFaultProxySmtpPort = 24026;
+
+    /// <summary>The host port the fault proxy's control API answers on.</summary>
+    /// <remarks>
+    /// Stated for the reason <see cref="EndToEndClientPostgresPort" /> is, and not Toxiproxy's own 8474, which the
+    /// Compose fault overlay publishes by default: a developer running both on one machine would otherwise have
+    /// <c>scripts/inject-fault.sh</c> break whichever of the two bound the port first.
+    /// </remarks>
+    public const int EndToEndClientFaultProxyControlPort = 24474;
+
     /// <summary>The prefix every container and volume an ephemeral topology creates is named with.</summary>
     /// <remarks>
     /// Both ephemeral topologies use it — the integration-test one and the end-to-end-client one — so a leftover names
@@ -906,6 +950,16 @@ public static class OrchestrationContract
         ArgumentNullException.ThrowIfNull(arguments);
 
         return arguments.Contains(EndToEndClientArgument, StringComparer.Ordinal);
+    }
+
+    /// <summary>Reports whether the argument list asks for the fault proxy in front of the mail server.</summary>
+    /// <param name="arguments">The app host arguments exactly as its caller supplied them.</param>
+    /// <returns><see langword="true" /> only when the explicit fault proxy switch is present.</returns>
+    public static bool RunsFaultProxy(IReadOnlyList<string> arguments)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+
+        return arguments.Contains(FaultProxyArgument, StringComparer.Ordinal);
     }
 
     /// <summary>Resolves the OpenSSL policy the MailFathom host receives from this topology.</summary>
