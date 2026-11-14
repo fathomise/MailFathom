@@ -3,8 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Net;
-using System.Text;
 using MailFathom.Infrastructure.Security.OAuth;
+using MailFathom.Infrastructure.UnitTests.TestDoubles;
 using MailFathom.TestSupport;
 using Xunit;
 
@@ -59,8 +59,7 @@ public sealed class BoundedMetadataHttpMessageHandlerTests
     public async Task SendAsync_AResponseWithNoDeclaredLengthBeyondTheLimit_IsRefused()
     {
         // Arrange
-        var oversizedBody = new MemoryStream(Encoding.UTF8.GetBytes(new string('a', SizeLimit + 1)));
-        using var response = Response(new StreamContent(oversizedBody));
+        using var response = Response(new UndeclaredLengthContent(SizeLimit + 1));
         using var transport = TransportAnswering(response);
         using var handler = new BoundedMetadataHttpMessageHandler(SizeLimit) { InnerHandler = transport };
         using var client = new HttpClient(handler, disposeHandler: false);

@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using System.Net.Mime;
 using System.Text;
 using MailFathom.Application.Accounts;
 using MailFathom.Domain.Accounts;
@@ -33,6 +34,18 @@ public sealed class MailOAuthAccessTokenSourceTests
     /// <summary>The account in full, which is what a stored credential is recorded under.</summary>
     private static readonly MailAccountId AccountIdentity =
         MailAccountId.Create(Account);
+
+    /// <summary>What a gateway answers with in an authorization server's place: a page for a person, not a token response.</summary>
+    private const string GatewayErrorPage = "<html><body><h1>Bad Gateway</h1></body></html>";
+
+    /// <summary>
+    /// A name no encoding provider resolves. A legacy code page would not do: this process registers the code-page
+    /// provider the mail library needs, so a page in one is transcoded and fails in the parser like any other page.
+    /// </summary>
+    private const string CharacterSetNoPlatformCarries = "x-no-such-character-set";
+
+    /// <summary>Finer than the shortest backoff the authorization-server budget draws, so no wait is stepped over.</summary>
+    private static readonly TimeSpan VirtualTimeStep = TimeSpan.FromMilliseconds(100);
 
     /// <summary>A public client sends no field at all; an empty one is a value the server evaluates and refuses.</summary>
     [Fact]
@@ -112,6 +125,153 @@ public sealed class MailOAuthAccessTokenSourceTests
         // Act, Assert
         await Assert.ThrowsAsync<MailAccessTokenUnavailableException>(
             () => context.Source.GetAccessTokenAsync(Account, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// A server nothing answers at stated no refusal, so the exchange is repeated, and what is reported is the transport
+    /// failure rather than an error code no response carried.
+    /// </summary>
+    [Fact]
+    public async Task GetAccessTokenAsync_ATokenEndpointThatCannotBeReached_IsAskedAgainAndReportsTheTransportFailure()
+    {
+        // Arrange
+        using var context = TokenEndpointThatCannotBeReached();
+
+        // Act
+        var failure = await Assert.ThrowsAsync<MailAccessTokenUnavailableException>(
+            () => context.Host.CompleteOnVirtualTimeAsync(
+                context.Source.GetAccessTokenAsync(Account, TestContext.Current.CancellationToken),
+                VirtualTimeStep));
+
+        // Assert
+        Assert.Null(failure.AuthorizationServerErrorCode);
+        Assert.IsType<HttpRequestException>(failure.InnerException);
+        Assert.True(context.Handler.RecordedRequests.Count > 1);
+    }
+
+    /// <summary>
+    /// A gateway answering in the server's place says the server is unavailable, not that the grant was refused. Read as
+    /// a refusal it would end the exchange on the first page and leave a brief outage looking like a revoked credential.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public async Task GetAccessTokenAsync_APageAnsweredUnderAStatusThatInvitesAnotherRequest_IsAskedAgain(HttpStatusCode status)
+    {
+        // Arrange
+        using var context = TokenEndpointAnswering(GatewayErrorPage, status, mediaType: MediaTypeNames.Text.Html);
+
+        // Act
+        var failure = await Assert.ThrowsAsync<MailAccessTokenUnavailableException>(
+            () => context.Host.CompleteOnVirtualTimeAsync(
+                context.Source.GetAccessTokenAsync(Account, TestContext.Current.CancellationToken),
+                VirtualTimeStep));
+
+        // Assert
+        Assert.Null(failure.AuthorizationServerErrorCode);
+        Assert.Equal(status, Assert.IsType<HttpRequestException>(failure.InnerException).StatusCode);
+        Assert.True(context.Handler.RecordedRequests.Count > 1);
+    }
+
+    /// <summary>
+    /// An overloaded server answers nothing at all, or readable JSON that states nothing. Neither is a response with its
+    /// token missing: it refuses no grant, so it is repeated like any other outage rather than reported as a token
+    /// nobody would issue.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("{}")]
+    public async Task GetAccessTokenAsync_AnOverloadedServerStatingNoError_IsAskedAgain(string body)
+    {
+        // Arrange
+        using var context = TokenEndpointAnswering(body, HttpStatusCode.ServiceUnavailable);
+
+        // Act
+        var failure = await Assert.ThrowsAsync<MailAccessTokenUnavailableException>(
+            () => context.Host.CompleteOnVirtualTimeAsync(
+                context.Source.GetAccessTokenAsync(Account, TestContext.Current.CancellationToken),
+                VirtualTimeStep));
+
+        // Assert
+        Assert.Null(failure.AuthorizationServerErrorCode);
+        Assert.True(context.Handler.RecordedRequests.Count > 1);
+    }
+
+    /// <summary>
+    /// The server's own refusal outranks the status it arrived under, so a grant refused beneath a status that would
+    /// otherwise invite another request is still asked once.
+    /// </summary>
+    [Fact]
+    public async Task GetAccessTokenAsync_AGrantRefusedUnderAStatusThatInvitesAnotherRequest_IsAskedOnce()
+    {
+        // Arrange
+        using var context = TokenEndpointAnswering(
+            """{"error":"invalid_grant"}""",
+            HttpStatusCode.ServiceUnavailable);
+
+        // Act
+        var failure = await Assert.ThrowsAsync<MailAccessTokenUnavailableException>(
+            () => context.Host.CompleteOnVirtualTimeAsync(
+                context.Source.GetAccessTokenAsync(Account, TestContext.Current.CancellationToken),
+                VirtualTimeStep));
+
+        // Assert
+        Assert.Equal("invalid_grant", failure.AuthorizationServerErrorCode);
+        Assert.Single(context.Handler.RecordedRequests);
+    }
+
+    /// <summary>
+    /// A page naming a character set this platform does not carry never reaches the parser, so it fails as the
+    /// transport's own exception rather than as a parse failure. It is the same outage and is repeated the same way.
+    /// </summary>
+    [Fact]
+    public async Task GetAccessTokenAsync_AGatewayPageInAnUnsupportedCharacterSet_IsAskedAgain()
+    {
+        // Arrange
+        using var context = TokenEndpointAnswering(
+            GatewayErrorPage,
+            HttpStatusCode.BadGateway,
+            mediaType: MediaTypeNames.Text.Html,
+            characterSet: CharacterSetNoPlatformCarries);
+
+        // Act
+        var failure = await Assert.ThrowsAsync<MailAccessTokenUnavailableException>(
+            () => context.Host.CompleteOnVirtualTimeAsync(
+                context.Source.GetAccessTokenAsync(Account, TestContext.Current.CancellationToken),
+                VirtualTimeStep));
+
+        // Assert
+        var statedByStatus = Assert.IsType<HttpRequestException>(failure.InnerException);
+        Assert.Equal(HttpStatusCode.BadGateway, statedByStatus.StatusCode);
+        Assert.IsType<InvalidOperationException>(statedByStatus.InnerException);
+        Assert.True(context.Handler.RecordedRequests.Count > 1);
+    }
+
+    /// <summary>
+    /// An answer that cannot be read and that no outage explains will not read differently the next time: a success
+    /// carrying a page is an address that is not a token endpoint, and a rejection carrying one is still a rejection.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.OK)]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    public async Task GetAccessTokenAsync_APageAnsweredUnderAStatusThatDoesNotInviteAnotherRequest_IsAskedOnce(HttpStatusCode status)
+    {
+        // Arrange
+        using var context = TokenEndpointAnswering(GatewayErrorPage, status, mediaType: MediaTypeNames.Text.Html);
+
+        // Act
+        var failure = await Assert.ThrowsAsync<MailAccessTokenUnavailableException>(
+            () => context.Host.CompleteOnVirtualTimeAsync(
+                context.Source.GetAccessTokenAsync(Account, TestContext.Current.CancellationToken),
+                VirtualTimeStep));
+
+        // Assert
+        Assert.Null(failure.AuthorizationServerErrorCode);
+        Assert.Equal(status, Assert.IsType<HttpRequestException>(failure.InnerException).StatusCode);
+        Assert.Single(context.Handler.RecordedRequests);
     }
 
     /// <summary>The stored token is the newer of the two, because it exists only where the server replaced what was configured.</summary>
@@ -209,13 +369,33 @@ public sealed class MailOAuthAccessTokenSourceTests
         HttpStatusCode status = HttpStatusCode.OK,
         string? clientSecret = null,
         string? storedRefreshToken = null,
+        MailOAuthGrant? grant = null,
+        string mediaType = MediaTypeNames.Application.Json,
+        string? characterSet = null) =>
+        TokenEndpointBehind(
+            FakeHttpMessageHandler.AlwaysResponding(() =>
+            {
+                var content = new StringContent(body, Encoding.UTF8, mediaType);
+                content.Headers.ContentType!.CharSet = characterSet ?? content.Headers.ContentType.CharSet;
+
+                return new HttpResponseMessage(status) { Content = content };
+            }),
+            clientSecret,
+            storedRefreshToken,
+            grant);
+
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The handler is handed to the returned context, whose Dispose releases it; disposing it here would return a context over a closed handler.")]
+    private static TokenEndpointContext TokenEndpointThatCannotBeReached() =>
+        TokenEndpointBehind(new FakeHttpMessageHandler(
+            static (_, _) => throw new HttpRequestException("connection refused")));
+
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Each object is handed to the returned context, whose Dispose releases all of them; disposing them here would return a context of closed resources.")]
+    private static TokenEndpointContext TokenEndpointBehind(
+        FakeHttpMessageHandler handler,
+        string? clientSecret = null,
+        string? storedRefreshToken = null,
         MailOAuthGrant? grant = null)
     {
-        var handler = FakeHttpMessageHandler.AlwaysResponding(() => new HttpResponseMessage(status)
-        {
-            Content = new StringContent(body, Encoding.UTF8, "application/json"),
-        });
-
         var host = OutboundResilienceTestHost.WithConfiguredSettings();
         var cache = new MailAccessTokenCache(host.TimeProvider);
         var refreshTokenStore = new FakeMailboxRefreshTokenStore(AccountIdentity, storedRefreshToken);
