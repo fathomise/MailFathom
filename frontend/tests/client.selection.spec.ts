@@ -233,3 +233,103 @@ test('extends a selection with Shift, by pointer and by arrow key, over every ro
         },
     ]);
 });
+
+/** The row of one message whatever its reserved line says, which is gone only once the row has left the list. */
+function leaving(page: Page, subject: string) {
+    return page
+        .getByRole('listbox', { name: 'Messages' })
+        .getByRole('option', { name: new RegExp(`\\b${subject}\\b`, 'u') });
+}
+
+// A drag is the one way of filing a selection that never touches the bar, so it is the one that can leave the bar
+// standing over rows the list no longer holds: the tree performs the move, and the list is what has to let go of them.
+test('lets go of a selection dragged onto a folder, which takes every picked row and holds all of them', async ({
+    page,
+    deployment,
+}) => {
+    await openTheInbox(page, deployment);
+
+    // The level the corpus files that folder under arrives shut, so it is opened before anything is picked out.
+    await page.getByRole('treeitem', { name: 'Archive', expanded: false }).click();
+    await page.keyboard.press('ArrowRight');
+    await expect(folder(page, '2024')).toBeVisible();
+
+    const bar = selectionBar(page);
+    const picked = ['Message 6', 'Message 7', 'Message 8'];
+
+    await pickOut(page, ...picked);
+    await expect(bar.getByRole('status')).toHaveText('3 selected');
+
+    await row(page, 'Message 7').dragTo(folder(page, '2024'));
+
+    await expect(notice(page, 'Filed in “Archive / 2024”')).toContainText('3 messages');
+
+    for (const subject of picked) {
+        await expect(leaving(page, subject)).toHaveCount(0);
+    }
+
+    // Nothing is picked out any more: the bar is gone, the strip has its toolbar back, and no row left says it is.
+    await expect(bar).toHaveCount(0);
+    await expect(page.getByRole('toolbar', { name: 'Mail actions' })).toBeVisible();
+    await expect(page.getByRole('listbox', { name: 'Messages' }).getByRole('option', { selected: true })).toHaveCount(
+        0,
+    );
+
+    // One move carried all three, whichever of them the pointer took hold of.
+    expect(bodiesOf(deployment, '/mutations/moves')).toStrictEqual([
+        {
+            moves: expect.arrayContaining(
+                [6, 7, 8].map((at) => ({ storedEmailId: `message-${String(at)}`, destinationFolder: 'ARCHIVE/2024' })),
+            ) as unknown,
+        },
+    ]);
+
+    await folder(page, '2024').click();
+    await expect(page.getByRole('listbox', { name: 'Messages' }).getByRole('option')).toHaveCount(3);
+
+    for (const subject of picked) {
+        await expect(row(page, subject)).toBeVisible();
+    }
+
+    await expect(bar).toHaveCount(0);
+});
+
+test('lets go of a selection dropped on the trash once the question it asks is answered', async ({
+    page,
+    deployment,
+}) => {
+    await openTheInbox(page, deployment);
+
+    const bar = selectionBar(page);
+
+    await pickOut(page, 'Message 10', 'Message 11');
+    await expect(bar.getByRole('status')).toHaveText('2 selected');
+
+    await row(page, 'Message 11').dragTo(folder(page, 'Trash'));
+
+    // A drop on the trash is deleting, so it stands behind the question, and the selection stands until it is answered.
+    const question = page.getByRole('dialog', { name: 'Delete 2 messages?' });
+
+    await expect(question).toBeVisible();
+    await expect(bar.getByRole('status')).toHaveText('2 selected');
+    await question.getByRole('button', { name: 'Move to the trash' }).click();
+
+    await expect(notice(page, 'Moved to the trash')).toContainText('2 messages');
+    await expect(leaving(page, 'Message 10')).toHaveCount(0);
+    await expect(leaving(page, 'Message 11')).toHaveCount(0);
+    await expect(bar).toHaveCount(0);
+
+    expect(bodiesOf(deployment, '/mutations/moves')).toStrictEqual([
+        {
+            moves: expect.arrayContaining([
+                { storedEmailId: 'message-10', destinationFolder: 'TRASH' },
+                { storedEmailId: 'message-11', destinationFolder: 'TRASH' },
+            ]) as unknown,
+        },
+    ]);
+
+    await folder(page, 'Trash').click();
+    await expect(page.getByRole('listbox', { name: 'Messages' }).getByRole('option')).toHaveCount(2);
+    await expect(row(page, 'Message 10')).toBeVisible();
+    await expect(row(page, 'Message 11')).toBeVisible();
+});

@@ -1361,6 +1361,21 @@ message from the trash — a delete undone by a save — so revising such a draf
 instead. A promoted draft is left alone here as it is below, and a held delete that is later withdrawn leaves a message
 in the folder that is no longer that draft.
 
+**A draft deleted before its message has an occurrence is given up outright, and its message is erased rather than
+filed.** A revision stored first is listed in the drafts folder before anything on a server answers for it: a mirrored
+or restoring account binds the appended copy onto it only when synchronization next meets that copy, and a held
+account's message never has an occurrence at all. Until then a move or a delete has no occurrence to open a record
+against and no placement to commit a change of. So when the draft's author moves that message into the folder playing
+the trash role, or deletes it, the draft is marked given up in one commit with the key of the act, and the account's
+custodian settles it on the request as it settles a draft given up by its identifier: a mirrored or restoring account
+withdraws every copy still standing — the one appended for the revision the folder shows among them, whether or not
+synchronization has bound it since — and then erases the stored message with the record, and a held account erases the
+message with the record and reaches no server. The answer says the act is finished and names no record, because there
+is none to follow and nothing to move back. A settlement that could not finish, because the server could not be
+reached or a copy could not be withdrawn, is the draft pass's to finish, exactly as for any other draft given up, and
+the message stays listed until it does. Only the author is answered this way, since giving a draft up is its author's
+act; anybody else, and every other move of such a message, finds no message until an occurrence is bound.
+
 **A draft moved to another folder inside the drafts tree is still the draft it was, and its record follows it.** The
 move is an ordinary move of mail, and the commit that records it writes the folder onto the draft. Every filing
 afterwards reads it: the next revision is stored and appended in that folder rather than in the one playing the drafts

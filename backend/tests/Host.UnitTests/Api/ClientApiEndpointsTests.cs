@@ -11,6 +11,7 @@ using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Mail.Delivery;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Screening;
 using MailFathom.Application.Mail.Delivery.Tracking;
@@ -1039,6 +1040,7 @@ public sealed class ClientApiEndpointsTests
         services.AddSingleton(Substitute.For<IAuthorizationRefusalTelemetry>());
         services.AddSingleton(Options.Create(new MailDeliveryOptions()));
         services.AddSingleton(Substitute.For<ISpamActionSettingsReader>());
+        services.AddSingleton(Substitute.For<IOutgoingSenderIdentityReader>());
         services.AddSingleton(Substitute.For<IMailAccountAssignments>());
         services.AddSingleton(Substitute.For<IOrganizationStore>());
         services.AddScoped(_ => UnreachedFreshnessReader(granted));

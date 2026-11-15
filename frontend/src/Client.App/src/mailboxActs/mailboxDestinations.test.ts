@@ -45,6 +45,7 @@ function directoryOf(accounts: Record<string, readonly MailFolder[]>): MailFolde
                 behind: false,
                 filesJunk: false,
                 marksExternalMail: false,
+                sendingAddress: null,
                 shared: false,
                 synchronizationStateSince: null,
                 behindSince: null,
@@ -107,12 +108,32 @@ describe('destinationsFor', () => {
                 ordinal: 1,
                 shared: false,
                 destinations: [
-                    { folderId: 'work-inbox', name: 'INBOX', role: 'Inbox' },
-                    { folderId: 'work-archive', name: 'Archive', role: 'Archive' },
-                    { folderId: 'work-trash', name: 'Trash', role: 'Trash' },
-                    { folderId: 'work-clients', name: 'Projects / Clients', role: null },
+                    { folderId: 'work-inbox', name: 'INBOX', role: 'Inbox', level: 0 },
+                    { folderId: 'work-archive', name: 'Archive', role: 'Archive', level: 0 },
+                    { folderId: 'work-trash', name: 'Trash', role: 'Trash', level: 0 },
+                    { folderId: 'work-clients', name: 'Projects / Clients', role: null, level: 0 },
                 ],
             },
+        ]);
+    });
+
+    it('offers a folder beneath the folder it is kept in, by its own name, as the folder column nests it', () => {
+        const nested = directoryOf({
+            work: [
+                folder('work-contracts', null, ['INBOX', 'Contracts']),
+                folder('work-signed', null, ['INBOX', 'Contracts', 'Signed']),
+                folder('work-trash', 'Trash', ['Trash']),
+                folder('work-inbox', 'Inbox', ['INBOX']),
+                folder('work-old', null, ['Clients', 'Old']),
+            ],
+        });
+
+        expect(destinationsFor(nested, [inWork('message-1')])[0]?.destinations).toStrictEqual([
+            { folderId: 'work-inbox', name: 'INBOX', role: 'Inbox', level: 0 },
+            { folderId: 'work-contracts', name: 'Contracts', role: null, level: 1 },
+            { folderId: 'work-signed', name: 'Signed', role: null, level: 2 },
+            { folderId: 'work-trash', name: 'Trash', role: 'Trash', level: 0 },
+            { folderId: 'work-old', name: 'Clients / Old', role: null, level: 0 },
         ]);
     });
 
@@ -183,14 +204,14 @@ describe('destinationsFor, around the drafts and the sent tree', () => {
 
         expect(offeredFolders([inWorkDrafts('message-1')])).toStrictEqual([
             'work-drafts',
-            'work-trash',
             'work-drafts-clients',
+            'work-trash',
         ]);
         expect(offeredFolders([inDraftsClients])).toStrictEqual(offeredFolders([inWorkDrafts('message-1')]));
     });
 
     it('offers a sent message its own tree and the trash', () => {
-        expect(offeredFolders([inWorkSent('message-1')])).toStrictEqual(['work-sent', 'work-trash', 'work-sent-2026']);
+        expect(offeredFolders([inWorkSent('message-1')])).toStrictEqual(['work-sent', 'work-sent-2026', 'work-trash']);
     });
 
     it('offers a selection reaching into two trees the trash and nothing else', () => {
@@ -271,9 +292,11 @@ describe('mayBeTakenBack', () => {
 
 describe('filesIntoTrash', () => {
     it('reads the trash as the one destination whose filing is deleting', () => {
-        expect(filesIntoTrash({ folderId: 'work-trash', name: 'Trash', role: 'Trash' })).toBe(true);
-        expect(filesIntoTrash({ folderId: 'work-archive', name: 'Archive', role: 'Archive' })).toBe(false);
-        expect(filesIntoTrash({ folderId: 'work-clients', name: 'Projects / Clients', role: null })).toBe(false);
+        expect(filesIntoTrash({ folderId: 'work-trash', name: 'Trash', role: 'Trash', level: 0 })).toBe(true);
+        expect(filesIntoTrash({ folderId: 'work-archive', name: 'Archive', role: 'Archive', level: 0 })).toBe(false);
+        expect(filesIntoTrash({ folderId: 'work-clients', name: 'Projects / Clients', role: null, level: 0 })).toBe(
+            false,
+        );
     });
 });
 
@@ -286,6 +309,7 @@ describe('dropDestination', () => {
             folderId: 'work-clients',
             name: 'Projects / Clients',
             role: null,
+            level: 0,
         });
     });
 

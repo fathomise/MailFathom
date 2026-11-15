@@ -190,7 +190,13 @@ test('marks a message spam with the kind picked and takes it back, and the row, 
     await reloaded(page);
     await expect(row).toHaveAccessibleName(/^Spam: Marketing, marked by you\./u, settles);
 
-    await fromTheMenu(row, 'Not spam');
+    await fromTheMenu(row, 'Not spam…');
+
+    // Withdrawing the mark is asked first, though this message moves nowhere.
+    const question = page.getByRole('dialog', { name: 'Mark this message not spam?' });
+
+    await expect(question).toContainText('It is marked not spam and stays where it is.');
+    await question.getByRole('button', { name: 'Not spam' }).click();
 
     await expect(row).not.toHaveAccessibleName(/^Spam:/u);
     await onTheMailServer('INBOX', message.subject, one({ carrying: ['$NotJunk'], without: ['$Junk'] }));

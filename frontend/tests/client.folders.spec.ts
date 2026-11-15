@@ -102,7 +102,9 @@ test('deletes a folder holding mail, and the tree, the move targets, a search, a
 });
 
 // A folder keeps its identity through a rename and a move, so every one of these
-// readings has to place it by where it sits rather than by what it is called.
+// readings has to place it by where it sits rather than by what it is called. The folders a message can be filed into
+// are offered the way the tree draws them: a folder kept inside another stands directly beneath it under its own name,
+// rather than apart from it under every level of its path.
 test('makes a folder inside another, renames it, and moves it under a third, and the tree, the move targets, and a reload agree after each', async ({
     page,
     deployment,
@@ -130,7 +132,7 @@ test('makes a folder inside another, renames it, and moves it under a third, and
         await expect(open).toBeVisible();
     };
 
-    const agreesItSitsAt = async (opening: readonly (string | RegExp)[], name: string, filedAs: string) => {
+    const agreesItSitsAt = async (opening: readonly (string | RegExp)[], name: string, beneath: string) => {
         for (const level of opening) {
             await opened(level);
         }
@@ -142,7 +144,21 @@ test('makes a folder inside another, renames it, and moves it under a third, and
 
         const filing = page.getByRole('dialog', { name: 'File in another folder' });
 
-        await expect(filing.getByRole('button', { name: filedAs, exact: true })).toBeVisible();
+        await expect(filing.getByRole('button', { name, exact: true })).toBeVisible();
+        await expect(filing.getByRole('button', { name: new RegExp(` / ${name}$`, 'u') })).toHaveCount(0);
+
+        // Directly after the folder it is kept in, in the order the dialog offers them.
+        await expect
+            .poll(async () => {
+                const offered = (await filing.getByRole('listitem').getByRole('button').allInnerTexts()).map((said) =>
+                    said.trim(),
+                );
+                const above = offered.indexOf(beneath);
+
+                return above === -1 ? null : offered[above + 1];
+            })
+            .toBe(name);
+
         await filing.getByRole('button', { name: 'Close' }).click();
         await nothingStandsOverTheScreen(page);
     };
@@ -167,9 +183,9 @@ test('makes a folder inside another, renames it, and moves it under a third, and
     expect(deployment.requests('POST', '/managed-folders').map(({ body }) => body)).toStrictEqual([
         expect.objectContaining({ account: workAccount.id, parentId: 'ARCHIVE/2024', name: 'Suppliers' }),
     ]);
-    await agreesItSitsAt(['2024'], 'Suppliers', 'Archive / 2024 / Suppliers');
+    await agreesItSitsAt(['2024'], 'Suppliers', 'Archive / 2024');
     await page.reload();
-    await agreesItSitsAt(['Archive', '2024'], 'Suppliers', 'Archive / 2024 / Suppliers');
+    await agreesItSitsAt(['Archive', '2024'], 'Suppliers', 'Archive / 2024');
 
     // Renamed where it stands, and nothing is left under its old name.
     const renaming = await editing('Suppliers');
@@ -178,9 +194,9 @@ test('makes a folder inside another, renames it, and moves it under a third, and
     await renaming.getByRole('button', { name: 'Save changes' }).click();
     await expect(notices).toContainText('Renamed to Vendors in Work.');
     await expect(tree.getByRole('treeitem', { name: 'Suppliers', exact: true })).toHaveCount(0);
-    await agreesItSitsAt([], 'Vendors', 'Archive / 2024 / Vendors');
+    await agreesItSitsAt([], 'Vendors', 'Archive / 2024');
     await page.reload();
-    await agreesItSitsAt(['Archive', '2024'], 'Vendors', 'Archive / 2024 / Vendors');
+    await agreesItSitsAt(['Archive', '2024'], 'Vendors', 'Archive / 2024');
 
     // Moved under the inbox, which takes it out from under the archive level altogether.
     const moving = await editing('Vendors');
@@ -197,11 +213,28 @@ test('makes a folder inside another, renames it, and moves it under a third, and
         { account: workAccount.id, folderId: 'SUPPLIERS', name: 'Vendors' },
         { account: workAccount.id, folderId: 'SUPPLIERS', parentId: 'INBOX' },
     ]);
-    await agreesItSitsAt([/^Inbox/u], 'Vendors', 'INBOX / Vendors');
+    await agreesItSitsAt([/^Inbox/u], 'Vendors', 'Inbox');
     await page.reload();
-    await agreesItSitsAt([/^Inbox/u], 'Vendors', 'INBOX / Vendors');
+    await agreesItSitsAt([/^Inbox/u], 'Vendors', 'Inbox');
     await opened('Archive');
     await expect(tree.getByRole('treeitem', { name: '2024', exact: true })).not.toHaveAttribute('aria-expanded');
+
+    // Chosen under its own name, it is the folder the message is filed in, by the identity it has kept throughout.
+    await row(page, 'Message 0').click();
+    await page.getByRole('button', { name: 'Move', exact: true }).click();
+    await page
+        .getByRole('dialog', { name: 'File in another folder' })
+        .getByRole('button', { name: 'Vendors', exact: true })
+        .click();
+
+    await expect(notices).toContainText('Filed in “Vendors”');
+    expect(bodiesOf(deployment, '/mutations/moves')).toStrictEqual([
+        { moves: [{ storedEmailId: 'message-0', destinationFolder: 'SUPPLIERS' }] },
+    ]);
+
+    await tree.getByRole('treeitem', { name: 'Vendors', exact: true }).click();
+    await expect(page.getByRole('listbox', { name: 'Messages' }).getByRole('option')).toHaveCount(1);
+    await expect(row(page, 'Message 0')).toBeVisible();
 });
 
 // Marking a folder read is composed of reads and flag writes, and what it changes is drawn by three things that never
@@ -277,8 +310,9 @@ test('keeps a folder where it was when its move is refused, and names the refusa
 
     const filing = page.getByRole('dialog', { name: 'File in another folder' });
 
+    // Still where it was: under the level it is filed beneath, and not offered beneath the inbox under its own name.
     await expect(filing.getByRole('button', { name: 'Archive / 2024', exact: true })).toBeVisible();
-    await expect(filing.getByRole('button', { name: 'INBOX / 2024', exact: true })).toHaveCount(0);
+    await expect(filing.getByRole('button', { name: '2024', exact: true })).toHaveCount(0);
 });
 
 test.describe('driven by a finger', () => {

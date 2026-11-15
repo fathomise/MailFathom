@@ -66,7 +66,14 @@ const spamMessages: readonly ActedMessage[] = [
     { storedEmailId: email.id, account: 'work', folder: 'INBOX', unread: false, flagged: false, spam: phishing },
 ];
 
-const writing: Composing = { offered: true, drafts: false, opening: null, compose: vi.fn(), close: vi.fn() };
+const writing: Composing = {
+    offered: true,
+    drafts: false,
+    opening: null,
+    filedAs: null,
+    compose: vi.fn(),
+    close: vi.fn(),
+};
 
 function menuUnder({
     acts = actsWhere(() => null),
@@ -442,23 +449,17 @@ describe('MessageRowMenu, over a message marked spam', () => {
         expect(screen.queryByRole('menuitem', { name: /spam/iu })).toBeNull();
     });
 
-    it('offers to mark spam not spam, saying it asks first where that would move it out of the Spam folder', () => {
-        menuUnder({ acts: offering({ notSpamMoves: () => true }), row: spamRow, about: spamMessages });
-
-        expect(drawn()).toContain('Not spam…');
-    });
-
-    it('offers to mark spam not spam at once where nothing would move', () => {
+    it('offers to mark spam not spam, saying it asks first', () => {
         menuUnder({ acts: offering(), row: spamRow, about: spamMessages });
 
-        expect(drawn()).toContain('Not spam');
+        expect(drawn()).toContain('Not spam…');
     });
 
     it('presses the one spam control over the messages the menu is about', () => {
         const toggleSpam = vi.fn();
 
         menuUnder({ acts: offering({ toggleSpam }), row: spamRow, about: spamMessages });
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Not spam' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Not spam…' }));
 
         expect(toggleSpam).toHaveBeenCalledWith(spamMessages);
     });

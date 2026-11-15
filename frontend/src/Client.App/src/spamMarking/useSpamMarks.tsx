@@ -23,6 +23,7 @@ import { newIdentifier } from '../agent/newIdentifier';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import type { ActedMessage, MarkedSpam } from '../mailboxActs/useMailboxActs';
+import { useListedMail } from '../messageList/useListedMail';
 import { useToasts } from '../toasts/useToasts';
 import { SpamQuestions, type SpamAsking } from './SpamQuestions';
 import { subcategoryLabels } from './spamWords';
@@ -84,7 +85,6 @@ export interface SpamMarks {
 
     /** Asks for the kind of spam a move into the Spam folder has just marked, over the messages it marked. */
     readonly filedIntoJunk: (messages: readonly ActedMessage[]) => void;
-    readonly notSpamMoves: (messages: readonly ActedMessage[]) => boolean;
     readonly questions: ReactNode;
 }
 
@@ -105,6 +105,7 @@ export function useSpamMarks({
 }): SpamMarks {
     const { locale, translate } = useLocalization();
     const toasts = useToasts();
+    const listed = useListedMail();
     const [kept, setKept] = useState<Marks>({ session: null, marked: new Map() });
     const [asked, setAsked] = useState<Asked | null>(null);
     const [serial, setSerial] = useState(0);
@@ -296,6 +297,12 @@ export function useSpamMarks({
             );
             const moved = written.filter((message) => results.get(message.storedEmailId)?.moved === true);
 
+            // A mark that moved the message took it out of the folder it was listed in, which the list is told as it
+            // is for any act that files a message elsewhere.
+            if (moved.length > 0) {
+                listed.left(moved.map((message) => message.storedEmailId));
+            }
+
             settle(
                 messages.flatMap((message) => {
                     const drawnAtPress = pressed.get(message.storedEmailId);
@@ -386,13 +393,9 @@ export function useSpamMarks({
         if (spam.every(Boolean)) {
             const moving = messages.filter((message) => notSpamMoves([message])).length;
 
-            // Confirmed only where it moves something, which is the one consequence somebody has to know about first.
-            if (moving > 0) {
-                ask({ kind: 'notSpam', serial: serial + 1, messages: messages.length, moving }, messages, onMarked);
-            } else {
-                mark(messages, { verdict: 'NotSpam' }, false);
-                onMarked?.();
-            }
+            // Always confirmed, whether or not it moves anything: withdrawing the mark lets the message be answered,
+            // its links followed and its attachments opened again, which is not something to do on a stray press.
+            ask({ kind: 'notSpam', serial: serial + 1, messages: messages.length, moving }, messages, onMarked);
 
             return;
         }
@@ -454,5 +457,5 @@ export function useSpamMarks({
         />
     );
 
-    return { marked, toggle, filedIntoJunk, notSpamMoves, questions };
+    return { marked, toggle, filedIntoJunk, questions };
 }

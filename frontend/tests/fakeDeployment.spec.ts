@@ -348,6 +348,42 @@ test('records a move into the Spam folder as the person’s own spam mark, with 
     });
 });
 
+test('moves a message with its spam mark once the account files junk, into the Spam folder and out of it to the inbox', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const mark = (verdict: 'Spam' | 'NotSpam', storedEmailId: string) =>
+        (
+            ask(deployment, 'POST', '/mutations/spam', {
+                verdict,
+                spamSubcategory: null,
+                storedEmailIds: [storedEmailId],
+            }) as { results: unknown[] }
+        ).results;
+
+    deployment.fileJunk();
+
+    // Both readings of the account say the switch is on, because they are two readings of one mailbox.
+    expect(ask(deployment, 'GET', '/accounts')).toMatchObject({ accounts: [{ filesJunk: true }] });
+    expect(ask(deployment, 'GET', '/folders')).toMatchObject({ accounts: [{ account: { filesJunk: true } }] });
+
+    expect(mark('Spam', 'message-4')).toMatchObject([
+        { storedEmailId: 'message-4', outcome: 'recorded', moved: true, changes: [{ mutation: 'relocate' }] },
+    ]);
+    expect(listed(deployment, 'folder=JUNK')).toContain('message-4');
+    expect(listed(deployment, 'folder=INBOX')).not.toContain('message-4');
+
+    expect(mark('NotSpam', 'message-spam-desk')).toMatchObject([
+        { storedEmailId: 'message-spam-desk', outcome: 'recorded', moved: true, changes: [{ mutation: 'relocate' }] },
+    ]);
+    expect(listed(deployment, 'folder=JUNK')).not.toContain('message-spam-desk');
+    expect(listed(deployment, 'folder=INBOX')[0]).toBe('message-spam-desk');
+    expect(counts(deployment, 'JUNK')).toStrictEqual({ stored: 4, unread: 1 });
+    expect(ask(deployment, 'GET', '/messages/message-spam-desk')).toMatchObject({ spam: { verdict: 'NotSpam' } });
+
+    // Already where the mark would put it, a message moves nowhere and the verdict is all that is recorded.
+    expect(mark('NotSpam', 'message-spam-desk')).toMatchObject([{ outcome: 'applied', moved: false, changes: [] }]);
+    expect(mark('Spam', 'message-4')).toMatchObject([{ outcome: 'applied', moved: false, changes: [] }]);
+});
+
 test('answers an inbox marked read past the count it states with nothing unread rather than fewer than nothing', () => {
     const deployment = new FakeDeployment('0.0.0');
     const unread = (ask(deployment, 'GET', '/emails?folder=INBOX&unread=true') as { emails: { id: string }[] }).emails;
@@ -470,6 +506,82 @@ test('names the draft a filed message shows, as revised, until the draft is sent
 
     expect(ask(deployment, 'GET', `/messages/${filed}/draft`)).toBe(404);
 });
+
+test('files a draft as another stored message at each save, and names the one the folder shows on the record', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const composition = { account: fixtures.workAccount.id, subject: 'The yard', plainTextBody: 'Tuesday?' };
+
+    const written = ask(deployment, 'POST', '/drafts', composition) as { draftId: string; filedEmailId: string };
+
+    expect(listed(deployment, 'folder=DRAFTS')).toStrictEqual([written.filedEmailId]);
+
+    const revised = ask(deployment, 'PUT', `/drafts/${written.draftId}`, composition) as { filedEmailId: string };
+
+    expect(revised.filedEmailId).not.toBe(written.filedEmailId);
+    expect(listed(deployment, 'folder=DRAFTS')).toStrictEqual([revised.filedEmailId]);
+    expect(counts(deployment, 'DRAFTS')).toStrictEqual({ stored: 1, unread: 0 });
+    expect(
+        (
+            ask(deployment, 'GET', `/drafts?account=${fixtures.workAccount.id}`) as {
+                drafts: { draftId: string; filedEmailId: string | null }[];
+            }
+        ).drafts.find(({ draftId }) => draftId === written.draftId),
+    ).toMatchObject({ filedEmailId: revised.filedEmailId });
+    expect(ask(deployment, 'GET', `/messages/${written.filedEmailId}/draft`)).toBe(404);
+});
+
+for (const given of [
+    {
+        by: 'a move of its message into the trash',
+        route: '/mutations/moves',
+        asking: (storedEmailId: string) => ({ moves: [{ storedEmailId, destinationFolder: 'TRASH' }] }),
+        answered: { outcome: 'applied', destinationFolder: null, change: null },
+    },
+    {
+        by: 'a delete of its message',
+        route: '/mutations/deletes',
+        asking: (storedEmailId: string) => ({ deletes: [{ storedEmailId }] }),
+        answered: { outcome: 'applied', change: null },
+    },
+]) {
+    test(`gives a filed draft up with ${given.by}, leaving it in neither folder, and answers a repeat the same`, () => {
+        const deployment = new FakeDeployment('0.0.0');
+        const composition = { account: fixtures.workAccount.id, subject: 'The yard', plainTextBody: 'Tuesday?' };
+        const { draftId, filedEmailId } = ask(deployment, 'POST', '/drafts', composition) as {
+            draftId: string;
+            filedEmailId: string;
+        };
+
+        // Anywhere but the trash, a message with no place on a server is one nobody holds, and the draft stands.
+        expect(
+            ask(deployment, 'POST', '/mutations/moves', {
+                requestId: 'elsewhere',
+                moves: [{ storedEmailId: filedEmailId, destinationFolder: 'FILED' }],
+            }),
+        ).toMatchObject({ results: [{ storedEmailId: filedEmailId, outcome: 'message-not-found' }] });
+        expect(listed(deployment, 'folder=DRAFTS')).toStrictEqual([filedEmailId]);
+
+        const giveUp = () =>
+            ask(deployment, 'POST', given.route, { requestId: 'given-up', ...given.asking(filedEmailId) });
+
+        expect(giveUp()).toStrictEqual({ results: [{ storedEmailId: filedEmailId, ...given.answered }] });
+        expect(listed(deployment, 'folder=DRAFTS')).toStrictEqual([]);
+        expect(listed(deployment, 'folder=TRASH')).toStrictEqual([]);
+        expect(counts(deployment, 'DRAFTS')).toStrictEqual({ stored: 0, unread: 0 });
+        expect(counts(deployment, 'TRASH')).toStrictEqual({ stored: 0, unread: 0 });
+        expect(
+            (
+                ask(deployment, 'GET', `/drafts?account=${fixtures.workAccount.id}`) as {
+                    drafts: { draftId: string }[];
+                }
+            ).drafts.map((draft) => draft.draftId),
+        ).not.toContain(draftId);
+        expect(ask(deployment, 'PUT', `/drafts/${draftId}`, composition)).toBe(404);
+
+        // The same key asks again and is answered as it was, though nothing is left for it to name.
+        expect(giveUp()).toStrictEqual({ results: [{ storedEmailId: filedEmailId, ...given.answered }] });
+    });
+}
 
 test('puts a send taken back into the drafts folder as it was sent, and knows nothing of one it never queued', () => {
     const deployment = new FakeDeployment('0.0.0');

@@ -29,13 +29,16 @@ MailFathomDesign.data.footers = {
 MailFathomDesign.data.trustedLinkDomains = ["nordwind.example"];
 
 // The mail accounts in the folder column and the Move dialog: `counts` are the unread badges on the standard
-// folders, and `moveFolders` the folders Move offers in that account. `movesSpam` is the account's own setting for
+// folders, and `moveFolders` the folders Move offers in that account, a folder kept inside another following it with
+// the `level` it is nested at. `movesSpam` is the account's own setting for
 // whether marking spam or not spam also moves the message, off unless an account turns it on.
 MailFathomDesign.data.accounts = [
   { key: "acc1", label: "Nordwind · work", address: "k.kowalska@nordwind.example", dot: "var(--accent)", counts: { Inbox: "8", Drafts: "2", Spam: "3" }, movesSpam: true,
     moveFolders: [
-      { icon: "inbox", label: "Inbox" }, { icon: "archive", label: "Archive" }, { icon: "report", label: "Spam" },
-      { icon: "folder", label: "Projects" }, { icon: "folder", label: "Contracts" }, { icon: "folder", label: "Archive 2026" },
+      { icon: "inbox", label: "Inbox" }, { icon: "folder", label: "Invoices", level: 1 },
+      { icon: "archive", label: "Archive" }, { icon: "report", label: "Spam" },
+      { icon: "folder", label: "Projects" }, { icon: "folder", label: "Offers", level: 1 }, { icon: "folder", label: "Signed", level: 2 },
+      { icon: "folder", label: "Contracts" }, { icon: "folder", label: "Archive 2026" },
     ] },
   { key: "acc2", label: "Personal mail", address: "kowalska.k@mail.example", dot: "#4d9aa8", counts: { Inbox: "4" }, movesSpam: false,
     moveFolders: [

@@ -1142,6 +1142,10 @@ export function MailboxActsProvider({
 
         remember(act, messages, leaves, destroying);
 
+        if (leaves) {
+            listed.left(messages.map((message) => message.storedEmailId));
+        }
+
         if (act === 'delete') {
             onDeleted?.(messages);
         }
@@ -1308,7 +1312,6 @@ export function MailboxActsProvider({
                     spamOffered: flags,
                     spamMarked: spam.marked,
                     toggleSpam: spam.toggle,
-                    notSpamMoves: spam.notSpamMoves,
                 };
 
     return (

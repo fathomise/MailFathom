@@ -254,6 +254,9 @@ interface Draft {
     readonly draftId: string;
     readonly subject: string;
     readonly revision: number;
+
+    /** The message the drafts folder shows the draft as, which moves with each save. */
+    readonly filedEmailId: string | null;
 }
 
 /** The mailbox a case acts on: the account whose inbox holds mail, and that inbox. */
@@ -666,6 +669,48 @@ export const contractCases: readonly ContractCase[] = [
                 },
             );
             expect((await deployment.drafts(account)).map(({ draftId }) => draftId)).not.toContain(written.draftId);
+        },
+    },
+    {
+        title: 'files a draft as the message its record names, anew at each save, and gives the draft up with a delete of that message',
+        run: async (deployment) => {
+            const { account } = await deployment.mailbox();
+
+            await deployment.withDraftsFolder(account);
+
+            const draftsFolder = (await deployment.folderTree()).accounts
+                .find((held) => held.account.id === account)
+                ?.folders.find(({ role }) => role === 'Drafts');
+
+            if (draftsFolder === undefined) {
+                throw new Error('The account files drafts nowhere, so there is no folder to list a filed draft in.');
+            }
+
+            const written = await deployment.writeDraft(account, 'Filed by a contract case');
+            const revised = (await deployment.answered(
+                'PUT',
+                `/drafts/${encodeURIComponent(written.draftId)}`,
+                draftOf(account, 'Filed again by a contract case'),
+            )) as Draft;
+            const filed = revised.filedEmailId ?? '';
+
+            // The folder lists the revision at once, as the message the record names, and no longer as the one before.
+            expect(written.filedEmailId).toEqual(expect.any(String));
+            expect(filed).not.toBe(written.filedEmailId);
+            expect(await deployment.rowIds(draftsFolder.id)).toContain(filed);
+            expect(await deployment.rowIds(draftsFolder.id)).not.toContain(written.filedEmailId);
+
+            // Deleting that message is giving the draft up: nothing is written down to follow, and nothing is left
+            // of it in the folder or in the book. The same key asked again is answered as it was.
+            const requestId = nextRequestId();
+            const givenUp = () =>
+                deployment.answered('POST', '/mutations/deletes', { requestId, deletes: [{ storedEmailId: filed }] });
+            const answered = { results: [{ storedEmailId: filed, outcome: 'applied', change: null }] };
+
+            expect(await givenUp()).toMatchObject(answered);
+            expect(await deployment.rowIds(draftsFolder.id)).not.toContain(filed);
+            expect((await deployment.drafts(account)).map(({ draftId }) => draftId)).not.toContain(written.draftId);
+            expect(await givenUp()).toMatchObject(answered);
         },
     },
     {

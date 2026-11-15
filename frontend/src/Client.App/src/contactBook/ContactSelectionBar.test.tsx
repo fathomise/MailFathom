@@ -53,7 +53,7 @@ function colleagueCalled(id: string, displayName: string): Colleague {
 }
 
 function composingWhere(offered: boolean, compose = vi.fn()): Composing {
-    return { offered, drafts: false, opening: null, compose, close: vi.fn() };
+    return { offered, drafts: false, opening: null, filedAs: null, compose, close: vi.fn() };
 }
 
 function drawBar({

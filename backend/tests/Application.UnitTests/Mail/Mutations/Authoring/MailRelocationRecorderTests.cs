@@ -551,6 +551,100 @@ public sealed class MailRelocationRecorderTests
     }
 
     /// <summary>
+    /// A draft's message is listed before any occurrence is bound to it. Its author moving it into the trash, which is
+    /// how a draft is deleted, gives the draft up: the custodian erases the message and removes the record, and the
+    /// answer names no folder and no record because nothing was filed and nothing is left to follow. Any other move of
+    /// it is still a message that is not there, and the draft stands.
+    /// </summary>
+    [Theory]
+    [InlineData("Trash", true)]
+    [InlineData("DraftsClients", false)]
+    public async Task RecordAsync_TheAuthorMovingADraftsMessageThatHoldsNoOccurrence_GivesTheDraftUpOnlyIntoTheTrash(
+        string into,
+        bool givenUp)
+    {
+        // Arrange
+        this.MapMirrored(Drafts, "Drafts", MailFolderSpecialUse.Drafts);
+        Dictionary<string, MailFolderResolution> bound = new()
+        {
+            ["DraftsClients"] = this.MapMirrored(DraftsClients, "Drafts/Clients"),
+            ["Trash"] = this.MapMirrored(Trash, "Trash", MailFolderSpecialUse.Trash),
+        };
+        var draftId = await this.FileDraftAsync();
+        var recorder = this.Recorder(target: null);
+
+        // Act
+        var result = await recorder.RecordAsync(
+            LocalEmail,
+            IdOf(bound[into].Alias),
+            Requester,
+            MailboxReaderKind.Person,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var draft = await this.drafts.FindAsync(draftId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(givenUp ? MailRelocationOutcome.Applied : MailRelocationOutcome.MessageNotFound, result.Outcome);
+        Assert.Null(result.Destination);
+        Assert.Null(result.RecordId);
+        Assert.Equal(givenUp, draft is null);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>An agent reads no unsent mail, so its move of such a message finds none and the draft stands.</summary>
+    [Fact]
+    public async Task RecordAsync_AnAgentMovingADraftsMessageThatHoldsNoOccurrenceIntoTheTrash_FindsNoMessageAndLeavesTheDraft()
+    {
+        // Arrange
+        this.MapMirrored(Drafts, "Drafts", MailFolderSpecialUse.Drafts);
+        var trash = this.MapMirrored(Trash, "Trash", MailFolderSpecialUse.Trash);
+        var draftId = await this.FileDraftAsync();
+        var recorder = this.Recorder(target: null);
+
+        // Act
+        var result = await recorder.RecordAsync(
+            LocalEmail,
+            IdOf(trash.Alias),
+            Requester,
+            MailboxReaderKind.Agent,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var draft = await this.drafts.FindAsync(draftId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(MailRelocationOutcome.MessageNotFound, result.Outcome);
+        Assert.NotNull(draft);
+        Assert.False(draft.IsDiscarded);
+    }
+
+    /// <summary>
+    /// The key is kept in the commit that gives the draft up, so a repeat arriving after the message was erased is
+    /// answered as the first attempt was rather than as a message that is not there.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_ARepeatAfterADraftsMessageThatHeldNoOccurrenceWasMovedIntoTheTrash_StillAnswersApplied()
+    {
+        // Arrange
+        this.MapMirrored(Drafts, "Drafts", MailFolderSpecialUse.Drafts);
+        var trash = this.MapMirrored(Trash, "Trash", MailFolderSpecialUse.Trash);
+        await this.FileDraftAsync();
+        var keys = new InMemoryMailActKeyStore();
+        var key = MailActIdempotencyKey.Create("call-1", "moves", [$"{LocalEmail.Value:N}|{IdOf(trash.Alias)}"]);
+        var first = await this.Recorder(target: null, keys: keys)
+            .RecordAsync(LocalEmail, IdOf(trash.Alias), Requester, MailboxReaderKind.Person, key, TestContext.Current.CancellationToken);
+
+        // Act
+        var repeat = await this.Recorder(target: null, keys: keys.AnotherReplica())
+            .RecordAsync(LocalEmail, IdOf(trash.Alias), Requester, MailboxReaderKind.Person, key, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.Applied, first.Outcome);
+        Assert.Equal(
+            (first.Outcome, first.Destination, first.RecordId, first.Lifecycle),
+            (repeat.Outcome, repeat.Destination, repeat.RecordId, repeat.Lifecycle));
+    }
+
+    /// <summary>
     /// A draft moved back into the drafts folder itself stands where the role points again, so the record stops naming
     /// the folder beneath it rather than naming the drafts folder as one.
     /// </summary>
@@ -1043,6 +1137,7 @@ public sealed class MailRelocationRecorderTests
             new MailActIdempotency(callerAuthorization, keys ?? Substitute.For<IMailActKeyStore>(), clock),
             new MailboxCustodianComposition(clock).CrossAccountFiler,
             this.drafts,
+            new MailboxCustodianComposition(clock) { Drafts = this.drafts, PersistenceSessions = sessions }.DraftFiler,
             clock);
     }
 

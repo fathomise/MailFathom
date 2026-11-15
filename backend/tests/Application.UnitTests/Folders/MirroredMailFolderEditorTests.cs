@@ -294,6 +294,49 @@ public sealed class MirroredMailFolderEditorTests
         Assert.Equal((Account, Projects, "Archive/Projects"), (placement.Account, placement.FolderAlias, placement.RemotePath.Value));
     }
 
+    /// <summary>A declaration alone leaves the new row at the top under its whole path, so a creation places it as a move does.</summary>
+    [Fact]
+    public async Task CreateAsync_BeneathAFolderTheAccountDeclares_PutsItsRowWhereTheServerAdvertisesIt()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive", '/')));
+        deployment.CreatesAt("Archive/Projects");
+
+        // Act
+        await deployment.Editor.CreateAsync(Account, Archive, "Projects", role: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        var placement = Assert.Single(deployment.Bindings.Placements);
+        Assert.Equal(
+            (Account, Projects, RemoteFolderPath.Create("Archive/Projects", '/'), (MailFolderSpecialUse?)null),
+            (placement.Account, placement.FolderAlias, placement.RemotePath, placement.Role));
+    }
+
+    [Fact]
+    public async Task CreateAsync_RefusedByTheServer_PlacesNoRow()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.RemoteCreator
+            .CreateFolderBeneathAsync(
+                Arg.Any<MailAccountId>(),
+                Arg.Any<MailFolderAlias>(),
+                Arg.Any<RemoteFolderPath?>(),
+                Arg.Any<string>(),
+                Arg.Any<MailFolderSpecialUse?>(),
+                Arg.Any<MailTransportSecurityPolicy>(),
+                Arg.Any<CancellationToken>())
+            .Returns<RemoteFolderPath>(_ => throw new MailboxUnavailableException(Account, new TimeoutException()));
+
+        // Act
+        var outcome = await deployment.Editor.CreateAsync(Account, parentAlias: null, "Projects", role: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailFolderActRefusal.ServerUnavailable, outcome.Refusal);
+        Assert.Empty(deployment.Bindings.Placements);
+    }
+
     [Fact]
     public async Task RenameAsync_RefusedBeforeReachingTheServer_PlacesNoRow()
     {

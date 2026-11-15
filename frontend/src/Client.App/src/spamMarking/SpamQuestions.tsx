@@ -15,8 +15,8 @@ import { useTopLayerSurface } from '../shell/screenLayers';
 import { isDangerous, subcategoryHints, subcategoryLabels } from './spamWords';
 
 // The two questions the spam control stands in front of an act, drawn once for every surface that offers the control:
-// the chooser of the six subcategories, which *Spam* opens, and the confirmation *Not spam* asks only where it will move
-// mail out of the Spam folder. A move into the Spam folder opens the chooser too, after the fact, to name the kind of
+// the chooser of the six subcategories, which *Spam* opens, and the confirmation *Not spam* always asks, saying whether
+// the mark moves mail out of the Spam folder or leaves it where it is. A move into the Spam folder opens the chooser too, after the fact, to name the kind of
 // spam the move already marked.
 //
 // **The chooser is a choice rather than a confirmation**, which is why it is not `Confirmation`: picking a kind *is* the
@@ -169,7 +169,7 @@ function SpamChooser({
             aria-labelledby={names}
             data-pull="down"
             onToggle={closesOnBack}
-            className="max-workspace:surface-sheet workspace:surface-pop m-0 h-full max-h-full w-full max-w-full rounded-none border-0 bg-panel px-4 pt-safe-top pb-safe-bottom text-text open:flex open:flex-col backdrop:bg-scrim workspace:m-auto workspace:h-auto workspace:max-h-dialog-tall workspace:w-dialog-wide workspace:max-w-dialog-narrow workspace:rounded-lg workspace:border workspace:border-line workspace:p-4 workspace:shadow-dialog"
+            className="max-workspace:surface-sheet workspace:surface-pop m-0 h-full max-h-full w-full max-w-full rounded-none border-0 bg-panel px-4 pt-safe-top pb-safe-bottom text-text open:flex open:flex-col backdrop:bg-scrim workspace:m-auto workspace:h-auto workspace:max-h-dialog-height workspace:w-dialog workspace:max-w-dialog-narrow workspace:rounded-lg workspace:border workspace:border-line workspace:p-4 workspace:shadow-dialog"
             onClose={(closing) => {
                 const dialog = closing.currentTarget;
                 const answer = dialog.returnValue;
@@ -313,7 +313,12 @@ function NotSpamQuestion({
     const form = oneOrOther(locale, messages);
     const count = new Intl.NumberFormat(locale).format(messages);
 
-    const consequence: MessageKey = moving === messages ? `spam.notSpamMoves.${form}` : 'spam.notSpamSomeMove';
+    const consequence: MessageKey =
+        moving === messages
+            ? `spam.notSpamMoves.${form}`
+            : moving === 0
+              ? `spam.notSpamStaysAsk.${form}`
+              : 'spam.notSpamSomeMove';
 
     return (
         <Confirmation
@@ -328,7 +333,11 @@ function NotSpamQuestion({
             reversal={{ kind: 'recallable', said: translate('spam.notSpamReversal') }}
             ways={[
                 { said: translate('act.cancel'), manner: 'back' },
-                { said: translate('spam.notSpamConfirm'), manner: 'act', run: onConfirmed },
+                {
+                    said: translate(moving > 0 ? 'spam.notSpamConfirm' : 'spam.notSpam'),
+                    manner: 'act',
+                    run: onConfirmed,
+                },
             ]}
         />
     );

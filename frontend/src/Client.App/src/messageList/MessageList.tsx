@@ -364,6 +364,12 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
             return false;
         }
 
+        // A spam mark moves a message only once the deployment has answered, so there is no press to animate from and
+        // no act a row could report the end of: the row is out of the folder when the answer says so.
+        if (acts.asked.get(email.id) === undefined) {
+            return true;
+        }
+
         return !watched || sameLeaving(goneRows.get(email.id), acts.asked.get(email.id));
     }
 
@@ -718,6 +724,35 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
                     wantsFocus.current = true;
                 } else {
                     row.focus();
+                }
+            },
+
+            // Asked at the press that files the messages elsewhere, whichever surface it was made on — a control, a
+            // menu, a swipe, a drop on a folder — so none of them has to remember to. A message that is gone is not
+            // one still picked out, and a reader working down a folder is handed the next message rather than left
+            // reading one the list no longer holds: the row after the open one, or the one before it at the foot of
+            // the list. A draft is not opened for them, since that would start an edit nobody asked for.
+            left: (storedEmailIds) => {
+                const gone = new Set(storedEmailIds);
+                const stillSelected = workspace.selected.filter((storedEmailId) => !gone.has(storedEmailId));
+
+                if (stillSelected.length !== workspace.selected.length) {
+                    revise({ selected: stillSelected });
+                }
+
+                const openAt = rows.findIndex((email) => email.id === workspace.selection);
+
+                if (openAt < 0 || !gone.has(rows[openAt]?.id ?? '')) {
+                    return;
+                }
+
+                const stays = (email: MailTimelineEntry): boolean => !gone.has(email.id) && !actLeaving(acts, email);
+                const next = rows.slice(openAt + 1).find(stays) ?? rows.slice(0, openAt).findLast(stays);
+
+                if (next === undefined || (composing.offered && opensAsDraft(acts, next))) {
+                    revise({ selection: null, conversation: null });
+                } else {
+                    onOpen(next.id, next.subject, next.threadId);
                 }
             },
 
@@ -1168,7 +1203,14 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
                                         key={email.id}
                                         email={email}
                                         position={row + 1}
-                                        open={workspace.selection === email.id}
+                                        open={
+                                            workspace.selection === email.id ||
+                                            // A draft opens in the composer rather than in the pane, so the composer
+                                            // is what says which row is the open one.
+                                            (composing.opening?.kind === 'draft' &&
+                                                (composing.opening.storedEmailId === email.id ||
+                                                    composing.filedAs === email.id))
+                                        }
                                         selected={workspace.selected.includes(email.id)}
                                         focusable={row === focusedRow}
                                         arrived={arrivedRows.has(email.id)}

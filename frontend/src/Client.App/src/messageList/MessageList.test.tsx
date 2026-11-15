@@ -41,6 +41,7 @@ const work: MailAccount = {
     behind: false,
     filesJunk: false,
     marksExternalMail: false,
+    sendingAddress: null,
     shared: false,
     synchronizationStateSince: null,
     behindSince: null,
@@ -165,7 +166,14 @@ function ListOpeningIntoTheWorkspace(drawn: {
 
 // Writing a message is offered from the row's own menu, so the list is drawn under something that answers for it. It
 // records rather than composes: what a menu item does is ask, and what the composer does with the ask is its own test.
-const composing: Composing = { offered: true, drafts: false, opening: null, compose: vi.fn(), close: vi.fn() };
+const composing: Composing = {
+    offered: true,
+    drafts: false,
+    opening: null,
+    filedAs: null,
+    compose: vi.fn(),
+    close: vi.fn(),
+};
 
 function listUnder(
     transport: MailFathomTransport,
@@ -175,12 +183,13 @@ function listUnder(
         online = true,
         changes = nothingSignalled,
         acts = nothingActed,
+        writing = composing,
     }: Partial<Drawn> = {},
 ): ReactElement {
     return (
         <LocalizationProvider>
             <ToastsProvider>
-                <ComposingContext value={composing}>
+                <ComposingContext value={writing}>
                     <MailboxActsContext value={acts}>
                         <WorkspaceProvider>
                             <SignalledChangesContext value={changes}>
@@ -208,6 +217,9 @@ interface Drawn {
     readonly online: boolean;
     readonly changes: SignalledChanges;
     readonly acts: MailboxActs;
+
+    /** What is being written, where a test says the composer is open on something. */
+    readonly writing: Composing;
 }
 
 /** A deployment a test speaks for, so what a signal does to the list is asserted rather than waited for. */
@@ -1061,6 +1073,23 @@ describe('MessageList', () => {
         expect(carried().selection).toBeNull();
     });
 
+    // A draft opens in the composer, so nothing in the workspace names it as open: the composer is what says which
+    // row is the open one, by the message it was opened on and by the message its draft is filed as since the last save.
+    it.each([
+        { said: 'the message it was opened on', filedAs: null, open: 2 },
+        { said: 'the message its draft is filed as after a save', filedAs: 'message-4', open: 4 },
+    ])('draws the draft open in the composer as the open row, by $said', async ({ filedAs, open }) => {
+        renderList(answering(wholeFolder), {
+            acts: { ...nothingActed, folderRoleOf: () => 'Drafts', holdsDraft: () => true },
+            writing: { ...composing, opening: { kind: 'draft', storedEmailId: 'message-2' }, filedAs },
+        });
+
+        await rows();
+
+        expect(row(open).getAttribute('aria-current')).toBe('true');
+        expect(row(0).getAttribute('aria-current')).toBeNull();
+    });
+
     // What makes a message one to carry on writing is the folder it stands in, never what it once was: a draft deleted
     // into the trash is mail to read there, and opening it in the composer would edit something already thrown away.
     it('opens a draft standing in the trash in the reading pane, as the mail it is there', async () => {
@@ -1335,6 +1364,83 @@ describe('MessageList', () => {
         });
 
         expect(document.activeElement).toBe(drawn[0]);
+    });
+
+    // Whatever asked a message out of the folder — a control, a menu, a swipe, a drop on a folder — says so to the list,
+    // which is what holds the selection's rows and knows which row comes next.
+    describe('told that messages were asked out of the folder', () => {
+        async function listedUnder(): Promise<() => ListedMailbox | null | undefined> {
+            const asked: (ListedMailbox | null)[] = [];
+            const listed = {
+                ...nothingListed,
+                listing: (list: ListedMailbox | null) => {
+                    asked.push(list);
+                },
+            };
+
+            render(<ListedMailContext value={listed}>{listUnder(answering(wholeFolder))}</ListedMailContext>);
+            await rows();
+
+            return () => asked.at(-1);
+        }
+
+        function openRow(at: number): void {
+            const list = screen.getByRole('listbox', { name: 'Messages' });
+
+            for (let moved = 0; moved < at; moved += 1) {
+                fireEvent.keyDown(list, { key: 'ArrowDown' });
+            }
+
+            fireEvent.keyDown(list, { key: 'Enter' });
+        }
+
+        it('lets go of them in the selection and keeps the rest picked out', async () => {
+            const list = await listedUnder();
+
+            act(() => {
+                list()?.selectAll();
+            });
+            act(() => {
+                list()?.left(['message-1', 'message-3']);
+            });
+
+            expect(carried().selected).toHaveLength(rowsPerPage - 2);
+            expect(carried().selected).not.toContain('message-1');
+            expect(carried().selected).not.toContain('message-3');
+        });
+
+        it('opens the message after the open one where the open one is among them', async () => {
+            const list = await listedUnder();
+
+            openRow(1);
+            act(() => {
+                list()?.left(['message-1', 'message-2']);
+            });
+
+            expect(carried().selection).toBe('message-3');
+        });
+
+        it('opens the message before the open one where nothing stands after it', async () => {
+            const list = await listedUnder();
+
+            openRow(rowsPerPage - 1);
+            act(() => {
+                list()?.left([`message-${String(rowsPerPage - 1)}`]);
+            });
+
+            expect(carried().selection).toBe(`message-${String(rowsPerPage - 2)}`);
+        });
+
+        it('leaves the open message open where it is not among them', async () => {
+            const list = await listedUnder();
+
+            openRow(1);
+            act(() => {
+                list()?.left(['message-4']);
+            });
+
+            expect(carried().selection).toBe('message-1');
+        });
     });
 
     it('moves through the list from the keyboard without picking out what it moves onto', async () => {

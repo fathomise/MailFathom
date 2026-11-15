@@ -50,14 +50,14 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
             return [];
         }
 
-        var trashedFolderIds = await StoredTrashedFolders.ReadAsync(
+        var putAwayFolderIds = await StoredPutAwayFolders.ReadAsync(
             dbContext.MailFolders,
             [.. scope.AccountIds.Select(static accountId => accountId.Value)],
             cancellationToken);
         string[] readerForms = [.. readerAddresses.Select(static address => address.NormalizedAddress).Distinct(StringComparer.Ordinal)];
         var emails = dbContext.StoredEmails.AsNoTracking();
 
-        var grouped = await GroupedPage(emails, filter, trashedFolderIds, continueAfter, limit).ToArrayAsync(cancellationToken);
+        var grouped = await GroupedPage(emails, filter, putAwayFolderIds, continueAfter, limit).ToArrayAsync(cancellationToken);
 
         if (grouped.Length is 0)
         {
@@ -127,14 +127,15 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
     /// <summary>Groups the mail a filter lets through by conversation and reads one walk of the conversations it keeps listed.</summary>
     /// <param name="emails">The stored mail.</param>
     /// <param name="filter">The list's filters and account scope, junk included, and the direction the walk reads in.</param>
-    /// <param name="trashedFolderIds">The folders in Trash of every account in the scope.</param>
+    /// <param name="putAwayFolderIds">The folders in Trash or in Archive of every account in the scope, as <see cref="StoredPutAwayFolders" /> reads them.</param>
     /// <param name="continueAfter">The position the walk continues beyond, or <see langword="null" />.</param>
     /// <param name="limit">How many conversations to read at most.</param>
     /// <returns>The query, which PostgreSQL evaluates in full.</returns>
     /// <remarks>
     /// <para>
-    /// A conversation stands at its newest message that passes the filter and is neither judged spam nor in Trash, which
-    /// is <see cref="StoredEmailSelectionPredicate.Matching" /> narrowed by the rule that keeps a conversation listed.
+    /// A conversation stands at its newest message that passes the filter and is neither judged spam, nor in Trash, nor
+    /// in Archive, which is <see cref="StoredEmailSelectionPredicate.Matching" /> narrowed by the rule that keeps a
+    /// conversation listed.
     /// The newest is the one the newest-first timeline reads first: dated before undated, then latest, then the highest
     /// identifier, so its arrival is the group's latest and its identifier breaks the tie. The keyset and the order are
     /// the timeline's own over that pair, which is what lets a grouped page carry a message list's cursor.
@@ -150,7 +151,7 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
     internal static IQueryable<StoredGroupedThreadRow> GroupedPage(
         IQueryable<StoredEmailEntity> emails,
         EmailTimelineFilter filter,
-        Guid[] trashedFolderIds,
+        Guid[] putAwayFolderIds,
         EmailTimelinePosition? continueAfter,
         int limit)
     {
@@ -158,7 +159,7 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
             emails.Where(static email => email.EmailThreadId != null),
             filter.Selection);
         var conversations = StoredEmailSelectionPredicate.WithoutMailJudgedSpam(passing, filter.Selection.Scope.JunkFolders)
-            .Where(email => !trashedFolderIds.Contains(email.FolderId))
+            .Where(email => !putAwayFolderIds.Contains(email.FolderId))
             .GroupBy(static email => email.EmailThreadId!.Value)
             .Select(static conversation => new
             {

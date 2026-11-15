@@ -9,6 +9,7 @@ import {
     bodiesOf,
     folder,
     fromTheMenu,
+    messageRegion,
     notice,
     openSignedIn,
     openTheArchive,
@@ -16,6 +17,7 @@ import {
     phoneWindow,
     refreshInterval,
     row,
+    subjectOf,
     test,
 } from './client.harness';
 import type { FakeDeployment } from './fakeDeployment';
@@ -380,6 +382,133 @@ test('deletes one open message and files another from the toolbar, and each fold
     await folder(page, '2024').click();
     await expect(page.getByRole('listbox', { name: 'Messages' }).getByRole('option')).toHaveCount(1);
     await expect(row(page, 'Message 8')).toBeVisible();
+});
+
+// Which message is open is the workspace's, the row drawn as the open one is the list's, and the act is asked from a
+// toolbar, a menu, or a folder of the tree — so a message filed elsewhere while it is open is three components
+// agreeing on what the reader is handed next: the row after it, the row before it at the foot of the list, and
+// nothing once nothing stays. The corpus answers every message of the generated folder with one body, so which
+// message the pane holds is read off the request the page made for it rather than off words all of them share.
+
+/** That the list draws this row as the open one, and that the pane asked the deployment for the message it is. */
+async function isTheOpenOne(page: Page, deployment: FakeDeployment, subject: string): Promise<void> {
+    const storedEmailId = subject.toLowerCase().replace(' ', '-');
+
+    await expect(leaving(page, subject)).toHaveAttribute('aria-current', 'true');
+    await expect.poll(() => deployment.requests('GET', `/messages/${storedEmailId}`).length).toBeGreaterThan(0);
+    await expect(page.getByRole('article', messageRegion)).toBeVisible();
+}
+
+test('opens the next message when the open one is archived from the toolbar or deleted from its menu, and leaves it open when another row goes', async ({
+    page,
+    deployment,
+}) => {
+    await openTheInbox(page, deployment);
+
+    await row(page, 'Message 7').click();
+    await isTheOpenOne(page, deployment, 'Message 7');
+
+    await page.getByRole('toolbar', { name: 'Mail actions' }).getByRole('button', { name: 'Archive' }).click();
+
+    await expect(notice(page, 'Archived')).toContainText('1 message');
+    await expect(leaving(page, 'Message 7')).toHaveCount(0);
+    await isTheOpenOne(page, deployment, 'Message 8');
+
+    // The message the list opened by itself is acted on from its own row, and the list moves on again.
+    await fromTheMenu(page, 'Message 8', 'Delete');
+    await page
+        .getByRole('dialog', { name: 'Delete 1 message?' })
+        .getByRole('button', { name: 'Move to the trash' })
+        .click();
+
+    await expect(notice(page, 'Moved to the trash')).toContainText('1 message');
+    await expect(leaving(page, 'Message 8')).toHaveCount(0);
+    await isTheOpenOne(page, deployment, 'Message 9');
+
+    // A row that is not the open one leaves, and the reader stays on the message they were reading.
+    await fromTheMenu(page, 'Message 6', 'Archive');
+
+    await expect(notice(page, 'Archived').filter({ hasText: '1 message' })).toHaveCount(2);
+    await expect(leaving(page, 'Message 6')).toHaveCount(0);
+    await expect(leaving(page, 'Message 9')).toHaveAttribute('aria-current', 'true');
+    await expect(leaving(page, 'Message 10')).not.toHaveAttribute('aria-current');
+    await expect(leaving(page, 'Message 5')).not.toHaveAttribute('aria-current');
+
+    expect(bodiesOf(deployment, '/mutations/moves')).toStrictEqual([
+        { moves: [{ storedEmailId: 'message-7', destinationFolder: 'FILED' }] },
+        { moves: [{ storedEmailId: 'message-8', destinationFolder: 'TRASH' }] },
+        { moves: [{ storedEmailId: 'message-6', destinationFolder: 'FILED' }] },
+    ]);
+});
+
+test('opens the row before it when the open message leaves from the foot of the list, and nothing once the list holds none', async ({
+    page,
+    deployment,
+}) => {
+    await openTheInbox(page, deployment);
+
+    // A folder of two messages, so the list has a foot a reader can stand on.
+    for (const subject of ['Message 7', 'Message 8']) {
+        await fromTheMenu(page, subject, 'Archive');
+        await expect(leaving(page, subject)).toHaveCount(0);
+    }
+
+    await openTheArchive(page);
+
+    const listed = page.getByRole('listbox', { name: 'Messages' }).getByRole('option');
+    const toolbar = page.getByRole('toolbar', { name: 'Mail actions' });
+    const question = page.getByRole('dialog', { name: 'Delete 1 message?' });
+
+    await expect(listed).toHaveCount(2);
+
+    const above = subjectOf((await listed.first().textContent()) ?? '');
+    const atTheFoot = subjectOf((await listed.last().textContent()) ?? '');
+
+    await listed.last().click();
+    await isTheOpenOne(page, deployment, atTheFoot);
+
+    await toolbar.getByRole('button', { name: 'Delete' }).click();
+    await question.getByRole('button', { name: 'Move to the trash' }).click();
+
+    await expect(leaving(page, atTheFoot)).toHaveCount(0);
+    await isTheOpenOne(page, deployment, above);
+
+    // The last message of the folder leaves it open, and there is none to hand the reader in its place.
+    await toolbar.getByRole('button', { name: 'Delete' }).click();
+    await question.getByRole('button', { name: 'Move to the trash' }).click();
+
+    await expect(page.getByText('There is no mail in this folder.')).toBeVisible();
+    await expect(listed).toHaveCount(0);
+    await expect(page.getByRole('article', messageRegion)).toHaveCount(0);
+
+    await folder(page, 'Trash').click();
+    await expect(listed).toHaveCount(2);
+});
+
+test('opens the next message when the open one is dragged onto a folder', async ({ page, deployment }) => {
+    await openTheInbox(page, deployment);
+
+    // The level the corpus files that folder under arrives shut, so it is opened the way a reader opens it.
+    await page.getByRole('treeitem', { name: 'Archive', expanded: false }).click();
+    await page.keyboard.press('ArrowRight');
+    await expect(folder(page, '2024')).toBeVisible();
+
+    await row(page, 'Message 7').click();
+    await isTheOpenOne(page, deployment, 'Message 7');
+
+    await row(page, 'Message 7').dragTo(folder(page, '2024'));
+
+    await expect(notice(page, 'Filed in “Archive / 2024”')).toContainText('1 message');
+    await expect(leaving(page, 'Message 7')).toHaveCount(0);
+    await isTheOpenOne(page, deployment, 'Message 8');
+
+    expect(bodiesOf(deployment, '/mutations/moves')).toStrictEqual([
+        { moves: [{ storedEmailId: 'message-7', destinationFolder: 'ARCHIVE/2024' }] },
+    ]);
+
+    await folder(page, '2024').click();
+    await expect(page.getByRole('listbox', { name: 'Messages' }).getByRole('option')).toHaveCount(1);
+    await expect(row(page, 'Message 7')).toBeVisible();
 });
 
 test.describe('at the phone composition', () => {

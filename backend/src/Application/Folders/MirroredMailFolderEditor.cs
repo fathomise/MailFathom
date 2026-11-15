@@ -209,6 +209,10 @@ public sealed class MirroredMailFolderEditor
                     await this.DeclareFolderRowsAsync(
                         account,
                         [.. folders, MailFolderMapping.ToRemotePath(alias, created, specialUse: role)]);
+
+                    // The declaration gives the folder its row and nothing more; this is what puts that row beneath
+                    // its parent under its own name before the act is reported.
+                    await this.PlaceFolderRowAsync(account, alias, created, role);
                 }
 
                 return declared;
@@ -467,7 +471,11 @@ public sealed class MirroredMailFolderEditor
 
                 if (written.Refusal is null)
                 {
-                    await this.PlaceFolderRowAsync(account, acting, moved);
+                    await this.PlaceFolderRowAsync(
+                        account,
+                        acting.Alias,
+                        moved,
+                        acting.Folders.FirstOrDefault(folder => folder.Alias == acting.Alias)?.SpecialUse);
                 }
 
                 return written;
@@ -534,8 +542,6 @@ public sealed class MirroredMailFolderEditor
     /// still missing. One that loses twice is left to the account's next run, and the act reports the conflict rather
     /// than a folder it cannot name.
     /// </remarks>
-    // A created folder's row starts at the top of the hierarchy and takes its place beneath its parent on the
-    // account's next run, which binds it; project it from the created path here if that wait shows on screen.
     private async Task DeclareFolderRowsAsync(MailAccountId account, IReadOnlyList<MailFolderMapping> declared)
     {
         for (var attempt = 1; attempt <= RowDeclarationAttempts; attempt++)
@@ -553,15 +559,17 @@ public sealed class MirroredMailFolderEditor
         }
     }
 
-    /// <summary>Puts a renamed or moved folder's row where the act put the folder, so the act's own re-read draws it there.</summary>
+    /// <summary>Puts a created, renamed, or moved folder's row where the act put the folder, so the act's own re-read draws it there.</summary>
     /// <remarks>A competing writer reaching the row first is left to win: the account's next run places it again.</remarks>
-    private async Task PlaceFolderRowAsync(MailAccountId account, ActableFolder acting, RemoteFolderPath moved)
+    private async Task PlaceFolderRowAsync(
+        MailAccountId account,
+        MailFolderAlias folderAlias,
+        RemoteFolderPath placedAt,
+        MailFolderSpecialUse? role)
     {
-        var role = acting.Folders.FirstOrDefault(folder => folder.Alias == acting.Alias)?.SpecialUse;
-
         try
         {
-            await this.folderRows.PlaceFolderAsync(account, acting.Alias, moved, role, CancellationToken.None);
+            await this.folderRows.PlaceFolderAsync(account, folderAlias, placedAt, role, CancellationToken.None);
         }
         catch (PersistenceConcurrencyConflictException)
         {

@@ -4,9 +4,11 @@
 
 using MailFathom.Application.Access.Organizations;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Host.Api;
 using MailFathom.TestSupport;
@@ -31,6 +33,8 @@ public sealed class ClientMailAccountsEndpointTests
 
     private static readonly ISpamActionSettingsReader NoSpamActions = SpamActionsFor(filingAccount: null);
 
+    private static readonly IOutgoingSenderIdentityReader NoSenders = Substitute.For<IOutgoingSenderIdentityReader>();
+
     private static readonly IReadOnlySet<MailAccountId> NoneShared = new HashSet<MailAccountId>();
 
     private static readonly IReadOnlySet<MailAccountId> NoneMarking = new HashSet<MailAccountId>();
@@ -48,7 +52,7 @@ public sealed class ClientMailAccountsEndpointTests
         var directory = Directory(Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoSenders, NoneShared, NoneMarking);
 
         // Assert
         Assert.True(response.SynchronizationEnabled);
@@ -65,7 +69,8 @@ public sealed class ClientMailAccountsEndpointTests
                 BehindSince: null,
                 WaitingChangeCount: 0,
                 OldestWaitingChangeCommittedAt: null,
-                MarksExternalMail: false),
+                MarksExternalMail: false,
+                SendingAddress: null),
             Assert.Single(response.Accounts));
     }
 
@@ -81,7 +86,7 @@ public sealed class ClientMailAccountsEndpointTests
         var directory = Directory(Freshness(Work, state, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoSenders, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(state.ToString(), Assert.Single(response.Accounts).SynchronizationState);
@@ -98,7 +103,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt, behind));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoSenders, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(behind, Assert.Single(response.Accounts).Behind);
@@ -113,7 +118,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Work, MailSynchronizationState.NeverSynchronized, lastSynchronizedAt: null));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoSenders, NoneShared, NoneMarking);
 
         // Assert
         Assert.Null(Assert.Single(response.Accounts).LastSynchronizedAt);
@@ -129,7 +134,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoSenders, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(
@@ -145,7 +150,7 @@ public sealed class ClientMailAccountsEndpointTests
         var directory = new MailAccountFreshnessDirectory(SynchronizationEnabled: true, []);
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoSenders, NoneShared, NoneMarking);
 
         // Assert
         Assert.Empty(response.Accounts);
@@ -168,7 +173,7 @@ public sealed class ClientMailAccountsEndpointTests
         });
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoSenders, NoneShared, NoneMarking);
 
         // Assert
         var account = Assert.Single(response.Accounts);
@@ -200,7 +205,7 @@ public sealed class ClientMailAccountsEndpointTests
             ]));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoSenders, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(
@@ -216,7 +221,8 @@ public sealed class ClientMailAccountsEndpointTests
                 BehindSince: null,
                 WaitingChangeCount: 0,
                 OldestWaitingChangeCommittedAt: null,
-                MarksExternalMail: false),
+                MarksExternalMail: false,
+                SendingAddress: null),
             Assert.Single(response.Accounts));
     }
 
@@ -230,7 +236,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Private, MailSynchronizationState.Synchronized, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, SpamActionsFor(filingAccount: Work), NoneShared, NoneMarking);
+        var response = ClientMailAccountsResponse.For(directory, SpamActionsFor(filingAccount: Work), NoSenders, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal([true, false], response.Accounts.Select(account => account.FilesJunk));
@@ -246,7 +252,7 @@ public sealed class ClientMailAccountsEndpointTests
             Freshness(Private, MailSynchronizationState.Synchronized, SynchronizedAt));
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, new HashSet<MailAccountId> { Work.Id }, NoneMarking);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoSenders, new HashSet<MailAccountId> { Work.Id }, NoneMarking);
 
         // Assert
         Assert.Equal([true, false], response.Accounts.Select(account => account.Shared));
@@ -265,6 +271,7 @@ public sealed class ClientMailAccountsEndpointTests
         var response = await ClientMailAccountsResponse.ForAsync(
             directory,
             NoSpamActions,
+            NoSenders,
             AssignmentsSharing(Work),
             OrganizationsMarking(),
             TestContext.Current.CancellationToken);
@@ -289,12 +296,36 @@ public sealed class ClientMailAccountsEndpointTests
         var response = await ClientMailAccountsResponse.ForAsync(
             directory,
             NoSpamActions,
+            NoSenders,
             AssignmentsSharing(Work),
             OrganizationsMarking(Work),
             TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal([true, false], response.Accounts.Select(account => account.MarksExternalMail));
+    }
+
+    /// <summary>
+    /// An account says which address its mail is written from, as configuration wrote it, because a client leaves that
+    /// address out of a reply to all; an account configuring no address to send from carries none rather than a guess.
+    /// </summary>
+    [Fact]
+    public void For_AnAccountThatSendsFromAnAddress_CarriesItAndAnAccountThatConfiguresNoneCarriesNone()
+    {
+        // Arrange
+        var directory = Directory(
+            Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt),
+            Freshness(Private, MailSynchronizationState.Synchronized, SynchronizedAt));
+        Assert.True(EmailAddress.TryCreate("Iris Marlow", "Iris.Marlow@example.invalid", out var address));
+        var senders = Substitute.For<IOutgoingSenderIdentityReader>();
+        senders.FindSenderIdentity(Arg.Any<MailAccountId>()).Returns((OutgoingSenderIdentity?)null);
+        senders.FindSenderIdentity(Work.Id).Returns(OutgoingSenderIdentity.Create(Work.Id, address));
+
+        // Act
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, senders, NoneShared, NoneMarking);
+
+        // Assert
+        Assert.Equal(["Iris.Marlow@example.invalid", null], response.Accounts.Select(account => account.SendingAddress));
     }
 
     /// <summary>The deployment-wide switch is reported beside the accounts, because no per-account value carries it.</summary>
@@ -309,7 +340,7 @@ public sealed class ClientMailAccountsEndpointTests
             [Freshness(Work, MailSynchronizationState.Synchronized, SynchronizedAt)]);
 
         // Act
-        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared, NoneMarking);
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoSenders, NoneShared, NoneMarking);
 
         // Assert
         Assert.Equal(synchronizationEnabled, response.SynchronizationEnabled);

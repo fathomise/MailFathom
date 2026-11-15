@@ -1570,6 +1570,7 @@ public sealed class ClientMailMutationsEndpointTests
             Idempotency(),
             new MailboxCustodianComposition(new FakeTimeProvider(RecordedAt)).CrossAccountFiler,
             new InMemoryMailDraftStore(),
+            new MailboxCustodianComposition(new FakeTimeProvider(RecordedAt)).DraftFiler,
             new FakeTimeProvider(RecordedAt));
     }
 
@@ -1650,7 +1651,8 @@ public sealed class ClientMailMutationsEndpointTests
             new MailAccountRunSignal(),
             new FakeTimeProvider(RecordedAt),
             Idempotency(),
-            new InMemoryMailDraftStore());
+            new InMemoryMailDraftStore(),
+            new MailboxCustodianComposition(new FakeTimeProvider(RecordedAt)).DraftFiler);
     }
 
     /// <summary>Builds the preferences the delete route reads the withdrawal window from.</summary>

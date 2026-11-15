@@ -21,6 +21,10 @@ public sealed class StoredTrashedFoldersTests
 
     private static readonly Guid Projects = Guid.Parse("0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7b05");
 
+    private static readonly Guid Archive = Guid.Parse("0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7b06");
+
+    private static readonly Guid ArchivedYear = Guid.Parse("0199c1a2-6f3e-7a41-8b2d-5e9f0c4d7b07");
+
     /// <summary>A deleted folder is moved beneath Trash, so its mail and its subfolders' mail count as deleted too.</summary>
     [Fact]
     public void Within_FoldersBeneathTrash_AreInTrashBesideTrashItself()
@@ -40,6 +44,25 @@ public sealed class StoredTrashedFoldersTests
 
         // Assert
         Assert.Equal([Trash, Deleted, DeletedChild], trashed.Order());
+    }
+
+    /// <summary>Archived mail is kept rather than deleted, so the Archive and what sits beneath it stay outside Trash.</summary>
+    [Fact]
+    public void Within_FoldersBeneathArchive_AreNotInTrash()
+    {
+        // Arrange
+        StoredTrashedFolders.StoredFolderRole[] folders =
+        [
+            new(Trash, null, MailFolderSpecialUse.Trash),
+            new(Archive, null, MailFolderSpecialUse.Archive),
+            new(ArchivedYear, Archive, null),
+        ];
+
+        // Act
+        var trashed = StoredTrashedFolders.Within(folders);
+
+        // Assert
+        Assert.Equal(Trash, Assert.Single(trashed));
     }
 
     /// <summary>A chain broken by an erased parent or corrupted into a loop ends outside Trash rather than spinning.</summary>

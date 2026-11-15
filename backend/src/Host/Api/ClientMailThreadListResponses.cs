@@ -11,7 +11,7 @@ namespace MailFathom.Host.Api;
 /// <summary>One row of the mail list read by conversation.</summary>
 /// <param name="ThreadId">The conversation, which the conversation route opens it by.</param>
 /// <param name="Account">The account that holds it, as the accounts route names it.</param>
-/// <param name="MessageCount">How many of its messages the user may read, Spam and Trash included.</param>
+/// <param name="MessageCount">How many of its messages the user may read, Spam, Trash, and Archive included.</param>
 /// <param name="UnreadCount">How many of those somebody other than the user sent and the user has not read; the conversation is unread while this is above zero.</param>
 /// <param name="HasAttachments">Whether any of its messages carries an attachment.</param>
 /// <param name="Participants">Who wrote into it, in the order they first did, at most eight.</param>

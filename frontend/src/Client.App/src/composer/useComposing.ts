@@ -35,6 +35,12 @@ export interface Composing {
     /** What is being written, or `null` where the composer is closed. */
     readonly opening: ComposerOpening | null;
 
+    /**
+     * The message the drafts folder shows the open composer's draft as, or `null` where the composer is closed or the
+     * draft is filed as none. Every save files the draft as another message, so this is what follows it.
+     */
+    readonly filedAs: string | null;
+
     /** Opens the composer on a message of its own or on an answer to one. */
     readonly compose: (opening: ComposerOpening) => void;
 

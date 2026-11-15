@@ -62,6 +62,14 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// move by any other reader is a move and nothing else, and a move out of the junk folder changes no verdict.
 /// </para>
 /// <para>
+/// <b>A draft's message that holds no occurrence yet is deleted by giving the draft up.</b> A revision MailFathom filed
+/// is listed before any occurrence is bound to it, so there is nothing for a record to name and no placement to commit
+/// a move of. Its author moving it into the trash — which is how a draft is deleted — is answered by
+/// <see cref="UnboundDraftDeletion" />: the message is erased rather than kept in the trash, and the account's custodian
+/// withdraws whatever copy was appended. It is the one answer here that may reach the mail server on the request, as
+/// giving a draft up by its identifier does. Any other move of such a message is still a message that is not there.
+/// </para>
+/// <para>
 /// Every refusal is a result rather than an exception, because a caller moving several messages at once acts on each
 /// answer and carries on with the rest. The one failure that is not about a message is: a caller without the grant
 /// gets no answer about any of them, which is the whole request's outcome rather than one item's.
@@ -84,6 +92,7 @@ public sealed class MailRelocationRecorder
     private readonly MailActIdempotency idempotency;
     private readonly CrossAccountFiler filer;
     private readonly IMailDraftStore drafts;
+    private readonly UnboundDraftDeletion unboundDrafts;
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the use case over the grant it asks first, the folder it files into, and the submission it writes through.</summary>
@@ -103,6 +112,7 @@ public sealed class MailRelocationRecorder
     /// <param name="idempotency">Answers a repeat of an act the person already made, and keeps the key of one that commits.</param>
     /// <param name="filer">Files a message into a folder of another account the person holds.</param>
     /// <param name="drafts">Gives up the draft a message filed out of the drafts tree is the current revision of, and tells one filed within the tree where its message went.</param>
+    /// <param name="draftFiler">Settles a draft given up through a message no occurrence was bound to yet.</param>
     /// <param name="timeProvider">Supplies the instant such a draft is given up at.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public MailRelocationRecorder(
@@ -122,6 +132,7 @@ public sealed class MailRelocationRecorder
         MailActIdempotency idempotency,
         CrossAccountFiler filer,
         IMailDraftStore drafts,
+        MailDraftFiler draftFiler,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(authorization);
@@ -140,6 +151,7 @@ public sealed class MailRelocationRecorder
         ArgumentNullException.ThrowIfNull(idempotency);
         ArgumentNullException.ThrowIfNull(filer);
         ArgumentNullException.ThrowIfNull(drafts);
+        ArgumentNullException.ThrowIfNull(draftFiler);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.authorization = authorization;
@@ -157,6 +169,7 @@ public sealed class MailRelocationRecorder
         this.idempotency = idempotency;
         this.filer = filer;
         this.drafts = drafts;
+        this.unboundDrafts = new UnboundDraftDeletion(scopeResolver, drafts, draftFiler, commitPolicy, idempotency, timeProvider);
         this.timeProvider = timeProvider;
     }
 
@@ -224,7 +237,12 @@ public sealed class MailRelocationRecorder
         // so neither answer says anything about the other.
         var assignedAccounts = await this.scopeResolver.ReadAssignedAccountsAsync(cancellationToken);
 
-        if (target is null || !this.scopeResolver.IsReadable(
+        if (target is null)
+        {
+            return await this.DeleteUnboundDraftAsync(storedEmailId, destination, reader, assignedAccounts, key, cancellationToken);
+        }
+
+        if (!this.scopeResolver.IsReadable(
                 reader,
                 assignedAccounts,
                 target.Occurrence.AccountId,
@@ -413,6 +431,57 @@ public sealed class MailRelocationRecorder
         var moved = ResultOf(submitted!, folder.Alias);
 
         return markedSpam is null ? moved : moved with { SpamMarkRecords = SpamMarkChangesOf(markedSpam) };
+    }
+
+    /// <summary>Gives up the draft a message without an occurrence shows where the move is into the trash, or answers that no such message is served.</summary>
+    /// <remarks>
+    /// The destination is judged as any other is — a folder of the draft's account the caller may read, resolving to the
+    /// folder that plays the trash role — and every other destination leaves the answer what it was, because a move
+    /// within the drafts tree has no placement to commit yet and a move anywhere else is refused of a draft anyway.
+    /// </remarks>
+    private async Task<AuthoredMailRelocationResult> DeleteUnboundDraftAsync(
+        StoredEmailId storedEmailId,
+        MailFolderId destination,
+        MailboxReaderKind reader,
+        IReadOnlyList<MailAccountId> assignedAccounts,
+        MailActIdempotencyKey? key,
+        CancellationToken cancellationToken)
+    {
+        var notFound = AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.MessageNotFound);
+
+        if (await this.unboundDrafts.FindAsync(storedEmailId, reader, cancellationToken) is not { } draft)
+        {
+            return notFound;
+        }
+
+        var named = (await this.folders.ReadFoldersAsync(draft.AccountId, cancellationToken))
+            .FirstOrDefault(folder => folder.Id == destination);
+
+        if (named is null
+            || ReferenceTo(named) is not { } reference
+            || !this.scopeResolver.IsReadable(reader, assignedAccounts, draft.AccountId, named.SourceFolderAlias))
+        {
+            return notFound;
+        }
+
+        var resolved = await this.destinations.ResolveAsync(draft.AccountId, [reference], cancellationToken);
+
+        if (resolved.Find(reference).Destination is not { Role: MailFolderSpecialUse.Trash })
+        {
+            return notFound;
+        }
+
+        // Applied with no folder and no record: the message was erased rather than filed, and nothing is left to follow.
+        var applied = AuthoredMailRelocationResult.DraftGivenUp();
+
+        return await this.unboundDrafts.GiveUpAsync(
+            draft,
+            storedEmailId,
+            key,
+            OutcomeOf(applied, markedSpam: null),
+            cancellationToken) is { } first
+            ? ReplayOf(first)
+            : applied;
     }
 
     /// <summary>Finds the folder a person named among the other accounts they hold and may read it in.</summary>

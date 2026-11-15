@@ -82,6 +82,7 @@ const folders = JSON.stringify({
                 behind: false,
                 filesJunk: false,
                 marksExternalMail: false,
+                sendingAddress: null,
                 shared: false,
                 synchronizationStateSince: null,
                 behindSince: null,
@@ -402,7 +403,7 @@ async function pass(milliseconds: number): Promise<void> {
 }
 
 /** A folder chosen in the move dialog, which is what asking a move again has to name a second time. */
-const chosen: MoveDestination = { folderId: 'work-archive', name: 'Archive', role: 'Archive' };
+const chosen: MoveDestination = { folderId: 'work-archive', name: 'Archive', role: 'Archive', level: 0 };
 
 afterEach(() => {
     vi.useRealTimers();
@@ -634,6 +635,28 @@ describe('MailboxActsProvider', () => {
         await screen.findByText('Moved to the trash');
     });
 
+    // The list is what holds the selection's rows and knows which row is next, so it is told at the press of every act
+    // that takes a message out of its folder — whichever surface asked — and of no act that only marks one.
+    it('tells the list which messages an act asked out of their folder, and says nothing for a flag act', async () => {
+        const deployment = deploymentAnswering();
+        const left = vi.fn();
+        const { held } = acting(deployment, { listed: { ...nothingListed, left } });
+
+        await waitFor(() => {
+            expect(held().refusalOf('archive', [invoice])).toBeNull();
+        });
+
+        perform(held, 'flag', [invoice]);
+
+        expect(left).not.toHaveBeenCalled();
+
+        perform(held, 'archive', [invoice]);
+
+        expect(left).toHaveBeenCalledExactlyOnceWith([invoice.storedEmailId]);
+
+        await screen.findByText('Archived');
+    });
+
     // Deleting from the trash is said plainly, and the way back is offered on the toast as it is for every other act
     // that takes a message out of a folder: the deployment holds the delete for as long as that toast stands.
     it('deletes a message already in the trash, saying so plainly and offering the way back', async () => {
@@ -837,7 +860,7 @@ describe('MailboxActsProvider', () => {
             expect(held().refusalOf('delete', [invoice])).toBeNull();
         });
 
-        perform(held, 'move', [invoice], { folderId: 'work-trash', name: 'Trash', role: 'Trash' });
+        perform(held, 'move', [invoice], { folderId: 'work-trash', name: 'Trash', role: 'Trash', level: 0 });
 
         await screen.findByText('Moved to the trash');
 
@@ -1737,7 +1760,7 @@ describe('MailboxActsProvider', () => {
             expect(held().folderRoleOf(invoice)).toBe('Inbox');
         });
 
-        perform(held, 'move', [invoice], { folderId: 'work-junk', name: 'Junk', role: 'Junk' });
+        perform(held, 'move', [invoice], { folderId: 'work-junk', name: 'Junk', role: 'Junk', level: 0 });
 
         expect(await screen.findByRole('dialog', { name: 'Moved to Spam' })).toBeDefined();
         expect(held().spamMarked.get('message-1')?.verdict.verdict).toBe('Spam');

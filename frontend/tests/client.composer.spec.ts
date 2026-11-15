@@ -4,7 +4,7 @@
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
-import { holdTheClock, messageRegion, openSignedIn, test } from './client.harness';
+import { actingGrants, bodiesOf, holdTheClock, messageRegion, openSignedIn, test } from './client.harness';
 import type { FakeDeployment } from './fakeDeployment';
 import * as clipboard from './fixtures/clipboard';
 import * as deploymentCorpus from './fixtures/deployment';
@@ -138,7 +138,8 @@ test('draws the footer the account chosen under From sends with, follows another
 // Each way of answering opens where the reader stands — the mailbox and the list beside it, at the same address — and
 // is addressed the way the client promises: the author, everybody, or nobody yet. What it answers travels as the
 // message's identity rather than as quoted text, because the deployment derives the subject, the threading, and what a
-// forward carries from the message itself.
+// forward carries from the message itself. The message answered here was written to the reader alone, so everybody is
+// its author and nobody else: the account's own address is never one an answer goes to.
 for (const answer of [
     { pressed: 'Reply', titled: 'Reply', answers: 'senderOnly', to: ['news@example.invalid'], cc: [], prefix: 'Re' },
     {
@@ -146,7 +147,7 @@ for (const answer of [
         titled: 'Reply to everyone',
         answers: 'everyone',
         to: ['news@example.invalid'],
-        cc: ['reader@example.invalid'],
+        cc: [],
         prefix: 'Re',
     },
     { pressed: 'Forward', titled: 'Forward', answers: 'forward', to: [], cc: [], prefix: 'Fwd' },
@@ -173,10 +174,6 @@ for (const answer of [
             await expect(composer.getByRole('button', { name: `Remove ${addressed} from To` })).toBeVisible();
         }
 
-        for (const copied of answer.cc) {
-            await expect(composer.getByRole('button', { name: `Remove ${copied} from Cc` })).toBeVisible();
-        }
-
         if (answer.to.length === 0) {
             await address(page, 'To', recipient);
         }
@@ -201,6 +198,69 @@ for (const answer of [
         expect(draftRoutesOf(deployment, 'POST', '/send')).toHaveLength(1);
     });
 }
+
+// Who an answer opens addressed to is composed from two readings that never meet in one component: the message's own
+// headers, and the address the accounts route says the mailbox writes from. The corpus's one message written to the
+// reader beside somebody else and copied to a third is the one that can tell an answer to everybody from an answer to
+// its author, and an account's own address left out from one left in.
+test('addresses a reply to the author alone, and a reply to everyone to the others it was written and copied to, never to the reader', async ({
+    page,
+    deployment,
+}) => {
+    const author = 'dispatch@kettles.invalid';
+    const alsoWrittenTo = 'yard@example.invalid';
+    const copiedTo = 'ledger@example.invalid';
+    const everyRecipient = { name: /^Remove .+ from (?:To|Cc|Bcc)$/u };
+
+    await openMailWriting(page, deployment);
+
+    const search = page.getByRole('searchbox', { name: 'Find a message' });
+
+    await search.fill('renewal');
+    await search.press('Enter');
+    await page
+        .getByRole('listbox', { name: 'What this search found' })
+        .getByRole('option', { name: new RegExp(messages.markupOnlySubject, 'u') })
+        .click();
+    await expect(page.getByRole('heading', { name: messages.markupOnlySubject, level: 2 })).toBeVisible();
+
+    const toolbar = page.getByRole('toolbar', { name: 'Mail actions' });
+    const reply = page.getByRole('region', { name: 'Reply', exact: true });
+
+    await toolbar.getByRole('button', { name: 'Reply', exact: true }).click();
+
+    await expect(reply.getByRole('button', { name: `Remove ${author} from To` })).toBeVisible();
+    await expect(reply.getByRole('button', everyRecipient)).toHaveCount(1);
+
+    await reply.getByRole('button', { name: 'Close the message' }).click();
+    await expect(reply).toHaveCount(0);
+
+    const replyToEveryone = page.getByRole('region', { name: 'Reply to everyone' });
+
+    await toolbar.getByRole('button', { name: 'Reply all', exact: true }).click();
+
+    await expect(replyToEveryone.getByRole('button', { name: `Remove ${author} from To` })).toBeVisible();
+    await expect(replyToEveryone.getByRole('button', { name: `Remove ${alsoWrittenTo} from To` })).toBeVisible();
+    await expect(replyToEveryone.getByRole('button', { name: `Remove ${copiedTo} from Cc` })).toBeVisible();
+    await expect(replyToEveryone.getByRole('button', everyRecipient)).toHaveCount(3);
+    await expect(replyToEveryone.getByRole('button', { name: /reader@example\.invalid/u })).toHaveCount(0);
+
+    // Both read the account's own address off the accounts route, which is where the deployment states it.
+    expect(deployment.requests('GET', '/accounts')).not.toHaveLength(0);
+
+    await write(page, words);
+    await send(page);
+
+    expect(deployment.requests('POST', '/drafts').map(({ body }) => body)).toStrictEqual([
+        expect.objectContaining({
+            to: [author, alsoWrittenTo],
+            cc: [copiedTo],
+            bcc: [],
+            answeredEmailId: messages.markupOnlyId,
+            answers: 'everyone',
+        }),
+    ]);
+});
 
 test('shows the copy headers, keeps what they hold while hidden, and sends nothing from them once they are hidden', async ({
     page,
@@ -305,6 +365,125 @@ test('keeps a draft with its file when the composer is left, revises that one dr
     await folders.getByRole('treeitem', { name: /^Inbox/u }).click();
     await folders.getByRole('treeitem', { name: /^Drafts/u }).click();
     await expect(kept).toHaveCount(0);
+});
+
+// A draft opens in the composer rather than in the reading pane, so nothing the pane holds says which row of Drafts is
+// the open one: the composer does, and every save files the draft as another message, so the row it names moves under
+// the list. The list and the composer are two components: the row is the first one's and the draft the second's.
+test('draws the row of the draft open in the composer as the open one, across a save that files it anew, until the composer closes', async ({
+    page,
+    deployment,
+}) => {
+    const added = ' Bay four first.';
+
+    await openMailWriting(page, deployment);
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+    await address(page, 'To', recipient);
+    await page.getByLabel('Subject').fill(subject);
+    await write(page, words);
+    await page.getByRole('button', { name: 'Close the message' }).click();
+    await page
+        .getByRole('dialog', { name: 'Discard this message?' })
+        .getByRole('button', { name: 'Save draft' })
+        .click();
+    await expect(page.getByRole('region', { name: 'New message' })).toHaveCount(0);
+
+    await openDrafts(page);
+    await expect(draftRow(page)).toBeVisible();
+    await expect(draftRow(page)).not.toHaveAttribute('aria-current');
+
+    await draftRow(page).click();
+
+    const draft = page.getByRole('region', { name: 'Draft' });
+
+    await expect(draft.getByRole('textbox', { name: 'Message' })).toHaveText(words);
+    await expect(draftRow(page)).toHaveAttribute('aria-current', 'true');
+
+    // Saved, the draft is filed as another message than the one the row was opened on.
+    await draft.getByRole('textbox', { name: 'Message' }).click();
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.type(added);
+    await draft.getByRole('button', { name: 'Save draft' }).click();
+    await expect(draft.getByText('Draft filed in your own drafts.')).toBeVisible();
+    await expect.poll(() => draftRoutesOf(deployment, 'PUT', '')).toHaveLength(1);
+
+    // Drafts read afresh lists that other message, and it is still the row the composer stands on.
+    const folders = page.getByRole('tree', { name: 'Mailboxes and folders' });
+    const listedBefore = deployment.requests('GET', '/emails').filter(({ query }) => query.get('folder') === 'DRAFTS');
+
+    await folders.getByRole('treeitem', { name: /^Inbox/u }).click();
+    await expect(page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first()).toBeVisible();
+    await expect(draftRow(page)).toHaveCount(0);
+    await openDrafts(page);
+
+    await expect(draftRow(page)).toHaveCount(1);
+    await expect(draftRow(page)).toHaveAttribute('aria-current', 'true');
+    expect(
+        deployment.requests('GET', '/emails').filter(({ query }) => query.get('folder') === 'DRAFTS').length,
+    ).toBeGreaterThan(listedBefore.length);
+    await expect(draft.getByRole('textbox', { name: 'Message' })).toHaveText(`${words}${added}`);
+
+    // Closed, nothing is open, and no row says it is.
+    await draft.getByRole('button', { name: 'Close the message' }).click();
+    await page
+        .getByRole('dialog', { name: 'Discard this message?' })
+        .getByRole('button', { name: 'Save draft' })
+        .click();
+    await expect(draft).toHaveCount(0);
+    await expect(draftRow(page)).toHaveCount(1);
+    await expect(draftRow(page)).not.toHaveAttribute('aria-current');
+});
+
+// Deleting a draft from the list is giving it up: the deployment files nothing in the trash for a message that has no
+// place on a mail server yet, so the row leaves Drafts for nowhere, and a list read afresh agrees.
+test('gives up a draft deleted from its row in Drafts, which leaves the folder for good and is filed nowhere', async ({
+    page,
+    deployment,
+}) => {
+    deployment.grant(...actingGrants);
+    await openMailWriting(page, deployment);
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+    await address(page, 'To', recipient);
+    await page.getByLabel('Subject').fill(subject);
+    await write(page, words);
+    await page.getByRole('button', { name: 'Close the message' }).click();
+    await page
+        .getByRole('dialog', { name: 'Discard this message?' })
+        .getByRole('button', { name: 'Save draft' })
+        .click();
+    await expect(page.getByRole('region', { name: 'New message' })).toHaveCount(0);
+
+    await openDrafts(page);
+    await expect(draftRow(page)).toBeVisible();
+
+    await draftRow(page).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
+    await page
+        .getByRole('dialog', { name: 'Delete 1 message?' })
+        .getByRole('button', { name: 'Move to the trash' })
+        .click();
+
+    await expect(page.getByText('There is no mail in this folder.')).toBeVisible();
+    await expect(draftRow(page)).toHaveCount(0);
+
+    // The one write is the move of the message the draft was filed as, and nothing gave the draft up a second way.
+    expect(bodiesOf(deployment, '/mutations/moves')).toStrictEqual([
+        { moves: [{ storedEmailId: expect.any(String) as unknown, destinationFolder: 'TRASH' }] },
+    ]);
+    expect(draftRoutesOf(deployment, 'DELETE', '')).toStrictEqual([]);
+
+    const folders = page.getByRole('tree', { name: 'Mailboxes and folders' });
+
+    await folders.getByRole('treeitem', { name: 'Trash', exact: true }).click();
+    await expect(folders.getByRole('treeitem', { name: 'Trash', selected: true })).toBeVisible();
+    await expect(page.getByText('There is no mail in this folder.')).toBeVisible();
+    await expect(draftRow(page)).toHaveCount(0);
+
+    await page.reload();
+    await openDrafts(page);
+
+    await expect(page.getByText('There is no mail in this folder.')).toBeVisible();
+    await expect(draftRow(page)).toHaveCount(0);
 });
 
 // What a focused field draws is read off the field and the row around it — an outline, a shadow, or an edge taking the

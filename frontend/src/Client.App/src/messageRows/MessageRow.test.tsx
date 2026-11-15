@@ -64,6 +64,7 @@ const markingAccount: MailAccount = {
     waitingChangeCount: 0,
     oldestWaitingChangeCommittedAt: null,
     marksExternalMail: true,
+    sendingAddress: null,
 };
 
 function drawMoved(moved: {

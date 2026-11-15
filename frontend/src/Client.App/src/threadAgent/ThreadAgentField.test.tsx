@@ -99,7 +99,14 @@ function drawing(
             <ToastsProvider>
                 <WorkspaceProvider>
                     <ComposingContext
-                        value={{ offered, drafts: true, opening: null, compose: composed, close: () => undefined }}
+                        value={{
+                            offered,
+                            drafts: true,
+                            opening: null,
+                            filedAs: null,
+                            compose: composed,
+                            close: () => undefined,
+                        }}
                     >
                         <AgentHandOverContext value={handToAgent}>
                             <Standing as={{ selection: answering, ...as }} />

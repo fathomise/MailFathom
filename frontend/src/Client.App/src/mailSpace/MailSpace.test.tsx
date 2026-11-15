@@ -156,6 +156,7 @@ const nothingBeingWritten = {
     offered: false,
     drafts: false,
     opening: null,
+    filedAs: null,
     compose: () => undefined,
     close: () => undefined,
 };

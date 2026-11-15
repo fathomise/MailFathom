@@ -40,7 +40,14 @@ const openingName = 'Open the Outbox';
 type Send = (typeof outbox.outboxPage.sends)[number];
 
 // What the Outbox opens the composer through, which is where a send taken back to edit goes.
-const composing: Composing = { offered: true, drafts: false, opening: null, compose: vi.fn(), close: vi.fn() };
+const composing: Composing = {
+    offered: true,
+    drafts: false,
+    opening: null,
+    filedAs: null,
+    compose: vi.fn(),
+    close: vi.fn(),
+};
 
 /** A deployment holding the corpus Outbox, applying what each decision does to it, and recording every request. */
 function deployment(sends: readonly Send[] = outbox.outboxPage.sends, refusing = false) {
