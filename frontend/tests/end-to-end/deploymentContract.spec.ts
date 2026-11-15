@@ -31,6 +31,9 @@ test.afterAll(async () => {
 
 for (const contractCase of contractCases) {
     test(contractCase.title, async () => {
+        // Each wait a case holds is bounded and named in `../deploymentContract.ts`; this sits above the longest sum of
+        // them, the managed-folder case's five two-minute reads, so a slow run fails on the wait that ran out.
+        test.setTimeout(12 * 60_000);
         await contractCase.run(
             new ContractDeployment({
                 ask: async (method, route, body) => {

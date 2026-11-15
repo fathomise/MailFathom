@@ -20,7 +20,9 @@ namespace MailFathom.Application.Folders;
 /// <para>
 /// Each act reaches the account's mail server and is written into what the account declares only once the server has
 /// carried it out. That ordering is the whole of the rule that a refusal is never half an act: a server that says no
-/// leaves the declarations exactly as they were, so no alias is ever left naming a folder nobody made.
+/// leaves the declarations exactly as they were, so no alias is ever left naming a folder nobody made. A deletion with
+/// folders beneath it is several such acts, the deepest first, so a refusal part of the way through leaves the folders
+/// already deleted withdrawn and the rest declared, each half matching its server.
 /// </para>
 /// <para>
 /// It acts only on folders the account's own record declares. A folder the deployment's own configuration fixed is
@@ -410,7 +412,7 @@ public sealed class MirroredMailFolderEditor
                         mailErasureDeferred |= deletesOnServer && await this.QueueStoredMailErasureAsync(account, alias);
                     }
 
-                    reachedTheEnd = true;
+                    reachedTheEnd = withdrawn.Refusal is null;
                 }
                 finally
                 {
@@ -472,8 +474,9 @@ public sealed class MirroredMailFolderEditor
     /// <remarks>
     /// <para>
     /// The server's answer decides everything: a refusal and an unreachable server are the two failures it can produce,
-    /// and neither of them has written a declaration by the time it is caught, because the declaration is written inside
-    /// the same continuation and only after the server has answered.
+    /// and neither of them has written the declaration of the folder it was about by the time it is caught, because that
+    /// declaration is written inside the same continuation and only after the server has answered. A deletion reaching
+    /// folders beneath the one named may already have withdrawn the deeper ones, which their own server answers deleted.
     /// </para>
     /// <para>
     /// It takes no cancellation token, which is why the caller's is closed over by <paramref name="act" /> instead: the

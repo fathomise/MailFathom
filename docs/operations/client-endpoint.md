@@ -828,7 +828,9 @@ rest standing. A folder the deployment's own configuration declares rather than 
 with a folder playing a role beneath it is refused as one playing a role itself is.
 
 **The source is asked before anything is written down**, so a server that refuses an act leaves nothing changed
-anywhere and a refusal is never half an act. Each act is bounded by the same timeout and retry rules every other write
+anywhere and a refusal is never half an act. A deletion reaching folders beneath the one named is one such act per
+folder, which is why a refusal part of the way through it leaves the folders already deleted gone and the rest
+standing, as above. Each act is bounded by the same timeout and retry rules every other write
 to that server carries.
 
 Every write answers `mailErasureDeferred`, which is `true` only for an act whose mail erasure committed while the queue
