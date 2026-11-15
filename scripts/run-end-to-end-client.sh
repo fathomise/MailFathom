@@ -48,6 +48,30 @@ fi
 
 cd "$repository_root"
 
+run_directory='artifacts/end-to-end-client'
+report_directory='artifacts/end-to-end-client-report'
+run_started="$(date +%s)"
+current_step='reading what the run needs'
+
+write_report() {
+  bash scripts/write-end-to-end-client-report.sh \
+    --output "$report_directory" \
+    --commit "$(git rev-parse HEAD)" \
+    --started "$run_started" \
+    --finished "$(date +%s)" \
+    --exit-code "$1" \
+    --step "$current_step" \
+    --playwright-results "$run_directory/playwright.json" \
+    --service-log "$run_directory/service.log"
+}
+
+# Installed before the first check that can refuse the run, so a run stopped by a missing constant or a missing
+# container runtime still leaves a report naming why. `finish` takes this over once there is something to clean up.
+trap 'write_report "$?" || true' EXIT
+
+rm --recursive --force "$run_directory" "$report_directory"
+mkdir --parents "$run_directory"
+
 # What the app model decides, read out of backend/src/AppHost/OrchestrationContract.cs rather than written here. The
 # ports say where the two servers are published, the mailbox values say what the mail server was configured with, and
 # the data key is what a synthetic deployment seals its rows with — every one of them would be a silent failure if this
@@ -133,12 +157,9 @@ export MAILFATHOM_INTEGRATIONTESTS_RUN_ID="$ephemeral_run_identifier"
 ephemeral_run_prefix="${ephemeral_resource_prefix}-${ephemeral_run_identifier}"
 
 work_directory="$(mktemp --directory)"
-run_directory='artifacts/end-to-end-client'
-report_directory='artifacts/end-to-end-client-report'
-run_started="$(date +%s)"
 app_model_pid=''
 host_pid=''
-current_step='starting up'
+current_step='starting the app model'
 
 step() {
   current_step="$1"
@@ -198,18 +219,6 @@ remove_ephemeral_resources() {
   fi
 }
 
-write_report() {
-  bash scripts/write-end-to-end-client-report.sh \
-    --output "$report_directory" \
-    --commit "$(git rev-parse HEAD)" \
-    --started "$run_started" \
-    --finished "$(date +%s)" \
-    --exit-code "$1" \
-    --step "$current_step" \
-    --playwright-results "$run_directory/playwright.json" \
-    --service-log "$run_directory/service.log"
-}
-
 trap finish EXIT
 
 # Waits for a condition rather than for a duration, which is the rule every wait in this script keeps: a sleep long
@@ -242,8 +251,6 @@ wait_until() {
   return 1
 }
 
-rm --recursive --force "$run_directory" "$report_directory"
-mkdir --parents "$run_directory"
 
 step 'building the client bundle'
 
