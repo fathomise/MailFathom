@@ -1034,7 +1034,7 @@ type it carries, the `backend` or `frontend` label saying which stack the work
 lands in and the case that takes neither, the `design` label on work that changes
 `design/` and how `finish-change` holds it against the diff, the `agent:claude` or `agent:codex` marker a session
 applies when it takes one, the `Area`, `Size` and `Sprint` fields that place it on
-the board, the feature parent every issue hangs beneath, the milestone naming the epic it belongs to, the dependency relation
+the board, the feature parent an issue joins where one fits, the milestone naming the epic it belongs to, the dependency relation
 that records which issue has to land before which — distinct from both the
 sub-issue hierarchy and the `blocked` label, and read by `start-task` before it
 takes anything — the delivery table every feature parent carries those relations in, and
