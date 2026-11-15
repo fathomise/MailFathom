@@ -829,8 +829,8 @@ with a folder playing a role beneath it is refused as one playing a role itself 
 
 **The source is asked before anything is written down**, so a server that refuses an act leaves nothing changed
 anywhere and a refusal is never half an act. A deletion reaching folders beneath the one named is one such act per
-folder, which is why a refusal part of the way through it leaves the folders already deleted gone and the rest
-standing, as above. Each act is bounded by the same timeout and retry rules every other write
+folder, which is why a server refusing part of the way through it leaves the folders already deleted gone and the
+rest standing, as above. Each act is bounded by the same timeout and retry rules every other write
 to that server carries.
 
 Every write answers `mailErasureDeferred`, which is `true` only for an act whose mail erasure committed while the queue

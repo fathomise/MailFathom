@@ -21,8 +21,10 @@ namespace MailFathom.Application.Folders;
 /// Each act reaches the account's mail server and is written into what the account declares only once the server has
 /// carried it out. That ordering is the whole of the rule that a refusal is never half an act: a server that says no
 /// leaves the declarations exactly as they were, so no alias is ever left naming a folder nobody made. A deletion with
-/// folders beneath it is several such acts, the deepest first, so a refusal part of the way through leaves the folders
-/// already deleted withdrawn and the rest declared, each half matching its server.
+/// folders beneath it is several such acts, the deepest first, so a server refusing part of the way through leaves the
+/// folders already deleted withdrawn and the rest declared, each half matching its server. The one exception runs the
+/// other way and holds for a single folder too: a declaration refused after the server has deleted its folder leaves
+/// that folder gone on the server and still declared, and the refusal is what reports it.
 /// </para>
 /// <para>
 /// It acts only on folders the account's own record declares. A folder the deployment's own configuration fixed is
@@ -322,9 +324,11 @@ public sealed class MirroredMailFolderEditor
     /// <remarks>
     /// The folders beneath go first, the deepest first, because a mail server may refuse to delete a folder that still
     /// has children, and one that does not leaves them standing beneath a folder nobody declares. Each is written down as
-    /// withdrawn as soon as its server has deleted it, so a refusal part of the way through leaves the declarations
-    /// naming exactly the folders the server still holds. A folder beneath that this surface would refuse to delete on
-    /// its own refuses the whole deletion, before anything is reached.
+    /// withdrawn as soon as its server has deleted it, so a server refusing part of the way through leaves the
+    /// declarations naming exactly the folders it still holds. A withdrawal refused once the server has deleted its folder
+    /// stops the deletion there and leaves that one folder declared although the server no longer holds it, which the
+    /// refusal reports. A folder beneath that this surface would refuse to delete on its own refuses the whole deletion,
+    /// before anything is reached.
     /// </remarks>
     public async Task<MailFolderActOutcome> DeleteAsync(
         MailAccountId account,
