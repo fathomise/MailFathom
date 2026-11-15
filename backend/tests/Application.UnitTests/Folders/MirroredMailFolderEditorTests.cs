@@ -584,6 +584,67 @@ public sealed class MirroredMailFolderEditorTests
         await deployment.Jobs.Received(1).EnqueueAsync(Arg.Any<JobEnqueueRequest>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A folder is deleted with everything beneath it, the deepest first, because a server may refuse to delete a folder that still has children and a declaration left naming a folder beneath a deleted one would read as standing nowhere.</summary>
+    [Fact]
+    public async Task DeleteAsync_AFolderWithAFolderBeneathIt_DeletesAndWithdrawsTheDeepestFirstAndQueuesBothFoldersMail()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Projects/Archive", '/')));
+        deployment.Declarations.Declared.UnionWith([Projects, Archive]);
+
+        // Act
+        var outcome = await deployment.Editor.DeleteAsync(Account, Projects, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailFolderChangeKind.Deleted, outcome.Change);
+        Assert.Equal(["deleted ARCHIVE", "withdrew ARCHIVE", "deleted PROJECTS", "withdrew PROJECTS"], deployment.Log);
+        await deployment.Jobs.Received(2).EnqueueAsync(Arg.Any<JobEnqueueRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A folder beneath that no act may take away keeps the one above it too, so the deletion is refused before the server is reached.</summary>
+    [Fact]
+    public async Task DeleteAsync_AFolderWithARoleFolderBeneathIt_IsRefusedAsProtectedAndTouchesNothing()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
+            MailFolderMapping.ToRemotePath(
+                MailFolderAlias.Create("Trash"),
+                RemoteFolderPath.Create("Projects/Trash", '/'),
+                specialUse: MailFolderSpecialUse.Trash));
+        deployment.Declarations.Declared.UnionWith([Projects, MailFolderAlias.Create("Trash")]);
+
+        // Act
+        var outcome = await deployment.Editor.DeleteAsync(Account, Projects, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailFolderActRefusal.ProtectedRole, outcome.Refusal);
+        Assert.Empty(deployment.Log);
+    }
+
+    /// <summary>What an operator declared beneath a person's folder is still the operator's, so the deletion that would take it is refused.</summary>
+    [Fact]
+    public async Task DeleteAsync_AFolderWithAFolderTheDeploymentDeclaresBeneathIt_IsRefusedAndTouchesNothing()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Projects/Archive", '/')));
+        deployment.Declarations.Declared.Add(Projects);
+
+        // Act
+        var outcome = await deployment.Editor.DeleteAsync(Account, Projects, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailFolderActRefusal.NotDeclaredByTheAccount, outcome.Refusal);
+        Assert.Empty(deployment.Log);
+    }
+
     /// <summary>Marking deleted reaches the server not at all, and the folder's mail stays stored against the day it is declared again.</summary>
     [Fact]
     public async Task DeleteAsync_TheAccountMarksDeletedOnly_WithdrawsItWithoutReachingTheServerOrTheMail()

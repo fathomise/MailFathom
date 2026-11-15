@@ -312,11 +312,18 @@ public sealed class MirroredMailFolderEditor
                 cancellationToken);
     }
 
-    /// <summary>Deletes a folder, on the mail server as well where the account's setting says so.</summary>
+    /// <summary>Deletes a folder with every folder beneath it, on the mail server as well where the account's setting says so.</summary>
     /// <param name="account">The account, by its generated identifier.</param>
     /// <param name="folderAlias">The folder.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The folder as it stood at its deletion, or the refusal.</returns>
+    /// <remarks>
+    /// The folders beneath go first, the deepest first, because a mail server may refuse to delete a folder that still
+    /// has children, and one that does not leaves them standing beneath a folder nobody declares. Each is written down as
+    /// withdrawn as soon as its server has deleted it, so a refusal part of the way through leaves the declarations
+    /// naming exactly the folders the server still holds. A folder beneath that this surface would refuse to delete on
+    /// its own refuses the whole deletion, before anything is reached.
+    /// </remarks>
     public async Task<MailFolderActOutcome> DeleteAsync(
         MailAccountId account,
         MailFolderAlias folderAlias,
@@ -331,10 +338,31 @@ public sealed class MirroredMailFolderEditor
             return MailFolderActOutcome.Refused(refusal);
         }
 
-        var disposition = this.deleteDispositions.GetAuthoredFolderDeleteDisposition(account);
-        var change = disposition is AuthoredFolderDeleteDisposition.DeleteOnServer
-            ? MailFolderChangeKind.Deleted
-            : MailFolderChangeKind.MarkedDeleted;
+        var beneath = acting.Folders
+            .Where(folder => folder.Alias != folderAlias && folder.RemotePath is { } path && path.IsWithin(acting.Path))
+            .ToArray();
+
+        if (beneath.Any(static folder => folder.SpecialUse is not null))
+        {
+            return MailFolderActOutcome.Refused(MailFolderActRefusal.ProtectedRole);
+        }
+
+        var declared = await this.declarations.AliasesTheAccountDeclaresAsync(account, cancellationToken);
+
+        if (beneath.Any(folder => !declared.Contains(folder.Alias)))
+        {
+            return MailFolderActOutcome.Refused(MailFolderActRefusal.NotDeclaredByTheAccount);
+        }
+
+        var deletesOnServer = this.deleteDispositions.GetAuthoredFolderDeleteDisposition(account)
+            is AuthoredFolderDeleteDisposition.DeleteOnServer;
+        (MailFolderAlias Alias, RemoteFolderPath Path)[] deepestFirst =
+        [
+            .. beneath
+                .Select(static folder => (folder.Alias, Path: folder.RemotePath!))
+                .OrderByDescending(static folder => folder.Path.ToHierarchyLevels().Count),
+            (folderAlias, acting.Path),
+        ];
 
         var deleted = new ManagedMailFolder(
             folderAlias.Value,
@@ -342,36 +370,68 @@ public sealed class MirroredMailFolderEditor
             acting.Path.ToHierarchyLevels()[^1],
             Role: null,
             []);
+        var mailErasureDeferred = false;
 
         return await this.CarryOutAsync(
             account,
-            change,
+            deletesOnServer ? MailFolderChangeKind.Deleted : MailFolderChangeKind.MarkedDeleted,
             async () =>
             {
-                if (disposition is AuthoredFolderDeleteDisposition.DeleteOnServer)
+                var withdrawnAliases = new HashSet<MailFolderAlias>();
+                var withdrawn = MailFolderDeclarationOutcome.Committed;
+                var reachedTheEnd = false;
+
+                try
                 {
-                    await this.editor.DeleteFolderAsync(
-                        account,
-                        folderAlias,
-                        acting.Path,
-                        this.transportPolicies.GetPolicy(account),
-                        cancellationToken);
+                    foreach (var (alias, path) in deepestFirst)
+                    {
+                        if (deletesOnServer)
+                        {
+                            await this.editor.DeleteFolderAsync(
+                                account,
+                                alias,
+                                path,
+                                this.transportPolicies.GetPolicy(account),
+                                cancellationToken);
+                        }
+
+                        withdrawn = await this.declarations.WithdrawAsync(account, alias, CancellationToken.None);
+
+                        if (withdrawn.Refusal is not null)
+                        {
+                            break;
+                        }
+
+                        withdrawnAliases.Add(alias);
+
+                        // Queued once its declaration is withdrawn, as a single folder's always was, and for each folder as
+                        // it goes, so mail a later refusal leaves behind is still on its way out.
+                        mailErasureDeferred |= deletesOnServer && await this.QueueStoredMailErasureAsync(account, alias);
+                    }
+
+                    reachedTheEnd = true;
                 }
-
-                var withdrawn = await this.declarations.WithdrawAsync(account, folderAlias, CancellationToken.None);
-
-                if (withdrawn.Refusal is null)
+                finally
                 {
-                    await this.DeclareFolderRowsAsync(
-                        account,
-                        [.. acting.Folders.Where(folder => folder.Alias != folderAlias)]);
+                    if (withdrawnAliases.Count > 0)
+                    {
+                        await this.DeclareFolderRowsAsync(
+                            account,
+                            [.. acting.Folders.Where(folder => !withdrawnAliases.Contains(folder.Alias))]);
+
+                        // A refusal part of the way through is reported as one, and the folders already gone are
+                        // still news to the open clients.
+                        if (!reachedTheEnd)
+                        {
+                            this.signals.Publish(ClientSignal.FoldersChanged(account));
+                        }
+                    }
                 }
 
                 return withdrawn;
             },
             () => deleted,
-            erasesStoredMail: disposition is AuthoredFolderDeleteDisposition.DeleteOnServer,
-            folderAlias);
+            () => mailErasureDeferred);
     }
 
     private async Task<MailFolderActOutcome> CarryOutRenameAsync(
@@ -417,7 +477,7 @@ public sealed class MirroredMailFolderEditor
     /// <para>
     /// It takes no cancellation token, which is why the caller's is closed over by <paramref name="act" /> instead: the
     /// call to the server is the one cancellable step in an act, and everything after it — the declaration the
-    /// continuation writes, and the erasure and the signal that follow the continuation — runs regardless. The window
+    /// continuation writes and the erasure it queues, and the signal that follows the continuation — runs regardless. The window
     /// between the server acting and MailFathom writing it down is exactly where a cancelled act would leave the two
     /// sides disagreeing, so every one of those steps is given <see cref="CancellationToken.None" /> rather than the
     /// caller's.
@@ -428,8 +488,7 @@ public sealed class MirroredMailFolderEditor
         MailFolderChangeKind change,
         Func<Task<MailFolderDeclarationOutcome>> act,
         Func<ManagedMailFolder> describe,
-        bool erasesStoredMail = false,
-        MailFolderAlias? erasedFolder = null)
+        Func<bool>? mailErasureDeferred = null)
     {
         MailFolderDeclarationOutcome written;
 
@@ -457,10 +516,7 @@ public sealed class MirroredMailFolderEditor
 
         this.signals.Publish(ClientSignal.FoldersChanged(account));
 
-        var deferred = erasesStoredMail && erasedFolder is { } alias
-            && await this.QueueStoredMailErasureAsync(account, alias);
-
-        return new MailFolderActOutcome(describe(), change, Refusal: null, deferred);
+        return new MailFolderActOutcome(describe(), change, Refusal: null, mailErasureDeferred?.Invoke() ?? false);
     }
 
     /// <summary>Brings the account's folder rows in line with what it declares once an act changed that.</summary>

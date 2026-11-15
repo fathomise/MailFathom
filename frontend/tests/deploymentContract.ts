@@ -210,7 +210,6 @@ interface Folder {
     readonly path: readonly string[];
     readonly storedEmailCount: number;
     readonly unreadEmailCount: number;
-    readonly synchronizationState: string | null;
 }
 
 interface FolderTree {
@@ -332,20 +331,6 @@ export class ContractDeployment {
         return (await this.folderTree()).accounts.flatMap(({ folders }) => folders).find(({ id }) => id === folderId);
     }
 
-    /**
-     * Answers once the service reports a folder made a moment ago reached by a synchronization pass. A mirrored account
-     * takes a folder made on its server into what it files into only then, and states it `NeverSynchronized` until it
-     * has.
-     */
-    async synchronized(folderId: string): Promise<void> {
-        await expect
-            .poll(async () => (await this.folder(folderId))?.synchronizationState ?? 'absent', {
-                message: `Folder ${folderId} was never synchronized`,
-                timeout: 120_000,
-            })
-            .not.toMatch(/^(?:NeverSynchronized|absent)$/u);
-    }
-
     /** The first page of a folder, narrowed by whatever filters `query` adds. */
     async rows(folderId: string, query = ''): Promise<readonly Row[]> {
         const page = (await this.answered('GET', `/emails?folder=${encodeURIComponent(folderId)}${query}`)) as {
@@ -415,14 +400,32 @@ export class ContractDeployment {
         await this.settled(answer.results.flatMap(({ changes }) => changes.map(({ recordId }) => recordId)));
     }
 
-    /** Moves one message, and answers once the move has finished. */
+    /**
+     * Moves one message, and answers once the move has finished.
+     *
+     * A mirrored account files into a folder made a moment ago once the pass making it started has bound it, and
+     * answers `destination-not-found` until then. That answer records nothing, so the move is asked again, as a new act,
+     * until the service says it is taken or answers anything else.
+     */
     async move(storedEmailId: string, destinationFolder: string): Promise<void> {
-        const answer = (await this.answered('POST', '/mutations/moves', {
-            requestId: nextRequestId(),
-            moves: [{ storedEmailId, destinationFolder }],
-        })) as {
+        type Moved = {
             results: readonly { outcome: string; destinationFolder: string | null; change: RecordedChange | null }[];
         };
+        let answer: Moved = { results: [] };
+
+        await expect
+            .poll(
+                async () => {
+                    answer = (await this.answered('POST', '/mutations/moves', {
+                        requestId: nextRequestId(),
+                        moves: [{ storedEmailId, destinationFolder }],
+                    })) as Moved;
+
+                    return answer.results[0]?.outcome;
+                },
+                { message: `Folder ${destinationFolder} never took a message`, timeout: 60_000 },
+            )
+            .not.toBe('destination-not-found');
 
         expect(answer.results).toMatchObject([{ outcome: taken, destinationFolder }]);
         await this.settled(answer.results.flatMap(({ change }) => (change === null ? [] : [change.recordId])));
@@ -536,7 +539,6 @@ export const contractCases: readonly ContractCase[] = [
             const row = await deployment.firstRow(inbox.id);
 
             expect(made).toMatchObject({ change: 'Created', folder: { name: 'Moved by a case', parentId: null } });
-            await deployment.synchronized(made.folder.id);
             expect(await deployment.folder(made.folder.id)).toMatchObject({ storedEmailCount: 0 });
 
             await deployment.move(row.id, made.folder.id);
