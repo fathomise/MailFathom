@@ -53,11 +53,17 @@ async function fromTheFolderMenu(page: Page, name: string, act: string): Promise
 /** Waits until the mail server's folder list holds the folders named and none of those refused. */
 async function theMailServerLists(holds: readonly string[], refuses: readonly string[]): Promise<void> {
     await expect
-        .poll(async () => {
-            const listed = await foldersOnTheMailServer();
+        .poll(
+            async () => {
+                const listed = await foldersOnTheMailServer();
 
-            return holds.every((name) => listed.includes(name)) && refuses.every((name) => !listed.includes(name));
-        }, { ...settles, message: `The mail server lists ${holds.join(', ') || 'nothing asked for'} and not ${refuses.join(', ') || 'anything refused'}` })
+                return holds.every((name) => listed.includes(name)) && refuses.every((name) => !listed.includes(name));
+            },
+            {
+                ...settles,
+                message: `The mail server lists ${holds.join(', ') || 'nothing asked for'} and not ${refuses.join(', ') || 'anything refused'}`,
+            },
+        )
         .toBe(true);
 }
 

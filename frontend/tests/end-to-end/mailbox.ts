@@ -153,7 +153,7 @@ class ImapSession {
      */
     public async command(...parts: readonly (string | Buffer)[]): Promise<string[]> {
         this.tagNumber += 1;
-        const tag = `E${this.tagNumber}`;
+        const tag = `E${String(this.tagNumber)}`;
         let pending = `${tag} `;
 
         for (const part of parts) {
@@ -162,7 +162,7 @@ class ImapSession {
                 continue;
             }
 
-            this.conversation.write(`${pending}{${part.length}}\r\n`);
+            this.conversation.write(`${pending}{${String(part.length)}}\r\n`);
 
             const continuation = await this.conversation.line();
 
@@ -330,7 +330,8 @@ export async function deliver(
     words: string,
     options: { readonly answering?: DeliveredMessage; readonly body?: string } = {},
 ): Promise<DeliveredMessage> {
-    const subject = options.answering === undefined ? `${words} ${randomUUID().slice(0, 8)}` : `Re: ${options.answering.subject}`;
+    const subject =
+        options.answering === undefined ? `${words} ${randomUUID().slice(0, 8)}` : `Re: ${options.answering.subject}`;
     const messageId = `<${randomUUID()}@end-to-end.test>`;
     const threading =
         options.answering === undefined

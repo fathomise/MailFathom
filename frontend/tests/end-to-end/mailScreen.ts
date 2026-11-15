@@ -67,14 +67,11 @@ async function unreadInTheInbox(page: Page): Promise<number> {
  */
 export async function unreadCountsAgree(page: Page): Promise<void> {
     await expect
-        .poll(
-            async () => {
-                const [drawn, held] = await Promise.all([unreadInTheInbox(page), unseenIn('INBOX')]);
+        .poll(async () => {
+            const [drawn, held] = await Promise.all([unreadInTheInbox(page), unseenIn('INBOX')]);
 
-                return `${drawn} drawn, ${held} unseen on the mail server`;
-            },
-            settles,
-        )
+            return `${String(drawn)} drawn, ${String(held)} unseen on the mail server`;
+        }, settles)
         .toMatch(/^(\d+) drawn, \1 unseen on the mail server$/u);
 }
 
@@ -112,20 +109,26 @@ export async function onTheMailServer(
     let held: readonly StoredMessage[] = [];
 
     await expect
-        .poll(async () => {
-            held = await messagesIn(folderName, subject);
+        .poll(
+            async () => {
+                held = await messagesIn(folderName, subject);
 
-            return expected(held);
-        }, { ...settles, message: `What ${folderName} holds of "${subject}" on the mail server` })
+                return expected(held);
+            },
+            { ...settles, message: `What ${folderName} holds of "${subject}" on the mail server` },
+        )
         .toBe(true);
 
     return held;
 }
 
 /** The mail server holds exactly one message of the subject in the folder, and it carries every flag named and none refused. */
-export function one(
-    { carrying = [], without = [] }: { readonly carrying?: readonly string[]; readonly without?: readonly string[] } = {},
-): (held: readonly StoredMessage[]) => boolean {
+export function one({
+    carrying = [],
+    without = [],
+}: { readonly carrying?: readonly string[]; readonly without?: readonly string[] } = {}): (
+    held: readonly StoredMessage[],
+) => boolean {
     return (held) =>
         held.length === 1 &&
         carrying.every((flag) => held[0]?.flags.includes(flag) === true) &&

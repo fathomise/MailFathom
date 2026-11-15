@@ -62,7 +62,10 @@ test('keeps a draft in Drafts, on the mail server, and across a reload, and open
     await onTheMailServer('Drafts', subject, one({ carrying: ['\\Draft'] }));
 
     await composer.getByRole('button', { name: 'Close the message' }).click();
-    await page.getByRole('dialog', { name: 'Discard this message?' }).getByRole('button', { name: 'Save draft' }).click();
+    await page
+        .getByRole('dialog', { name: 'Discard this message?' })
+        .getByRole('button', { name: 'Save draft' })
+        .click();
     await expect(composer).toHaveCount(0);
 
     await reloaded(page);
@@ -107,7 +110,9 @@ test('sends a message that reaches Sent and, delivered, the inbox, on the screen
     await expect(messageRow(page, subject)).toBeVisible(settles);
 });
 
-test('takes back a send the Outbox still holds, so nothing leaves and nothing reaches the mail server', async ({ page }) => {
+test('takes back a send the Outbox still holds, so nothing leaves and nothing reaches the mail server', async ({
+    page,
+}) => {
     const subject = subjectFor('A send taken back');
 
     await openMail(page);
@@ -116,7 +121,10 @@ test('takes back a send the Outbox still holds, so nothing leaves and nothing re
     // Written to leave tomorrow, so it is still in the Outbox however long the spec takes to reach it there.
     await page.getByRole('button', { name: 'Sending options' }).click();
     await page.getByRole('menuitemradio', { name: /^Tomorrow morning\b/u }).click();
-    await page.getByRole('region', { name: 'New message' }).getByRole('button', { name: /^Send \S/u }).click();
+    await page
+        .getByRole('region', { name: 'New message' })
+        .getByRole('button', { name: /^Send \S/u })
+        .click();
     await page
         .getByRole('dialog', { name: 'Schedule this message?' })
         .getByRole('button', { name: /^Schedule/u })
@@ -124,7 +132,9 @@ test('takes back a send the Outbox still holds, so nothing leaves and nothing re
 
     await expect(notice(page, 'Message scheduled')).toBeVisible();
 
-    const outbox = page.getByRole('tree', { name: 'Mailboxes and folders' }).getByRole('button', { name: /^Outbox - /u });
+    const outbox = page
+        .getByRole('tree', { name: 'Mailboxes and folders' })
+        .getByRole('button', { name: /^Outbox - /u });
     const sends = page.getByRole('list', { name: 'Outbox' });
     const waiting = sends.getByRole('button', { name: new RegExp(subject, 'u') });
 

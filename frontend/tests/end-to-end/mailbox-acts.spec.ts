@@ -59,7 +59,9 @@ test('destroys a message deleted from the trash, after the question saying so, o
 
     const question = page.getByRole('dialog', { name: 'Delete 1 message?' });
 
-    await expect(question).toContainText('Already in the trash - deleting now removes 1 message together with attachments.');
+    await expect(question).toContainText(
+        'Already in the trash - deleting now removes 1 message together with attachments.',
+    );
     await question.getByRole('button', { name: 'Delete', exact: true }).click();
 
     await expect(notice(page, 'Deleting…')).toContainText('1 message');
@@ -231,7 +233,9 @@ test('empties the trash of everything in it, and the trash is empty on the scree
 
     const question = page.getByRole('dialog', { name: /^Delete \d+ messages?\?$/u });
 
-    await expect(question).toContainText(/^.*Already in the trash - deleting now removes \d+ messages? together with attachments\./u);
+    await expect(question).toContainText(
+        /^.*Already in the trash - deleting now removes \d+ messages? together with attachments\./u,
+    );
     await question.getByRole('button', { name: 'Delete', exact: true }).click();
 
     await expect(page.getByText('There is no mail in this folder.')).toBeVisible(settles);
@@ -349,7 +353,10 @@ test('marks a whole conversation read, deletes it and takes that back, and files
         await onTheMailServer('INBOX', opening.subject, (held) => held.length === 2);
 
         await fromTheMenu(thread, 'Move…');
-        await page.getByRole('dialog', { name: 'File in another folder' }).getByRole('button', { name: 'Archive' }).click();
+        await page
+            .getByRole('dialog', { name: 'File in another folder' })
+            .getByRole('button', { name: 'Archive' })
+            .click();
 
         // Read by conversation the list is every conversation outside Trash and Spam, and Archive is an ordinary folder,
         // so the conversation stays listed; where its messages are kept is read back by message below.
