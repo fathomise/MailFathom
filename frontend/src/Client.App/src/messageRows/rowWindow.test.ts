@@ -5,13 +5,17 @@
 import { describe, expect, it } from 'vitest';
 import {
     estimatedRowHeights,
+    heightOfRowIn,
     leadingRow,
     leadingRowIn,
     measuredRowHeights,
     offsetKeptAcross,
-    offsetKeptAcrossHeights,
+    offsetKeptAcrossRuns,
     offsetOfRow,
     offsetOfRowIn,
+    runsOf,
+    sameRuns,
+    windowOfRuns,
     overscanRows,
     rowsDrawnAtOnce,
     windowOf,
@@ -162,52 +166,89 @@ describe('windowOfHeights', () => {
     });
 });
 
+describe('runsOf', () => {
+    it('joins consecutive rows of one height into one run', () => {
+        expect(runsOf([100, 100, 40, 100])).toStrictEqual([
+            { count: 2, height: 100 },
+            { count: 1, height: 40 },
+            { count: 1, height: 100 },
+        ]);
+    });
+
+    it('lays two lists of the same heights out as the same runs', () => {
+        expect(sameRuns(runsOf([100, 40, 40]), runsOf([100, 40, 40]))).toBe(true);
+        expect(sameRuns(runsOf([100, 40, 40]), runsOf([100, 100, 40]))).toBe(false);
+    });
+});
+
 describe('offsetOfRowIn', () => {
     it('puts a row below every row above it, whatever height each of them is', () => {
-        expect(offsetOfRowIn([100, 40, 100], 0)).toBe(0);
-        expect(offsetOfRowIn([100, 40, 100], 2)).toBe(140);
+        expect(offsetOfRowIn(runsOf([100, 40, 100]), 0)).toBe(0);
+        expect(offsetOfRowIn(runsOf([100, 40, 100]), 2)).toBe(140);
+        expect(offsetOfRowIn([{ count: 40_000, height: 95 }], 30_000)).toBe(30_000 * 95);
     });
 
     it('stops at the end of the list for a row past it', () => {
-        expect(offsetOfRowIn([100, 40], 5)).toBe(140);
+        expect(offsetOfRowIn(runsOf([100, 40]), 5)).toBe(140);
+    });
+});
+
+describe('heightOfRowIn', () => {
+    it('answers what the row measures, and nothing past the end of the list', () => {
+        expect(heightOfRowIn(runsOf([100, 40, 100]), 1)).toBe(40);
+        expect(heightOfRowIn(runsOf([100, 40, 100]), 3)).toBe(0);
     });
 });
 
 describe('leadingRowIn', () => {
     it('answers the row under the top of the scroller, counting each row at its own height', () => {
-        expect(leadingRowIn([100, 40, 100], 0)).toBe(0);
-        expect(leadingRowIn([100, 40, 100], 120)).toBe(1);
-        expect(leadingRowIn([100, 40, 100], 140)).toBe(2);
+        expect(leadingRowIn(runsOf([100, 40, 100]), 0)).toBe(0);
+        expect(leadingRowIn(runsOf([100, 40, 100]), 120)).toBe(1);
+        expect(leadingRowIn(runsOf([100, 40, 100]), 140)).toBe(2);
     });
 
     it('answers the last row for a scroller standing past the end of the list', () => {
-        expect(leadingRowIn([100, 40, 100], 5_000)).toBe(2);
+        expect(leadingRowIn(runsOf([100, 40, 100]), 5_000)).toBe(2);
     });
 });
 
-describe('offsetKeptAcrossHeights', () => {
+describe('windowOfRuns', () => {
+    it('draws the window a number per row would, from a page of rows laid out as one run', () => {
+        const heights = [...Array.from({ length: 300 }, () => 95), 40, ...Array.from({ length: 300 }, () => 95)];
+
+        expect(windowOfRuns(runsOf(heights), 28_600, 800)).toStrictEqual(
+            windowOfRuns(
+                heights.map((height) => ({ count: 1, height })),
+                28_600,
+                800,
+            ),
+        );
+    });
+});
+
+describe('offsetKeptAcrossRuns', () => {
     it('keeps the reader where they were when a row above them folds', () => {
         // Row 1 folds from a hundred pixels to forty while the reader stands thirty pixels into row 3.
-        const kept = offsetKeptAcrossHeights(330, [100, 100, 100, 100], [100, 40, 100, 100]);
+        const kept = offsetKeptAcrossRuns(330, runsOf([100, 100, 100, 100]), runsOf([100, 40, 100, 100]));
 
         expect(kept).toBe(270);
-        expect(leadingRowIn([100, 40, 100, 100], kept)).toBe(3);
+        expect(leadingRowIn(runsOf([100, 40, 100, 100]), kept)).toBe(3);
     });
 
     it('keeps the reader where they were when a row above them unfolds', () => {
-        expect(offsetKeptAcrossHeights(270, [100, 40, 100, 100], [100, 100, 100, 100])).toBe(330);
+        expect(offsetKeptAcrossRuns(270, runsOf([100, 40, 100, 100]), runsOf([100, 100, 100, 100]))).toBe(330);
     });
 
     it('keeps the share of the reader’s own row above the top of the scroller when that row changes height', () => {
-        expect(offsetKeptAcrossHeights(150, [100, 100, 100], [100, 40, 100])).toBe(120);
+        expect(offsetKeptAcrossRuns(150, runsOf([100, 100, 100]), runsOf([100, 40, 100]))).toBe(120);
     });
 
     it('moves nothing where only rows below the reader changed height', () => {
-        expect(offsetKeptAcrossHeights(30, [100, 100, 100], [100, 40, 40])).toBe(30);
+        expect(offsetKeptAcrossRuns(30, runsOf([100, 100, 100]), runsOf([100, 40, 40]))).toBe(30);
     });
 
     it('keeps the offset where there were no rows to measure it against', () => {
-        expect(offsetKeptAcrossHeights(250, [], [100])).toBe(250);
+        expect(offsetKeptAcrossRuns(250, [], runsOf([100]))).toBe(250);
     });
 });
 

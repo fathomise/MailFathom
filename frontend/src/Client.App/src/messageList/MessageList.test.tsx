@@ -891,6 +891,10 @@ describe('MessageList', () => {
         await screen.findByRole('option', { name: /Message 19$/ });
 
         fireEvent.scroll(scroller, { target: { scrollTop: 24 * estimatedRowHeight } });
+
+        // The page the scroll reaches is read before the reader turns back, since it is what puts the first page far
+        // enough behind them to be let go of; turning back before it answers lets go of nothing.
+        await screen.findByRole('option', { name: /Message 24$/ });
         fireEvent.scroll(scroller, { target: { scrollTop: 0 } });
 
         expect(await screen.findAllByRole('option', { name: 'Reading this message again…' })).toHaveLength(5);

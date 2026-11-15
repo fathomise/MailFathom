@@ -30,10 +30,15 @@ import { marksSender } from '../senderMark/senderMarks';
 import { rowShapeOf } from '../messageRows/rowContents';
 import {
     estimatedRowHeights,
+    heightOfRowIn,
     measuredRowHeights,
-    offsetKeptAcrossHeights,
+    offsetKeptAcrossRuns,
     offsetOfRowIn,
-    windowOfHeights,
+    rowCountOfRuns,
+    runsOf,
+    sameRuns,
+    windowOfRuns,
+    type RowRun,
 } from '../messageRows/rowWindow';
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { useWorkspace } from '../workspace/useWorkspace';
@@ -172,8 +177,8 @@ export function SearchResults({
 
     // A result judged spam folds to one line here as in every list but the Spam folder, at the height of its own shape.
     const shapes = results.map((result) => rowShapeOf(drawnSpam(acts, result), false));
-    const heights = shapes.map((shape) => rowHeights[shape]);
-    const drawn = windowOfHeights(heights, scrollTop, viewport);
+    const laidOutNow = runsOf(shapes.map((shape) => rowHeights[shape]));
+    const drawn = windowOfRuns(laidOutNow, scrollTop, viewport);
     const lastDrawn = drawn.first + drawn.count - 1;
 
     // The row the keyboard is on, held within what is found: a refresh replaces the results with a head that may be
@@ -252,7 +257,7 @@ export function SearchResults({
 
     // The heights the results were last laid out at, which a change of height is measured against so the reader stays
     // on the row they were on.
-    const laidOut = useRef<readonly number[] | null>(null);
+    const laidOut = useRef<readonly RowRun[] | null>(null);
 
     // The measurements the window is arithmetic over, taken after the browser has laid the results out rather than
     // written down as numbers here, for the reason the folder's list measures them: a row's height is a token decision
@@ -286,14 +291,10 @@ export function SearchResults({
         // the reader on the row they were on, wherever every row is still the row it was.
         const before = laidOut.current;
 
-        laidOut.current = heights;
+        laidOut.current = laidOutNow;
 
-        if (
-            before !== null &&
-            before.length === heights.length &&
-            before.some((height, row) => height !== heights[row])
-        ) {
-            const kept = offsetKeptAcrossHeights(element.scrollTop, before, heights);
+        if (before !== null && rowCountOfRuns(before) === rowCountOfRuns(laidOutNow) && !sameRuns(before, laidOutNow)) {
+            const kept = offsetKeptAcrossRuns(element.scrollTop, before, laidOutNow);
 
             if (kept !== element.scrollTop) {
                 element.scrollTop = kept;
@@ -309,7 +310,7 @@ export function SearchResults({
                 wantsFocus.current = false;
             }
         }
-    }, [viewport, rowHeights, drawn.count, drawn.first, heights, shapes, focusedRow]);
+    }, [viewport, rowHeights, drawn.count, drawn.first, laidOutNow, shapes, focusedRow]);
 
     // A window resized changes how many rows are drawn, and a resize is not a commit.
     useEffect(() => {
@@ -335,8 +336,8 @@ export function SearchResults({
             return;
         }
 
-        const top = offsetOfRowIn(heights, row);
-        const bottom = top + (heights[row] ?? 0);
+        const top = offsetOfRowIn(laidOutNow, row);
+        const bottom = top + heightOfRowIn(laidOutNow, row);
 
         if (top < element.scrollTop) {
             element.scrollTop = top;

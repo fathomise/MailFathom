@@ -50,13 +50,17 @@ import { marksSender, senderMarkOf } from '../senderMark/senderMarks';
 import { rowMark, rowShapeOf, rowWithFlags, type RowContents } from '../messageRows/rowContents';
 import {
     estimatedRowHeights,
+    heightOfRowIn,
     leadingRowIn,
     measuredRowHeights,
-    offsetKeptAcrossHeights,
+    offsetKeptAcrossRuns,
     offsetOfRowIn,
+    rowCountOfRuns,
     rowsDrawnAtOnce,
-    windowOfHeights,
+    sameRuns,
+    windowOfRuns,
     type MessageRowShape,
+    type RowRun,
 } from '../messageRows/rowWindow';
 import { scopeReaches, type MailScope } from '../workspace/mailScope';
 import { useWorkspace } from '../workspace/useWorkspace';
@@ -89,7 +93,7 @@ import { noRows, rowSettled, rowWentOut, rowsAlsoMoved, rowsNoticed, rowsStillDr
 import { rememberedListing, rememberListing } from './rememberedListings';
 import { messagePages, usePageReads, useSignalledPages } from './timelinePages';
 import { actedMessages, useListedMail } from './useListedMail';
-import { foldedRowsOf, noFoldedRows, shapesOf, type FoldedRows } from './rowHeights';
+import { foldedRowsOf, heightRunsOf, noFoldedRows, shapeRunsOf, shapesBetween, type FoldedRows } from './rowHeights';
 import { Departing } from '../shell/Departing';
 
 // The client's message list, which is where a mail client is judged: it stays smooth at message forty thousand, it puts
@@ -397,10 +401,11 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
     }
 
     const rowCount = rowCountOf(shown);
-    const shapes = shapesOf(shown, foldedRows, shapeOf);
-    const heights = shapes.map((shape) => rowHeights[shape]);
-    const drawn = windowOfHeights(heights, scrollTop, viewport);
-    const leading = leadingRowIn(heights, scrollTop);
+    const shapes = shapeRunsOf(shown, foldedRows, shapeOf);
+    const laidOutNow = heightRunsOf(shapes, rowHeights);
+    const drawn = windowOfRuns(laidOutNow, scrollTop, viewport);
+    const drawnShapes = shapesBetween(shapes, drawn.first, drawn.count);
+    const leading = leadingRowIn(laidOutNow, scrollTop);
     const lastDrawn = drawn.first + drawn.count - 1;
     const rows = heldRows(shown);
 
@@ -533,7 +538,7 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
 
     // The heights the list was last laid out at, which is what a change of height is measured against: the row the
     // reader is on stays where it was under the top of the scroller whatever rows above it gained or lost.
-    const laidOut = useRef<readonly number[] | null>(null);
+    const laidOut = useRef<readonly RowRun[] | null>(null);
 
     // The measurements the window is arithmetic over, taken after the browser has laid the list out rather than written
     // down as numbers here: what each shape of row measures, read off the first drawn row of it, and the scroller's
@@ -553,11 +558,10 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
 
         const measured = measuredRowHeights(
             rowHeights,
-            Array.from({ length: drawn.count }, (_, at) => drawn.first + at).flatMap((row) => {
-                const shape = shapes[row];
-                const drawnRow = elements.current.get(row);
+            drawnShapes.flatMap((shape, at) => {
+                const drawnRow = elements.current.get(drawn.first + at);
 
-                return shape === undefined || drawnRow === undefined ? [] : [[shape, drawnRow.offsetHeight] as const];
+                return drawnRow === undefined ? [] : [[shape, drawnRow.offsetHeight] as const];
             }),
         );
 
@@ -572,15 +576,15 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
         // of theirs to keep.
         const before = laidOut.current;
 
-        laidOut.current = heights;
+        laidOut.current = laidOutNow;
 
         if (
             restored &&
             before !== null &&
-            before.length === heights.length &&
-            before.some((height, row) => height !== heights[row])
+            rowCountOfRuns(before) === rowCountOfRuns(laidOutNow) &&
+            !sameRuns(before, laidOutNow)
         ) {
-            const kept = offsetKeptAcrossHeights(element.scrollTop, before, heights);
+            const kept = offsetKeptAcrossRuns(element.scrollTop, before, laidOutNow);
 
             if (kept !== element.scrollTop) {
                 element.scrollTop = kept;
@@ -593,7 +597,7 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
         // because both happen on this commit and the ones in state are a render behind — and those are the heights the
         // next commit is measured against, so placing the reader is not then corrected a second time.
         if (!restored && rowCount > 0) {
-            const placedAmong = shapes.map((shape) => measured[shape]);
+            const placedAmong = heightRunsOf(shapes, measured);
             const placed = offsetOfRowIn(placedAmong, opening.rowInPage);
 
             laidOut.current = placedAmong;
@@ -620,7 +624,8 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
         rowHeights,
         drawn.count,
         drawn.first,
-        heights,
+        drawnShapes,
+        laidOutNow,
         shapes,
         restored,
         rowCount,
@@ -677,7 +682,7 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
     function scrolledTo(top: number): void {
         setScrollTop(top);
 
-        const moved = windowOfHeights(heights, top, viewport);
+        const moved = windowOfRuns(laidOutNow, top, viewport);
         const last = moved.first + moved.count - 1;
 
         // Where each held page draws its folded rows is written down before the trim may let one go, so the page keeps
@@ -946,8 +951,8 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
             return;
         }
 
-        const top = offsetOfRowIn(heights, row);
-        const bottom = top + (heights[row] ?? 0);
+        const top = offsetOfRowIn(laidOutNow, row);
+        const bottom = top + heightOfRowIn(laidOutNow, row);
 
         if (top < element.scrollTop) {
             element.scrollTop = top;

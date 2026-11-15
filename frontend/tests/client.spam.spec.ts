@@ -249,12 +249,17 @@ test('draws a spam row folded outside the Spam folder at a height of its own, sh
     deployment,
 }) => {
     await openTheInbox(page, deployment);
-    await pickOut(page, 'Message 2');
+    await pickOut(page, 'Message 2', 'Message 4');
     await markPickedSpam(page);
 
     await expect(listed(page, 'Message 2')).toHaveAccessibleName(/Spam: Marketing, marked by you\./u);
+    await expect(listed(page, 'Message 4')).toHaveAccessibleName(/Spam: Marketing, marked by you\./u);
     await expect.poll(() => heightOf(page, 'Message 2')).toBeLessThan(await heightOf(page, 'Message 1'));
-    expect(await heightOf(page, 'Message 4')).toBe(await heightOf(page, 'Message 1'));
+
+    // One drawn folded row stands for every folded row, the ones on a page the list has let go of included, so two of
+    // them measure the same — and the whole rows around them keep the height every whole row has.
+    expect(await heightOf(page, 'Message 4')).toBe(await heightOf(page, 'Message 2'));
+    expect(await heightOf(page, 'Message 5')).toBe(await heightOf(page, 'Message 1'));
 
     // The window is laid out from those heights, so the row under the folded one starts where the folded one ends.
     const folded = await listed(page, 'Message 2').boundingBox();
