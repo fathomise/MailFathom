@@ -212,6 +212,14 @@ interface Folder {
     readonly unreadEmailCount: number;
 }
 
+interface MoveAnswer {
+    readonly results: readonly {
+        outcome: string;
+        destinationFolder: string | null;
+        change: RecordedChange | null;
+    }[];
+}
+
 interface FolderTree {
     readonly accounts: readonly {
         readonly account: { readonly id: string };
@@ -408,10 +416,7 @@ export class ContractDeployment {
      * until the service says it is taken or answers anything else.
      */
     async move(storedEmailId: string, destinationFolder: string): Promise<void> {
-        type Moved = {
-            results: readonly { outcome: string; destinationFolder: string | null; change: RecordedChange | null }[];
-        };
-        let answer: Moved = { results: [] };
+        let answer: MoveAnswer = { results: [] };
 
         await expect
             .poll(
@@ -419,7 +424,7 @@ export class ContractDeployment {
                     answer = (await this.answered('POST', '/mutations/moves', {
                         requestId: nextRequestId(),
                         moves: [{ storedEmailId, destinationFolder }],
-                    })) as Moved;
+                    })) as MoveAnswer;
 
                     return answer.results[0]?.outcome;
                 },

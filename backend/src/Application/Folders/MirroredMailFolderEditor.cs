@@ -340,16 +340,17 @@ public sealed class MirroredMailFolderEditor
 
         var beneath = acting.Folders
             .Where(folder => folder.Alias != folderAlias && folder.RemotePath is { } path && path.IsWithin(acting.Path))
+            .Select(static folder => (Folder: folder, Path: folder.RemotePath.GetValueOrDefault()))
             .ToArray();
 
-        if (beneath.Any(static folder => folder.SpecialUse is not null))
+        if (beneath.Any(static below => below.Folder.SpecialUse is not null))
         {
             return MailFolderActOutcome.Refused(MailFolderActRefusal.ProtectedRole);
         }
 
         var declared = await this.declarations.AliasesTheAccountDeclaresAsync(account, cancellationToken);
 
-        if (beneath.Any(folder => !declared.Contains(folder.Alias)))
+        if (beneath.Any(below => !declared.Contains(below.Folder.Alias)))
         {
             return MailFolderActOutcome.Refused(MailFolderActRefusal.NotDeclaredByTheAccount);
         }
@@ -359,8 +360,8 @@ public sealed class MirroredMailFolderEditor
         (MailFolderAlias Alias, RemoteFolderPath Path)[] deepestFirst =
         [
             .. beneath
-                .Select(static folder => (folder.Alias, Path: folder.RemotePath!))
-                .OrderByDescending(static folder => folder.Path.ToHierarchyLevels().Count),
+                .OrderByDescending(static below => below.Path.ToHierarchyLevels().Count)
+                .Select(static below => (below.Folder.Alias, below.Path)),
             (folderAlias, acting.Path),
         ];
 
