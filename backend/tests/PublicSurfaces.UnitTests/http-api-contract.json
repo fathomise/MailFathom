@@ -2431,6 +2431,13 @@
             "format": "uuid",
             "type": "string"
           },
+          "filedEmailId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "lastFailureCode": {
             "format": "int32",
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -2497,6 +2504,7 @@
           "sizeOctets",
           "composedAt",
           "revisedAt",
+          "filedEmailId",
           "sentAs",
           "divergence",
           "lastFailureCode",

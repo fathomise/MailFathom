@@ -466,6 +466,55 @@ internal sealed class MailDraftStore(MailFathomDbContext readContext) : IMailDra
     }
 
     /// <inheritdoc />
+    public async Task<MailDraftId?> ReleaseFiledAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        StoredEmailId filedEmail,
+        DateTimeOffset releasedAt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        var accountValue = account.Value;
+        var filedValue = filedEmail.Value;
+
+        // Narrowed by the account first, so the read is over one mailbox's drafts rather than every draft held.
+        var draftId = await writeContext.MailDrafts
+            .Where(draft => draft.MailboxAccountId == accountValue
+                && draft.FiledStoredEmailId == filedValue
+                && draft.DiscardedAt == null
+                && draft.PromotedToOutgoingEmailId == null)
+            .Select(draft => (Guid?)draft.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (draftId is not { } found)
+        {
+            return null;
+        }
+
+        var released = MailDraftId.Create(found);
+        var entity = await RequireAsync(session, released, cancellationToken);
+
+        // The copy of the revision the message shows, which is not always the newest: a revision can be appended before
+        // synchronization binds its copy onto the filed message, and the copy of that newer revision is still the
+        // draft's own for the pass to withdraw.
+        var movedRevision = entity.FiledRevision;
+
+        foreach (var copy in entity.Copies.Where(copy => copy.Revision == movedRevision && copy.Stage == MailDraftCopyStage.Standing))
+        {
+            copy.Stage = MailDraftCopyStage.Abandoned;
+            copy.SettledAt ??= releasedAt;
+        }
+
+        entity.FiledStoredEmailId = null;
+        entity.FiledRevision = null;
+        entity.DiscardedAt = releasedAt;
+
+        return released;
+    }
+
+    /// <inheritdoc />
     public async Task RecordPromotedAsync(
         IPersistenceSession session,
         MailDraftId draftId,

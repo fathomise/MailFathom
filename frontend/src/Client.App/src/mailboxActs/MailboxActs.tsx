@@ -346,6 +346,7 @@ export function MailboxActsProvider({
     moves,
     deletes,
     composes,
+    onDeleted,
     children,
 }: {
     /** The credential an act goes out under now, or `null` where there is nobody to act for. */
@@ -356,6 +357,12 @@ export function MailboxActsProvider({
 
     readonly transport: MailFathomTransport;
     readonly online: boolean;
+
+    /**
+     * Told at the press which messages a delete was asked for. It is how a composer open on one of them is closed: the
+     * deployment gives a draft up with its message, so a save from a composer left open would be refused.
+     */
+    readonly onDeleted?: (messages: readonly ActedMessage[]) => void;
 
     /** Whether this credential may write the two flags a mail server keeps. */
     readonly flags: boolean;
@@ -1127,6 +1134,10 @@ export function MailboxActsProvider({
         });
 
         remember(act, messages, leaves, destroying);
+
+        if (act === 'delete') {
+            onDeleted?.(messages);
+        }
 
         void sent(batchesFor(act, messages, destination, destroying), asking).then((answer) => {
             settle(askingFor, act, messages, answer, destination, destroying, false);

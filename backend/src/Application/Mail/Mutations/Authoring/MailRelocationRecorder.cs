@@ -7,6 +7,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
+using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
 using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Destinations;
@@ -82,6 +83,8 @@ public sealed class MailRelocationRecorder
     private readonly SpamMarkWriter spamMarks;
     private readonly MailActIdempotency idempotency;
     private readonly CrossAccountFiler filer;
+    private readonly IMailDraftStore drafts;
+    private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the use case over the grant it asks first, the folder it files into, and the submission it writes through.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
@@ -99,6 +102,8 @@ public sealed class MailRelocationRecorder
     /// <param name="spamMarks">Writes the person's spam verdict a move into the junk folder makes.</param>
     /// <param name="idempotency">Answers a repeat of an act the person already made, and keeps the key of one that commits.</param>
     /// <param name="filer">Files a message into a folder of another account the person holds.</param>
+    /// <param name="drafts">Gives up the draft a message filed out of the drafts tree is the current revision of.</param>
+    /// <param name="timeProvider">Supplies the instant such a draft is given up at.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public MailRelocationRecorder(
         AccessAuthorization authorization,
@@ -115,7 +120,9 @@ public sealed class MailRelocationRecorder
         IJunkMailFolderCatalog junkFolders,
         SpamMarkWriter spamMarks,
         MailActIdempotency idempotency,
-        CrossAccountFiler filer)
+        CrossAccountFiler filer,
+        IMailDraftStore drafts,
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(scopeResolver);
@@ -132,6 +139,8 @@ public sealed class MailRelocationRecorder
         ArgumentNullException.ThrowIfNull(spamMarks);
         ArgumentNullException.ThrowIfNull(idempotency);
         ArgumentNullException.ThrowIfNull(filer);
+        ArgumentNullException.ThrowIfNull(drafts);
+        ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.authorization = authorization;
         this.scopeResolver = scopeResolver;
@@ -147,6 +156,8 @@ public sealed class MailRelocationRecorder
         this.spamMarks = spamMarks;
         this.idempotency = idempotency;
         this.filer = filer;
+        this.drafts = drafts;
+        this.timeProvider = timeProvider;
     }
 
     /// <summary>Writes down one move, against the email and the folder a caller named.</summary>
@@ -251,6 +262,9 @@ public sealed class MailRelocationRecorder
 
         var crossesOnTheServer = await this.keptTrees.CrossesAsync(account, target.Folder, folder, cancellationToken);
 
+        // Read ahead of the commit, because it reads bindings and the commit is one transaction.
+        var leavesTheDraftsTree = !await this.keptTrees.HoldsAsync(account, folder.Alias, folder.Path, cancellationToken);
+
         AuthoredDeleteEmailDisposition? localDisposition;
 
         try
@@ -313,6 +327,21 @@ public sealed class MailRelocationRecorder
                         folder,
                         crossesOnTheServer,
                         attemptCancellationToken);
+
+                    // A draft whose message is filed out of the drafts tree — into the trash, which is how one is
+                    // deleted — is given up in the commit that files it. A record left naming the message would file
+                    // the draft back into the drafts folder on its next save and erase the message from where it was
+                    // put. A message that shows no draft answers nothing here, so this asks whichever folder it left.
+                    if (leavesTheDraftsTree
+                        && moved.Outcome is MailboxChangeSubmissionOutcome.Recorded or MailboxChangeSubmissionOutcome.Applied)
+                    {
+                        await this.drafts.ReleaseFiledAsync(
+                            session,
+                            account,
+                            storedEmailId,
+                            this.timeProvider.GetUtcNow(),
+                            attemptCancellationToken);
+                    }
 
                     if (markedSpam is not null)
                     {

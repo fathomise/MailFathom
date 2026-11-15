@@ -14,6 +14,8 @@ using MailFathom.Application.Synchronization;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
@@ -52,6 +54,8 @@ public sealed class MailDeletionRecorderTests
         MailActIdempotencyKey.Create("call-1", "deletes", [$"{LocalEmail.Value:N}"]);
 
     private readonly InMemoryMailboxMutationRecordStore records = new();
+
+    private readonly InMemoryMailDraftStore drafts = new();
 
     private readonly IAuthoredDeleteEmailDispositionReader dispositions =
         Substitute.For<IAuthoredDeleteEmailDispositionReader>();
@@ -123,6 +127,27 @@ public sealed class MailDeletionRecorderTests
         Assert.Equal(
             AuthoredDeleteServerDisposition.FlagDeleted,
             Assert.Single(this.records.OpenedRequests).ServerDisposition);
+    }
+
+    /// <summary>
+    /// A draft whose message is deleted is given up with it, so its author's next save cannot file it back.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_TheMessageADraftIsFiledAs_GivesTheDraftUp()
+    {
+        // Arrange
+        var draftId = await this.FileDraftAsync();
+        var recorder = this.Recorder(TargetIn(Trash));
+
+        // Act
+        await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
+
+        // Assert
+        var draft = await this.drafts.FindAsync(draftId, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(draft);
+        Assert.True(draft.IsDiscarded);
+        Assert.Null(draft.FiledEmail);
     }
 
     /// <summary>
@@ -498,7 +523,30 @@ public sealed class MailDeletionRecorderTests
                 new FakeTimeProvider(RecordedAt)),
             runSignal ?? new MailAccountRunSignal(),
             new FakeTimeProvider(RecordedAt),
-            new MailActIdempotency(callerAuthorization, keys ?? Substitute.For<IMailActKeyStore>(), new FakeTimeProvider(RecordedAt)));
+            new MailActIdempotency(callerAuthorization, keys ?? Substitute.For<IMailActKeyStore>(), new FakeTimeProvider(RecordedAt)),
+            this.drafts);
+    }
+
+    /// <summary>Writes down a draft whose current revision the folder shows as the message these tests act on.</summary>
+    private async Task<MailDraftId> FileDraftAsync()
+    {
+        var session = Substitute.For<IPersistenceSession>();
+
+        var draft = await this.drafts.OpenAsync(
+            session,
+            Account,
+            SyntheticUser.Deployment,
+            OutgoingEmailRequester.Command("mfctl-draft"),
+            [],
+            "A draft",
+            OutgoingReceiptRequests.None,
+            mimeByteLength: 64,
+            RecordedAt,
+            TestContext.Current.CancellationToken);
+
+        await this.drafts.RecordFiledAsync(session, draft.Id, LocalEmail, draft.Revision, TestContext.Current.CancellationToken);
+
+        return draft.Id;
     }
 
     /// <summary>Arranges a restoring account whose message still stands on the source and is not yet in the local trash.</summary>

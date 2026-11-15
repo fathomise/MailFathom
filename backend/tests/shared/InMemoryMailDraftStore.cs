@@ -348,6 +348,40 @@ internal sealed class InMemoryMailDraftStore : IMailDraftStore
     }
 
     /// <inheritdoc />
+    public Task<MailDraftId?> ReleaseFiledAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        StoredEmailId filedEmail,
+        DateTimeOffset releasedAt,
+        CancellationToken cancellationToken)
+    {
+        var draft = this.drafts.Values.FirstOrDefault(candidate => candidate.AccountId == account
+            && candidate.FiledEmail == filedEmail
+            && !candidate.IsDiscarded
+            && candidate.PromotedTo is null);
+
+        if (draft is null)
+        {
+            return Task.FromResult<MailDraftId?>(null);
+        }
+
+        this.drafts[draft.Id] = draft with
+        {
+            FiledEmail = null,
+            FiledRevision = null,
+            DiscardedAt = releasedAt,
+            Copies =
+            [
+                .. draft.Copies.Select(copy => copy.Revision == draft.FiledRevision && copy.IsStanding
+                    ? copy with { Stage = MailDraftCopyStage.Abandoned, SettledAt = copy.SettledAt ?? releasedAt }
+                    : copy),
+            ],
+        };
+
+        return Task.FromResult<MailDraftId?>(draft.Id);
+    }
+
+    /// <inheritdoc />
     public Task RecordPromotedAsync(
         IPersistenceSession session,
         MailDraftId draftId,

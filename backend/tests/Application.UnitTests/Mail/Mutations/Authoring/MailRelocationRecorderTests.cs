@@ -25,6 +25,8 @@ using MailFathom.Application.Synchronization;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
@@ -90,6 +92,8 @@ public sealed class MailRelocationRecorderTests
         trustedCertificateAuthorityReference: null);
 
     private readonly InMemoryMailboxMutationRecordStore records = new();
+
+    private readonly InMemoryMailDraftStore drafts = new();
 
     private readonly InMemoryMailFolderResolutionStore bindings = new();
 
@@ -503,6 +507,45 @@ public sealed class MailRelocationRecorderTests
         // Assert
         Assert.Equal(expected, result.Outcome);
         Assert.Equal(expected == MailRelocationOutcome.Recorded ? 1 : 0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>
+    /// A draft whose message is filed out of the drafts tree is given up with the move, and one filed elsewhere inside
+    /// the tree is still the draft it was. A record left naming a message in the trash would file the draft back into
+    /// the drafts folder on its author's next save and erase the message from the trash.
+    /// </summary>
+    [Theory]
+    [InlineData("Trash", true)]
+    [InlineData("DraftsClients", false)]
+    public async Task RecordAsync_ADraftsMessageFiledElsewhere_GivesTheDraftUpOnlyWhereItLeavesTheDraftsTree(
+        string into,
+        bool givenUp)
+    {
+        // Arrange
+        var drafts = this.MapMirrored(Drafts, "Drafts", MailFolderSpecialUse.Drafts);
+        Dictionary<string, MailFolderResolution> bound = new()
+        {
+            ["DraftsClients"] = this.MapMirrored(DraftsClients, "Drafts/Clients"),
+            ["Trash"] = this.MapMirrored(Trash, "Trash", MailFolderSpecialUse.Trash),
+        };
+        var draftId = await this.FileDraftAsync();
+        var recorder = this.Recorder(TargetIn(drafts.Alias, drafts.RemotePath.Value));
+
+        // Act
+        var result = await recorder.RecordAsync(
+            LocalEmail,
+            IdOf(bound[into].Alias),
+            Requester,
+            MailboxReaderKind.Person,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var draft = await this.drafts.FindAsync(draftId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(MailRelocationOutcome.Recorded, result.Outcome);
+        Assert.NotNull(draft);
+        Assert.Equal(givenUp, draft.IsDiscarded);
+        Assert.Equal(givenUp ? null : LocalEmail, draft.FiledEmail);
     }
 
     /// <summary>
@@ -959,7 +1002,31 @@ public sealed class MailRelocationRecorderTests
                 submission,
                 clock),
             new MailActIdempotency(callerAuthorization, keys ?? Substitute.For<IMailActKeyStore>(), clock),
-            new MailboxCustodianComposition(clock).CrossAccountFiler);
+            new MailboxCustodianComposition(clock).CrossAccountFiler,
+            this.drafts,
+            clock);
+    }
+
+    /// <summary>Writes down a draft whose current revision the folder shows as the message these tests act on.</summary>
+    private async Task<MailDraftId> FileDraftAsync()
+    {
+        var session = Substitute.For<IPersistenceSession>();
+
+        var draft = await this.drafts.OpenAsync(
+            session,
+            Account,
+            SyntheticUser.Deployment,
+            OutgoingEmailRequester.Command("mfctl-draft"),
+            [],
+            "A draft",
+            OutgoingReceiptRequests.None,
+            mimeByteLength: 64,
+            RecordedAt,
+            TestContext.Current.CancellationToken);
+
+        await this.drafts.RecordFiledAsync(session, draft.Id, LocalEmail, draft.Revision, TestContext.Current.CancellationToken);
+
+        return draft.Id;
     }
 
     /// <summary>Gives every folder these tests name a row, which is what a destination is named by.</summary>

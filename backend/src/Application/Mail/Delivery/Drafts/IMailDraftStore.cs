@@ -271,6 +271,36 @@ public interface IMailDraftStore
         DateTimeOffset discardedAt,
         CancellationToken cancellationToken);
 
+    /// <summary>Gives up the draft one stored message is filed as, and leaves that message to the mailbox.</summary>
+    /// <param name="session">The session the write joins, which is the one that takes the message out of the drafts tree.</param>
+    /// <param name="account">The account the message is in.</param>
+    /// <param name="filedEmail">The stored message a person moved or deleted.</param>
+    /// <param name="releasedAt">When it left.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>The draft given up, or <see langword="null" /> where the message shows no draft still being written.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// <para>
+    /// A draft whose message somebody filed elsewhere is no longer the draft's to revise: the next revision would be
+    /// filed into the drafts folder and the message erased from wherever it was put, which is a delete undone and a
+    /// message taken out of the trash by a save. So the record stops naming the message, the copy of the revision that
+    /// message shows is settled as <see cref="MailDraftCopyStage.Abandoned" /> — nothing here will touch it again, and
+    /// the move that took it is what answers for it — and the draft is marked given up, for the pass to take every
+    /// other copy still standing out of the folder and remove the record. That is an earlier revision's copy a removal
+    /// had not reached yet, and equally a newer one: a revision can be appended before synchronization binds its copy
+    /// onto the filed message, and deleting the message the folder still shows must not leave that newer copy behind.
+    /// </para>
+    /// <para>
+    /// A promoted draft is left alone, for the reason giving one up is refused: its message is a queued send.
+    /// </para>
+    /// </remarks>
+    Task<MailDraftId?> ReleaseFiledAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        StoredEmailId filedEmail,
+        DateTimeOffset releasedAt,
+        CancellationToken cancellationToken);
+
     /// <summary>Writes down the outgoing record a promotion produced for this draft.</summary>
     /// <param name="session">The session the write joins.</param>
     /// <param name="draftId">The draft that was promoted.</param>

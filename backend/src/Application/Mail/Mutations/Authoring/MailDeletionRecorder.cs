@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
@@ -61,6 +62,7 @@ public sealed class MailDeletionRecorder
     private readonly MailAccountRunSignal runSignal;
     private readonly TimeProvider timeProvider;
     private readonly MailActIdempotency idempotency;
+    private readonly IMailDraftStore drafts;
 
     /// <summary>Initializes the use case over the grant it asks first, the email it is about, and the submission it writes through.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
@@ -72,6 +74,7 @@ public sealed class MailDeletionRecorder
     /// <param name="runSignal">Brings the account's next synchronization run forward, which is what carries the delete out.</param>
     /// <param name="timeProvider">Measures the withdrawal window a caller asks for, from the moment the record is written.</param>
     /// <param name="idempotency">Answers a repeat of an act the person already made, and keeps the key of one that commits.</param>
+    /// <param name="drafts">Gives up the draft a deleted message is the current revision of.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public MailDeletionRecorder(
         AccessAuthorization authorization,
@@ -82,7 +85,8 @@ public sealed class MailDeletionRecorder
         OptimisticConcurrencyRetryPolicy commitPolicy,
         MailAccountRunSignal runSignal,
         TimeProvider timeProvider,
-        MailActIdempotency idempotency)
+        MailActIdempotency idempotency,
+        IMailDraftStore drafts)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(scopeResolver);
@@ -93,6 +97,7 @@ public sealed class MailDeletionRecorder
         ArgumentNullException.ThrowIfNull(runSignal);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(idempotency);
+        ArgumentNullException.ThrowIfNull(drafts);
 
         this.authorization = authorization;
         this.scopeResolver = scopeResolver;
@@ -103,6 +108,7 @@ public sealed class MailDeletionRecorder
         this.runSignal = runSignal;
         this.timeProvider = timeProvider;
         this.idempotency = idempotency;
+        this.drafts = drafts;
     }
 
     /// <summary>Writes down one delete, against the email a caller named.</summary>
@@ -223,6 +229,19 @@ public sealed class MailDeletionRecorder
                     destination: null,
                     heldUntil,
                     attemptCancellationToken);
+
+                // A draft whose message is deleted is given up with it, in the commit that deletes it: a record left
+                // naming the message would file the draft back on its next save. A delete still held is one somebody
+                // may withdraw, and the message it leaves standing is then mail in the folder rather than that draft.
+                if (written.Outcome is MailboxChangeSubmissionOutcome.Recorded or MailboxChangeSubmissionOutcome.Applied)
+                {
+                    await this.drafts.ReleaseFiledAsync(
+                        session,
+                        target.Occurrence.AccountId,
+                        storedEmailId,
+                        this.timeProvider.GetUtcNow(),
+                        attemptCancellationToken);
+                }
 
                 if (key is not null)
                 {
