@@ -707,6 +707,14 @@
         },
         {
           "click": {
+            "role": "button",
+            "name": "Show folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
             "text": "Drafts"
           }
         },
@@ -740,6 +748,14 @@
         },
         {
           "click": {
+            "role": "button",
+            "name": "Show folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
             "text": "Spam"
           }
         },
@@ -765,6 +781,14 @@
           "click": {
             "role": "button",
             "name": "Folders and filters",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Show folders and filters",
             "exact": true
           },
           "optional": true
