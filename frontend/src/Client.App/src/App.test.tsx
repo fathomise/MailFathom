@@ -104,6 +104,80 @@ function deploymentMarkingExternalMail(marksExternalMail: boolean): DeploymentTr
             : otherwise(signal)(request);
 }
 
+/**
+ * A deployment drawing one message to a credential that may write, file and delete mail, whose folders hold a trash,
+ * and which answers a saved draft as filed as that very message — so deleting the row is deleting the draft's message.
+ */
+function deploymentFilingTheDraftAsTheInvoice(): DeploymentTransport {
+    const otherwise = deploymentDrawingAMessage(
+        sessionAnswering([
+            'mailfathom.mail.read',
+            'mailfathom.mail.drafts.write',
+            'mailfathom.mail.move',
+            'mailfathom.mail.delete',
+            ...keptBesideTheMailbox,
+        ]),
+    );
+    const folder = (id: string, role: string) => ({
+        id,
+        role,
+        path: [role],
+        storedEmailCount: 1,
+        unreadEmailCount: 0,
+        synchronizationState: 'Synchronized',
+        lastSynchronizedAt: null,
+        behind: false,
+    });
+
+    return (signal) => (request) => {
+        if (request.path.endsWith('/folders')) {
+            return Promise.resolve(
+                complete({
+                    status: 200,
+                    body: JSON.stringify({
+                        synchronizationEnabled: true,
+                        accounts: [
+                            {
+                                account: workAccount,
+                                folders: [folder('INBOX', 'Inbox'), folder('TRASH', 'Trash')],
+                                outbox: { waiting: 0, refused: 0 },
+                            },
+                        ],
+                    }),
+                }),
+            );
+        }
+
+        if (request.method === 'POST' && request.path.endsWith('/drafts')) {
+            return Promise.resolve(
+                complete({
+                    status: 200,
+                    body: JSON.stringify({
+                        draftId: 'd1',
+                        account: 'work',
+                        subject: '',
+                        recipients: [],
+                        attachments: [],
+                        revision: 1,
+                        sizeOctets: 512,
+                        serverCopy: 'Filed',
+                        filedEmailId: '00000000-0000-4000-8000-000000000000',
+                        composedAt: '2026-09-04T11:50:00+00:00',
+                        revisedAt: '2026-09-04T11:55:00+00:00',
+                        sentAs: null,
+                        divergence: null,
+                        lastFailureCode: null,
+                        requestsDeliveryNotification: false,
+                        requestsReadReceipt: false,
+                    }),
+                }),
+            );
+        }
+
+        return otherwise(signal)(request);
+    };
+}
+
 describe('App', () => {
     it('says it is reaching the deployment while nothing has answered', () => {
         renderApp(servedFrom, heldSession, () => () => new Promise<ClientResponse>(() => undefined));
@@ -570,6 +644,28 @@ describe('App', () => {
 
         await waitFor(() => {
             expect(document.activeElement).toBe(handedBackTo);
+        });
+    });
+
+    // The composer was opened on nothing and its draft was filed by a save since, so the message it stands on is the
+    // one the save answered with — which is the only way the frame could know the deleted row was its draft.
+    it('closes the composer when the message its saved draft is filed as is deleted', async () => {
+        renderApp(servedFrom, heldSession, deploymentFilingTheDraftAsTheInvoice());
+        await openTheInvoice();
+
+        const toolbar = screen.getByRole('toolbar', { name: 'Mail actions' });
+
+        fireEvent.click(within(toolbar).getByRole('button', { name: 'New message' }));
+        await screen.findByLabelText('Message');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+        await screen.findByText('Draft filed in your own drafts.');
+
+        fireEvent.click(within(toolbar).getByRole('button', { name: 'Delete' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Move to the trash' }));
+
+        await waitFor(() => {
+            expect(screen.queryByLabelText('Message')).toBeNull();
         });
     });
 

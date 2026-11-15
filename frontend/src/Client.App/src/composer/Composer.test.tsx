@@ -2161,6 +2161,20 @@ describe('Composer, a draft MailFathom keeps', () => {
         });
     });
 
+    // Every save files the draft as another stored message, so the frame is told again with the answer to each one —
+    // the message it was first told about is no longer the one the drafts folder shows.
+    it('says which message the drafts folder shows its draft as now, once a save has filed it as another', async () => {
+        const { filedAs } = drawComposer(
+            { kind: 'new' },
+            { save: { status: 200, body: draftBody({ filedEmailId: 'message-10' }) } },
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+        expect(await screen.findByText('Draft filed in your own drafts.')).toBeDefined();
+
+        expect(filedAs).toHaveBeenLastCalledWith('message-10');
+    });
+
     it('says nothing about the server copy of a kept draft that is in step', async () => {
         drawComposer(held, { held: { status: 200, body: heldReading({ serverCopy: 'Filed', divergence: null }) } });
 
