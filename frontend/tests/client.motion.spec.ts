@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 import { actingGrants, openSignedIn, settled, test } from './client.harness';
 
@@ -179,43 +179,50 @@ test('takes the history back when the control is pressed again while it folds', 
 // it unfolds from nothing and folds back to nothing, and the list under it moves with it. Only a browser lays out a
 // height, and only one interpolating to `auto` travels it, so this is the check that the band is not merely fading
 // in place at its full size.
-function bandHeight(band: string): string {
-    return `document.getElementById(${JSON.stringify(band)})?.getBoundingClientRect().height ?? 0`;
+//
+// The band is found through the button on every reading rather than by an identifier read once: the identifier is the
+// list's own `useId`, so a list that mounts again while the mailbox settles hands out another, and a height read by the
+// first one stays nothing however far the band has unfolded.
+async function bandHeight(page: Page, filters: Locator): Promise<number> {
+    const band = (await filters.getAttribute('aria-controls')) ?? '';
+
+    return Number(
+        await page.evaluate(`document.getElementById(${JSON.stringify(band)})?.getBoundingClientRect().height ?? 0`),
+    );
 }
 
 test('unfolds the list’s filters from no height and folds them back before they go', async ({ page }) => {
     await openSignedIn(page, '/#/mail');
 
     const filters = page.getByRole('button', { name: /^Filters/u }).first();
-    const band = (await filters.getAttribute('aria-controls')) ?? '';
 
     await filters.click();
     await expect(filters).toHaveAttribute('aria-expanded', 'true');
-    await expect.poll(async () => Number(await page.evaluate(bandHeight(band)))).toBeGreaterThan(0);
+    await expect.poll(() => bandHeight(page, filters)).toBeGreaterThan(0);
     await settled(page);
-    const full = Number(await page.evaluate(bandHeight(band)));
+    const full = await bandHeight(page, filters);
 
     await filters.click();
-    await expect.poll(async () => Number(await page.evaluate(bandHeight(band)))).toBe(0);
+    await expect.poll(() => bandHeight(page, filters)).toBe(0);
 
     const animations = await page.context().newCDPSession(page);
     await animations.send('Animation.enable');
     await animations.send('Animation.setPlaybackRate', { playbackRate: 0.05 });
 
     await filters.click();
-    await expect.poll(async () => Number(await page.evaluate(bandHeight(band)))).toBeGreaterThan(0);
-    expect(Number(await page.evaluate(bandHeight(band)))).toBeLessThan(full);
+    await expect.poll(() => bandHeight(page, filters)).toBeGreaterThan(0);
+    expect(await bandHeight(page, filters)).toBeLessThan(full);
 
     await animations.send('Animation.setPlaybackRate', { playbackRate: 1 });
-    await expect.poll(async () => Number(await page.evaluate(bandHeight(band)))).toBe(full);
+    await expect.poll(() => bandHeight(page, filters)).toBe(full);
 
     await animations.send('Animation.setPlaybackRate', { playbackRate: 0.05 });
     await filters.click();
-    await expect.poll(async () => Number(await page.evaluate(bandHeight(band)))).toBeLessThan(full);
-    expect(Number(await page.evaluate(bandHeight(band)))).toBeGreaterThan(0);
+    await expect.poll(() => bandHeight(page, filters)).toBeLessThan(full);
+    expect(await bandHeight(page, filters)).toBeGreaterThan(0);
 
     await animations.send('Animation.setPlaybackRate', { playbackRate: 1 });
-    await expect.poll(async () => Number(await page.evaluate(bandHeight(band)))).toBe(0);
+    await expect.poll(() => bandHeight(page, filters)).toBe(0);
 });
 
 // The message source opens on a skeleton while its octets are on the wire, and a reader who asked for less motion keeps

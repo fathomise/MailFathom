@@ -118,7 +118,7 @@ delivered part of it. Nothing in a pull request says which case it is in, which 
 inferred.
 
 Resolve each issue the merged pull requests closed against its parent. The sub-issue links are the source of truth for
-the hierarchy — the `parent` label mirrors them for the board and can be stale — so the lookup follows the link, and
+the hierarchy, so the lookup follows the link, and
 only GraphQL exposes it:
 
 ```bash
@@ -206,9 +206,8 @@ gh api -X PATCH "repos/fathomise/MailFathom/milestones/<old>" -f state=closed
 ```
 
 The new issue is placed like any other, through the calls `docs/operations/issue-tracking.md` § *Board fields* holds:
-`Area: Release`, `Queue: Next` — the next release is accepted roadmap work, independently of when it is cut —
-and `Size: S`, which is what that page's rule gives anything that is not a `Feature`. Preserve `Sprint`; only the
-user assigns it. The measured value the field otherwise carries does not reach this issue: this skill opens its own pull requests rather than
+`Area: Release` and `Size: S`, which is what that page's rule gives anything that is not a `Feature`. It takes
+no `Sprint` and no parent: the release is cut when the owner decides, and its tracking issue is part of no feature. The measured value the field otherwise carries does not reach this issue: this skill opens its own pull requests rather than
 going through `$finish-change`, so the placeholder is what stands. It is the right band anyway, both diffs together being
 a changelog section, three prose files, one property, and the lock files.
 
@@ -588,21 +587,24 @@ Each body names the other by number, so neither is merged alone by accident. Bot
 release in their titles, and the version-bump one carries the `Closes #<issue>` line, so the issue stays open across
 the tag and closes when the release is actually finished.
 
-**Then set `Queue: Next` on the tracking issue.** `docs/operations/issue-tracking.md` § *Linking a pull request to its
+**Then put the tracking issue in the current sprint.** `docs/operations/issue-tracking.md` § *Linking a pull request to its
 issue* makes that write part of opening a pull request, and it is this skill's to perform: `$finish-change` is what
-writes it everywhere else, and no step here invokes it. Without the write the release is the one piece of work in
-flight that the board's `Now` view cannot see, for exactly the weeks it is being cut.
+confirms it everywhere else, and no step here invokes it. Without the write the release is the one piece of work in
+flight that the board's `Current Sprint` view cannot see, for exactly the time it is being cut.
+
+`docs/operations/issue-tracking.md` § *Board fields* holds the call that prints `<Sprint field-id>` and
+`<current iteration-id>`.
 
 ```bash
-gh project field-list 1 --owner fathomise --format json   # field ids and option ids
 gh project item-list  1 --owner fathomise --format json   # item id for the tracking issue
 gh project item-edit --project-id <project-id> --id <item-id> \
-  --field-id <Queue field-id> --single-select-option-id <Next option-id>
+  --field-id <Sprint field-id> --iteration-id <current iteration-id>
 ```
 
 Confirm the value landed, as that page requires: nothing else writes the field, so one that did not land is an
-incomplete step rather than a detail. Where the board probe returned read access this write does not exist; say so
-rather than reporting it as skipped.
+incomplete step rather than a detail. Where that call prints nothing, no sprint is current: write nothing and say so in
+the report. Where the board probe returned read access this write does not exist; say so rather than reporting it as
+skipped.
 
 ### 7. Print the ordering, and stop
 

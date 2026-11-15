@@ -57,7 +57,7 @@ The fork role sets no issue type, assigns no label and no milestone, and never p
 because those are write access to the repository rather than to the board, and no board grant confers
 them. Those are not degraded versions of the owner's steps — they are steps that belong to a
 maintainer, and attempting one produces a permission error rather than a partial result. The board
-fields — `Area`, `Queue`, `Size` — follow the probe instead of the role, so a contributor the owner
+fields — `Area`, `Size`, `Sprint` — follow the probe instead of the role, so a contributor the owner
 granted write to sets them exactly as this file says, and the owner's own checkout would stop setting
 them if that access were ever removed.
 
@@ -165,16 +165,21 @@ them if that access were ever removed.
    `gh issue edit --type` on an issue that already exists — a `backend` or `frontend` label where the work
    lands in one of the two stacks and neither where it lands in neither, the `design` label where it
    changes `design/` — alone, or beside `frontend` where a client change has to draw its design half in
-   the same pull request — an `Area` and a `Queue`
-   value on the board, a milestone when the milestone rule assigns one, and the `Size` placeholder
+   the same pull request — an `Area`
+   value on the board, the parent of the feature it is part of, that parent's milestone, and the `Size` placeholder
    that page's one rule produces — a placeholder rather than an estimate, because the value the board
    keeps is the one `$finish-change` measures off the diff. Decide each from the rules on that page rather than asking.
-   A new issue takes `Queue: Parked` unless the owner has accepted it onto the roadmap or asked to
-   run it, which authorizes `Queue: Next`. A parent follows the same rule; its `parent` label and
-   `[P] ` title prefix identify the hierarchy. Waiting for an ADR, an internal decision, or a
-   measurement is `Status: Needs decision`, independent of `Queue`: record the awaited answer in
-   the issue, link a `Decision` issue where one exists, and do not begin implementation until it is
-   settled. Preserve any `Sprint` assignment; only the user assigns, changes, or clears it.
+   **Every issue gets a milestone, without exception, and it is always an existing one.** Link the
+   issue beneath the open parent whose outcome it serves most closely, with the call that page
+   § *Issue content* gives, and give it that parent's milestone. Where no open parent honestly fits,
+   the issue carries no parent, takes the existing thematic epic closest to what it is about, and
+   the brief says it has no feature. A parent is never opened to hold one issue, a milestone is never
+   created here, and a release epic is chosen only as that page § *Milestones* allows. A new issue takes no
+   `Sprint`, which makes it backlog; step 10 writes the current one when the work is taken. A parent
+   carries no `Sprint` at all, and its sub-issue links and `[P] ` title prefix identify the hierarchy.
+   Waiting for an ADR, an internal decision, or a measurement is `Status: Needs decision`,
+   independent of `Sprint`: record the awaited answer in the issue, link a `Decision` issue where
+   one exists, and do not begin implementation until it is settled.
    Verify the values landed, because the built-in workflows normally set `Status` and nothing else, an
    unplaced issue disappears from the views the owner reads, and GitHub drops a type it will not let
    this credential set without reporting an error.
@@ -182,14 +187,15 @@ them if that access were ever removed.
    An issue this step opened also carries its order. Write one `blocked by` relation for each issue
    its `## Dependencies` section names that is still open, and none for one already closed, with the
    call `docs/operations/issue-tracking.md` § *The order between issues* gives. Where the issue is a
-   parent, its `## Delivery order` table is what those relations are read from, and that page
-   requires the table on every parent — so a parent is not placed until it has one.
+   feature parent, its `## Delivery order` table is what those relations are read from, and that page
+   requires the table on every such parent — so one is not placed until it has it. A collecting
+   parent, whose parts have no order, carries none.
 
    In the fork role, open the issue and stop at what the probe allows. Without board write that is
    the issue alone: an arrival carries no type, no label, no milestone, no board fields, and no relation by
    design, and the maintainer's triage pass supplies them. With board write it is the issue plus its
-   `Area`, `Queue`, and `Size`, and the type, the labels, the milestone, and the relations still wait for
-   triage — a relation is write access to this repository exactly as a label is. Step 8 is
+   `Area` and `Size` — and the `Sprint` step 10 writes when the work is taken — and the type, the labels, the milestone, the parent, and the relations still wait for
+   triage — a relation or a sub-issue link is write access to this repository exactly as a label is. Step 8 is
    unaffected either way, the dependencies of a public issue being public, so the refusal it carries
    holds in both roles. Say which of the two happened in the brief, so nobody reads the absence as a
    step that failed.
@@ -208,8 +214,17 @@ them if that access were ever removed.
     identified while the workspace turns out to be `blocked` was read and not taken. Nothing reads
     the label, so re-applying one already present is a harmless no-op and nothing has to look first,
     and it is never removed — `docs/operations/issue-tracking.md` § *Labels* holds what it claims and
-    why the claim is the weaker of the two available. In the fork role this step does not exist, for
-    the reason every label step does not: it is write access to this repository.
+    why the claim is the weaker of the two available. In the fork role the label is not applied, for
+    the reason every label step is not: it is write access to this repository.
+
+    **The sprint write beside it follows the board probe rather than the role.** Wherever the probe
+    returned write access — the owner's checkout, or a fork whose contributor the owner granted it —
+    taking the issue puts it in the current sprint, unless it already carries that one. Taking an
+    issue is what commits it, and the sprint is the board's one statement of that;
+    `docs/operations/issue-tracking.md` § *Board fields* holds the call that finds the current sprint
+    and the `gh project item-edit` write that follows it. Read the value back. Write no other sprint,
+    and none on a parent. Where that call prints nothing, no sprint is current: write nothing and say
+    so in the brief.
 11. Say whether the change looks large enough to split, in the `Scale` line of the brief. This is the
     board's `XL` warning, and it is raised here because this is the last point before the first edit
     at which anything has read the issue against the repository: the surfaces it reaches, the tests
@@ -236,9 +251,10 @@ Protected paths: <none reached, or which — and whether the pull request waits 
 Issue: <number and title, or created with reason>
 Baseline: <the main commit the body was written against, what landed since that touches it and what that changed, or none recorded>
 Blocked by: <the open blockers refusing the work, or none — and any relation written>
-Placement: <issue type, stack label or neither, design label or not, Area, Queue, Size placeholder, milestone or none — or what the board probe left to triage>
+Placement: <issue type, stack label or neither, design label or not, Area, the milestone (always set), the feature parent or that none fitted, Size placeholder — or what the board probe left to triage>
 Scale: <no split warning, or what makes this look XL, which surfaces it reaches, and where a seam between two issues would fall>
 Claim: <agent:claude or agent:codex applied, already present, or not applicable in the fork role>
+Sprint: <the current sprint written and read back, already carried, no sprint current, or no board write — by the board probe, in either role>
 Required context: <files read>
 Assumptions or blockers: <none or explicit list>
 Verification: <fast loop and final gate>

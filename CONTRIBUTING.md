@@ -78,7 +78,7 @@ checkout. My branch keeps the name I gave it, and nothing is ever pushed to
 
 The roadmap board, project `1`, is private to the maintainer and I have no access to it.
 Do not read it, do not write it, and do not treat that as a step that failed: an issue I
-open carries no issue type, no stack or design label, no milestone, and no `Area`, `Queue`, or `Size`
+open carries no issue type, no stack or design label, no milestone, and no `Area` or `Size`
 value by design, and the maintainer's triage supplies them. `$start-task` opens the issue and stops
 there; `$finish-change` reports the board write as `not applicable (no board write)`.
 

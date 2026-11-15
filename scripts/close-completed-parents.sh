@@ -11,8 +11,7 @@ set -euo pipefail
 #   scripts/close-completed-parents.sh <owner/repository>
 #   scripts/close-completed-parents.sh <owner/repository> --dry-run    names what is complete now and closes nothing
 #
-# GitHub publishes sub-issue progress on the issue itself, so one listing answers it for every parent at once. The
-# `parent` label is deliberately not what is filtered on: the label goes stale while the sub-issue links stay right.
+# GitHub publishes sub-issue progress on the issue itself, so one listing answers it for every parent at once.
 # An issue with no sub-issues at all is not a completed parent, which is why the count has to be above zero.
 #
 # The board is not written here: closing the issue is what moves its item to `Done`. Closing comes first and the
