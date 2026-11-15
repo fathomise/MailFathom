@@ -207,7 +207,7 @@ gh api -X PATCH "repos/fathomise/MailFathom/milestones/<old>" -f state=closed
 
 The new issue is placed like any other, through the calls `docs/operations/issue-tracking.md` § *Board fields* holds:
 `Area: Release` and `Size: S`, which is what that page's rule gives anything that is not a `Feature`. It takes
-no `Sprint` and no parent: the release is cut when the owner decides, and its tracking issue is part of no feature. The measured value the field otherwise carries does not reach this issue: this skill opens its own pull requests rather than
+no `Sprint` and no parent: the release is cut when the owner decides, and its tracking issue is the one issue that is part of no feature. The measured value the field otherwise carries does not reach this issue: this skill opens its own pull requests rather than
 going through `$finish-change`, so the placeholder is what stands. It is the right band anyway, both diffs together being
 a changelog section, three prose files, one property, and the lock files.
 
