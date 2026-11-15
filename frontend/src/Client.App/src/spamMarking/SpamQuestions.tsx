@@ -16,8 +16,8 @@ import { isDangerous, subcategoryHints, subcategoryLabels } from './spamWords';
 
 // The two questions the spam control stands in front of an act, drawn once for every surface that offers the control:
 // the chooser of the six subcategories, which *Spam* opens, and the confirmation *Not spam* always asks, saying whether
-// the mark moves mail out of the Spam folder or leaves it where it is. A move into the Spam folder opens the chooser too, after the fact, to name the kind of
-// spam the move already marked.
+// the mark moves mail out of the Spam folder or leaves it where it is. A move into the Spam folder opens the chooser
+// too, after the fact, to name the kind of spam the move already marked.
 //
 // **The chooser is a choice rather than a confirmation**, which is why it is not `Confirmation`: picking a kind *is* the
 // act, one kind applies to every message, and closing it — its close control, Escape, the scrim, or back — changes

@@ -164,9 +164,7 @@ export function parseMailAccount(value: unknown): MailAccount | null {
     const oldestWaitingChangeCommittedAt = record['oldestWaitingChangeCommittedAt'];
     const marksExternalMail = record['marksExternalMail'];
 
-    // Absent reads as none, because a deployment part-way through an upgrade answers from a replica that does not
-    // publish the field yet.
-    const sendingAddress = record['sendingAddress'] ?? null;
+    const sendingAddress = record['sendingAddress'];
 
     if (typeof id !== 'string' || typeof displayName !== 'string' || typeof behind !== 'boolean') {
         return null;

@@ -130,6 +130,7 @@ describe('readMailAccounts', () => {
                     behindSince: null,
                     waitingChangeCount: 0,
                     oldestWaitingChangeCommittedAt: null,
+                    sendingAddress: null,
                 },
             ],
         });
@@ -177,6 +178,7 @@ describe('readMailAccounts', () => {
                     behindSince: '2026-08-14T21:05:00+00:00',
                     waitingChangeCount: 3,
                     oldestWaitingChangeCommittedAt: '2026-08-15T07:31:00+00:00',
+                    sendingAddress: null,
                 },
             ],
         });
@@ -205,6 +207,7 @@ describe('readMailAccounts', () => {
         ['no instant it fell behind', { behindSince: undefined }],
         ['no waiting count', { waitingChangeCount: undefined }],
         ['no oldest waiting change', { oldestWaitingChangeCommittedAt: undefined }],
+        ['no sending address', { sendingAddress: undefined }],
     ])('refuses an account carrying %s', async (_, field) => {
         const body = JSON.stringify({
             synchronizationEnabled: true,
@@ -221,6 +224,7 @@ describe('readMailAccounts', () => {
                     behindSince: null,
                     waitingChangeCount: 0,
                     oldestWaitingChangeCommittedAt: null,
+                    sendingAddress: null,
                     ...field,
                 },
             ],
@@ -279,6 +283,7 @@ describe('readMailAccounts', () => {
                         behindSince: null,
                         waitingChangeCount: 0,
                         oldestWaitingChangeCommittedAt: null,
+                        sendingAddress: null,
                     },
                 ],
             }),
@@ -306,6 +311,7 @@ describe('readMailAccounts', () => {
                         behindSince: null,
                         waitingChangeCount: 0,
                         oldestWaitingChangeCommittedAt: null,
+                        sendingAddress: null,
                     },
                 ],
             }),
@@ -343,6 +349,7 @@ describe('readMailAccounts', () => {
                         behindSince: null,
                         waitingChangeCount: 0,
                         oldestWaitingChangeCommittedAt: null,
+                        sendingAddress: null,
                     },
                 ],
             }),
@@ -365,6 +372,7 @@ describe('readMailAccounts', () => {
                         behindSince: null,
                         waitingChangeCount: 0,
                         oldestWaitingChangeCommittedAt: null,
+                        sendingAddress: null,
                     },
                 ],
             }),
@@ -386,6 +394,7 @@ describe('readMailAccounts', () => {
                         behindSince: null,
                         waitingChangeCount: 0,
                         oldestWaitingChangeCommittedAt: null,
+                        sendingAddress: null,
                     },
                 ],
             }),
@@ -436,6 +445,7 @@ describe('readMailAccounts', () => {
                 behindSince: null,
                 waitingChangeCount: 0,
                 oldestWaitingChangeCommittedAt: null,
+                sendingAddress: null,
             })),
         });
 

@@ -471,6 +471,10 @@ public sealed class MailRelocationRecorder
             return notFound;
         }
 
+        // Giving the draft up erases it rather than filing it, which is what the grant to delete covers and the grant
+        // to move does not.
+        this.authorization.RequirePermission(MailFathomPermission.MailDelete);
+
         // Applied with no folder and no record: the message was erased rather than filed, and nothing is left to follow.
         var applied = AuthoredMailRelocationResult.DraftGivenUp();
 

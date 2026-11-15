@@ -47,6 +47,9 @@ namespace MailFathom.Application.UnitTests.Mail.Mutations.Authoring;
 /// </remarks>
 public sealed class MailRelocationRecorderTests
 {
+    private static AccessAuthorization MoveAndDelete =>
+        AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailMove, MailFathomPermission.MailDelete);
+
     private static readonly MailAccountId Account =
         MailAccountId.Create("personal");
 
@@ -571,7 +574,7 @@ public sealed class MailRelocationRecorderTests
             ["Trash"] = this.MapMirrored(Trash, "Trash", MailFolderSpecialUse.Trash),
         };
         var draftId = await this.FileDraftAsync();
-        var recorder = this.Recorder(target: null);
+        var recorder = this.Recorder(target: null, authorization: MoveAndDelete);
 
         // Act
         var result = await recorder.RecordAsync(
@@ -589,6 +592,35 @@ public sealed class MailRelocationRecorderTests
         Assert.Null(result.RecordId);
         Assert.Equal(givenUp, draft is null);
         Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>
+    /// Giving a draft up erases it, which the grant to move mail does not cover: a caller who may move and may not
+    /// delete is refused, and the draft stands.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_ACallerWithoutTheDeleteGrantMovingADraftsMessageThatHoldsNoOccurrenceIntoTheTrash_IsRefusedAndLeavesTheDraft()
+    {
+        // Arrange
+        this.MapMirrored(Drafts, "Drafts", MailFolderSpecialUse.Drafts);
+        var trash = this.MapMirrored(Trash, "Trash", MailFolderSpecialUse.Trash);
+        var draftId = await this.FileDraftAsync();
+        var recorder = this.Recorder(target: null);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() => recorder.RecordAsync(
+            LocalEmail,
+            IdOf(trash.Alias),
+            Requester,
+            MailboxReaderKind.Person,
+            TestContext.Current.CancellationToken));
+
+        // Assert
+        var draft = await this.drafts.FindAsync(draftId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(MailFathomPermission.MailDelete, refusal.RequiredPermission);
+        Assert.NotNull(draft);
+        Assert.False(draft.IsDiscarded);
     }
 
     /// <summary>An agent reads no unsent mail, so its move of such a message finds none and the draft stands.</summary>
@@ -630,11 +662,11 @@ public sealed class MailRelocationRecorderTests
         await this.FileDraftAsync();
         var keys = new InMemoryMailActKeyStore();
         var key = MailActIdempotencyKey.Create("call-1", "moves", [$"{LocalEmail.Value:N}|{IdOf(trash.Alias)}"]);
-        var first = await this.Recorder(target: null, keys: keys)
+        var first = await this.Recorder(target: null, authorization: MoveAndDelete, keys: keys)
             .RecordAsync(LocalEmail, IdOf(trash.Alias), Requester, MailboxReaderKind.Person, key, TestContext.Current.CancellationToken);
 
         // Act
-        var repeat = await this.Recorder(target: null, keys: keys.AnotherReplica())
+        var repeat = await this.Recorder(target: null, authorization: MoveAndDelete, keys: keys.AnotherReplica())
             .RecordAsync(LocalEmail, IdOf(trash.Alias), Requester, MailboxReaderKind.Person, key, TestContext.Current.CancellationToken);
 
         // Assert

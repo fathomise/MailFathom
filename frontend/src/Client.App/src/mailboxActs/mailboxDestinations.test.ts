@@ -137,6 +137,22 @@ describe('destinationsFor', () => {
         ]);
     });
 
+    it('offers a role folder that has no place on the server yet, at the top and once', () => {
+        const unbound = directoryOf({
+            work: [
+                folder('work-inbox', 'Inbox', ['INBOX']),
+                folder('work-contracts', null, ['INBOX', 'Contracts']),
+                folder('work-archive', 'Archive', []),
+            ],
+        });
+
+        expect(destinationsFor(unbound, [inWork('message-1')])[0]?.destinations).toStrictEqual([
+            { folderId: 'work-inbox', name: 'INBOX', role: 'Inbox', level: 0 },
+            { folderId: 'work-contracts', name: 'Contracts', role: null, level: 1 },
+            { folderId: 'work-archive', name: '', role: 'Archive', level: 0 },
+        ]);
+    });
+
     it('counts the account the way the folder column counts its groups, so a mailbox keeps its colour', () => {
         const oneAccount = directoryOf({ work: [folder('work-inbox', 'Inbox', ['INBOX'])] });
 

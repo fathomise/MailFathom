@@ -447,7 +447,11 @@ function nestedBeneath(folders: readonly MailFolder[], above: readonly string[],
         (folder) => !beneath.some((other) => other !== folder && startsWith(folder.path, other.path)),
     );
 
-    return outermost
+    // A role folder nothing has bound yet has no path, so it lies beneath nothing and is offered at the top by its
+    // role rather than dropped.
+    const placeless = above.length === 0 ? folders.filter((folder) => folder.path.length === 0) : [];
+
+    return [...placeless, ...outermost]
         .map((folder) => ({
             folder,
             destination: {
@@ -458,7 +462,10 @@ function nestedBeneath(folders: readonly MailFolder[], above: readonly string[],
             },
         }))
         .sort((one, other) => byOfferedOrder(one.destination, other.destination))
-        .flatMap(({ folder, destination }) => [destination, ...nestedBeneath(beneath, folder.path, level + 1)]);
+        .flatMap(({ folder, destination }) => [
+            destination,
+            ...(folder.path.length === 0 ? [] : nestedBeneath(beneath, folder.path, level + 1)),
+        ]);
 }
 
 // Whether a path lies at or beneath another, level by level rather than as text: a mail server's delimiter may be any

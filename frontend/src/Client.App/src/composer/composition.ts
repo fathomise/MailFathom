@@ -369,13 +369,13 @@ function picturesSent(composition: Composition): readonly { readonly name: strin
     });
 }
 
-/** The addresses written in any of the named headers, in the order they were written and without a repeat. */
 // One mailbox written in two cases is one mailbox, which is how every mail server reads the domain and nearly every one
 // the local part.
 function sameAddress(one: string, other: string | null): boolean {
     return other !== null && one.toLowerCase() === other.toLowerCase();
 }
 
+/** The addresses written in any of the named headers, in the order they were written and without a repeat. */
 function addressesOf(
     participants: readonly MailParticipant[],
     roles: readonly MailParticipant['role'][],
