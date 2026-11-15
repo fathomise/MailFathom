@@ -663,6 +663,12 @@ handshake, and an authentication. Setting it higher does the opposite. It is rea
 [mail configuration](../operations/configuration-mail.md#mailsynchronization) marks it *restart* rather than
 *reload*.
 
+A connection the server closed while it sat idle still reports itself connected until something reads from it, and a
+change is never repeated — so the change would be the command that found the connection gone, and it would be reported
+as a mail server that did not answer. A folder act and every change therefore first ask the connection a `NOOP`, which is
+a question rather than a change, so the retrieval budget asks it again on a connection it rebuilt, and the change goes
+out only on a connection that has just answered.
+
 A write connection is pinned to the folder it selected, the way any IMAP selection is, so changing a message in a second
 folder replaces the connection rather than adding one. Nothing on the read side can open, borrow, or reach it — the
 guarantee that synchronization and content retrieval never mark mail read is a property of the types they hold, which

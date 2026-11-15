@@ -427,6 +427,48 @@ public sealed class MailKitImapWriteSessionTests
     }
 
     /// <summary>
+    /// A write connection the server closed while it sat idle still reports itself connected, and a move is never
+    /// repeated, so the connection is proven and rebuilt before the move rather than the move being the command that
+    /// finds it gone and leaves the record with an outcome nobody knows.
+    /// </summary>
+    [Fact]
+    public async Task RelocateAsync_ServerClosedTheIdleWriteConnection_ReconnectsAndIssuesTheMoveOnce()
+    {
+        // Arrange
+        using var resilience = OutboundResilienceTestHost.WithConfiguredSettings();
+        var client = new FakeImapClient { Capabilities = ImapCapabilities.Move | ImapCapabilities.UidPlus };
+        var openFolder = CreateWritableFolder();
+        AnswerWithCopyUid(openFolder, sourceUid: 42U, destinationUid: 7U);
+        await using var harness = CreateHarness(resilience, client, openFolder);
+        await using var session = await harness.OpenSessionAsync();
+        var closedWhileIdle = true;
+        client.Client.NoOpAsync(Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            if (!closedWhileIdle)
+            {
+                return Task.CompletedTask;
+            }
+
+            closedWhileIdle = false;
+
+            throw client.DropConnection(new ImapProtocolException("The IMAP server has unexpectedly disconnected."));
+        });
+
+        // Act
+        var placement = await resilience.CompleteOnVirtualTimeAsync(
+            session.RelocateAsync(CreateOccurrenceId(42U), Archive, new RecordingMailboxMutationJournal(), CancellationToken.None),
+            TimeSpan.FromMilliseconds(250));
+
+        // Assert
+        Assert.Equal(7U, placement.Uid?.Value);
+        Assert.Equal(2, client.ConnectCount);
+        await openFolder.Received(1).MoveToAsync(
+            Arg.Any<IList<UniqueId>>(),
+            Arg.Any<IMailFolder>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
     /// The fallback is the main path rather than the exceptional one, and it is written out here rather than delegated
     /// to MailKit's own <c>MoveTo</c>, whose fallback expunges the whole folder on a server without UIDPLUS.
     /// </summary>
@@ -600,7 +642,7 @@ public sealed class MailKitImapWriteSessionTests
         await session.CopyAsync(CreateOccurrenceId(42U), Archive, new RecordingMailboxMutationJournal(), CancellationToken.None);
 
         // Assert
-        Assert.Equal(["NOOP", "UID FETCH"], commands);
+        Assert.Equal(["NOOP", "NOOP", "UID FETCH"], commands);
     }
 
     /// <summary>A placement already confirmed is finished, whatever the source now holds, so a resumed copy asks nothing.</summary>

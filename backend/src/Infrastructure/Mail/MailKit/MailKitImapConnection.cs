@@ -433,11 +433,31 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
                 "This connection was not created to manage folders and cannot change the shape of the mailbox.");
         }
 
-        var authenticatedClient = await this.EnsureAuthenticatedClientAsync(cancellationToken);
+        var authenticatedClient = await this.ProveConnectedAsync(cancellationToken);
 
         return await this.AttemptUnrepeatedOperationAsync(
             () => folderManagement(authenticatedClient, cancellationToken));
     }
+
+    /// <summary>
+    /// Proves the connection still reaches the server, rebuilding it where it does not, before a change that is never
+    /// repeated.
+    /// </summary>
+    /// <remarks>
+    /// A connection the server closed while it sat idle in the write pool still reports itself connected until
+    /// something reads from it, so the change itself would be the read that finds out — and a change is never repeated,
+    /// so it would be reported as a server that did not answer. A <c>NOOP</c> is a question rather than a change, so the
+    /// retrieval pipeline asks it again on a connection it rebuilt, and the change then goes out on one that answered.
+    /// </remarks>
+    private Task<IImapClient> ProveConnectedAsync(CancellationToken cancellationToken) =>
+        this.ExecuteClientReadAsync(
+            async (client, attemptToken) =>
+            {
+                await client.NoOpAsync(attemptToken);
+
+                return client;
+            },
+            cancellationToken);
 
     /// <summary>Runs one attempt that is never repeated, keeping the connection only where the failure proves it survived.</summary>
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Every failure is inspected for whether it left the connection usable and is then rethrown, translated only where a mail-library type would otherwise cross an application port.")]
@@ -485,7 +505,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
     /// failure as an unavailable mailbox, discarding the connection so the next call establishes its own.
     /// </para>
     /// </remarks>
-    internal Task<TResult> ExecuteMutationAsync<TResult>(
+    internal async Task<TResult> ExecuteMutationAsync<TResult>(
         Func<IImapClient, IMailFolder, CancellationToken, Task<TResult>> mutation,
         CancellationToken cancellationToken)
     {
@@ -503,7 +523,9 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
                 "This connection selects no folder and cannot change the emails in one.");
         }
 
-        return this.ExecuteUnrepeatedFolderOperationAsync(mutation, cancellationToken);
+        await this.ProveConnectedAsync(cancellationToken);
+
+        return await this.ExecuteUnrepeatedFolderOperationAsync(mutation, cancellationToken);
     }
 
     /// <summary>Closes and releases the connection, reporting the first cleanup failure.</summary>

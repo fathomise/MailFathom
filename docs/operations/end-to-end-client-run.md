@@ -61,7 +61,7 @@ that never reached the mailbox and a client that cannot draw a list are two diff
 | The database, the mail server, and the fault proxy | The app model, on the topology `EndToEndClient=true FaultProxy=true` selects: PostgreSQL, GreenMail, and the Toxiproxy instance [Injecting network faults](fault-injection.md#in-the-end-to-end-client-run) describes in front of GreenMail, under the ephemeral run prefix, and no MailFathom |
 | The schema | The artifact applied with `psql` inside the database container, the route [the schema page](database-schema.md) gives an operator whose database is not reachable from where they stand |
 | MailFathom | `dotnet publish` of `Host`, the bundle copied to `wwwroot/` beside it as the image does, started with the client endpoint on and serving the page |
-| The mailbox | `POST /api/admin/users` recording the user this run serves — the database it created holds nobody — then `POST /api/admin/mail-accounts` creating the mail account — reading the mailbox through the fault proxy's IMAP port rather than GreenMail's own — and assigning it to that user, because no configuration source declares a mailbox — the mailbox is served from that write, without a restart. The record states the account's language and carries an `env:` reference to the mailbox password rather than the password, because MailFathom refuses a secret's material into a persisted record whatever wrote it. It also switches sending on against GreenMail's SMTP port, because the contract set below queues a send and takes it back, and an account with nowhere to submit refuses a send before it is queued |
+| The mailbox | `POST /api/admin/users` recording the user this run serves — the database it created holds nobody — then `POST /api/admin/mail-accounts` creating the mail account — reading the mailbox through the fault proxy's IMAP port rather than GreenMail's own — and assigning it to that user, because no configuration source declares a mailbox — the mailbox is served from that write, without a restart. The record states the account's language and carries an `env:` reference to the mailbox password rather than the password, because MailFathom refuses a secret's material into a persisted record whatever wrote it. It also enables sending, through the fault proxy's SMTP port and from the mailbox's own address, because the contract set below queues a send and takes it back and the specs send mail, and an account with nowhere to submit refuses a send before it is queued; and it maps the archive, drafts, sent, junk, and trash roles to folders it asks to be created, because GreenMail starts a mailbox with an inbox alone and advertises no role, and an account naming no trash has nowhere to delete to. Its delete expunges the message on the mail server rather than leaving it there, which is the default, so a delete for good is one the specs can read gone from the mailbox |
 | The role | `POST /api/admin/role-assignments` giving that user the seeded `User` role at their own scope, found by its name in `GET /api/admin/roles`, because a recorded user holds no permission until a role is assigned and the credential below takes the user's own |
 | The credential | `POST /api/admin/users/{id}/credentials` on [the administrative endpoint](admin-endpoint.md), so the password this run signs in with was made the way an operator makes one |
 | The mail | `SyntheticMail replay` of `backend/tools/SyntheticMail/corpora/office-en.zip` into the mailbox over SMTP |
@@ -108,13 +108,30 @@ of a filled mailbox takes as long as it takes.
 
 `frontend/tests/end-to-end/` holds them and `frontend/playwright.end-to-end.config.ts` runs them. They cover the path a
 person takes through each of the client's five built spaces: signing in, the mail list, opening a message, the
-conversation it belongs to, a search over the mailbox, and signing out; the calendar in each of its four views and an
-event written, amended and deleted; the task list under its three headings, the day beside it, and a task written,
-marked done and deleted; the address book, somebody opened out of it, and a contact written and deleted; and Discover as
-far as this run can reach it, which the paragraph below says is the screen rather than an answer. Everything is
-asserted by role and by the words a person reads, as the client's unit and browser suites are. Its fourth suite is the
-exception that proves nothing about this one: the desktop suite reaches its WebView over the WebDriver protocol, which
-has no locator for a role and a name at all.
+conversation it belongs to, a search over the mailbox, and signing out; every act on mail, described below; the calendar
+in each of its four views and an event written, amended and deleted; the task list under its three headings, the day
+beside it, and a task written, marked done and deleted; the address book, somebody opened out of it, and a contact
+written and deleted; and Discover as far as this run can reach it, which the paragraph below says is the screen rather
+than an answer. Everything is asserted by role and by the words a person reads, as the client's unit and browser suites
+are. Its fourth suite is the exception that proves nothing about this one: the desktop suite reaches its WebView over
+the WebDriver protocol, which has no locator for a role and a name at all.
+
+**Every act a person performs on mail is driven through the screen and proven against the mail server.**
+`mailbox-acts.spec.ts` deletes a message from the trash for good, files one in another folder, flags and unflags one,
+marks one read and unread, marks one spam and takes it back, empties the trash, marks, flags, and archives a selection
+of messages, and marks a whole conversation read, deletes it and takes that back, and files it; `writing.spec.ts` keeps
+a draft and opens it again, sends a message that reaches Sent and, addressed to this mailbox, the inbox, and takes back
+a send the Outbox still holds; `folders.spec.ts` makes a folder, renames it, moves it inside another, and deletes it.
+Each asserts three things: what the screen draws once the act is done, what it draws after a reload — the service's
+answer rather than the client's — and what the mail server holds, read over IMAP from the spec by
+`frontend/tests/end-to-end/mailbox.ts`: the message in the folder it was filed in, the flag or keyword on it, the
+message gone, the folder listed, and an unread count equal to the one the tree draws. The run hands the specs the mail
+server's IMAP and SMTP ports, the mailbox's address, and its credential, which it already holds. Each spec acts on mail
+it delivered itself over SMTP, under a subject carrying a mark drawn for the delivery, because the corpus is
+conversations and no subject in it names one message on both sides; acting on its own mail is also what leaves the
+corpus as every other spec expects it. A folder is moved *into* another rather than out of one, because GreenMail
+answers a rename out of a level with `OK` and leaves the folder where it was — a fault of the test server, which the
+spec states rather than asserts around.
 
 **Only Mail arrives by itself, so the other three are seeded.** Mail reaches the deployment because it was delivered to
 a mail server and synchronized out of it; a calendar, a task list and an address book are written by the person who

@@ -105,11 +105,11 @@ const longestRecordsAnswer = 65_536;
 /**
  * What became of one message in a submitted batch.
  *
- * `recorded` wrote a change down for the mail server and carries the record to follow. `applied` is the answer from an
- * account the deployment holds on its own: the change has already happened and there is no record to follow, so a
- * screen treats it as finished at once. The rest are each about that one message rather than about the request, which
- * is what lets a batch composed from a list that has moved on report exactly which entries did not apply and write the
- * rest down.
+ * `recorded` wrote a change down for the mail server and carries the record to follow. `applied` says the change has
+ * already taken effect in what MailFathom keeps: on an account the deployment holds on its own nothing follows it, and
+ * on a mirrored or a restoring account it may name beside it the record carrying the change on to the mail server. The
+ * rest are each about that one message rather than about the request, which is what lets a batch composed from a list
+ * that has moved on report exactly which entries did not apply and write the rest down.
  */
 export type MailMutationOutcome =
     | 'recorded'
@@ -161,7 +161,8 @@ export interface MailMutationResult {
     readonly outcome: MailMutationOutcome;
 
     /**
-     * The records this message's change became, which is empty for every outcome but `recorded`.
+     * The records this message's change became: those of `recorded`, those an `applied` change on a mirrored or a
+     * restoring account names beside it, and none for any other outcome.
      *
      * A record per value rather than per message, because a record is the unit the account's pass resumes, abandons,
      * and attributes an observation back to: a message whose seen flag completes while its keywords are still

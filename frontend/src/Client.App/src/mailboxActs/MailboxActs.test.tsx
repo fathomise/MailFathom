@@ -162,7 +162,12 @@ function deploymentAnswering(
     {
         late = [],
         withdrawalStatus = status,
-    }: { readonly late?: readonly string[]; readonly withdrawalStatus?: number } = {},
+        recordBeside = [],
+    }: {
+        readonly late?: readonly string[];
+        readonly withdrawalStatus?: number;
+        readonly recordBeside?: readonly string[];
+    } = {},
 ): Deployment {
     const requests: ClientRequest[] = [];
 
@@ -203,7 +208,9 @@ function deploymentAnswering(
             const writtenFor = (storedEmailId: string) => {
                 const outcome = outcomes[storedEmailId] ?? 'recorded';
                 const record =
-                    outcome === 'recorded' ? { recordId: `record-${storedEmailId}`, state: 'pending' } : null;
+                    outcome === 'recorded' || recordBeside.includes(storedEmailId)
+                        ? { recordId: `record-${storedEmailId}`, state: 'pending' }
+                        : null;
 
                 return asked.changes === undefined
                     ? { storedEmailId, outcome, change: record }
@@ -678,6 +685,27 @@ describe('MailboxActsProvider', () => {
 
         expect(recordIdsWithdrawn(deployment)).toStrictEqual([['record-message-3']]);
         expect(held().asked.has('message-3')).toBe(false);
+    });
+
+    // A mirrored account commits the delete at once and names the record carrying it to the server beside `applied`;
+    // that record is held for the same window, so the act is the permanent delete it was and its way back withdraws it.
+    it('deletes a message in the trash the deployment applied with its record beside it, and withdraws that record to take it back', async () => {
+        const deployment = deploymentAnswering({ 'message-3': 'applied' }, 200, { recordBeside: ['message-3'] });
+        const { held } = acting(deployment);
+
+        await waitFor(() => {
+            expect(held().deletesPermanently([discarded])).toBe(true);
+        });
+
+        perform(held, 'delete', [discarded]);
+        await screen.findByText('Deleting…');
+
+        expect(screen.queryByText('Moved to the trash')).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+        await screen.findByText('Put back where it was');
+
+        expect(recordIdsWithdrawn(deployment)).toStrictEqual([['record-message-3']]);
     });
 
     it('says a permanent delete was not taken back where the deployment had stopped holding it, and draws it going', async () => {

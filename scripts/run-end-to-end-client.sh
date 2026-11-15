@@ -100,6 +100,7 @@ smtp_port="$(read_orchestration_constant int EndToEndClientSmtpPort)"
 postgres_port="$(read_orchestration_constant int EndToEndClientPostgresPort)"
 mail_server_api_port="$(read_orchestration_constant int EndToEndClientMailServerApiPort)"
 fault_proxy_imap_port="$(read_orchestration_constant int EndToEndClientFaultProxyImapPort)"
+fault_proxy_smtp_port="$(read_orchestration_constant int EndToEndClientFaultProxySmtpPort)"
 fault_proxy_control_port="$(read_orchestration_constant int EndToEndClientFaultProxyControlPort)"
 mailbox_login="$(read_orchestration_constant string MailServerAccountUserName)"
 mailbox_address="$(read_orchestration_constant string MailServerAccountEmailAddress)"
@@ -429,9 +430,15 @@ served_user="$(
 # stated for a different reason: every account names the one MailFathom writes about its mail in, and this run replays
 # an English corpus.
 #
-# Sending is switched on, against the same server's SMTP port, because the contract set asks the deployment to queue a
-# send and to take it back again, and an account with nowhere to submit refuses the send before it is queued. The send
-# that case makes names a day years away and is cancelled at once, so nothing this run queues ever reaches the server.
+# Sending and the folders are declared because the specs perform every act a person performs on mail, and the contract
+# set queues a send and takes it back, which an account with nowhere to submit refuses before it is queued. Sending goes
+# through the fault proxy's SMTP port for the reason reading goes through its IMAP one, from the mailbox's own address,
+# since the login GreenMail authenticates is the bare local part and names no address to send from. The folders are
+# mapped by role and created where they are missing, because GreenMail starts a mailbox holding an inbox alone and
+# advertises no role on anything: without them the account has no trash to delete to, no archive to file in, no drafts
+# to keep a draft in, and no sent folder for a copy of what it sent. A delete MailFathom performs expunges the message on
+# the mail server, where the default sends that server nothing: a person deleting mail for good expects it gone from the
+# mailbox, and the specs read the mailbox to prove it is.
 
 # A refusal answers 200 with the reasons rather than a failing status, because every one of them is something the caller
 # composes the next attempt from. So the outcome is read rather than the status code.
@@ -445,7 +452,7 @@ mailbox_declaration="$(
         --arg emailAddress "$mailbox_address" \
         --arg host "$loopback" \
         --argjson port "$fault_proxy_imap_port" \
-        --argjson smtpPort "$smtp_port" \
+        --argjson submissionPort "$fault_proxy_smtp_port" \
         --arg userName "$mailbox_login" \
         --arg passwordReference "env:$mailbox_password_variable" \
         '{
@@ -471,10 +478,19 @@ mailbox_declaration="$(
              Delivery: {
                Enabled: true,
                Host: $host,
-               Port: $smtpPort,
+               Port: $submissionPort,
                ConnectionSecurity: "None",
                FromAddress: $emailAddress
-             }
+             },
+             AuthoredDeleteServerDisposition: "Expunge",
+             Folders: [
+               { Alias: "Inbox", SpecialUse: "Inbox" },
+               { Alias: "Archive", RemotePath: "Archive", SpecialUse: "Archive", CreateIfMissing: true },
+               { Alias: "Drafts", RemotePath: "Drafts", SpecialUse: "Drafts", CreateIfMissing: true },
+               { Alias: "Sent", RemotePath: "Sent", SpecialUse: "Sent", CreateIfMissing: true },
+               { Alias: "Junk", RemotePath: "Junk", SpecialUse: "Junk", CreateIfMissing: true },
+               { Alias: "Trash", RemotePath: "Trash", SpecialUse: "Trash", CreateIfMissing: true }
+             ]
            } | tojson)
          }'
     )" \
@@ -570,8 +586,16 @@ wait_until 'The account synchronization run' 600 "$host_pid" account_synchronize
 
 step 'driving the client in a browser'
 
+# The mail server's own ports and the mailbox's credential go to the specs as well, because a spec acting on mail reads
+# where that mail ended up straight off the server and delivers the mail it acts on there first. Both are the server's
+# own ports rather than the fault proxy's, so an outage a spec injects never reaches the witness.
 MAILFATHOM_CLIENT_ORIGIN="$client_origin" \
   MAILFATHOM_FAULTS_CONTROL_PORT="$fault_proxy_control_port" \
+  MAILFATHOM_MAIL_SERVER_IMAP_PORT="$imap_port" \
+  MAILFATHOM_MAIL_SERVER_SMTP_PORT="$smtp_port" \
+  MAILFATHOM_MAIL_SERVER_ADDRESS="$mailbox_address" \
+  MAILFATHOM_MAIL_SERVER_LOGIN="$mailbox_login" \
+  MAILFATHOM_MAIL_SERVER_PASSWORD="$mailbox_password" \
   MAILFATHOM_CLIENT_USERNAME="$client_username" \
   MAILFATHOM_CLIENT_PASSWORD="$client_password" \
   pnpm --dir frontend run test:end-to-end "$@"

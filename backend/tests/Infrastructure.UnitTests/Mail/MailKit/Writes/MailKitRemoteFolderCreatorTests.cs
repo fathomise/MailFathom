@@ -326,6 +326,47 @@ public sealed class MailKitRemoteFolderCreatorTests
         await root.DidNotReceive().CreateAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// A write connection the server closed while it sat idle in the pool still reports itself connected, and a
+    /// creation is never repeated, so the connection is proven and rebuilt first rather than the creation being the
+    /// command that finds it gone and is reported as a server that did not answer.
+    /// </summary>
+    [Fact]
+    public async Task CreateFolderBeneathAsync_ServerClosedTheIdleWriteConnection_ReconnectsAndCreatesTheFolder()
+    {
+        // Arrange
+        using var resilience = OutboundResilienceTestHost.WithConfiguredSettings();
+        var client = new FakeImapClient();
+        var root = AdvertisedFolder(string.Empty);
+        AnswerCreationOf(root, "Archive", AdvertisedFolder("Archive"));
+        AnswerCreationOf(root, "Projects", AdvertisedFolder("Projects"));
+        PrepareMissingFolders(client, root);
+        await using var harness = CreateHarness(resilience, client, CreateWritableFolder());
+        await harness.CreateFolderBeneathAsync(ArchiveAlias, parentPath: null, "Archive");
+        var closedWhileIdle = true;
+        client.Client.NoOpAsync(Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            if (!closedWhileIdle)
+            {
+                return Task.CompletedTask;
+            }
+
+            closedWhileIdle = false;
+
+            throw client.DropConnection(new ImapProtocolException("The IMAP server has unexpectedly disconnected."));
+        });
+
+        // Act
+        var advertisedPath = await resilience.CompleteOnVirtualTimeAsync(
+            harness.CreateFolderBeneathAsync(ArchiveAlias, parentPath: null, "Projects"),
+            TimeSpan.FromMilliseconds(250));
+
+        // Assert
+        Assert.Equal("Projects", advertisedPath.Value);
+        Assert.Equal(2, client.ConnectCount);
+        await root.Received(1).CreateAsync("Projects", Arg.Any<bool>(), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>Builds a folder the modelled server advertises, with the attributes and delimiter it reports for it.</summary>
     private static IMailFolder AdvertisedFolder(
         string fullName,
