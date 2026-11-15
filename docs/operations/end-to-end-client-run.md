@@ -1,9 +1,10 @@
 # The end-to-end client run
 
-<!-- describes: scripts/run-end-to-end-client.sh, .github/workflows/end-to-end-client.yml, frontend/playwright.end-to-end.config.ts, frontend/tests/end-to-end/**, backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs -->
+<!-- describes: scripts/run-end-to-end-client.sh, scripts/write-end-to-end-client-report.sh, .github/workflows/end-to-end-client.yml, frontend/playwright.end-to-end.config.ts, frontend/tests/end-to-end/**, backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs -->
 
-One pipeline, started by hand, that stands a throwaway MailFathom up the way an operator stands one up and then drives
-the real client against it in a real browser.
+One pipeline, run every night `main` moved and whenever somebody asks for it, that stands a throwaway MailFathom up the
+way an operator stands one up, drives the real client against it in a real browser, and leaves a report of what it
+found.
 
 It exists because nothing else does that. The client's browser suite answers every request from the page's own routing,
 which is what keeps it fast and hermetic and what makes it silent on whether the client and the service agree; the
@@ -11,17 +12,25 @@ service's integration suite starts a composed host and proves the pipeline behin
 Between them sits the question of whether a person can sign in, read the mail the deployment synchronized, and work the
 calendar, the task list and the address book it holds for them — and that question is what this run answers.
 
-## It gates nothing
+## It runs every night `main` moved, and gates nothing
 
-Nothing in this repository waits on it. It is not a pull-request check, it is not a required status, it is not on a
-schedule, and neither [the nightly](agent-workflow.md) nor [a release](release-procedure.md) calls it. A change that
-would break it still merges green.
+Nothing in this repository waits on it. It is not a pull-request check, it is not a required status, and neither
+[the nightly](agent-workflow.md) nor [a release](release-procedure.md) calls it. A change that would break it still
+merges green, and the run that notices is the one the following night.
 
 That is the decision rather than an omission, and it follows from what the run costs. Two container images are pulled,
 the client bundle and the service are both built, the schema artifact is generated through `aspire publish`, a mailbox
 is filled one message at a time over SMTP, and a browser then drives the result — roughly fifteen to twenty minutes of
 runner time. It calls no AI provider, so it spends no provider credit. What it answers is *does the whole thing still
-hold together*, which is a question worth asking before a release and not worth asking on every push.
+hold together*, which is not worth asking on every push — and is worth asking every day something merged, because the
+client is where the defects are and nobody tries it by hand.
+
+So `End-to-end client` runs on a schedule at 03:00 UTC, and its first job decides whether there is anything to prove.
+It asks the workflow's own history whether a completed scheduled run has already run the commit `main` is at, whatever
+that run concluded, and when one has, the night ends there and its summary names that run. A commit that failed last
+night is therefore not run again tonight: its report already says why, and a run on the same commit would say it a
+second time. A quiet `main` costs one job of a few seconds. A dispatch is exempt and always runs, with or without a
+`ref`, because asking for a run is a reason to have one.
 
 ## Running it
 
@@ -30,8 +39,9 @@ bash scripts/run-end-to-end-client.sh                 # the whole run
 bash scripts/run-end-to-end-client.sh --grep thread   # trailing arguments are forwarded to Playwright
 ```
 
-`End-to-end client` in `.github/workflows/` is the same script on a runner, reachable by manual dispatch alone and
-taking a `ref` to run against. It uploads the browser's traces and screenshots and the logs each step wrote.
+`End-to-end client` in `.github/workflows/` is the same script on a runner, on its schedule or by dispatch, taking a
+`ref` to run against. It uploads [the report](#the-report), the browser's traces and screenshots, and the logs each
+step wrote.
 
 The machine needs what the two stacks already need — the .NET SDK, Node and pnpm, and a container runtime — plus two
 things a verification gate does not ask for: the Aspire CLI, at the version `backend/Directory.Packages.props` pins the
@@ -57,6 +67,7 @@ that never reached the mailbox and a client that cannot draw a list are two diff
 | The mail | `SyntheticMail replay` of `backend/tools/SyntheticMail/corpora/office-en.zip` into the mailbox over SMTP |
 | The synchronization | Polling [the folders route](client-endpoint.md) until the account's run reports no failed folder and at least one synchronized one |
 | The client | The end-to-end Playwright suite, against the origin the deployment serves — whose global setup writes the sample calendar, task list and address book over the client API before the first browser opens |
+| The service log | Every error-level entry the service logged, held against the windows the specs declared; one outside all of them fails the run |
 
 Everything created is removed when the run ends, whether it passed, failed, or was interrupted: the containers and their
 volumes are named under this run's own identifier and deleted by name, so a concurrent integration suite keeps its own.
@@ -120,7 +131,8 @@ account is current, starts `imap-down` through `scripts/inject-fault.sh` on the 
 the line to say the account is not current — which `design/` draws once an account's mail server has been unreachable
 for a minute — and to open onto *Mail server unreachable*. It then ends the fault with the same script's `stop` and
 waits for every account to be current again. It is the only spec that injects a fault, and it ends the fault whatever
-happened in between, so the file after it meets the mailbox it met.
+happened in between, so the file after it meets the mailbox it met. It is also the only spec that declares the service
+will log errors while it runs, which [the report](#the-report) holds every other error against.
 
 **Discover is held to the screen it opens on, and not to an answer.** The client offers it, as it does Tasks and
 Calendar, only while developer mode is on, so a spec reaching one of the three switches that on from the version line
@@ -140,6 +152,42 @@ the service.
 **It is a configuration of its own, and the pull-request suite is unchanged.** `frontend/playwright.config.ts` ignores
 this directory so it cannot pick up a spec that needs a deployment, and that is the whole of the change to it. Folding
 the two together would put a hermetic suite one mistake away from reaching a service.
+
+## The report
+
+Whatever the run concluded and wherever it stopped, it ends by writing what it found — `report.json` for a session
+triaging the night and `report.md` for a person — under `artifacts/end-to-end-client-report/`, through
+`scripts/write-end-to-end-client-report.sh`. The workflow uploads the two as the `end-to-end-client-report` artifact
+and writes the Markdown to the job summary; a run that reached the pipeline and left no report fails that upload,
+because a missing report is a defect in the script rather than a quiet night. The Markdown is rendered from the JSON,
+so the two never say different things.
+
+| Field of `report.json` | What it holds |
+| --- | --- |
+| `commit`, `startedAt`, `durationSeconds` | The commit the run checked out, when it started, and how long it took |
+| `outcome`, `exitCode`, `failedStep` | `passed` or `failed`, and for a failure the step of the table above the script was in — the same name its own log prints |
+| `specsRan` | Whether Playwright reached a report at all; `false` for a run that stopped before the browser, so an empty `specs` is never read as nothing having failed |
+| `specs` | Every spec with its file, line, outcome, and duration; a failed one adds its errors — message, file, and line — and the paths of its trace and screenshot inside the `end-to-end-client-browser` artifact |
+| `suiteErrors` | What failed outside any spec, the global setup's seeding among it |
+| `unexpectedServiceErrors` | Every error-level service entry outside a declared window, with its time, category, event, message, and the first line of its exception |
+| `expectedServiceErrorCount` | How many error-level entries fell inside one |
+
+Every spec's outcome is read from Playwright's own JSON reporter, which the configuration writes beside the logs as
+`artifacts/end-to-end-client/playwright.json`, rather than from what the `list` reporter printed.
+
+**An error-level service entry nobody declared fails the run.** A client that draws the right screen over a service
+that logged a failure is a defect no screen assertion catches, so once the specs pass the run reads the service log and
+fails on any entry at `Error` or `Critical` that no spec declared it would cause — and the report lists every such
+entry whatever the specs concluded. A spec declares it with an `expected-service-errors` annotation, whose description
+says why, and the window is that spec's own span: `outage.spec.ts` carries one, because a synchronization run that
+cannot reach the mail server fails and says so. An error logged before the fault or after the recovery is outside it
+and still fails the run. To make the instants comparable the run starts MailFathom with the console's `json`
+formatter, stamped in UTC to the millisecond — a formatter an operator chooses wherever something parses the lines.
+The few lines the host writes before its configuration exists keep the plain format and carry no time, so an error
+among them is never inside a window.
+
+Everything in the report is fabricated mail and a credential that lived for one run, which is the reason the next
+section gives for keeping the traces as well.
 
 ## What it keeps, and why that is allowed here
 

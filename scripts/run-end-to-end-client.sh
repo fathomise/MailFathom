@@ -7,9 +7,10 @@ set -euo pipefail
 
 ### Drives the real client against a real deployment filled with fabricated mail.
 #
-# It runs on request and nowhere else — no verification gate calls it, no pull-request workflow does, and `End-to-end
-# client` is manual dispatch only. What it answers is the one question neither committed suite can: whether a person can
-# sign in to a MailFathom that was stood up the way an operator stands one up, and read the mail it synchronized.
+# No verification gate calls it and no pull-request workflow does. `End-to-end client` runs it every night `main` moved
+# and whenever somebody dispatches it, and gates nothing either way. What it answers is the one question neither
+# committed suite can: whether a person can sign in to a MailFathom that was stood up the way an operator stands one up,
+# and read the mail it synchronized.
 #
 # The deployment is assembled in the order an operator assembles one, and every step below is named so that a failure
 # says which of them broke. That ordering is the whole design: a corpus that never reached the mailbox and a client that
@@ -25,6 +26,11 @@ set -euo pipefail
 #   8. the corpus replayed into the mailbox over SMTP
 #   9. the account's synchronization run reporting no failed folder
 #  10. the end-to-end specs, in a real browser, against all of it
+#  11. the service log, which must hold no error-level entry outside the window a spec declared it would cause one in
+#
+# Whatever the run concluded and wherever it stopped, it ends by writing its report — report.json for a session and
+# report.md for a person, under artifacts/end-to-end-client-report/ — through scripts/write-end-to-end-client-report.sh,
+# which names the commit, the step it stopped in, every spec with its outcome, and every service error nobody expected.
 #
 # Everything it touches is fabricated and thrown away: the mailbox is a container, its mail is a corpus this repository
 # generated, and the credential exists for the length of one run. Nothing here reaches a real mailbox, and nothing it
@@ -128,6 +134,8 @@ ephemeral_run_prefix="${ephemeral_resource_prefix}-${ephemeral_run_identifier}"
 
 work_directory="$(mktemp --directory)"
 run_directory='artifacts/end-to-end-client'
+report_directory='artifacts/end-to-end-client-report'
+run_started="$(date +%s)"
 app_model_pid=''
 host_pid=''
 current_step='starting up'
@@ -146,6 +154,10 @@ finish() {
     printf '\nend-to-end-client: failed while %s (exit %d).\n' "$current_step" "$exit_code" >&2
     printf 'The service and orchestration logs of this run are under %s/.\n' "$run_directory" >&2
   fi
+
+  # Before the host is stopped, so what its shutdown logs is not read as something a spec caused.
+  write_report "$exit_code" ||
+    printf 'end-to-end-client: the report could not be written; the logs under %s/ are all there is.\n' "$run_directory" >&2
 
   if [[ -n "$host_pid" ]]; then
     kill "$host_pid" 2> /dev/null || true
@@ -186,6 +198,18 @@ remove_ephemeral_resources() {
   fi
 }
 
+write_report() {
+  bash scripts/write-end-to-end-client-report.sh \
+    --output "$report_directory" \
+    --commit "$(git rev-parse HEAD)" \
+    --started "$run_started" \
+    --finished "$(date +%s)" \
+    --exit-code "$1" \
+    --step "$current_step" \
+    --playwright-results "$run_directory/playwright.json" \
+    --service-log "$run_directory/service.log"
+}
+
 trap finish EXIT
 
 # Waits for a condition rather than for a duration, which is the rule every wait in this script keeps: a sleep long
@@ -218,7 +242,7 @@ wait_until() {
   return 1
 }
 
-rm --recursive --force "$run_directory"
+rm --recursive --force "$run_directory" "$report_directory"
 mkdir --parents "$run_directory"
 
 step 'building the client bundle'
@@ -328,6 +352,10 @@ cp --recursive frontend/src/Client.App/dist/. "$host_directory/wwwroot"
 # gives it back, and at the shipped values an account waits up to five minutes between runs and half an hour while its
 # runs keep failing, and a session establishment it gave up on keeps its circuit open for half a minute. Each value
 # below is one an operator could write, and each changes when an outage is noticed and when its end is, never whether.
+#
+# The console writes one JSON object a line, stamped in UTC to the millisecond, because the report reads every
+# error-level entry out of it and holds each one's instant against the windows the specs declared. It is the formatter
+# an operator chooses where something parses the lines, and it changes what the log looks like, never what it says.
 env --chdir="$host_directory" \
   ConnectionStrings__mailfathom="Host=$loopback;Port=$postgres_port;Database=$database_name;Username=$postgres_user_name;Password=$postgres_password" \
   DataEncryption__ActiveKeyId="$data_encryption_key_id" \
@@ -362,6 +390,9 @@ env --chdir="$host_directory" \
   "$mailbox_password_variable"="$mailbox_password" \
   HealthEndpoints__BindAddress="$loopback" \
   HealthEndpoints__Port="$health_endpoint_port" \
+  Logging__Console__FormatterName='json' \
+  Logging__Console__FormatterOptions__UseUtcTimestamp='true' \
+  Logging__Console__FormatterOptions__TimestampFormat="yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'" \
   dotnet "$host_directory/MailFathom.Host.dll" \
   > "$run_directory/service.log" 2>&1 &
 host_pid=$!
@@ -525,6 +556,23 @@ MAILFATHOM_CLIENT_ORIGIN="$client_origin" \
   MAILFATHOM_CLIENT_USERNAME="$client_username" \
   MAILFATHOM_CLIENT_PASSWORD="$client_password" \
   pnpm --dir frontend run test:end-to-end "$@"
+
+step 'reading the service log for errors no spec declared'
+
+# A client that draws the right screen over a service that logged a failure is a defect no screen assertion catches. A
+# spec that breaks the deployment on purpose declares so with an `expected-service-errors` annotation, and an entry
+# logged inside its span is the one kind this step lets through; the report lists every other one, whatever the specs
+# concluded.
+write_report 0
+
+unexpected_errors="$(jq '.unexpectedServiceErrors | length' "$report_directory/report.json")"
+
+if ((unexpected_errors > 0)); then
+  printf 'The service logged %d error-level entries no spec declared it would cause:\n' "$unexpected_errors" >&2
+  jq --raw-output '.unexpectedServiceErrors[] | "  \(.timestamp // "before configuration") \(.category // "") \(.message // "")"' \
+    "$report_directory/report.json" >&2
+  exit 1
+fi
 
 current_step='reporting the result'
 

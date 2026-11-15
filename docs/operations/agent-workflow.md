@@ -215,6 +215,26 @@ the sizes and saying why the report is read before any image and why an invocati
 produces at most one screen at the whole matrix. None of the three gates anything,
 and nothing they write enters the tree.
 
+The real client against a real deployment is one run of its own:
+
+```bash
+bash scripts/run-end-to-end-client.sh
+```
+
+It stands a throwaway MailFathom up the way an operator does and drives the built
+client against it in a browser. `End-to-end client` runs the same script every
+night `main` moved — a night on which it did not move ends in the workflow's first
+job, naming the scheduled run that already drove that commit — and whenever
+somebody dispatches it, which always runs. A run that goes ahead costs fifteen to
+twenty minutes of runner time and no provider credit, and gates nothing. Every run
+that reaches the pipeline leaves `report.json` and `report.md` in the
+`end-to-end-client-report` artifact, the Markdown in the job summary too: the
+commit, the step the pipeline stopped in, each failed spec with its error and the
+path of its trace, and every error-level entry the service logged that no spec
+declared it would cause, which fails the run on its own. A session asked to triage
+last night's run reads `report.json` first.
+[The end-to-end client run](end-to-end-client-run.md) is the page.
+
 Lint the shell scripts and the workflows before pushing a change to either:
 
 ```bash

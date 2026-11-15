@@ -454,11 +454,17 @@ between them they establish that the client and the corpus agree with each other
 whether either agrees with a deployment. This one drives the same built bundle against a MailFathom that was stood up
 the way an operator stands one up, with mail that arrived at a mail server and was synchronized out of it.
 
-- **It runs on request and nowhere else.** `scripts/run-end-to-end-client.sh` is what runs it, `End-to-end client` is
-  the manual-dispatch workflow that calls that script, and neither verification gate nor any pull-request check reaches
-  it. [Agent workflow](../../docs/operations/agent-workflow.md) and
-  [the end-to-end client run](../../docs/operations/end-to-end-client-run.md) hold what the run costs and what it gates,
-  which is nothing.
+- **It runs every night `main` moved, and on request.** `scripts/run-end-to-end-client.sh` is what runs it,
+  `End-to-end client` is the workflow that calls that script on its schedule or by dispatch, and neither verification
+  gate nor any pull-request check reaches it. Every run leaves a report — `report.json` and `report.md` — naming the
+  step it stopped in, each failed spec with its error and trace, and every service error no spec declared.
+  [Agent workflow](../../docs/operations/agent-workflow.md) and
+  [the end-to-end client run](../../docs/operations/end-to-end-client-run.md) hold what the run costs, where the report
+  is, and what it gates, which is nothing.
+- **A spec that makes the service log an error on purpose says so.** An error-level entry the service logged fails the
+  run unless it fell inside the span of a spec carrying an `expected-service-errors` annotation, whose description says
+  why. `outage.spec.ts` is the one that does; a spec that breaks nothing declares nothing, so an error it provokes is a
+  finding rather than noise.
 - **It has a configuration of its own**, `frontend/playwright.end-to-end.config.ts`, and the pull-request suite's
   configuration ignores this directory so that it cannot pick it up. Two configurations rather than two projects,
   because the two disagree about everything a configuration decides: this one starts no server, is handed an origin it

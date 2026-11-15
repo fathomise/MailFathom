@@ -56,7 +56,11 @@ export default defineConfig({
     // that something is flaky rather than that it works, and this is the suite where that something might be the
     // service.
     retries: 0,
-    reporter: 'list',
+
+    // `list` for whoever watches the run, and Playwright's own JSON beside the logs the run keeps, which is what
+    // `scripts/write-end-to-end-client-report.sh` reads every spec's outcome, error, and trace out of rather than
+    // parsing what `list` printed. The path is resolved against this file's directory.
+    reporter: [['list'], ['json', { outputFile: '../artifacts/end-to-end-client/playwright.json' }]],
 
     use: {
         baseURL: required('MAILFATHOM_CLIENT_ORIGIN'),
