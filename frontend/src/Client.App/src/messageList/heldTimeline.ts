@@ -64,6 +64,14 @@ export interface TimelinePage<Row> {
     readonly previousCursor: string | null;
 }
 
+/**
+ * What names a page across being let go of and read again: the cursor it was asked with and the way it was read from it,
+ * which is how it is read again. A list that keeps something about a page it has let go of keeps it under this.
+ */
+export function pageKey(cursor: string | null, readAs: MailTimelinePageDirection): string {
+    return `${readAs}\n${cursor ?? ''}`;
+}
+
 /** A list that knows about nothing, which is where every scope and every change of filter starts. */
 export const nothingHeld: HeldTimeline<never> = { slots: [] };
 

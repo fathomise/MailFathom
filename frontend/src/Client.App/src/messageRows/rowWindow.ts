@@ -4,10 +4,11 @@
 
 // Which rows of a list of mail are in the document, which is the whole of what keeps a mailbox of two hundred thousand
 // messages costing what a screenful costs. It is arithmetic over a few numbers rather than a package, and the
-// measurement that decided it is in `frontend/README.md`: every row of the folder's list and the search's results is one
-// height, which both window the same row the same way, and the list read by conversation has three, one per variant of
-// its row, each measured from a drawn row of it. `windowOfHeights` walks those heights; a virtualizer would add nothing
-// for a list whose heights come in so few kinds.
+// measurement that decided it is in `frontend/README.md`: a row of the folder's list and the search's results is one of
+// two heights, the whole row or the one line a spam row folds to, which both window the same row the same way, and the
+// list read by conversation has one per variant of its row. Each height is measured from a drawn row of its kind, and
+// `windowOfRuns` walks them a run of one height at a time; a virtualizer would add nothing for a list whose heights come
+// in so few kinds.
 //
 // It sits beside the message row rather than inside a screen because more than one list windows its rows here.
 //
@@ -116,39 +117,231 @@ export function offsetKeptAcross(scrollTop: number, fromRowHeight: number, toRow
 }
 
 /**
+ * Consecutive rows of one height, which is how a list whose rows are not all one height is laid out without a number per
+ * row: a page of whole rows is one run, and a folded row splits the run it stands in. The arithmetic below costs one
+ * step per run rather than per row, so a list a reader has scrolled forty thousand messages into costs what its pages
+ * and its folded rows cost — the same reason `windowOf` costs nothing at any depth.
+ */
+export interface RowRun {
+    /** How many rows stand in the run. */
+    readonly count: number;
+
+    /** What each of them measures, in pixels. */
+    readonly height: number;
+}
+
+/**
+ * The runs a list of row heights makes, consecutive rows of one height joined into one. Runs are always joined this way,
+ * so two layouts of the same heights are the same runs, which is what comparing two of them relies on.
+ */
+export function runsOf(heights: Iterable<number>): readonly RowRun[] {
+    return joined([...heights].map((height) => ({ count: 1, height })));
+}
+
+/** The runs joined wherever two neighbours are one height, and with every empty run left out. */
+export function joined(runs: readonly RowRun[]): readonly RowRun[] {
+    const out: RowRun[] = [];
+
+    for (const run of runs) {
+        const last = out.at(-1);
+
+        if (run.count <= 0) {
+            continue;
+        }
+
+        if (last?.height === run.height) {
+            out[out.length - 1] = { count: last.count + run.count, height: run.height };
+        } else {
+            out.push(run);
+        }
+    }
+
+    return out;
+}
+
+/** Whether two layouts lay every row out at the same height. */
+export function sameRuns(one: readonly RowRun[], other: readonly RowRun[]): boolean {
+    return (
+        one.length === other.length &&
+        one.every((run, at) => run.count === other[at]?.count && run.height === other[at].height)
+    );
+}
+
+/** How many rows the runs lay out. */
+export function rowCountOfRuns(runs: readonly RowRun[]): number {
+    return runs.reduce((rows, run) => rows + run.count, 0);
+}
+
+/** How far a list laid out in these runs has to be scrolled for a row to be the first one under its top. */
+export function offsetOfRowIn(runs: readonly RowRun[], row: number): number {
+    let offset = 0;
+    let passed = 0;
+
+    for (const run of runs) {
+        if (row < passed + run.count) {
+            return offset + (Math.max(row, passed) - passed) * run.height;
+        }
+
+        offset += run.count * run.height;
+        passed += run.count;
+    }
+
+    return offset;
+}
+
+/** What one row of a list laid out in these runs measures, or nothing for a row past its end. */
+export function heightOfRowIn(runs: readonly RowRun[], row: number): number {
+    let passed = 0;
+
+    for (const run of runs) {
+        if (row < passed + run.count) {
+            return run.height;
+        }
+
+        passed += run.count;
+    }
+
+    return 0;
+}
+
+/**
+ * The row standing at an offset of a list laid out in these runs, which is the row under the top of a scroller at that
+ * offset — what {@link leadingRow} is for one height. A scroller standing past the end answers the last row.
+ */
+export function leadingRowIn(runs: readonly RowRun[], scrollTop: number): number {
+    const reached = Math.max(scrollTop, 0);
+    let top = 0;
+    let passed = 0;
+
+    for (const run of runs) {
+        const bottom = top + run.count * run.height;
+
+        if (run.height > 0 && bottom > reached) {
+            return passed + Math.floor((reached - top) / run.height);
+        }
+
+        top = bottom;
+        passed += run.count;
+    }
+
+    return Math.max(passed - 1, 0);
+}
+
+/**
  * The rows a scroller shows at this offset where the rows are not all one height, with the overscan either side.
  *
- * The conversation list is the case: a row is as tall as what its title says, and each variant is measured rather than
- * assumed. A walk rather than a search, because the heights arrive a page at a time and a list somebody has scrolled
- * through holds hundreds of rows rather than a mailbox — so the arithmetic costs the scroll handler, not the render.
+ * The overscan the leading end has no rows for is drawn after the screen instead, as `windowOf` draws it, so the window
+ * holds as many rows at the top of the list as anywhere further down.
  *
- * @param heights What each row measures, in pixels, in the order they are drawn.
+ * @param runs The list, laid out in runs of one height.
  * @param scrollTop How far the scroller has been scrolled, in pixels.
  * @param viewportHeight How tall the scroller is, in pixels.
  * @returns The window of rows to draw and the space standing in for the rest.
  */
-export function windowOfHeights(heights: readonly number[], scrollTop: number, viewportHeight: number): RowWindow {
+export function windowOfRuns(runs: readonly RowRun[], scrollTop: number, viewportHeight: number): RowWindow {
+    const rowCount = rowCountOfRuns(runs);
+
+    if (rowCount === 0) {
+        return { first: 0, count: 0, above: 0, below: 0 };
+    }
+
     const reached = Math.max(scrollTop, 0);
-    let top = 0;
-    let visible = 0;
+    const visible = leadingRowIn(runs, reached);
+    const bottomEdge = reached + viewportHeight;
+    const underBottom = leadingRowIn(runs, bottomEdge);
 
-    while (visible < heights.length - 1 && top + (heights[visible] ?? 0) <= reached) {
-        top += heights[visible] ?? 0;
-        visible += 1;
-    }
-
-    let bottom = top;
-    let past = visible;
-
-    while (past < heights.length && bottom < reached + viewportHeight) {
-        bottom += heights[past] ?? 0;
-        past += 1;
-    }
-
+    // The rows starting above the bottom edge of the screen: the one standing at that edge counts only where it starts
+    // above it, and none past the last row does.
+    const past = Math.min(
+        Math.max(visible, offsetOfRowIn(runs, underBottom) < bottomEdge ? underBottom + 1 : underBottom),
+        rowCount,
+    );
     const first = Math.max(visible - overscanRows, 0);
-    const end = Math.min(past + overscanRows, heights.length);
-    const sum = (from: number, to: number): number =>
-        heights.slice(from, to).reduce((total, height) => total + height, 0);
+    const end = Math.min(past + overscanRows * 2 - (visible - first), rowCount);
+    const total = offsetOfRowIn(runs, rowCount);
 
-    return { first, count: end - first, above: sum(0, first), below: sum(end, heights.length) };
+    return {
+        first,
+        count: end - first,
+        above: offsetOfRowIn(runs, first),
+        below: total - offsetOfRowIn(runs, end),
+    };
+}
+
+/**
+ * The rows a scroller shows at this offset, given what each row measures.
+ *
+ * The conversation list is the case: a row is as tall as what its title says, and each variant is measured rather than
+ * assumed. It is laid out in runs like the message list, so both windows are one arithmetic, and it is handed a number
+ * per row because that list holds the conversations a reader has scrolled through rather than a mailbox.
+ */
+export function windowOfHeights(heights: readonly number[], scrollTop: number, viewportHeight: number): RowWindow {
+    return windowOfRuns(runsOf(heights), scrollTop, viewportHeight);
+}
+
+/**
+ * What a row of mail is drawn as, which is what decides its height: the whole row of three lines, or the one line a spam
+ * row folds to outside the Spam folder.
+ */
+export type MessageRowShape = 'whole' | 'folded';
+
+/**
+ * The estimates a list of mail draws its first frame under, one per shape, before a row of that shape has been
+ * rendered to measure. Only close, for the reason {@link estimatedRowHeight} gives.
+ */
+export const estimatedRowHeights: Readonly<Record<MessageRowShape, number>> = {
+    whole: estimatedRowHeight,
+    folded: 44,
+};
+
+/**
+ * The heights a list of mail lays its rows out at once these rows have been measured: the first drawn row of each
+ * shape stands for every row of it, since every row of a shape draws the same lines.
+ *
+ * @param current What each shape measured before.
+ * @param drawn The shape and the measured height of each drawn row, in pixels; a row with no height yet is passed over.
+ * @returns The heights with what was measured in them, and the same object where nothing changed.
+ */
+export function measuredRowHeights(
+    current: Readonly<Record<MessageRowShape, number>>,
+    drawn: Iterable<readonly [MessageRowShape, number]>,
+): Readonly<Record<MessageRowShape, number>> {
+    const measured: Partial<Record<MessageRowShape, number>> = {};
+
+    for (const [shape, height] of drawn) {
+        if (height > 0 && measured[shape] === undefined) {
+            measured[shape] = height;
+        }
+    }
+
+    const next = { ...current, ...measured };
+
+    return next.whole === current.whole && next.folded === current.folded ? current : next;
+}
+
+/**
+ * Where a scroller stands once some of its rows have changed height, so the reader is still on the row they were on.
+ *
+ * What {@link offsetKeptAcross} is for rows of one height, and for the same two causes and one more: a composition that
+ * draws rows at other heights, a measurement replacing an estimate, and a row above the reader folding or unfolding in
+ * place as it is marked spam or not spam. Rows above the reader move the scroller by what they gained or lost, and the
+ * reader's own row keeps the same share of itself above the top of the scroller.
+ *
+ * @param scrollTop How far the scroller stands, in pixels, measured against the old layout.
+ * @param from The list as it was laid out before.
+ * @param to The list as it is laid out now, row for row.
+ * @returns The offset that puts the same row at the same place under the top of the scroller.
+ */
+export function offsetKeptAcrossRuns(scrollTop: number, from: readonly RowRun[], to: readonly RowRun[]): number {
+    if (rowCountOfRuns(from) === 0) {
+        return scrollTop;
+    }
+
+    const row = leadingRowIn(from, scrollTop);
+    const within = Math.max(scrollTop, 0) - offsetOfRowIn(from, row);
+    const fromHeight = heightOfRowIn(from, row);
+    const toHeight = heightOfRowIn(to, row);
+    const kept = fromHeight <= 0 ? within : Math.round((within * toHeight) / fromHeight);
+
+    return offsetOfRowIn(to, row) + kept;
 }

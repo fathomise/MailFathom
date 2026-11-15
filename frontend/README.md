@@ -650,18 +650,23 @@ changes nothing and names the reason, and an act that depends on where a message
 messages sits in a folder this client has not read.
 Opening a row opens the conversation above with what arrived since it was last read unfolded and marked new.
 
-**No package windows either list, and that is a measurement rather than a preference.** Every row of the folder's list
-and of a search's results is one height, because the row is a fixed three lines by design — who wrote, what about, and
-a line for a sentence about the message rather than from it, which carries why a search result matched today and what
-MailFathom made of the message when stage 3 lands — and the browser suite asserts that every drawn row measures the
-same. A row of the list read by conversation is one of three heights rather than one, because it draws its subject
-alone, under a topic, or under a topic and its standing; every row of a variant draws the same lines, so one drawn row
-of it measures them all, and `windowOfHeights` lays the window out from those three. What a virtualizer buys over that
-arithmetic is the machinery for measuring rows of any height, which neither list has; what it costs is a dependency, a
-licence review, and a census in [the third-party register](../THIRD_PARTY_LICENSES.md). So the arithmetic stays, every
-height it depends on is measured off a rendered row rather than written down twice, and the assertion that keeps the
-folder's rows one height runs on every pull request. A list whose rows stop coming in a few measured kinds is the
-argument for reopening this.
+**No package windows either list, and that is a measurement rather than a preference.** A row of the folder's list
+and of a search's results is one of two heights. The whole row is a fixed three lines by design — who wrote, what
+about, and a line for a sentence about the message rather than from it, which carries why a search result matched
+today and what MailFathom made of the message when stage 3 lands — and a spam row outside the Spam folder folds to one
+line at a height of its own. The browser suite asserts that every drawn whole row measures the same, that two folded
+rows measure the same, and that a folded row is the shorter one. A row of the list read by conversation is one of three
+heights, because it draws its subject alone, under a topic, or under a topic and its standing. Every row of a kind draws
+the same lines, so one drawn row of it measures them all. Each list is laid out in runs of rows of one height rather than
+a height per row (`windowOfRuns` in `src/messageRows/rowWindow.ts`), because the message list lays out every row it has
+read or let go of on every scroll: a page let go of with no folded row is one run. Measured under Node on a developer's
+machine, laying out and windowing a list read forty thousand rows deep takes about 0.2 ms a render, against 4.5 ms for
+a height per row. What a virtualizer buys
+over that arithmetic is the machinery for measuring rows of any height, which neither list has; what it costs is a
+dependency, a licence review, and a census in [the third-party register](../THIRD_PARTY_LICENSES.md). So the arithmetic
+stays, every height it depends on is measured off a rendered row rather than written down twice, and the assertion
+that keeps each shape of the folder's rows one height runs on every pull request. A list whose rows stop coming in a
+few measured kinds is the argument for reopening this.
 
 `src/fullHtml/` is the second surface [ADR 0024](../docs/decisions/0024-rendering-mail-in-the-client-as-a-closed-document-tree.md)
 takes, and where somebody works in tabs it opens as a tab of its own. Where they do not it is drawn in a window over

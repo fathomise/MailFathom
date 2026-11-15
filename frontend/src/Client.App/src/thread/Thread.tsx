@@ -67,8 +67,8 @@ import { ThreadState } from './ThreadState';
 // Nothing here windows the rows, and that is a decision rather than an omission. The service assembles at most five
 // hundred messages of a conversation, a page holds a hundred of them, and every page past the first is one the reader
 // asked for — so the document holds a screenful of one-line rows plus whatever they opened, rather than a mailbox. The
-// arithmetic the message list windows with does not transfer either: it is one row height, and an opened message is as
-// tall as what it says. A conversation that ever renders slowly is the argument for reopening this.
+// arithmetic the message list windows with does not transfer either: it is a row height per shape of row, and an opened
+// message is as tall as what it says. A conversation that ever renders slowly is the argument for reopening this.
 
 // How long a message landed on from a search result stays marked before it settles into an ordinary open message. The
 // design's own dwell rather than a transition duration, which is why it is a number here and not a token: it is

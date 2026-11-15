@@ -33,7 +33,7 @@ import {
 import { drawnUnread, useReadMarking } from '../readMarking/useReadMarking';
 import { SpamBadge } from '../spamMarking/SpamBadge';
 import { spamRowName } from '../spamMarking/spamWords';
-import { correspondent } from './rowContents';
+import { correspondent, rowShapeOf } from './rowContents';
 import { RowExternalChip } from '../senderMark/ExternalChip';
 import { externalMarkOf, useExternalMarking } from '../senderMark/externalMark';
 import { senderMarkInk, senderMarkOf, senderMarksDrawn } from '../senderMark/senderMarks';
@@ -51,8 +51,9 @@ import { useRowSwipe, type RowSwipeDirection } from '../controls/rowSwipe';
 // arrangement of the same three lines is how the client would stop looking like one product.
 //
 // Its height is fixed by the token rather than by its contents, and that is load-bearing rather than cosmetic: the
-// window above it is arithmetic over one height, and a row that grew with a long subject would put every row below it
-// somewhere other than where the list drew the space for it. The three lines are the design's: who wrote and
+// window above it is arithmetic over the heights of the row's two shapes — the whole row, and the one line a spam row
+// folds to — and a row that grew with a long subject would put every row below it somewhere other than where the list
+// drew the space for it. The three lines are the design's: who wrote and
 // when, what about, and a line for a sentence about the message rather than from it — why a search result is in the
 // list today, and what MailFathom made of the message when stage 3 lands. A row given none keeps the space, so the row
 // that gains one is this row rather than a taller one.
@@ -272,7 +273,7 @@ export function MessageRow({
     // offers nothing that reads it for the person, so it carries no reading and no AI line.
     const spam = drawnSpam(acts, email);
     const spamName = spam !== null && isSpam(spam) ? spamRowName(spam, translate) : null;
-    const foldedSpam = spamName !== null && !inSpamFolder;
+    const foldedSpam = spamName !== null && rowShapeOf(spam, inSpamFolder) === 'folded';
 
     // The mark on who sent the message, chosen by the one rule every surface draws it by, or none on a row whose
     // writer is the reader. Beside the name it judges, and the pointer's way to the details behind it.
@@ -496,7 +497,11 @@ export function MessageRow({
             // just been drawn has nothing to have changed from, so washing it as well would be marking it against a
             // version of itself the reader never saw. All three are the design's, and `styles.css` holds why
             // neither the arrival nor the going here carries the height a flowing list's does.
-            className={`relative h-message-row-narrow touch-pan-y overflow-hidden border-b border-b-sunken workspace:h-message-row ${
+            className={`relative touch-pan-y overflow-hidden border-b border-b-sunken ${
+                foldedSpam
+                    ? 'h-message-row-folded-narrow workspace:h-message-row-folded'
+                    : 'h-message-row-narrow workspace:h-message-row'
+            } ${
                 going ?? (arrived === true ? 'animate-row-landing' : changed === true ? 'animate-row-changed' : '')
             } ${carried ? 'opacity-45' : ''}`}
         >

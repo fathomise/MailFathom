@@ -47,14 +47,20 @@ import { ReceiptDetails, type AskedReceipts } from '../receipts/ReceiptDetails';
 import { standingOfSummary } from '../receipts/receiptMarks';
 import { externalMarkOf, useExternalMarking } from '../senderMark/externalMark';
 import { marksSender, senderMarkOf } from '../senderMark/senderMarks';
-import { rowMark, rowWithFlags, type RowContents } from '../messageRows/rowContents';
+import { rowMark, rowShapeOf, rowWithFlags, type RowContents } from '../messageRows/rowContents';
 import {
-    estimatedRowHeight,
-    leadingRow,
-    offsetKeptAcross,
-    offsetOfRow,
+    estimatedRowHeights,
+    heightOfRowIn,
+    leadingRowIn,
+    measuredRowHeights,
+    offsetKeptAcrossRuns,
+    offsetOfRowIn,
+    rowCountOfRuns,
     rowsDrawnAtOnce,
-    windowOf,
+    sameRuns,
+    windowOfRuns,
+    type MessageRowShape,
+    type RowRun,
 } from '../messageRows/rowWindow';
 import { scopeReaches, type MailScope } from '../workspace/mailScope';
 import { useWorkspace } from '../workspace/useWorkspace';
@@ -87,6 +93,7 @@ import { noRows, rowSettled, rowWentOut, rowsAlsoMoved, rowsNoticed, rowsStillDr
 import { rememberedListing, rememberListing } from './rememberedListings';
 import { messagePages, usePageReads, useSignalledPages } from './timelinePages';
 import { actedMessages, useListedMail } from './useListedMail';
+import { foldedRowsOf, heightRunsOf, noFoldedRows, shapeRunsOf, shapesBetween, type FoldedRows } from './rowHeights';
 import { Departing } from '../shell/Departing';
 
 // The client's message list, which is where a mail client is judged: it stays smooth at message forty thousand, it puts
@@ -292,7 +299,10 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
 
     const [scrollTop, setScrollTop] = useState(0);
     const [viewport, setViewport] = useState(0);
-    const [rowHeight, setRowHeight] = useState(estimatedRowHeight);
+    // What each shape of row measures, and where each page drew its folded rows: the list is laid out from both, so a
+    // folded row takes its own height and a page let go of keeps the heights its rows were drawn at.
+    const [rowHeights, setRowHeights] = useState(estimatedRowHeights);
+    const [foldedRows, setFoldedRows] = useState<FoldedRows>(noFoldedRows);
 
     const [focusedRow, setFocusedRow] = useState(0);
     const [anchor, setAnchor] = useState<string | null>(null);
@@ -357,7 +367,7 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
     // reports, so every one of them would stand in the length of the list until a scroll swept the lot, and that sweep
     // would take a page's worth of rows out from under the reader's cursor mid-gesture. Past what the window draws they
     // go at the press, and the toast in the corner is what says the act happened.
-    const watched = leaving <= rowsDrawnAtOnce(rowHeight, viewport);
+    const watched = leaving <= rowsDrawnAtOnce(Math.min(rowHeights.whole, rowHeights.folded), viewport);
 
     function hasLeft(email: MailTimelineEntry): boolean {
         if (!actLeaving(acts, email)) {
@@ -385,8 +395,17 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
 
     const shown = asDrawn(held);
 
+    // What a row is drawn as, which the row decides by the same rule: a spam row folds everywhere but the Spam folder.
+    function shapeOf(email: MailTimelineEntry): MessageRowShape {
+        return rowShapeOf(drawnSpam(acts, email), inSpamFolder);
+    }
+
     const rowCount = rowCountOf(shown);
-    const drawn = windowOf(rowCount, rowHeight, scrollTop, viewport);
+    const shapes = shapeRunsOf(shown, foldedRows, shapeOf);
+    const laidOutNow = heightRunsOf(shapes, rowHeights);
+    const drawn = windowOfRuns(laidOutNow, scrollTop, viewport);
+    const drawnShapes = shapesBetween(shapes, drawn.first, drawn.count);
+    const leading = leadingRowIn(laidOutNow, scrollTop);
     const lastDrawn = drawn.first + drawn.count - 1;
     const rows = heldRows(shown);
 
@@ -501,7 +520,7 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
     // both times, so nothing here re-renders.
     useEffect(() => {
         function keep(): void {
-            const position = positionOfRow(shown, leadingRow(scrollTop, rowHeight));
+            const position = positionOfRow(shown, leading);
 
             if (position !== null) {
                 rememberListing(session.baseAddress, scope, { ...listing, readingsShown, ...position });
@@ -515,11 +534,17 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
             window.clearTimeout(timer);
             window.removeEventListener('pagehide', keep);
         };
-    }, [shown, scrollTop, rowHeight, listing, readingsShown, scope, session.baseAddress]);
+    }, [shown, leading, listing, readingsShown, scope, session.baseAddress]);
 
-    // The two measurements the window is arithmetic over, taken after the browser has laid the list out rather than
-    // written down as numbers here. One element each, on a commit that has already happened: the row height is a token
-    // decision this must not hold a second copy of, and the scroller's height is whatever the composition gave it.
+    // The heights the list was last laid out at, which is what a change of height is measured against: the row the
+    // reader is on stays where it was under the top of the scroller whatever rows above it gained or lost.
+    const laidOut = useRef<readonly RowRun[] | null>(null);
+
+    // The measurements the window is arithmetic over, taken after the browser has laid the list out rather than written
+    // down as numbers here: what each shape of row measures, read off the first drawn row of it, and the scroller's
+    // height. A row's height is a token decision this must not hold a second copy of, and the scroller's height is
+    // whatever the composition gave it. The heights are worked out afresh on every render, so in practice it runs after
+    // every commit, which is what it needs: what it reads is what the commit drew.
     useLayoutEffect(() => {
         const element = scroller.current;
 
@@ -531,26 +556,51 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
             setViewport(element.clientHeight);
         }
 
-        const measured = elements.current.get(drawn.first)?.offsetHeight ?? 0;
+        const measured = measuredRowHeights(
+            rowHeights,
+            drawnShapes.flatMap((shape, at) => {
+                const drawnRow = elements.current.get(drawn.first + at);
 
-        if (measured > 0 && measured !== rowHeight) {
-            setRowHeight(measured);
+                return drawnRow === undefined ? [] : [[shape, drawnRow.offsetHeight] as const];
+            }),
+        );
 
-            // A composition that draws its rows at another height — a phone unfolding into a foldable's strip — keeps
-            // the reader on the row they were on. Before the reader is put back there is no row of theirs to keep.
-            if (restored) {
-                const kept = offsetKeptAcross(element.scrollTop, rowHeight, measured);
+        if (measured !== rowHeights) {
+            setRowHeights(measured);
+        }
 
+        // Rows that changed height keep the reader on the row they were on: a composition that draws its rows at
+        // another height, a measurement replacing an estimate, and a row above the reader folding or unfolding as it is
+        // marked spam or not spam. Only where every row is still the row it was, since rows joining or leaving are the
+        // list moving rather than a row changing height — and not before the reader is put back, when there is no row
+        // of theirs to keep.
+        const before = laidOut.current;
+
+        laidOut.current = laidOutNow;
+
+        if (
+            restored &&
+            before !== null &&
+            rowCountOfRuns(before) === rowCountOfRuns(laidOutNow) &&
+            !sameRuns(before, laidOutNow)
+        ) {
+            const kept = offsetKeptAcrossRuns(element.scrollTop, before, laidOutNow);
+
+            if (kept !== element.scrollTop) {
                 element.scrollTop = kept;
                 setScrollTop(kept);
             }
         }
 
         // The reader is put back where they were once there is something to put them back into, and once only: every
-        // later scroll is theirs. The measured height rather than the one in state, because both happen on this commit
-        // and the one in state is a render behind.
+        // later scroll is theirs. Laid out from the heights measured on this commit rather than the ones in state,
+        // because both happen on this commit and the ones in state are a render behind — and those are the heights the
+        // next commit is measured against, so placing the reader is not then corrected a second time.
         if (!restored && rowCount > 0) {
-            const placed = offsetOfRow(opening.rowInPage, measured > 0 ? measured : rowHeight);
+            const placedAmong = heightRunsOf(shapes, measured);
+            const placed = offsetOfRowIn(placedAmong, opening.rowInPage);
+
+            laidOut.current = placedAmong;
 
             // The window is moved with the scroller rather than left to the scroll event the assignment raises. That
             // event is delivered on the browser's own schedule, and the render that lets the read below go out again
@@ -569,7 +619,20 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
                 wantsFocus.current = false;
             }
         }
-    }, [viewport, rowHeight, rowCount, drawn.first, opening.rowInPage, focusedRow, focusedIsDrawn, restored]);
+    }, [
+        viewport,
+        rowHeights,
+        drawn.count,
+        drawn.first,
+        drawnShapes,
+        laidOutNow,
+        shapes,
+        restored,
+        rowCount,
+        focusedIsDrawn,
+        opening.rowInPage,
+        focusedRow,
+    ]);
 
     useSignalledPages({ scope, setHeld, setFailure, messageOf: identityOf });
 
@@ -619,9 +682,13 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
     function scrolledTo(top: number): void {
         setScrollTop(top);
 
-        const moved = windowOf(rowCount, rowHeight, top, viewport);
+        const moved = windowOfRuns(laidOutNow, top, viewport);
         const last = moved.first + moved.count - 1;
 
+        // Where each held page draws its folded rows is written down before the trim may let one go, so the page keeps
+        // the heights it was drawn at. It answers the map it was given where nothing changed, so an ordinary scroll
+        // renders nothing for it.
+        setFoldedRows((current) => foldedRowsOf(current, shown, shapeOf));
         setHeld((current) => trimmedAround(current, moved.first, last, asDrawn));
 
         // What the rows that moved are let go of, and it is a scroll rather than an animation that does it: a row
@@ -776,7 +843,7 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
     function drawReadings(readings: boolean): void {
         setReadingsShown(readings);
 
-        const position = positionOfRow(shown, leadingRow(scrollTop, rowHeight));
+        const position = positionOfRow(shown, leading);
 
         rememberListing(session.baseAddress, scope, {
             ...listing,
@@ -884,12 +951,13 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
             return;
         }
 
-        const top = offsetOfRow(row, rowHeight);
+        const top = offsetOfRowIn(laidOutNow, row);
+        const bottom = top + heightOfRowIn(laidOutNow, row);
 
         if (top < element.scrollTop) {
             element.scrollTop = top;
-        } else if (top + rowHeight > element.scrollTop + element.clientHeight) {
-            element.scrollTop = top + rowHeight - element.clientHeight;
+        } else if (bottom > element.scrollTop + element.clientHeight) {
+            element.scrollTop = bottom - element.clientHeight;
         }
     }
 
@@ -1182,7 +1250,7 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
                         <div aria-hidden="true" style={{ height: `${String(drawn.above)}px` }} />
 
                         {/* Rows sit flush against each other, and that is arithmetic rather than taste: the spacers above
-                            and below are whole rows of the token height, so a gap between drawn rows would put every row a
+                            and below are whole rows of their token heights, so a gap between drawn rows would put every row a
                             fraction lower than the space the list drew for it, and the drift would grow with how far down
                             the folder the reader is. What separates them is the line each row carries. */}
                         <ul

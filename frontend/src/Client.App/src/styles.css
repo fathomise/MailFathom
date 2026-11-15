@@ -341,6 +341,13 @@
     --spacing-message-row: 5.9375rem;
     --spacing-message-row-narrow: 7rem;
 
+    /* The one line a spam row folds to outside the Spam folder, at a height of its own so folded mail takes less of the
+       list than mail somebody reads. The list lays its rows out from the heights of both shapes, each measured off a
+       drawn row of it, so this is a second height the window reads rather than a second copy of one. Taller at the
+       phone and under a finger, for the reason the whole row is, and never below the target a finger needs. */
+    --spacing-message-row-folded: 2.5rem;
+    --spacing-message-row-folded-narrow: 3rem;
+
     /* What a conversation row reserves for the opening of its newest message: two lines at `--leading-quoted`, whether
        the message runs to two or not, as the design draws every row with no categories, which take the second line's
        place. A row of the conversation list is otherwise as tall as its title says. */
@@ -863,8 +870,8 @@
     }
 
     /* The wash and the going are one animation each rather than the design's two on two elements, for the reason the
-       arrival above is the travel without the height: the window over this list is arithmetic over one row height, so
-       a row closing to nothing would take every row under it away from where the window says it is for half a second.
+       arrival above is the travel without the height: the window over this list is arithmetic over each row's measured
+       height, so a row closing to nothing would take every row under it away from where the window says it is for half a second.
        What is left is the fade and the travel off the leading edge, which is the part that says *this one is going*.
 
        The wash arrives quickly and holds, because the row is gone before it could settle back — a row that faded out
@@ -1702,9 +1709,10 @@
 
         /* The message row at the wide compositions, which the design draws taller where the mark on it is the size
            of a finger: the tablet and the fold, and a touch screen at the desktop's width. The phone's row is a token
-           of its own and is already the tallest of the three. */
+           of its own and is already the tallest of the three. A folded row there is the target a finger needs. */
         :root {
             --spacing-message-row: 6.4375rem;
+            --spacing-message-row-folded: 2.75rem;
         }
     }
 
