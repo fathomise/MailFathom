@@ -27,7 +27,7 @@ const receipt: ActedMessage = {
     spam: null,
 };
 
-const clients: MoveDestination = { folderId: 'work-clients', name: 'Projects / Clients', role: null };
+const clients: MoveDestination = { folderId: 'work-clients', name: 'Clients', role: null, level: 1 };
 const work: MoveDestinationGroup = {
     accountId: 'work',
     accountName: 'Northwind \u00b7 work',
@@ -175,14 +175,14 @@ describe('MailboxActControls', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Move' }));
 
         expect(offered).toHaveBeenCalledWith([invoice, receipt]);
-        expect(screen.getByRole('button', { name: 'Projects / Clients' })).toBeDefined();
+        expect(screen.getByRole('button', { name: 'Clients' })).toBeDefined();
     });
 
     // Filing into the trash is deleting, so choosing it asks what Delete asks and then deletes, rather than filing the
     // mail away as a move with a toast and an animation of its own.
     it('asks the delete question where the trash is the folder chosen, and deletes once it is answered', () => {
         const performed = vi.fn();
-        const trash: MoveDestination = { folderId: 'work-trash', name: 'Trash', role: 'Trash' };
+        const trash: MoveDestination = { folderId: 'work-trash', name: 'Trash', role: 'Trash', level: 0 };
 
         drawControls({ perform: performed, destinationsOf: () => [{ ...work, destinations: [trash, clients] }] });
         fireEvent.click(screen.getByRole('button', { name: 'Move' }));

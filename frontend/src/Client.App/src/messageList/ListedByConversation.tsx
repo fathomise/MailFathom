@@ -22,6 +22,7 @@ import { rowVariantOf, titleStateOf, type ThreadRowVariant } from '../threadList
 import { ThreadRow } from '../threadList/ThreadRow';
 import { ThreadRowMenu } from '../threadList/ThreadRowMenu';
 import { useConversationActs } from '../threadList/useConversationActs';
+import type { ConversationAct } from '../threadList/conversationMessages';
 import { scopeReaches, type MailScope } from '../workspace/mailScope';
 import { useWorkspace } from '../workspace/useWorkspace';
 import {
@@ -369,6 +370,36 @@ export function ListedByConversation({
         revise({ selected: withToggled(workspace.selected, thread.newest.id) });
     }
 
+    // Asks an act of conversations, and moves the reader on where it deletes the one they have open: a deleted
+    // conversation leaves this list at the press, so the one after it is opened in its place — the one before it at the
+    // foot of the list — rather than leaving open what the list no longer holds. No other act takes a conversation out
+    // of this list at the press, so no other act moves the reader.
+    function askOf(act: ConversationAct, threads: readonly ListedMailThread[], onActed?: () => void): void {
+        conversationActs.ask(act, threads, () => {
+            onActed?.();
+
+            const rows = heldRows(shown);
+            const openAt = rows.findIndex((thread) => thread.threadId === workspace.conversation?.threadId);
+            const deleted = (thread: ListedMailThread): boolean =>
+                threads.some((one) => one.threadId === thread.threadId);
+            const open = rows[openAt];
+
+            if (act !== 'delete' || open === undefined || !deleted(open)) {
+                return;
+            }
+
+            const next =
+                rows.slice(openAt + 1).find((thread) => !deleted(thread)) ??
+                rows.slice(0, openAt).findLast((thread) => !deleted(thread));
+
+            if (next === undefined) {
+                revise({ selection: null, conversation: null });
+            } else {
+                onOpen(next.newest.id, next.newest.subject, next.threadId, true);
+            }
+        });
+    }
+
     // Closing the menu puts focus back on the row it was opened from, which is where the reader was.
     function closeMenu(): void {
         if (pressed !== null) {
@@ -389,13 +420,24 @@ export function ListedByConversation({
             takeFocus: () => {
                 scroller.current?.querySelector('button')?.focus();
             },
+
+            // A conversation is picked out by its newest message, so one whose newest message was filed elsewhere is
+            // no longer picked out. Which conversation is open is not moved from here: a message leaving is not its
+            // conversation leaving, and `askOf` below moves on where the whole conversation was deleted.
+            left: (storedEmailIds) => {
+                const stillSelected = workspace.selected.filter((newest) => !storedEmailIds.includes(newest));
+
+                if (stillSelected.length !== workspace.selected.length) {
+                    revise({ selected: stillSelected });
+                }
+            },
             conversations: (selected) => {
                 const threads = selected.flatMap((newest) => drawnThreads.current.get(newest) ?? []);
 
                 return {
                     threads,
                     ask: (act, onActed) => {
-                        conversationActs.ask(act, threads, onActed);
+                        askOf(act, threads, onActed);
                     },
                 };
             },
@@ -505,7 +547,7 @@ export function ListedByConversation({
                         toggle(pressedThread);
                     }}
                     onAsk={(act) => {
-                        conversationActs.ask(act, [pressedThread]);
+                        askOf(act, [pressedThread]);
                     }}
                     onClose={closeMenu}
                 />

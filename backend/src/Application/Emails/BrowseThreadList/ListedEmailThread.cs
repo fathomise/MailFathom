@@ -8,8 +8,8 @@ namespace MailFathom.Application.Emails.BrowseThreadList;
 
 /// <summary>One conversation as the list reads it out of stored mail, before any of its messages is described.</summary>
 /// <remarks>
-/// Every count and every message named here is taken from the messages the reader may read, Spam and Trash included,
-/// because that is what the conversation holds when it is opened. Spam and Trash decide only whether it is listed.
+/// Every count and every message named here is taken from the messages the reader may read, Spam, Trash, and Archive
+/// included, because that is what the conversation holds when it is opened. Those three decide only whether it is listed.
 /// </remarks>
 public sealed record ListedEmailThread
 {

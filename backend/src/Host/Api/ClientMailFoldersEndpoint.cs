@@ -5,6 +5,7 @@
 using MailFathom.Application.Access.Organizations;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Folders;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Domain.Access;
@@ -61,6 +62,7 @@ internal static class ClientMailFoldersEndpoint
     /// <summary>Reports the acting user's mailboxes, their folders, and how current each of them is.</summary>
     /// <param name="reader">Reads the user's accounts and the folders a screen may draw beneath them.</param>
     /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
+    /// <param name="senderIdentities">Reads the address each account sends from.</param>
     /// <param name="assignments">Reads which of the accounts more than one user is assigned.</param>
     /// <param name="organizations">Reads which of the accounts belong to an organization that marks external mail.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
@@ -69,6 +71,7 @@ internal static class ClientMailFoldersEndpoint
     internal static async Task<Ok<ClientMailFoldersResponse>> ReadFoldersAsync(
         [FromServices] MailFolderDirectoryReader reader,
         [FromServices] ISpamActionSettingsReader spamActions,
+        [FromServices] IOutgoingSenderIdentityReader senderIdentities,
         [FromServices] IMailAccountAssignments assignments,
         [FromServices] IOrganizationStore organizations,
         CancellationToken cancellationToken)
@@ -81,6 +84,7 @@ internal static class ClientMailFoldersEndpoint
         return TypedResults.Ok(await ClientMailFoldersResponse.ForAsync(
             directory,
             spamActions,
+            senderIdentities,
             assignments,
             organizations,
             cancellationToken));
@@ -102,6 +106,7 @@ internal sealed record ClientMailFoldersResponse(
     /// <summary>Describes the user's tree on the wire, reading which of its accounts are shared from the assignments.</summary>
     /// <param name="directory">What the use case answered.</param>
     /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
+    /// <param name="senderIdentities">Reads the address each account sends from.</param>
     /// <param name="assignments">Reads which of the accounts more than one user is assigned.</param>
     /// <param name="organizations">Reads which of the accounts belong to an organization that marks external mail.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
@@ -110,6 +115,7 @@ internal sealed record ClientMailFoldersResponse(
     internal static async Task<ClientMailFoldersResponse> ForAsync(
         MailFolderDirectory directory,
         ISpamActionSettingsReader spamActions,
+        IOutgoingSenderIdentityReader senderIdentities,
         IMailAccountAssignments assignments,
         IOrganizationStore organizations,
         CancellationToken cancellationToken)
@@ -122,12 +128,13 @@ internal sealed record ClientMailFoldersResponse(
         var sharedAccounts = await assignments.ReadSharedAmongAsync(identifiers, cancellationToken);
         var markingAccounts = await organizations.ReadMailAccountsMarkingExternalMailAsync(identifiers, cancellationToken);
 
-        return For(directory, spamActions, sharedAccounts, markingAccounts);
+        return For(directory, spamActions, senderIdentities, sharedAccounts, markingAccounts);
     }
 
     /// <summary>Describes the user's tree on the wire.</summary>
     /// <param name="directory">What the use case answered.</param>
     /// <param name="spamActions">Reads whether each account's spam verdicts move its mail.</param>
+    /// <param name="senderIdentities">Reads the address each account sends from.</param>
     /// <param name="sharedAccounts">The accounts among these that more than one user is assigned.</param>
     /// <param name="markingAccounts">The accounts among these whose organization marks external mail.</param>
     /// <returns>The response body.</returns>
@@ -135,11 +142,13 @@ internal sealed record ClientMailFoldersResponse(
     internal static ClientMailFoldersResponse For(
         MailFolderDirectory directory,
         ISpamActionSettingsReader spamActions,
+        IOutgoingSenderIdentityReader senderIdentities,
         IReadOnlySet<MailAccountId> sharedAccounts,
         IReadOnlySet<MailAccountId> markingAccounts)
     {
         ArgumentNullException.ThrowIfNull(directory);
         ArgumentNullException.ThrowIfNull(spamActions);
+        ArgumentNullException.ThrowIfNull(senderIdentities);
         ArgumentNullException.ThrowIfNull(sharedAccounts);
         ArgumentNullException.ThrowIfNull(markingAccounts);
 
@@ -147,7 +156,7 @@ internal sealed record ClientMailFoldersResponse(
             directory.SynchronizationEnabled,
             [
                 .. directory.Accounts.Select(account =>
-                    ClientMailFolderAccountResponse.For(account, spamActions, sharedAccounts, markingAccounts)),
+                    ClientMailFolderAccountResponse.For(account, spamActions, senderIdentities, sharedAccounts, markingAccounts)),
             ]);
     }
 }
@@ -176,15 +185,17 @@ internal sealed record ClientMailFolderAccountResponse(
     /// <summary>Describes one account and its folders on the wire.</summary>
     /// <param name="account">The account's folders.</param>
     /// <param name="spamActions">Reads whether the account's spam verdicts move its mail.</param>
+    /// <param name="senderIdentities">Reads the address the account sends from.</param>
     /// <param name="sharedAccounts">The accounts that more than one user is assigned.</param>
     /// <param name="markingAccounts">The accounts whose organization marks external mail.</param>
     /// <returns>The response body.</returns>
     internal static ClientMailFolderAccountResponse For(
         MailAccountFolders account,
         ISpamActionSettingsReader spamActions,
+        IOutgoingSenderIdentityReader senderIdentities,
         IReadOnlySet<MailAccountId> sharedAccounts,
         IReadOnlySet<MailAccountId> markingAccounts) => new(
-        ClientMailAccountResponse.For(account.Account, spamActions, sharedAccounts, markingAccounts),
+        ClientMailAccountResponse.For(account.Account, spamActions, senderIdentities, sharedAccounts, markingAccounts),
         [.. account.Folders.Select(ClientMailFolderResponse.For)],
         account.Outbox is { } outbox ? ClientOutboxCountResponse.For(outbox) : null);
 }

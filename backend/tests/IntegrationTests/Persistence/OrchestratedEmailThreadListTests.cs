@@ -25,14 +25,14 @@ namespace MailFathom.IntegrationTests.Persistence;
 /// <remarks>
 /// <para>
 /// Three claims only this suite can settle. Which conversations are listed is decided over the spam verdict and the
-/// folders in Trash, and a conversation whose every message is spam, in Trash, or some of each has to be left out while
-/// one with a single ordinary message is listed whole. The counts — every message, and the unread ones somebody else
+/// folders in Trash or in Archive, and a conversation whose every message is spam, in Trash, in Archive, or some of
+/// each has to be left out while one with a single ordinary message is listed whole. The counts — every message, and the unread ones somebody else
 /// sent — are aggregates the provider has to translate. And the keyset over each conversation's newest passing message
 /// has to visit each conversation once, in order, across pages.
 /// </para>
 /// <para>
 /// The database is shared with every other class in the collection, so the walk reads every listed conversation and
-/// the assertions are made over this class's own: six conversations seeded once under fixed identities and a block of
+/// the assertions are made over this class's own: nine conversations seeded once under fixed identities and a block of
 /// UIDs no other class uses. How the use case pages, narrows to an account, and quotes a row is decided without a
 /// database and stays in the unit suite.
 /// </para>
@@ -44,9 +44,11 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
 
     private const string TrashFolderAlias = "thread-list-trash";
 
+    private const string ArchiveFolderAlias = "thread-list-archive";
+
     private const string ReaderAddress = "me@mailfathom.test";
 
-    /// <summary>Small enough that this class's two listed conversations land on different pages.</summary>
+    /// <summary>Small enough that this class's listed conversations each land on a page of their own.</summary>
     private const int PageSize = 1;
 
     private static readonly DateTimeOffset FirstReceivedAt = SyntheticEmail.ReceivedAt;
@@ -57,8 +59,22 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
     private static readonly Guid SpamAndTrash = Guid.Parse("0197a000-0000-7000-8000-000000002890");
     private static readonly Guid TrashOnly = Guid.Parse("0197a000-0000-7000-8000-000000002891");
     private static readonly Guid AcrossFolders = Guid.Parse("0197a000-0000-7000-8000-000000002919");
+    private static readonly Guid ArchiveOnly = Guid.Parse("0197a000-0000-7000-8000-000000002892");
+    private static readonly Guid ArchiveAndTrash = Guid.Parse("0197a000-0000-7000-8000-000000002893");
+    private static readonly Guid OneOrdinaryBesideArchived = Guid.Parse("0197a000-0000-7000-8000-000000002894");
 
-    private static readonly Guid[] SeededThreads = [Answered, OneOrdinaryAmongSpam, AllSpam, SpamAndTrash, TrashOnly, AcrossFolders];
+    private static readonly Guid[] SeededThreads =
+    [
+        Answered,
+        OneOrdinaryAmongSpam,
+        AllSpam,
+        SpamAndTrash,
+        TrashOnly,
+        AcrossFolders,
+        ArchiveOnly,
+        ArchiveAndTrash,
+        OneOrdinaryBesideArchived,
+    ];
 
     /// <summary>The messages this class seeds, each into its own UID from a block no other class uses.</summary>
     private static readonly SeededMessage[] SeededMessages =
@@ -74,14 +90,20 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
         new(9108, TrashOnly, TrashFolderAlias, "carol@mailfathom.test", MinutesAfter: 65, Seen: true, Spam: false),
         new(9109, AcrossFolders, FolderAlias, "bob@mailfathom.test", MinutesAfter: 70, Seen: true, Spam: false),
         new(9110, AcrossFolders, TrashFolderAlias, "carol@mailfathom.test", MinutesAfter: 80, Seen: false, Spam: false),
+        new(9111, ArchiveOnly, ArchiveFolderAlias, "dana@mailfathom.test", MinutesAfter: 85, Seen: false, Spam: false),
+        new(9112, ArchiveAndTrash, ArchiveFolderAlias, "dana@mailfathom.test", MinutesAfter: 90, Seen: false, Spam: false),
+        new(9113, ArchiveAndTrash, TrashFolderAlias, "carol@mailfathom.test", MinutesAfter: 95, Seen: true, Spam: false),
+        new(9114, OneOrdinaryBesideArchived, FolderAlias, "bob@mailfathom.test", MinutesAfter: 15, Seen: true, Spam: false),
+        new(9115, OneOrdinaryBesideArchived, ArchiveFolderAlias, "dana@mailfathom.test", MinutesAfter: 100, Seen: false, Spam: false),
     ];
 
     /// <summary>
-    /// Grouped with no filter, the list holds the conversations the ungrouped list holds, each standing at its newest
-    /// message that is neither spam nor in Trash, and a walk back from the far end visits them once in the reverse order.
+    /// Grouped with no filter, the list holds every conversation with a message that is neither spam, nor in Trash, nor
+    /// in Archive, each standing at its newest such message, and a walk back from the far end visits them once in the
+    /// reverse order. A conversation wholly in Archive, or split between Archive and Trash, is left out.
     /// </summary>
     [Fact]
-    public async Task ReadGroupedPageAsync_WalkingForwardThenBack_ListsEachListedConversationOnceAtItsNewestMessageOutsideSpamAndTrash()
+    public async Task ReadGroupedPageAsync_WalkingForwardThenBack_ListsEachListedConversationOnceAtItsNewestMessageOutsideSpamTrashAndArchive()
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -96,7 +118,12 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
         var ours = forward.Where(grouped => SeededThreads.Contains(grouped.Thread.ThreadId.Value)).ToArray();
 
         Assert.Equal(
-            [(Answered, stored[9101]), (AcrossFolders, stored[9109]), (OneOrdinaryAmongSpam, stored[9103])],
+            [
+                (Answered, stored[9101]),
+                (AcrossFolders, stored[9109]),
+                (OneOrdinaryAmongSpam, stored[9103]),
+                (OneOrdinaryBesideArchived, stored[9114]),
+            ],
             ours.Select(grouped => (grouped.Thread.ThreadId.Value, grouped.Position.StoredEmailId)));
         Assert.Equal(forward.Count, forward.Select(grouped => grouped.Thread.ThreadId).Distinct().Count());
         Assert.Equal(
@@ -104,7 +131,10 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
             backward.Select(grouped => grouped.Thread.ThreadId));
     }
 
-    /// <summary>A conversation spread across folders is positioned by what passed and described whole, its trashed newest message included.</summary>
+    /// <summary>
+    /// A conversation spread across folders is positioned by what passed and described whole, its trashed or archived
+    /// newest message included.
+    /// </summary>
     [Fact]
     public async Task ReadGroupedPageAsync_AConversationSpreadAcrossFolders_IsCountedAndQuotedWhole()
     {
@@ -118,16 +148,21 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
 
         // Assert
         var across = Assert.Single(forward, grouped => grouped.Thread.ThreadId.Value == AcrossFolders);
+        var besideArchived = Assert.Single(forward, grouped => grouped.Thread.ThreadId.Value == OneOrdinaryBesideArchived);
 
         Assert.Equal((2, stored[9110]), (across.Thread.MessageCount, across.Thread.NewestEmailId));
+        Assert.Equal(
+            (2, 1, stored[9115]),
+            (besideArchived.Thread.MessageCount, besideArchived.Thread.UnreadCount, besideArchived.Thread.NewestEmailId));
     }
 
     /// <summary>
-    /// A filter narrows the grouped list to conversations with a message that passes it outside spam and Trash: an
-    /// unread spam message and an unread trashed one keep nothing listed, and the listed one stands at the unread message.
+    /// A filter narrows the grouped list to conversations with a message that passes it outside spam, Trash, and
+    /// Archive: an unread spam message, an unread trashed one, and an unread archived one keep nothing listed, and the
+    /// listed one stands at the unread message.
     /// </summary>
     [Fact]
-    public async Task ReadGroupedPageAsync_UnderTheUnreadFilter_ListsOnlyConversationsWithAnUnreadMessageOutsideSpamAndTrash()
+    public async Task ReadGroupedPageAsync_UnderTheUnreadFilter_ListsOnlyConversationsWithAnUnreadMessageOutsideSpamTrashAndArchive()
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -261,11 +296,12 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
             cancellationToken);
     }
 
-    /// <summary>Writes the six conversations once and answers each seeded UID's stored identity.</summary>
+    /// <summary>Writes the nine conversations once and answers each seeded UID's stored identity.</summary>
     /// <remarks>
     /// The messages go through the production write path and settlement, so each is a row a deployment produces; what a
     /// synchronization run and the threading, spam, and folder work would decide afterwards is then stated directly —
-    /// the conversation each belongs to, whether it was read, its verdict, and that its folder sits in Trash. Every step
+    /// the conversation each belongs to, whether it was read, its verdict, and that its folder sits in Trash or in
+    /// Archive. Every step
     /// is idempotent, so whichever test runs first writes it and the other finds it.
     /// </remarks>
     private static async Task<IReadOnlyDictionary<uint, StoredEmailId>> EnsureSeededAsync(
@@ -276,6 +312,7 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
         {
             [FolderAlias] = await OrchestratedFolderBinding.CommitAsync(services, FolderAlias, cancellationToken),
             [TrashFolderAlias] = await OrchestratedFolderBinding.CommitAsync(services, TrashFolderAlias, cancellationToken),
+            [ArchiveFolderAlias] = await OrchestratedFolderBinding.CommitAsync(services, ArchiveFolderAlias, cancellationToken),
         };
         Dictionary<uint, StoredEmailId> stored = [];
 
@@ -309,7 +346,16 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
         await OrchestratedSettlement.ApplyAsync(services, [.. stored.Values], FirstReceivedAt, cancellationToken);
         await PlaceInConversationsAsync(services, stored, cancellationToken);
         await JudgeSpamAsync(services, stored, cancellationToken);
-        await PutTrashFolderInTrashAsync(services, stored[SeededMessages.First(message => message.Folder == TrashFolderAlias).Uid], cancellationToken);
+        await PutFolderUnderRoleAsync(
+            services,
+            stored[SeededMessages.First(message => message.Folder == TrashFolderAlias).Uid],
+            MailFolderSpecialUse.Trash,
+            cancellationToken);
+        await PutFolderUnderRoleAsync(
+            services,
+            stored[SeededMessages.First(message => message.Folder == ArchiveFolderAlias).Uid],
+            MailFolderSpecialUse.Archive,
+            cancellationToken);
 
         return stored;
     }
@@ -402,43 +448,48 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
         }
     }
 
-    /// <summary>Puts the class's Trash folder beneath the account's Trash, or makes it the Trash where the account has none yet.</summary>
+    /// <summary>
+    /// Puts the folder one of the class's messages is in beneath the account's folder of a role, or gives it the role
+    /// where the account has no such folder yet.
+    /// </summary>
     /// <remarks>
-    /// An account holds one Trash, so whichever folder another class may already have given the role stays it; a folder
-    /// beneath Trash is in Trash, which is the rule the list reads, so either arrangement exercises it.
+    /// An account holds one folder per role, so whichever folder another class may already have given it stays it; a
+    /// folder beneath Trash is in Trash and one beneath Archive is in Archive, which is the rule the list reads, so
+    /// either arrangement exercises it.
     /// </remarks>
-    private static Task<bool> PutTrashFolderInTrashAsync(
+    private static Task<bool> PutFolderUnderRoleAsync(
         OrchestratedMailFathomServices services,
-        StoredEmailId trashedEmail,
+        StoredEmailId emailInTheFolder,
+        MailFolderSpecialUse role,
         CancellationToken cancellationToken) => services.InScopeAsync(
         async (scope, token) =>
         {
             var context = scope.GetRequiredService<MailFathomDbContext>();
-            var trashedEmailId = trashedEmail.Value;
+            var emailId = emailInTheFolder.Value;
             var accountId = SyntheticMailAccount.AccountId.Value;
             var folderId = await context.StoredEmails
-                .Where(email => email.Id == trashedEmailId)
+                .Where(email => email.Id == emailId)
                 .Select(email => email.FolderId)
                 .SingleAsync(token);
-            var trash = await context.MailFolders
+            var holder = await context.MailFolders
                 .Where(folder => folder.MailboxAccountId == accountId
-                    && folder.Role == MailFolderSpecialUse.Trash
+                    && folder.Role == role
                     && folder.ErasedAt == null)
                 .Select(folder => (Guid?)folder.Id)
                 .SingleOrDefaultAsync(token);
 
-            if (trash is { } trashId && trashId != folderId)
+            if (holder is { } holderId && holderId != folderId)
             {
                 await context.MailFolders
                     .Where(folder => folder.Id == folderId)
-                    .ExecuteUpdateAsync(setters => setters.SetProperty(folder => folder.ParentId, trashId), token);
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(folder => folder.ParentId, holderId), token);
             }
-            else if (trash is null)
+            else if (holder is null)
             {
                 await context.MailFolders
                     .Where(folder => folder.Id == folderId)
                     .ExecuteUpdateAsync(
-                        setters => setters.SetProperty(folder => folder.Role, MailFolderSpecialUse.Trash),
+                        setters => setters.SetProperty(folder => folder.Role, role),
                         token);
             }
 

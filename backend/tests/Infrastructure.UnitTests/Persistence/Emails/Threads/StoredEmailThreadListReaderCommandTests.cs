@@ -27,9 +27,9 @@ public sealed class StoredEmailThreadListReaderCommandTests
     private static readonly Guid[] ThreadIds = [Guid.Parse("11111111-1111-1111-1111-111111111111")];
 
     /// <summary>
-    /// The first page of the grouped walk is one grouped, bounded read that decides listing on spam and Trash and orders
-    /// the conversations by their newest passing arrival, undated last, then by that message's identifier — newest
-    /// first or oldest first as the walk asked, which is the timeline's own order.
+    /// The first page of the grouped walk is one grouped, bounded read that decides listing on spam and the folders in
+    /// Trash or Archive, and orders the conversations by their newest passing arrival, undated last, then by that
+    /// message's identifier — newest first or oldest first as the walk asked, which is the timeline's own order.
     /// </summary>
     [Theory]
     [InlineData(
@@ -50,7 +50,7 @@ public sealed class StoredEmailThreadListReaderCommandTests
 
         // Assert
         Assert.Contains("GROUP BY", command, StringComparison.Ordinal);
-        Assert.Contains("@trashedFolderIds", command, StringComparison.Ordinal);
+        Assert.Contains("@putAwayFolderIds", command, StringComparison.Ordinal);
         Assert.Contains("Verdict", command, StringComparison.Ordinal);
         Assert.DoesNotContain("HAVING", command, StringComparison.Ordinal);
         Assert.Contains(arrivalOrder, OuterOrder(command), StringComparison.Ordinal);
@@ -212,7 +212,7 @@ public sealed class StoredEmailThreadListReaderCommandTests
             .GroupedPage(
                 context.StoredEmails.AsNoTracking(),
                 filter,
-                trashedFolderIds: [Guid.Parse("22222222-2222-2222-2222-222222222222")],
+                putAwayFolderIds: [Guid.Parse("22222222-2222-2222-2222-222222222222")],
                 continueAfter,
                 PageLimit)
             .ToQueryString();

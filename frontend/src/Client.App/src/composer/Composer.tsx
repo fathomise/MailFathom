@@ -407,6 +407,12 @@ export function Composer({
         [issuedAddresses],
     );
 
+    // The address an account sends from, read when the answered message arrives rather than when the read went out:
+    // the accounts are read again on their own schedule, and that must not read the message again.
+    const sendingAddressOf = useEffectEvent(
+        (account: string): string | null => accounts.find((one) => one.id === account)?.sendingAddress ?? null,
+    );
+
     // An answer opens addressed to the people in the conversation, which means reading the message it answers. A
     // request going out is what an effect is for; the answer is discarded where the composer stopped listening for it,
     // and a message already restored from what this tab was writing needs no read at all.
@@ -431,7 +437,10 @@ export function Composer({
 
             setParticipants(offeredFrom(answer.value.headers.participants));
             setSubjects((held) => new Map(held).set(opening.storedEmailId, answer.value.headers.subject));
-            setComposition((held) => held ?? answerTo(answer.value, opening.answers));
+            // Read here rather than in the updater, which React runs while rendering.
+            const ownAddress = sendingAddressOf(answer.value.account);
+
+            setComposition((held) => held ?? answerTo(answer.value, opening.answers, ownAddress));
         });
 
         return () => {

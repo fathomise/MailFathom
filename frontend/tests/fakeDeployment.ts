@@ -231,6 +231,11 @@ const draftsFolder = deployment.mailFolders.accounts
     .flatMap(({ folders }) => folders)
     .find(({ role }) => role === 'Drafts')?.id;
 
+/** The trash of the corpus mailbox, which is the one folder a draft filed here is moved into, and given up by it. */
+const trashFolder = deployment.mailFolders.accounts
+    .flatMap(({ folders }) => folders)
+    .find(({ role }) => role === 'Trash')?.id;
+
 /** Who the corpus mailbox belongs to, as the conversation it answered in names them, which is who a draft is from. */
 const author = mail.conversation().messages.find(({ email }) => email.folder === 'SENT')?.email;
 
@@ -261,10 +266,17 @@ export class FakeDeployment {
     /**
      * The person's own spam verdicts, by message, which every later read answers in place of what the corpus states.
      *
-     * The fake files no spam: its account's switch is off, as the corpus's `filesJunk` says, so a mark records the
-     * verdict and moves nothing — and a move into the Spam folder records the mark as the service's move route does.
+     * The fake files no spam until a check calls `fileJunk()`: its account's switch is off, as the corpus's `filesJunk`
+     * says, so a mark records the verdict and moves nothing — and a move into the Spam folder records the mark as the
+     * service's move route does.
      */
     private readonly spamMarked = new Map<string, Readonly<Record<string, unknown>>>();
+
+    /** Whether the corpus account's switch for filing junk is on, which is what makes a spam mark move the message. */
+    private filingJunk = false;
+
+    /** The drafts given up by a move or a delete of their filed message, by the key the act was asked under. */
+    private readonly draftsGivenUp = new Set<string>();
 
     /** Messages a delete was written down for and not taken back, which no read answers with any more. */
     private readonly deleted = new Set<string>();
@@ -530,6 +542,14 @@ export class FakeDeployment {
         this.signal({ kind: 'account.state', account: deployment.failingAccount.id });
     }
 
+    /**
+     * Switches the corpus account to filing junk, as an operator does: from here both readings of the account say so,
+     * a spam mark moves the message into the Spam folder, and a not-spam mark moves one out of it to the inbox.
+     */
+    fileJunk(): void {
+        this.filingJunk = true;
+    }
+
     /** The requests the page issued with this method to this route, in the order it issued them. */
     requests(method: string, route: string): IssuedRequest[] {
         return this.issued.filter((issued) => issued.method === method && issued.route === route);
@@ -716,7 +736,10 @@ export class FakeDeployment {
             case 'POST /signals/ticket':
                 return this.signalsServed ? answering(this.ticketMinted()) : { status: 404, body: '' };
             case 'GET /accounts':
-                return answering(this.accounts);
+                return answering({
+                    ...this.accounts,
+                    accounts: listIn(this.accounts, 'accounts').map((account) => this.switched(account)),
+                });
             case 'GET /folders':
                 return answering(this.folders());
             case 'GET /managed-folders':
@@ -2062,7 +2085,7 @@ export class FakeDeployment {
         return {
             ...deployment.mailFolders,
             accounts: deployment.mailFolders.accounts.map(({ account, folders }) => ({
-                account,
+                account: this.switched(account),
                 outbox: this.readsAndSends() ? this.outboxCount() : null,
                 folders: [
                     ...folders,
@@ -2094,6 +2117,11 @@ export class FakeDeployment {
                     }),
             })),
         };
+    }
+
+    /** An account as both of its readings answer it now: filing junk once a check switched that on. */
+    private switched<Account extends object>(account: Account): Account {
+        return this.filingJunk ? { ...account, filesJunk: true } : account;
     }
 
     /** The folder named and every folder above it, from the top of the hierarchy down, or none for one it does not hold. */
@@ -2236,7 +2264,19 @@ export class FakeDeployment {
     private pageFrom(start: number, matches: (row: FolderRow | null) => boolean) {
         // What arrived heads the folder, and only a read from its head lists it: a cursor names a position among the
         // corpus's own rows, so the page after the first goes on from wherever the first stopped reading them.
-        const emails: unknown[] = start === 0 ? this.arrived.map((row) => this.shaped(row)).filter(matches) : [];
+        // So does mail moved into the inbox that the corpus put elsewhere, which no generated position stands for.
+        const emails: unknown[] =
+            start === 0
+                ? [
+                      ...this.arrived,
+                      ...[...this.placed]
+                          .filter(([id, placedIn]) => placedIn === 'INBOX' && positionOf(id) === null)
+                          .map(([id]) => corpusRow(id))
+                          .filter((row) => row !== null),
+                  ]
+                      .map((row) => this.shaped(row))
+                      .filter(matches)
+                : [];
         let position = start;
 
         while (emails.length < mail.rowsPerPage && position < mail.mailboxSize) {
@@ -2400,6 +2440,13 @@ export class FakeDeployment {
         return listIn(body, 'moves').map((move) => {
             const storedEmailId = String(move['storedEmailId']);
             const destinationFolder = String(move['destinationFolder']);
+
+            // A draft filed here has no place on a server to name, so the one move it takes is the one into the
+            // trash, which gives it up; every other is answered as a message nobody holds.
+            if (destinationFolder === trashFolder && this.draftGivenUp(body, storedEmailId)) {
+                return { storedEmailId, outcome: 'applied', destinationFolder: null, change: null };
+            }
+
             const facts = this.factsOf(storedEmailId);
 
             if (facts === null) {
@@ -2444,8 +2491,10 @@ export class FakeDeployment {
     }
 
     /**
-     * Records the person's spam or not-spam verdict on each message, moving nothing because the corpus account's
-     * switch is off — so every result is `applied`, with `moved` false and no record to follow.
+     * Records the person's spam or not-spam verdict on each message. While the corpus account's switch is off nothing
+     * moves, so every result is `applied`, with `moved` false and no record to follow. Once a check switched it on, a
+     * spam mark files the message in the Spam folder and a not-spam mark files one out of it into the inbox, each
+     * answered `recorded` with the move's record — and a message already where the mark would put it moves nowhere.
      */
     private spamMarkedNow(body: unknown) {
         const asked = recordIn(body);
@@ -2455,14 +2504,30 @@ export class FakeDeployment {
 
         return (Array.isArray(named) ? named : []).map((value) => {
             const storedEmailId = String(value);
+            const facts = this.factsOf(storedEmailId);
 
-            if (this.factsOf(storedEmailId) === null) {
+            if (facts === null) {
                 return { storedEmailId, outcome: 'message-not-found', moved: false, changes: [] };
             }
 
             this.spamMarked.set(storedEmailId, personalVerdict(verdict, verdict === 'Spam' ? kind : null));
 
-            return { storedEmailId, outcome: 'applied', moved: false, changes: [] };
+            const destination = verdict === 'Spam' ? 'JUNK' : 'INBOX';
+
+            if (!this.filingJunk || (facts.folder === 'JUNK') === (verdict === 'Spam')) {
+                return { storedEmailId, outcome: 'applied', moved: false, changes: [] };
+            }
+
+            this.count(facts.folder, -1, -Number(facts.unread));
+            this.count(destination, 1, Number(facts.unread));
+            this.placed.set(storedEmailId, destination);
+
+            return {
+                storedEmailId,
+                outcome: 'recorded',
+                moved: true,
+                changes: [submitted(this.recorded(storedEmailId, 'relocate', 'completed'))],
+            };
         });
     }
 
@@ -2476,6 +2541,11 @@ export class FakeDeployment {
     private deletedNow(body: unknown) {
         return listIn(body, 'deletes').map((named) => {
             const storedEmailId = String(named['storedEmailId']);
+
+            if (this.draftGivenUp(body, storedEmailId)) {
+                return { storedEmailId, outcome: 'applied', change: null };
+            }
+
             const facts = this.factsOf(storedEmailId);
 
             if (facts === null) {
@@ -2491,6 +2561,24 @@ export class FakeDeployment {
                 change: submitted(this.recorded(storedEmailId, 'delete', 'pending')),
             };
         });
+    }
+
+    /**
+     * Gives up the draft whose filed message this is, as a move into the trash or a delete of that message does: the
+     * draft leaves the book and its message leaves the drafts folder for nowhere, the trash included. A repeat under
+     * the key the act was asked with is answered as the act was, though nothing is left for it to name.
+     *
+     * @returns Whether the message was a filed draft's, now or when that key first asked.
+     */
+    private draftGivenUp(body: unknown, storedEmailId: string): boolean {
+        const asked = `${String(recordIn(body)?.['requestId'])} ${storedEmailId}`;
+        const draftId = this.filedDraft(storedEmailId)?.record['draftId'];
+
+        if (typeof draftId === 'string' && this.draftGone(draftId)) {
+            this.draftsGivenUp.add(asked);
+        }
+
+        return this.draftsGivenUp.has(asked);
     }
 
     /** Takes pending deletes back or lets them go, answering each named record as it now stands. */
@@ -2569,9 +2657,12 @@ export class FakeDeployment {
                 displayName: null,
             })),
         );
+        // Each save files the draft as a stored message of its own, which is the message the record names.
+        const storedEmailId = this.mintedIdentity();
         const draft = {
             ...drafts.draft,
             draftId,
+            filedEmailId: storedEmailId,
             account: typeof written['account'] === 'string' ? written['account'] : drafts.draft.account,
             subject: answersMail
                 ? drafts.answeringDraft.subject
@@ -2586,13 +2677,13 @@ export class FakeDeployment {
             requestsReadReceipt: written['requestsReadReceipt'] === true,
         };
 
-        // The first save files the stored message in the drafts folder, and every later one replaces it where it stands.
+        // The first save files a stored message in the drafts folder, and every later one files another in its place.
         if (held === undefined) {
             this.count(draftsFolder ?? '', 1, 0);
         }
 
         this.draftsHeld.set(draftId, {
-            storedEmailId: held?.storedEmailId ?? this.mintedIdentity(),
+            storedEmailId,
             record: draft,
             written,
             files: held?.files ?? [],

@@ -3243,6 +3243,8 @@ export const pl: Catalogue = {
     'spam.notSpamMoves.one': 'Zostanie oznaczona jako niebędąca spamem i przeniesiona do skrzynki odbiorczej.',
     'spam.notSpamMoves.other':
         'Wiadomości ({count}) zostaną oznaczone jako niebędące spamem i przeniesione do skrzynki odbiorczej.',
+    'spam.notSpamStaysAsk.one': 'Zostanie oznaczona jako niebędąca spamem i zostanie na miejscu.',
+    'spam.notSpamStaysAsk.other': 'Wiadomości ({count}) zostaną oznaczone jako niebędące spamem i zostaną na miejscu.',
     'spam.notSpamSomeMove':
         'Wiadomości ({count}) zostaną oznaczone jako niebędące spamem. Ze spamu do skrzynki odbiorczej trafi ich {moving}, a reszta zostanie na miejscu.',
     'spam.notSpamReversal': 'Ponowne oznaczenie jako spam to cofnie.',

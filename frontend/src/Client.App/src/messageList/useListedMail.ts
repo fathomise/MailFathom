@@ -65,6 +65,13 @@ export interface ListedMail {
     /** Puts focus back on the row the list left it on, which is where a bar above it hands focus before it goes. */
     readonly takeFocus: () => void;
 
+    /**
+     * Says those messages were just asked out of the folder they are listed in, so the list on the screen lets go of
+     * them: they leave the selection, and where the open message is one of them the next one in the list is opened.
+     * Does nothing where no list is on the screen.
+     */
+    readonly left: (storedEmailIds: readonly string[]) => void;
+
     /** Says which list is on the screen, and `null` as it leaves. */
     readonly listing: (list: ListedMailbox | null) => void;
 
@@ -103,6 +110,12 @@ export interface ListedMailbox {
     readonly takeFocus: () => void;
 
     /**
+     * Lets go of messages an act has just asked out of the folder: the list is what knows which rows it holds, so it
+     * is what takes them out of the selection and names the row that is opened in place of one that was open.
+     */
+    readonly left: (storedEmailIds: readonly string[]) => void;
+
+    /**
      * Puts one of the tree's standing views in force, which is the list's own act for the reason selecting everything
      * is: what a view sets is filters on the folder in front of the reader, and the folder's filters are the list's.
      */
@@ -122,6 +135,7 @@ export const nothingListed: ListedMail = {
     observe: () => () => undefined,
     selectAll: () => undefined,
     takeFocus: () => undefined,
+    left: () => undefined,
     listing: () => undefined,
     stand: () => undefined,
     conversations: () => null,

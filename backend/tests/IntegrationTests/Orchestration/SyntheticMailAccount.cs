@@ -166,6 +166,7 @@ internal sealed class SyntheticMailAccount(
         "stored-content-move-hold",
         "synchronized",
         "thread-list",
+        "thread-list-archive",
         "thread-list-trash",
         "timeline-and-search",
         "timeline-read-model",

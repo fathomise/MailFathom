@@ -37,6 +37,7 @@ public enum MailRelocationOutcome
     AccountNoLongerConfigured = 4,
 
     /// <summary>The account holds its mailbox, and the move was committed to stored state; a restoring one also opened the record its source is owed.</summary>
+    /// <remarks>It also answers, in every custody phase and with no destination and no record, for a draft's message deleted before any occurrence was bound to it: the draft was given up and the message erased rather than filed, so the act is finished and there is nothing to follow.</remarks>
     Applied = 5,
 
     /// <summary>The move would file mail into the drafts or the sent folder's tree from outside it, or out of either tree into anything but the trash.</summary>
@@ -106,6 +107,11 @@ public sealed record AuthoredMailRelocationResult(
         MailboxMutationRecordId? recordId = null,
         MailboxMutationLifecycle? lifecycle = null) =>
         new(MailRelocationOutcome.Applied, destination, recordId, lifecycle);
+
+    /// <summary>Reports a draft given up because its message, which held no occurrence yet, was moved into the trash.</summary>
+    /// <returns>The result, which names no folder because the message was erased rather than filed and no record because nothing is left to carry.</returns>
+    public static AuthoredMailRelocationResult DraftGivenUp() =>
+        new(MailRelocationOutcome.Applied, Destination: null, RecordId: null, Lifecycle: null);
 
     /// <summary>Reports a move that produced no record, and why.</summary>
     /// <param name="outcome">The reason nothing was written down.</param>

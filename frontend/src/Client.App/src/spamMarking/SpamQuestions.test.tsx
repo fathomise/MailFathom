@@ -95,6 +95,15 @@ describe('SpamQuestions', () => {
         expect(onNotSpam).not.toHaveBeenCalled();
     });
 
+    it('asks before marking not spam where nothing moves, saying the message stays where it is', async () => {
+        asked({ kind: 'notSpam', serial: 1, messages: 2, moving: 0 });
+
+        const question = await screen.findByRole('dialog', { name: 'Mark 2 messages not spam?' });
+
+        expect(question.textContent).toContain('2 messages are marked not spam and stay where they are.');
+        expect(within(question).getByRole('button', { name: 'Not spam' })).toBeDefined();
+    });
+
     it('marks not spam once the question is answered', async () => {
         const { onNotSpam, onSpam } = asked(askingNotSpam);
 

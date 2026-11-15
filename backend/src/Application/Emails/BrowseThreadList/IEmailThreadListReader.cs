@@ -26,14 +26,15 @@ public interface IEmailThreadListReader
     /// </returns>
     /// <remarks>
     /// <para>
-    /// A conversation is in the walk while at least one of its messages passes the filter and is neither judged spam
-    /// nor in Trash or a folder beneath it. Its position is the newest such message, so the filters decide which
-    /// conversations are listed and where each stands, exactly as they decide which messages an ungrouped list holds.
-    /// One that is all spam, all Trash, or some of each is the mail somebody put away, and is left out.
+    /// A conversation is in the walk while at least one of its messages passes the filter and is neither judged spam,
+    /// nor in Trash or a folder beneath it, nor in Archive or a folder beneath it. Its position is the newest such
+    /// message, so the filters decide which conversations are listed and where each stands, exactly as they decide
+    /// which messages an ungrouped list holds. One that is all spam, all Trash, all Archive, or some of each is the
+    /// mail somebody put away, and is left out.
     /// </para>
     /// <para>
     /// Once it is in, the conversation is described whole: every message of it the scope admits is counted and quoted,
-    /// spam and Trash included, whatever the filter let through. Folders do not narrow the description, because a
+    /// spam, Trash, and Archive included, whatever the filter let through. Folders do not narrow the description, because a
     /// conversation gathers its messages from every folder the scope admits, which is what opening it reads.
     /// </para>
     /// </remarks>

@@ -23,6 +23,7 @@ const directoryBody = JSON.stringify({
             behind: false,
             filesJunk: false,
             marksExternalMail: false,
+            sendingAddress: 'reader@example.invalid',
             shared: true,
             synchronizationStateSince: null,
             behindSince: null,
@@ -85,6 +86,7 @@ describe('readMailAccounts', () => {
                         behind: false,
                         filesJunk: false,
                         marksExternalMail: false,
+                        sendingAddress: 'reader@example.invalid',
                         shared: true,
                         synchronizationStateSince: null,
                         behindSince: null,
@@ -104,6 +106,14 @@ describe('readMailAccounts', () => {
         expect(result).toMatchObject({ outcome: 'read', value: { accounts: [{ marksExternalMail: true }] } });
     });
 
+    it('reads an account that configures no address to send from as one with none', async () => {
+        const silent = directoryBody.replace('"sendingAddress":"reader@example.invalid"', '"sendingAddress":null');
+
+        const result = await readMailAccounts(session, answering({ status: 200, body: silent }));
+
+        expect(result).toMatchObject({ outcome: 'read', value: { accounts: [{ sendingAddress: null }] } });
+    });
+
     it('reads an account that has never synchronized as one with no time on it', async () => {
         const body = JSON.stringify({
             synchronizationEnabled: false,
@@ -120,6 +130,7 @@ describe('readMailAccounts', () => {
                     behindSince: null,
                     waitingChangeCount: 0,
                     oldestWaitingChangeCommittedAt: null,
+                    sendingAddress: null,
                 },
             ],
         });
@@ -139,6 +150,7 @@ describe('readMailAccounts', () => {
                         behind: false,
                         filesJunk: false,
                         marksExternalMail: false,
+                        sendingAddress: null,
                         shared: false,
                         synchronizationStateSince: null,
                         behindSince: null,
@@ -166,6 +178,7 @@ describe('readMailAccounts', () => {
                     behindSince: '2026-08-14T21:05:00+00:00',
                     waitingChangeCount: 3,
                     oldestWaitingChangeCommittedAt: '2026-08-15T07:31:00+00:00',
+                    sendingAddress: null,
                 },
             ],
         });
@@ -188,10 +201,13 @@ describe('readMailAccounts', () => {
         ['a waiting count that is not a whole number', { waitingChangeCount: 1.5 }],
         ['an oldest waiting change that is not an instant', { oldestWaitingChangeCommittedAt: 'yesterday' }],
         ['a state start that is not a string', { synchronizationStateSince: 12 }],
+        ['a sending address that is not a string', { sendingAddress: 12 }],
+        ['a sending address longer than any address is', { sendingAddress: `${'a'.repeat(320)}@example.invalid` }],
         ['no state start', { synchronizationStateSince: undefined }],
         ['no instant it fell behind', { behindSince: undefined }],
         ['no waiting count', { waitingChangeCount: undefined }],
         ['no oldest waiting change', { oldestWaitingChangeCommittedAt: undefined }],
+        ['no sending address', { sendingAddress: undefined }],
     ])('refuses an account carrying %s', async (_, field) => {
         const body = JSON.stringify({
             synchronizationEnabled: true,
@@ -208,6 +224,7 @@ describe('readMailAccounts', () => {
                     behindSince: null,
                     waitingChangeCount: 0,
                     oldestWaitingChangeCommittedAt: null,
+                    sendingAddress: null,
                     ...field,
                 },
             ],
@@ -266,6 +283,7 @@ describe('readMailAccounts', () => {
                         behindSince: null,
                         waitingChangeCount: 0,
                         oldestWaitingChangeCommittedAt: null,
+                        sendingAddress: null,
                     },
                 ],
             }),
@@ -293,6 +311,7 @@ describe('readMailAccounts', () => {
                         behindSince: null,
                         waitingChangeCount: 0,
                         oldestWaitingChangeCommittedAt: null,
+                        sendingAddress: null,
                     },
                 ],
             }),
@@ -330,6 +349,7 @@ describe('readMailAccounts', () => {
                         behindSince: null,
                         waitingChangeCount: 0,
                         oldestWaitingChangeCommittedAt: null,
+                        sendingAddress: null,
                     },
                 ],
             }),
@@ -352,6 +372,7 @@ describe('readMailAccounts', () => {
                         behindSince: null,
                         waitingChangeCount: 0,
                         oldestWaitingChangeCommittedAt: null,
+                        sendingAddress: null,
                     },
                 ],
             }),
@@ -373,6 +394,7 @@ describe('readMailAccounts', () => {
                         behindSince: null,
                         waitingChangeCount: 0,
                         oldestWaitingChangeCommittedAt: null,
+                        sendingAddress: null,
                     },
                 ],
             }),
@@ -423,6 +445,7 @@ describe('readMailAccounts', () => {
                 behindSince: null,
                 waitingChangeCount: 0,
                 oldestWaitingChangeCommittedAt: null,
+                sendingAddress: null,
             })),
         });
 

@@ -63,6 +63,9 @@ export function ListedMailProvider({ children }: { readonly children: ReactNode 
         takeFocus: () => {
             mailbox.current?.takeFocus();
         },
+        left: (storedEmailIds) => {
+            mailbox.current?.left(storedEmailIds);
+        },
         stand: (view) => {
             mailbox.current?.stand(view);
         },

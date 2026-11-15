@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
@@ -148,6 +149,87 @@ public sealed class MailDeletionRecorderTests
         Assert.NotNull(draft);
         Assert.True(draft.IsDiscarded);
         Assert.Null(draft.FiledEmail);
+    }
+
+    /// <summary>
+    /// A draft's message is listed before any occurrence is bound to it, so its author deleting it gives the draft up
+    /// through the account's custodian, which erases the message and removes the record, and answers that the act is
+    /// finished with nothing to follow. Answering that the message is not there would put the row back in front of them.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData(MailAccountCustodyPhase.Held)]
+    [InlineData(MailAccountCustodyPhase.Restoring)]
+    public async Task RecordAsync_TheAuthorDeletingADraftsMessageThatHoldsNoOccurrence_GivesTheDraftUpAndAnswersApplied(
+        MailAccountCustodyPhase? phase)
+    {
+        // Arrange
+        var draftId = await this.FileDraftAsync();
+        var localFolders = phase is { } custody ? new InMemoryLocalMailFolderStore(Account, custody) : null;
+        var recorder = this.Recorder(target: null, localFolders: localFolders);
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Person, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailDeletionOutcome.Applied, result.Outcome);
+        Assert.Null(result.RecordId);
+        Assert.Null(await this.drafts.FindAsync(draftId, TestContext.Current.CancellationToken));
+        Assert.Equal(0, this.records.OpenedRecordCount);
+
+        if (localFolders is not null)
+        {
+            Assert.Contains(localFolders.EraseRequests, erase => erase.Email == LocalEmail);
+        }
+    }
+
+    /// <summary>
+    /// Giving a draft up is its author's act, and an agent reads no unsent mail at all, so anybody else naming the
+    /// message is told what they were told before and the draft stands.
+    /// </summary>
+    [Theory]
+    [InlineData(MailboxReaderKind.Agent, false)]
+    [InlineData(MailboxReaderKind.Person, true)]
+    public async Task RecordAsync_SomebodyOtherThanItsAuthorDeletingADraftsMessageThatHoldsNoOccurrence_FindsNoMessageAndLeavesTheDraft(
+        MailboxReaderKind reader,
+        bool writtenByAnother)
+    {
+        // Arrange
+        var draftId = await this.FileDraftAsync(writtenByAnother ? SyntheticUser.Another : SyntheticUser.Deployment);
+        var recorder = this.Recorder(target: null);
+
+        // Act
+        var result = await recorder.RecordAsync(LocalEmail, Requester, withdrawalWindow: null, reader, TestContext.Current.CancellationToken);
+
+        // Assert
+        var draft = await this.drafts.FindAsync(draftId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(MailDeletionOutcome.MessageNotFound, result.Outcome);
+        Assert.NotNull(draft);
+        Assert.False(draft.IsDiscarded);
+        Assert.Equal(LocalEmail, draft.FiledEmail);
+    }
+
+    /// <summary>
+    /// The key is kept in the commit that gives the draft up, so a repeat arriving after the message was erased is
+    /// answered as the first attempt was rather than as a message that is not there.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_ARepeatAfterADraftsMessageThatHeldNoOccurrenceWasDeleted_StillAnswersApplied()
+    {
+        // Arrange
+        await this.FileDraftAsync();
+        var keys = new InMemoryMailActKeyStore();
+        var first = await this.Recorder(target: null, keys: keys)
+            .RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Person, DeleteKey, TestContext.Current.CancellationToken);
+
+        // Act
+        var repeat = await this.Recorder(target: null, keys: keys.AnotherReplica())
+            .RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Person, DeleteKey, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailDeletionOutcome.Applied, repeat.Outcome);
+        Assert.Equal(first, repeat);
     }
 
     /// <summary>
@@ -524,18 +606,34 @@ public sealed class MailDeletionRecorderTests
             runSignal ?? new MailAccountRunSignal(),
             new FakeTimeProvider(RecordedAt),
             new MailActIdempotency(callerAuthorization, keys ?? Substitute.For<IMailActKeyStore>(), new FakeTimeProvider(RecordedAt)),
-            this.drafts);
+            this.drafts,
+            this.DraftFiler(sessions, localFolders));
+    }
+
+    /// <summary>Builds what settles a draft given up, over the drafts these tests write and the custody the account is in.</summary>
+    private MailDraftFiler DraftFiler(IPersistenceSessionFactory sessions, InMemoryLocalMailFolderStore? localFolders)
+    {
+        var defaults = new MailboxCustodianComposition(new FakeTimeProvider(RecordedAt));
+
+        return new MailboxCustodianComposition(defaults.Clock)
+        {
+            Drafts = this.drafts,
+            PersistenceSessions = sessions,
+            LocalFolders = localFolders ?? defaults.LocalFolders,
+            Custody = localFolders?.Custody ?? defaults.Custody,
+        }.DraftFiler;
     }
 
     /// <summary>Writes down a draft whose current revision the folder shows as the message these tests act on.</summary>
-    private async Task<MailDraftId> FileDraftAsync()
+    /// <param name="writtenBy">The draft's author, defaulting to the person these tests act as.</param>
+    private async Task<MailDraftId> FileDraftAsync(UserId? writtenBy = null)
     {
         var session = Substitute.For<IPersistenceSession>();
 
         var draft = await this.drafts.OpenAsync(
             session,
             Account,
-            SyntheticUser.Deployment,
+            writtenBy ?? SyntheticUser.Deployment,
             OutgoingEmailRequester.Command("mfctl-draft"),
             [],
             "A draft",

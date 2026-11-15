@@ -481,7 +481,8 @@ It answers with the mail accounts the signed-in user owns, and how current the l
       "behindSince": null,
       "waitingChangeCount": 0,
       "oldestWaitingChangeCommittedAt": null,
-      "marksExternalMail": true
+      "marksExternalMail": true,
+      "sendingAddress": "iris.marlow@example.test"
     },
     {
       "id": "8e3f1a6b-2c4d-4f7e-a915-7b2d0c6e1f38",
@@ -495,7 +496,8 @@ It answers with the mail accounts the signed-in user owns, and how current the l
       "behindSince": "2026-08-14T21:05:00+00:00",
       "waitingChangeCount": 3,
       "oldestWaitingChangeCommittedAt": "2026-08-15T07:31:00+00:00",
-      "marksExternalMail": false
+      "marksExternalMail": false,
+      "sendingAddress": null
     }
   ]
 }
@@ -579,6 +581,12 @@ but `OrganizationMember` — is marked *External*. It is `false` for every accou
 organization that never turned it on, and it is read from the organization as it stands when the accounts are read, so
 an administrator's switch reaches a running client at its next read of this route or the folders route, which nests
 the same account.
+
+**`sendingAddress` is the address the account's mail is written from**, as the account's delivery configuration states
+it, and `null` for an account that configures no address to send from. A client composes the recipients of a reply to
+all before anything is sent, and leaves this address out of them exactly as the service does when it authors the
+answer; it is the whole of what configuration states the account owns, so a mailbox the account is also reached at
+under another address is not left out by either.
 
 **`synchronizationEnabled` is the deployment's switch rather than the user's**, and it is reported beside the accounts
 because no per-account value carries it: a copy that last moved a week ago means one thing where the deployment is still
@@ -685,8 +693,8 @@ hierarchy delimiters or which character one chose. The last level is what a pers
 an account MailFathom mirrors, the hierarchy is the mail server's own: each folder sits under the folder its server
 places it in, and a server folder no configuration names still appears as the level a tree draws its children under. A
 folder act puts the folder where the act put it before the `FoldersChanged` re-read that follows it, so a folder just
-renamed or moved is drawn in its new place without waiting for the account's next pass; a folder just made appears at
-once, at the top of the hierarchy until that pass places it beneath its parent.
+made, renamed, or moved is drawn in its place, beneath its parent and under its own name, without waiting for the
+account's next pass.
 
 **`path` is what a tree nests by.** **Three levels is as deep as MailFathom's own client goes** — it offers no way to
 make a fourth — but this surface neither imposes that ceiling nor promises one, so a client reading a deeper path draws
@@ -1188,13 +1196,13 @@ that does not carry it, so a page read by message has no `conversations` member 
 - **A row describes the whole conversation**, whichever folders hold its messages and whichever of them the filters let
   through: every count, the participants, `newest`, and `title` read as [a conversation row](#a-conversation-row) sets
   out below. `newest` is the conversation's own
-  newest message, so it can be a message no filter would have kept — a reply in Trash, say — while the row stands in the
+  newest message, so it can be a message no filter would have kept — a reply in Trash or in Archive, say — while the row stands in the
   list where its newest *passing* message does.
-- **A conversation is listed when one of its messages passes the filters and is neither spam nor in Trash** — judged
-  spam wherever it sits, or sitting in the junk folder, and Trash including every folder beneath it. Archive is an
-  ordinary folder. So `unread=true` lists the conversations with an unread message outside spam and Trash, and
-  `carriesMark=Commitment` the ones with a message carrying a commitment; a conversation whose every message is spam, in
-  Trash, or some of each is never listed.
+- **A conversation is listed when one of its messages passes the filters and is neither spam, nor in Trash, nor in
+  Archive** — judged spam wherever it sits, or sitting in the junk folder, and Trash and Archive each including every
+  folder beneath it. So `unread=true` lists the conversations with an unread message outside spam, Trash, and Archive,
+  and `carriesMark=Commitment` the ones with a message carrying a commitment there; a conversation whose every message
+  is spam, in Trash, in Archive, or some of each is never listed.
 - **There is no folder.** A conversation gathers its messages from every folder of its account, so the grouped list is
   scoped by `account` alone, or by all of the user's accounts. A request naming `folder` or `includeJunk=true` beside
   the grouping is refused with `400` rather than answered with the parameter dropped.
@@ -1260,8 +1268,8 @@ reads like this:
 }
 ```
 
-**Once listed, a conversation is counted whole**: `messageCount` counts every message the user may read in it, the spam
-and the trashed ones included, whatever the filters let through. `categories` follows the same rule: every category any
+**Once listed, a conversation is counted whole**: `messageCount` counts every message the user may read in it, the spam,
+the trashed, and the archived ones included, whatever the filters let through. `categories` follows the same rule: every category any
 of those messages holds and the account publishes, each once, read for the page in one query rather than one per row and
 in the order and under the rules [a mail list row's](#the-mail-list-route) follows. An account holds seven defaults and
 fifteen categories of its own at most, so a row carries no more than that.
@@ -2642,6 +2650,20 @@ MailFathom could rely on. Each folder roots a tree — itself and every folder w
 `destination-not-allowed` where the message and the destination lie in different trees, counting everything outside
 both as a third, unless the destination is the folder the `Trash` role names: what is in either tree leaves only for
 the trash, which is how it is deleted, and moves freely between the tree's root and its subfolders.
+
+**A draft MailFathom filed is deleted by giving it up while its message has no place on a server to name.** The
+drafts folder lists a saved revision at once, before any occurrence is bound to the stored message — on a mirrored or
+restoring account until synchronization meets the copy that was appended, and on a held account for good. A move of
+that message into the folder the `Trash` role names, or a delete of it, asked by the person who wrote the draft, is
+answered `applied` with no `change`, and on the move with `destinationFolder` `null`: the draft is given up exactly as
+`DELETE /api/client/drafts/{draftId}` gives it up, so the message is erased rather than kept in the trash, the copy
+appended for it is withdrawn from the server's drafts folder, and `PUT /api/client/drafts/{draftId}` answers `404`
+afterwards. Nothing is left to follow, to withdraw, or to move back. A copy that could not be withdrawn on the request
+is withdrawn by the account's next draft pass, and the message stays listed until then. Every other move of such a
+message, and the same act asked by anybody but the draft's author, is `message-not-found` until an occurrence is bound.
+The move erases, so it is answered only for a caller who also holds `mailfathom.mail.delete` over the account; one
+holding `mailfathom.mail.move` alone is answered `message-not-found` for that message, the draft stands, and the rest
+of the batch is unaffected.
 
 **On an account whose mailbox MailFathom holds, a change is made rather than recorded.** There is no server to carry it
 to, so a flag, a keyword, a move, or a delete on a [held account](#the-folder-management-routes) is committed to the stored

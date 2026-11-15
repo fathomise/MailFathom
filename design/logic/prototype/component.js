@@ -1312,10 +1312,22 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.startReply("reply", [this.state.threadId]);
     };
 
+    /* The open message leaving the list hands the reader the next one in it: the row after it, or the row before it
+       at the foot of the list. Read off the sample threads of the same folder, which is the order the list draws. */
+    nextAfter = (t) => {
+      const open = THREADS.find(x => x.id === this.state.threadId);
+      if (!open || t.indexOf(open.id) < 0) return {};
+      const st = this.state;
+      const stays = x => x.box === open.box && t.indexOf(x.id) < 0 && (st.archived || []).indexOf(x.id) < 0 && (st.deleted || []).indexOf(x.id) < 0;
+      const at = THREADS.indexOf(open);
+      const next = THREADS.slice(at + 1).find(stays) || THREADS.slice(0, at).reverse().find(stays);
+      return next ? { threadId: next.id } : {};
+    };
+
     archiveThreads = (ids) => {
       const t = this.opTargets(ids);
       const op = { kind: "archive", ids: t };
-      this.setState({ lastOp: op, sel: [], mailPane: "list" });
+      this.setState(Object.assign({ lastOp: op, sel: [], mailPane: "list" }, this.nextAfter(t)));
       this.animateRowsOut(t, () => { if (op.undone) return; this.setState(s => ({ archived: (s.archived || []).concat(t) })); }, "arc");
       this.notify("Archived " + this.countWord(t.length), true);
     };
@@ -1550,7 +1562,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     purgeThreads = (t) => {
       /* Taken back like a delete into the trash: the server holds a permanent delete for as long as the notice stands. */
       const op = { kind: "delete", ids: t };
-      this.setState({ lastOp: op, sel: [], mailPane: "list" });
+      this.setState(Object.assign({ lastOp: op, sel: [], mailPane: "list" }, this.nextAfter(t)));
       this.animateRowsOut(t, () => { if (op.undone) return; this.setState(s => ({ deleted: (s.deleted || []).concat(t) })); }, "del");
       this.notify("Permanently deleted - " + this.countWord(t.length), true);
     };
@@ -1564,7 +1576,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         if (this.tabsMode()) this.closeTab("compose");
         this.setState({ compose: false, composeDraft: null, closeAsk: false });
       }
-      this.setState({ lastOp: op, sel: [], mailPane: "list" });
+      this.setState(Object.assign({ lastOp: op, sel: [], mailPane: "list" }, this.nextAfter(t)));
       this.animateRowsOut(t, () => { if (op.undone) return; this.setState(s => ({ deleted: (s.deleted || []).concat(t) })); }, "del");
       this.notify("Moved to trash - " + this.countWord(t.length), true);
     };
@@ -1770,6 +1782,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           return { moved: moved };
         });
       };
+      this.setState(this.nextAfter(leaving));
       this.animateRowsOut(leaving, commit, "arc");
       t.filter(id => leaving.indexOf(id) < 0).forEach(id => this.setRowAnim(id, "move", 900));
       this.notify("Moved to “" + folder + "”" + (account ? " in " + account : "") + " - " + this.countWord(t.length), true);
@@ -1841,14 +1854,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         this.notify("The selection mixes spam with other mail. Select only one of the two.", { kind: "error", title: "Nothing was marked" });
         return;
       }
-      if (spam[0] && t.some(id => this.sitsInSpam(id) && this.movesSpam(id))) this.setState({ notSpamAsk: { ids: t }, ctxMenu: null });
-      else if (spam[0]) { this.setState({ ctxMenu: null }); this.markNotSpam(t); }
+      if (spam[0]) this.setState({ notSpamAsk: { ids: t }, ctxMenu: null });
       else this.setState({ spamAsk: { ids: t, moved: false }, spamPick: null, ctxMenu: null });
     };
 
     /* Not spam is one act: the kind goes, the person's *not spam* is recorded, and whatever sits in Spam on an account
-       that moves spam goes to the Inbox, after a confirmation. Where nothing moves it applies at once, and a message in
-       Spam on an account that does not move spam stays there, unmarked, until the person moves it. */
+       that moves spam goes to the Inbox. It always asks first, whether or not anything moves, and a message in Spam on an
+       account that does not move spam stays there, unmarked, until the person moves it. */
     closeNotSpamAsk = () => this.setState({ notSpamAsk: null });
     confirmNotSpam = () => { if (this.state.notSpamAsk) this.markNotSpam(this.state.notSpamAsk.ids); };
     markNotSpam = (t) => {
@@ -1864,6 +1876,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         inSpam.forEach(id => { moved[id] = "Inbox"; });
         return { moved: moved };
       });
+      this.setState(this.nextAfter(this.inSpamFolder() ? inSpam : []));
       this.animateRowsOut(this.inSpamFolder() ? inSpam : [], commit, "arc");
       t.filter(id => inSpam.indexOf(id) < 0).forEach(id => this.setRowAnim(id, "edit", 1700));
       const one = t.length === 1;
@@ -2247,7 +2260,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             { icon: "archive", label: "Archive", run: () => this.archiveThreads([id]) },
             { icon: "flag", label: flagged ? "Remove flag" : "Flag", run: () => this.toggleFlagThreads([id]) },
             { icon: "mark_email_unread", label: "Mark as unread", run: () => this.markUnread([id]) },
-            { icon: sp.spam ? "report_off" : "report", label: sp.spam ? (this.sitsInSpam(id) && this.movesSpam(id) ? "Not spam\u2026" : "Not spam") : "Spam\u2026", run: () => this.toggleSpam([id]) },
+            { icon: sp.spam ? "report_off" : "report", label: sp.spam ? "Not spam\u2026" : "Spam\u2026", run: () => this.toggleSpam([id]) },
             { icon: "drive_file_move", label: "Move\u2026", run: () => this.setState({ moveFor: [id] }) },
             { icon: "delete", label: "Delete", danger: true, run: () => this.deleteThreads([id]) },
             /* The row's mark answers a pointer alone, since a row is one option with nothing focusable inside it, so the
@@ -5188,18 +5201,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const thread = THREADS.find(t => t.id === st.threadId) || THREADS[0];
       /* An account's Spam folder lists what sits in it, badged by kind; every other list leaves it out and folds the
          spam that sits elsewhere. The prototype's lists are otherwise one list under every folder. */
-      /* Listed by conversation there are no folders: a conversation gathers its messages from every folder, Spam and
-         Trash included, and is listed under its account as long as one of them is neither spam nor in Trash. The
-         prototype keeps a whole thread in one place and under one verdict, so a thread judged spam - wherever it sits -
-         one in Spam, and one in Trash are the ones left out. */
+      /* Listed by conversation there are no folders: a conversation gathers its messages from every folder, Spam,
+         Trash and Archive included, and is listed under its account as long as one of them is neither spam, nor in
+         Trash, nor in Archive. The prototype keeps a whole thread in one place and under one verdict, so a thread
+         judged spam - wherever it sits - one in Spam, one in Trash, and one in Archive are the ones left out. */
       const convMail = !!st.convMail;
       const convAcc = st.convAcc || "all";
       const inSpamBox = !convMail && this.inSpamFolder();
       const spamBoxAcc = (st.folderKey || "").split("·")[0];
-      const convOnlySpamOrTrash = (t) => this.spamOf(t.id).spam || this.sitsInSpam(t.id) ||
-        (st.moved || {})[t.id] === "Trash" || (st.deleted || []).indexOf(t.id) >= 0;
+      const convPutAway = (t) => this.spamOf(t.id).spam || this.sitsInSpam(t.id) ||
+        (st.moved || {})[t.id] === "Trash" || (st.deleted || []).indexOf(t.id) >= 0 ||
+        (st.moved || {})[t.id] === "Archive" || (st.archived || []).indexOf(t.id) >= 0;
       const listedThreads = convMail
-        ? THREADS.filter(t => !convOnlySpamOrTrash(t) && (convAcc === "all" || this.accountOf(t.id) === convAcc))
+        ? THREADS.filter(t => !convPutAway(t) && (convAcc === "all" || this.accountOf(t.id) === convAcc))
         : THREADS.filter(t => (st.archived || []).indexOf(t.id) < 0 && (st.deleted || []).indexOf(t.id) < 0 &&
           this.sitsInSpam(t.id) === inSpamBox && (!inSpamBox || this.accountOf(t.id) === spamBoxAcc));
       const convFirst = (n) => n === ME ? "me" : n.split(" ")[0];
@@ -8507,7 +8521,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             confirmSpam: this.confirmSpam,
           };
         })(),
-        /* *Not spam* asks before it acts whenever it moves mail: how many, and what happens to each. */
+        /* *Not spam* always asks before it acts: how many, and what happens to each. */
         ...(() => {
           const ask = st.notSpamAsk;
           const n = ask ? ask.ids.length : 0;
@@ -8561,7 +8575,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           newFolderStyle: "display:flex;align-items:center;gap:11px;padding:" + (isMobile ? "11px 14px" : "8px 13px") + ";border-radius:8px;font-size:13px;color:var(--accent-d)",
           folders: g.folders.concat(((st.extraFolders || {})[g.key] || []).map(n => ({ icon: "folder", label: n }))).map(mf => ({
             icon: mf.icon, label: mf.label, pick: () => this.moveThreads(mf.label, g.label),
-            style: "display:flex;align-items:center;gap:11px;padding:" + (isMobile ? "13px 14px" : "10px 13px") + ";border-radius:8px;font-size:14px;color:var(--text2)",
+            /* A folder kept inside another sits under it, a step in for each level, as the folder column nests it. */
+            style: "display:flex;align-items:center;gap:11px;padding:" + (isMobile ? "13px 14px" : "10px 13px") + ";padding-inline-start:" + ((isMobile ? 14 : 13) + 20 * (mf.level || 0)) + "px;border-radius:8px;font-size:14px;color:var(--text2)",
           })),
         })),
         undoOp: this.undoOp,

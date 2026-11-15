@@ -66,6 +66,7 @@ function directory(filesJunk: boolean): MailFolderDirectory {
                     behind: false,
                     filesJunk,
                     marksExternalMail: false,
+                    sendingAddress: null,
                     shared: false,
                     synchronizationStateSince: null,
                     behindSince: null,
@@ -244,11 +245,18 @@ describe('useSpamMarks', () => {
         expect(await screen.findByText('Marked as spam - 1 messages')).toBeDefined();
     });
 
-    it('marks spam not spam at once where nothing would move it out of the Spam folder', async () => {
+    it('asks before marking spam not spam where nothing would move, and marks it once that is confirmed', async () => {
         const deployment = recording();
 
         drawn([lottery], deployment, false);
         fireEvent.click(screen.getByRole('button', { name: 'Not spam' }));
+
+        const question = await screen.findByRole('dialog', { name: 'Mark this message not spam?' });
+
+        expect(question.textContent).toContain('It is marked not spam and stays where it is.');
+        expect(deployment.requests).toEqual([]);
+
+        fireEvent.click(within(question).getByRole('button', { name: 'Not spam' }));
 
         await waitFor(() => {
             expect(submitted(deployment)).toEqual([
@@ -259,7 +267,6 @@ describe('useSpamMarks', () => {
             ]);
         });
         expect(await screen.findByText('Marked not spam - 1 messages')).toBeDefined();
-        expect(screen.queryByRole('dialog')).toBeNull();
     });
 
     it('asks before marking spam not spam where the account would move it to the Inbox', async () => {
@@ -323,6 +330,11 @@ describe('useSpamMarks', () => {
         drawn([invoice], deployment);
         await markedSpam(/^Scam/u);
         fireEvent.click(await screen.findByRole('button', { name: 'Not spam' }));
+        fireEvent.click(
+            within(await screen.findByRole('dialog', { name: 'Mark this message not spam?' })).getByRole('button', {
+                name: 'Not spam',
+            }),
+        );
 
         await screen.findByText('Nothing was marked');
         expect(await screen.findByRole('button', { name: 'Not spam' })).toBeDefined();
@@ -434,6 +446,11 @@ describe('useSpamMarks', () => {
             drawn([invoice], deployment);
             await markedSpam(/^Scam/u);
             fireEvent.click(await screen.findByRole('button', { name: 'Not spam' }));
+            fireEvent.click(
+                within(await screen.findByRole('dialog', { name: 'Mark this message not spam?' })).getByRole('button', {
+                    name: 'Not spam',
+                }),
+            );
             await screen.findByText('Marked not spam - 1 messages');
 
             answerOlder(olderAnswer);
@@ -494,17 +511,6 @@ describe('useSpamMarks', () => {
 
             await screen.findByText('Nothing was marked');
             expect(marked).toBe(0);
-        });
-
-        it('at once where a not-spam mark moves nothing and is sent without asking', () => {
-            let marked = 0;
-
-            drawn([lottery], recording(), false, () => {
-                marked += 1;
-            });
-            fireEvent.click(screen.getByRole('button', { name: 'Not spam' }));
-
-            expect(marked).toBe(1);
         });
 
         it('after the not-spam confirmation where the mark moves the message', async () => {

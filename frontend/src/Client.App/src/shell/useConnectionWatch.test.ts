@@ -24,6 +24,7 @@ function account(synchronizationState: MailSynchronizationState): MailAccount {
         behind: false,
         filesJunk: false,
         marksExternalMail: false,
+        sendingAddress: null,
         shared: false,
         synchronizationStateSince: null,
         behindSince: null,

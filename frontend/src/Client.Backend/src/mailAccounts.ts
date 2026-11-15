@@ -48,6 +48,12 @@ export interface MailAccount {
      * signature does not prove is marked. Always `false` for an account in no organization.
      */
     readonly marksExternalMail: boolean;
+
+    /**
+     * The address the account's mail is written from, which is what a reply to all leaves out of its recipients, or
+     * `null` where the account configures no address to send from.
+     */
+    readonly sendingAddress: string | null;
 }
 
 /** The user's accounts, beside the deployment-wide switch that says whether any of them is being refreshed at all. */
@@ -63,6 +69,10 @@ export interface MailAccountDirectory {
 // The folders route nests this same account shape, so the bound and the parser below are that route's as well: two
 // copies of either would be two answers to what an account is, and the surface publishes one.
 export const maximumAccountsInDirectory = 256;
+
+// The longest sending address an account may carry before its answer is refused: the 64 octets of a local part, the
+// at-sign, and the 255 of a domain, which no address a mail server accepts exceeds.
+const longestSendingAddress = 320;
 
 const synchronizationStates: readonly MailSynchronizationState[] = [
     'NeverSynchronized',
@@ -154,6 +164,8 @@ export function parseMailAccount(value: unknown): MailAccount | null {
     const oldestWaitingChangeCommittedAt = record['oldestWaitingChangeCommittedAt'];
     const marksExternalMail = record['marksExternalMail'];
 
+    const sendingAddress = record['sendingAddress'];
+
     if (typeof id !== 'string' || typeof displayName !== 'string' || typeof behind !== 'boolean') {
         return null;
     }
@@ -178,6 +190,13 @@ export function parseMailAccount(value: unknown): MailAccount | null {
         return null;
     }
 
+    if (
+        sendingAddress !== null &&
+        (typeof sendingAddress !== 'string' || sendingAddress.length > longestSendingAddress)
+    ) {
+        return null;
+    }
+
     if (typeof waitingChangeCount !== 'number' || !Number.isSafeInteger(waitingChangeCount) || waitingChangeCount < 0) {
         return null;
     }
@@ -195,6 +214,7 @@ export function parseMailAccount(value: unknown): MailAccount | null {
         waitingChangeCount,
         oldestWaitingChangeCommittedAt,
         marksExternalMail,
+        sendingAddress,
     };
 }
 

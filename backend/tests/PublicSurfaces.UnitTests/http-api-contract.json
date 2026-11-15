@@ -2696,6 +2696,12 @@
               "string"
             ]
           },
+          "sendingAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "shared": {
             "type": "boolean"
           },
@@ -2730,7 +2736,8 @@
           "behindSince",
           "waitingChangeCount",
           "oldestWaitingChangeCommittedAt",
-          "marksExternalMail"
+          "marksExternalMail",
+          "sendingAddress"
         ],
         "type": "object"
       },

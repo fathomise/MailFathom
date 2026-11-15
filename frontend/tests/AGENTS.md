@@ -336,7 +336,9 @@ dropping it is not, and neither is asserting it in jsdom where it would pass for
   `channelsOpen()` before it makes one happen, because a statement said before the connection stands was said to
   nobody. The same fake stops answering on `stopAnswering()`, refusing every request as a network refuses one, and
   writes the next change down and never takes it on `refuseNextChange()`, which is how a change the mailbox would not
-  take is reached without a clock running out an account's retries.
+  take is reached without a clock running out an account's retries. An account files junk only once a check calls
+  `fileJunk()`: from then a spam mark moves the message the way an account whose switch is on moves it, and until
+  then a mark changes the verdict and leaves the message where it is.
 - **No journey asserts a service behaviour the fake merely assumes.** The fake holds one reading of what the service
   does — that a moved message leaves the folder it came from, that emptying the trash empties it — and a journey proves
   the client agrees with that reading, never that the service does. Agreement with a real service stays with the

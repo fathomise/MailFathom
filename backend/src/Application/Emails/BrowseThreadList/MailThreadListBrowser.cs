@@ -110,7 +110,7 @@ public sealed class MailThreadListBrowser
     /// It is the message list's own read with one row kept per conversation: the same account scope, filters, order,
     /// and cursor, each conversation standing at its newest message that passed them. What differs is the scope it
     /// runs under. A conversation gathers its messages from every folder, so no folder narrows it, and the junk folder
-    /// takes part because a conversation is counted whole; spam and Trash decide only whether it is listed. A request
+    /// takes part because a conversation is counted whole; spam, Trash, and Archive decide only whether it is listed. A request
     /// naming a folder or asking for junk mail is therefore refused rather than answered with that filter dropped.
     /// </para>
     /// <para>

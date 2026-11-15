@@ -50,6 +50,13 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// routes already act on. Whether there is one, and how long it is, is the asking surface's — a client says how long a
 /// person's own notification stands, and a rule action or an MCP caller has nobody watching and asks for none.
 /// </para>
+/// <para>
+/// <b>A draft's message that holds no occurrence yet is deleted by giving the draft up.</b> A revision MailFathom filed
+/// is listed before any occurrence is bound to it, so there is nothing for a record to name; its author deleting it is
+/// answered by <see cref="UnboundDraftDeletion" />, which erases the message and has the account's custodian withdraw
+/// whatever copy was appended. It is the one answer here that may reach the mail server on the request, as giving a
+/// draft up by its identifier does.
+/// </para>
 /// </remarks>
 public sealed class MailDeletionRecorder
 {
@@ -63,6 +70,7 @@ public sealed class MailDeletionRecorder
     private readonly TimeProvider timeProvider;
     private readonly MailActIdempotency idempotency;
     private readonly IMailDraftStore drafts;
+    private readonly UnboundDraftDeletion unboundDrafts;
 
     /// <summary>Initializes the use case over the grant it asks first, the email it is about, and the submission it writes through.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
@@ -75,6 +83,7 @@ public sealed class MailDeletionRecorder
     /// <param name="timeProvider">Measures the withdrawal window a caller asks for, from the moment the record is written.</param>
     /// <param name="idempotency">Answers a repeat of an act the person already made, and keeps the key of one that commits.</param>
     /// <param name="drafts">Gives up the draft a deleted message is the current revision of.</param>
+    /// <param name="draftFiler">Settles a draft given up through a message no occurrence was bound to yet.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public MailDeletionRecorder(
         AccessAuthorization authorization,
@@ -86,7 +95,8 @@ public sealed class MailDeletionRecorder
         MailAccountRunSignal runSignal,
         TimeProvider timeProvider,
         MailActIdempotency idempotency,
-        IMailDraftStore drafts)
+        IMailDraftStore drafts,
+        MailDraftFiler draftFiler)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(scopeResolver);
@@ -98,6 +108,7 @@ public sealed class MailDeletionRecorder
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(idempotency);
         ArgumentNullException.ThrowIfNull(drafts);
+        ArgumentNullException.ThrowIfNull(draftFiler);
 
         this.authorization = authorization;
         this.scopeResolver = scopeResolver;
@@ -109,6 +120,7 @@ public sealed class MailDeletionRecorder
         this.timeProvider = timeProvider;
         this.idempotency = idempotency;
         this.drafts = drafts;
+        this.unboundDrafts = new UnboundDraftDeletion(scopeResolver, drafts, draftFiler, commitPolicy, idempotency, timeProvider);
     }
 
     /// <summary>Writes down one delete, against the email a caller named.</summary>
@@ -173,7 +185,12 @@ public sealed class MailDeletionRecorder
 
         var target = await this.targets.FindAsync(storedEmailId, cancellationToken);
 
-        if (target is null || !await this.scopeResolver.IsReadableAsync(
+        if (target is null)
+        {
+            return await this.DeleteUnboundDraftAsync(storedEmailId, reader, key, cancellationToken);
+        }
+
+        if (!await this.scopeResolver.IsReadableAsync(
                 reader,
                 target.Occurrence.AccountId,
                 target.Folder.Alias,
@@ -298,6 +315,26 @@ public sealed class MailDeletionRecorder
         }
 
         return AuthoredMailDeletionResult.Recorded(record.Id, record.Lifecycle);
+    }
+
+    /// <summary>Gives up the draft a message without an occurrence shows, or answers that no such message is served.</summary>
+    private async Task<AuthoredMailDeletionResult> DeleteUnboundDraftAsync(
+        StoredEmailId storedEmailId,
+        MailboxReaderKind reader,
+        MailActIdempotencyKey? key,
+        CancellationToken cancellationToken)
+    {
+        if (await this.unboundDrafts.FindAsync(storedEmailId, reader, cancellationToken) is not { } draft)
+        {
+            return AuthoredMailDeletionResult.NotRecorded(MailDeletionOutcome.MessageNotFound);
+        }
+
+        // Applied with no record: the draft is given up and nothing is left to follow or to withdraw.
+        var applied = AuthoredMailDeletionResult.Applied();
+
+        return await this.unboundDrafts.GiveUpAsync(draft, storedEmailId, key, OutcomeOf(applied), cancellationToken) is { } first
+            ? ReplayOf(first)
+            : applied;
     }
 
     /// <summary>Answers what the submission made of the delete.</summary>

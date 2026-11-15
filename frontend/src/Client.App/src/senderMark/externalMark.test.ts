@@ -19,6 +19,7 @@ const work: MailAccount = {
     waitingChangeCount: 0,
     oldestWaitingChangeCommittedAt: null,
     marksExternalMail: true,
+    sendingAddress: null,
 };
 const personal: MailAccount = { ...work, id: 'personal', displayName: 'Personal', marksExternalMail: false };
 

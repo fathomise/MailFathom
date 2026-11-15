@@ -3194,6 +3194,8 @@ export const en = {
     'spam.notSpamQuestion.other': 'Mark {count} messages not spam?',
     'spam.notSpamMoves.one': 'It is marked not spam and moved to the Inbox.',
     'spam.notSpamMoves.other': '{count} messages are marked not spam and moved to the Inbox.',
+    'spam.notSpamStaysAsk.one': 'It is marked not spam and stays where it is.',
+    'spam.notSpamStaysAsk.other': '{count} messages are marked not spam and stay where they are.',
     'spam.notSpamSomeMove':
         '{count} messages are marked not spam. {moving} move from Spam to the Inbox, and the rest stay where they are.',
     'spam.notSpamReversal': 'Marking it spam again takes this back.',

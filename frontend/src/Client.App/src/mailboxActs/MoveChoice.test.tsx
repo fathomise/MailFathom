@@ -10,8 +10,8 @@ import { LocalizationProvider } from '../localization/Localization';
 import type { MoveDestination, MoveDestinationGroup } from './mailboxDestinations';
 import { MoveChoice } from './MoveChoice';
 
-const archive: MoveDestination = { folderId: 'work-archive', name: 'INBOX.Archiwum', role: 'Archive' };
-const clients: MoveDestination = { folderId: 'work-clients', name: 'Projects / Clients', role: null };
+const archive: MoveDestination = { folderId: 'work-archive', name: 'INBOX.Archiwum', role: 'Archive', level: 0 };
+const clients: MoveDestination = { folderId: 'work-clients', name: 'Clients', role: null, level: 1 };
 
 const work: MoveDestinationGroup = {
     accountId: 'work',
@@ -87,7 +87,7 @@ describe('MoveChoice', () => {
 
         expect(screen.getByRole('dialog', { name: 'File in another folder' })).toBeDefined();
         expect(screen.getByRole('button', { name: 'Archive' })).toBeDefined();
-        expect(screen.getByRole('button', { name: 'Projects / Clients' })).toBeDefined();
+        expect(screen.getByRole('button', { name: 'Clients' })).toBeDefined();
     });
 
     it('gathers the folders under the account they belong to, rather than as one list of folders from nowhere', () => {
@@ -111,7 +111,7 @@ describe('MoveChoice', () => {
         const chosen = vi.fn();
 
         open(chosen);
-        fireEvent.click(screen.getByRole('button', { name: 'Projects / Clients' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Clients' }));
 
         expect(chosen).toHaveBeenCalledWith(clients);
     });

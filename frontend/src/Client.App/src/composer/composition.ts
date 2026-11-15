@@ -169,11 +169,25 @@ export function nothingWrittenYet(account: string, to: readonly string[] = []): 
  *
  * @param message The message being answered, as the deployment described it.
  * @param answers Which answer is being written.
+ * @param ownAddress The address the answering account sends from, or `null` where the deployment states none.
  */
-export function answerTo(message: MailMessage, answers: MailDraftAnswer): Composition {
+export function answerTo(
+    message: MailMessage,
+    answers: MailDraftAnswer,
+    ownAddress: string | null = null,
+): Composition {
+    // Who the deployment itself addresses the answer to, so the composer opens on the list the message will carry: a
+    // reply goes to whoever the author asked to be answered at and to the author otherwise — never to a `Sender` beside
+    // them, who posted the message for the author and is not who wrote it — and a reply to everyone keeps the rest of
+    // the conversation in the headers it was written in, without the account's own address, which would mail the
+    // answer back to whoever is writing it.
     const authors = addressesOf(message.headers.participants, ['ReplyTo']);
-    const to = authors.length > 0 ? authors : addressesOf(message.headers.participants, ['From', 'Sender']);
-    const everybody = addressesOf(message.headers.participants, ['To', 'Cc']);
+    const to = authors.length > 0 ? authors : addressesOf(message.headers.participants, ['From']);
+    const kept = (roles: readonly MailParticipant['role'][], placed: readonly string[]): readonly string[] =>
+        addressesOf(message.headers.participants, roles).filter(
+            (address) => !sameAddress(address, ownAddress) && !placed.some((one) => sameAddress(one, address)),
+        );
+    const toEverybody = [...to, ...kept(['To'], to)];
 
     return {
         answering: { storedEmailId: message.storedEmailId, answers },
@@ -183,8 +197,8 @@ export function answerTo(message: MailMessage, answers: MailDraftAnswer): Compos
 
         // A forward is addressed by the person forwarding it: what it carries is somebody else's conversation, and
         // opening it addressed to the people already in that conversation is how a private thread reaches them twice.
-        to: answers === 'forward' ? [] : to,
-        cc: answers === 'everyone' ? everybody.filter((address) => !to.includes(address)) : [],
+        to: answers === 'forward' ? [] : answers === 'everyone' ? toEverybody : to,
+        cc: answers === 'everyone' ? kept(['Cc'], toEverybody) : [],
         bcc: [],
         words: [],
         pictures: new Map(),
@@ -353,6 +367,12 @@ function picturesSent(composition: Composition): readonly { readonly name: strin
 
         return picture === undefined ? [] : [{ name, content: base64Of(picture.octets) }];
     });
+}
+
+// One mailbox written in two cases is one mailbox, which is how every mail server reads the domain and nearly every one
+// the local part.
+function sameAddress(one: string, other: string | null): boolean {
+    return other !== null && one.toLowerCase() === other.toLowerCase();
 }
 
 /** The addresses written in any of the named headers, in the order they were written and without a repeat. */

@@ -17,6 +17,8 @@ namespace MailFathom.Infrastructure.Persistence.Folders;
 /// </remarks>
 internal static class StoredTrashedFolders
 {
+    private static readonly MailFolderSpecialUse[] TrashAlone = [MailFolderSpecialUse.Trash];
+
     /// <summary>Reads the identifiers of every folder in the account's Trash.</summary>
     /// <param name="folders">The folder rows to read from.</param>
     /// <param name="mailboxAccountId">The configured account whose folders are read.</param>
@@ -62,21 +64,35 @@ internal static class StoredTrashedFolders
     /// <param name="folders">The folders of one account or of several.</param>
     /// <returns>The identifiers of the folders in Trash.</returns>
     /// <remarks>A parent the rows do not carry ends the chain outside Trash, and a chain that loops ends at the first folder it revisits.</remarks>
-    internal static Guid[] Within(IReadOnlyCollection<StoredFolderRole> folders)
+    internal static Guid[] Within(IReadOnlyCollection<StoredFolderRole> folders) => Beneath(folders, TrashAlone);
+
+    /// <summary>Picks the folders whose parent chain reaches a folder playing one of the named roles, that folder included.</summary>
+    /// <param name="folders">The folders of one account or of several.</param>
+    /// <param name="roles">The roles whose folders, and everything beneath them, are picked.</param>
+    /// <returns>The identifiers of the folders at or beneath a folder playing one of the roles.</returns>
+    /// <remarks>
+    /// The walk <see cref="Within" /> answers Trash by, open to the rule that reads another role's tree the same way. A
+    /// parent the rows do not carry ends the chain outside every role, and a chain that loops ends at the first folder
+    /// it revisits.
+    /// </remarks>
+    internal static Guid[] Beneath(IReadOnlyCollection<StoredFolderRole> folders, MailFolderSpecialUse[] roles)
     {
         var byId = folders.ToDictionary(static folder => folder.Id);
 
-        return [.. byId.Values.Where(folder => IsInTrash(folder, byId)).Select(static folder => folder.Id)];
+        return [.. byId.Values.Where(folder => IsBeneath(folder, byId, roles)).Select(static folder => folder.Id)];
     }
 
-    private static bool IsInTrash(StoredFolderRole folder, Dictionary<Guid, StoredFolderRole> byId)
+    private static bool IsBeneath(
+        StoredFolderRole folder,
+        Dictionary<Guid, StoredFolderRole> byId,
+        MailFolderSpecialUse[] roles)
     {
         var visited = new HashSet<Guid>();
         var current = folder;
 
         while (visited.Add(current.Id))
         {
-            if (current.Role == MailFolderSpecialUse.Trash)
+            if (current.Role is { } role && roles.Contains(role))
             {
                 return true;
             }

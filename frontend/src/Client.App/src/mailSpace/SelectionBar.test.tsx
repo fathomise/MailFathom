@@ -18,7 +18,7 @@ const drawnRows: readonly ActedMessage[] = [
     { storedEmailId: 'message-2', account: 'work', folder: 'work-inbox', unread: false, flagged: false, spam: null },
 ];
 
-const clients: MoveDestination = { folderId: 'work-clients', name: 'Projects / Clients', role: null };
+const clients: MoveDestination = { folderId: 'work-clients', name: 'Clients', role: null, level: 1 };
 const work: MoveDestinationGroup = {
     accountId: 'work',
     accountName: 'Northwind \u00b7 work',
@@ -162,7 +162,7 @@ describe('SelectionBar', () => {
         drawBar(['message-1'], { perform: performed, destinationsOf: () => [work] });
 
         fireEvent.click(screen.getByRole('button', { name: 'Move' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Projects / Clients' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Clients' }));
 
         expect(performed).toHaveBeenCalledWith('move', [drawnRows[0]], clients);
     });

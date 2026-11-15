@@ -29,7 +29,14 @@ async function answered(asked: readonly string[], count: number): Promise<void> 
 }
 
 function drawing(answer: unknown): { readonly composing: Composing; readonly asked: readonly string[] } {
-    const composing: Composing = { offered: true, drafts: false, opening: null, compose: vi.fn(), close: vi.fn() };
+    const composing: Composing = {
+        offered: true,
+        drafts: false,
+        opening: null,
+        filedAs: null,
+        compose: vi.fn(),
+        close: vi.fn(),
+    };
     const asked: string[] = [];
     const transport: MailFathomTransport = (request) => {
         asked.push(request.path);
@@ -72,7 +79,14 @@ describe('DraftsOutOfStep', () => {
 });
 
 describe('DraftsOutOfStep, read again', () => {
-    const composing: Composing = { offered: true, drafts: false, opening: null, compose: vi.fn(), close: vi.fn() };
+    const composing: Composing = {
+        offered: true,
+        drafts: false,
+        opening: null,
+        filedAs: null,
+        compose: vi.fn(),
+        close: vi.fn(),
+    };
 
     it('reads the drafts again when the deployment says something changed, and draws what it answers then', async () => {
         const listeners: SignalListener[] = [];

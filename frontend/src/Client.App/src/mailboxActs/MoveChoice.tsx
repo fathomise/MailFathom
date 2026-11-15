@@ -37,6 +37,10 @@ import { destinationName, type MoveDestination, type MoveDestinationGroup } from
 // leaves it, and leaving it puts focus back on the control that opened it. Whether it is open is therefore the
 // element's state rather than a second copy of it, which is why the caller hands over the reference.
 
+// How far in a folder offered beneath another sits, a step a level as the folder column steps its own. Stated as one
+// list rather than worked out from the level, so every class is one the stylesheet is built with.
+const levelIndents: readonly string[] = ['ps-4', 'ps-9', 'ps-14', 'ps-19'];
+
 export function MoveChoice({
     asked,
     groups,
@@ -110,7 +114,7 @@ export function MoveChoice({
                                 <li key={destination.folderId}>
                                     <button
                                         type="button"
-                                        className="flex w-full items-center gap-2.5 px-4 py-2.25 text-start text-base text-text-soft transition hover:bg-hover hover:text-text"
+                                        className={`flex w-full items-center gap-2.5 py-2.25 pe-4 text-start text-base text-text-soft transition hover:bg-hover hover:text-text ${levelIndents[Math.min(destination.level, levelIndents.length - 1)] ?? ''}`}
                                         onClick={() => {
                                             asked.current?.close(String(offered.indexOf(destination)));
                                         }}

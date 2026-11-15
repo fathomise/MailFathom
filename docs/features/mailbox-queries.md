@@ -629,12 +629,12 @@ A person who reads by conversation sees the message list itself, grouped:
 `MailThreadListBrowser.BrowseGroupedPageAsync`, which takes the message list's own request and keeps one row per
 conversation. So the filters a person picked keep narrowing the list when they switch to conversations: switching
 changes how a row is drawn, not which mail the filters let through.
-**A conversation is listed while at least one of its messages passes the read and is neither judged spam nor in
-Trash.** The read applies the account scope and every filter — unread, flagged, attachment, the received range, and
-the mark criteria the AI views put into the list's filters. A message in a folder beneath Trash is in Trash, the
-folders in Trash being read the way the rest of the deployment reads them, and Archive is an ordinary folder. A
-conversation that is entirely spam, entirely in Trash, or some of each is not listed, because there is nothing in it
-the person kept.
+**A conversation is listed while at least one of its messages passes the read and is neither judged spam, nor in
+Trash, nor in Archive.** The read applies the account scope and every filter — unread, flagged, attachment, the
+received range, and the mark criteria the AI views put into the list's filters. A message in a folder beneath Trash is
+in Trash, the folders in Trash being read the way the rest of the deployment reads them, and a message in a folder
+beneath Archive is in Archive by the same walk of the folder's parents. A conversation that is entirely spam, entirely
+in Trash, entirely in Archive, or some of each is not listed, because the person put all of it away.
 
 **A conversation stands at its newest message that passed the read**, and the list is ordered by that message's
 position in the requested `order`. That position is a message's, so the page is cut and continued by the message list's
@@ -727,8 +727,8 @@ account has and still a folder [a move](../operations/client-endpoint.md#the-mut
 somebody has just declared is drawn at once rather than after the account's next pass. Binding a folder places its row
 where the server places the folder, under the row of its remote parent, so a server folder no configuration names
 appears as the level its children are drawn under. A folder act puts the row where the act put the folder before its
-own `FoldersChanged` re-read, so a folder just renamed or moved is drawn in its new place at once, and a folder just made
-is drawn at the top of the hierarchy until the next pass places it beneath its parent.
+own `FoldersChanged` re-read, so a folder just made, renamed, or moved is drawn in its place at once, beneath its
+parent and under its own name.
 
 The freshness a folder carries is the one the composed reading reported for the alias its row stands for, and
 `NeverSynchronized` where that reading names none — a folder declared and not mirrored. A folder no alias feeds is one

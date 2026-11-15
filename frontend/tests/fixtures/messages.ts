@@ -338,9 +338,13 @@ export const markupOnlyMessage = {
         subject: markupOnlySubject,
         sentAt: '2026-08-30T14:20:00+00:00',
         receivedAt: '2026-08-30T14:20:06+00:00',
+        // Written to the reader beside somebody else and copied to a third, which is the one message of the corpus an
+        // answer to everybody has anybody to keep and the reader's own address to leave out.
         participants: [
             { role: 'From', address: 'dispatch@kettles.invalid', displayName: 'Kettles' },
             { role: 'To', address: 'reader@example.invalid', displayName: null },
+            { role: 'To', address: 'yard@example.invalid', displayName: null },
+            { role: 'Cc', address: 'ledger@example.invalid', displayName: null },
         ],
         messageId: 'def@kettles.invalid',
     },

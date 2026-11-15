@@ -271,9 +271,6 @@ export interface MailboxActs {
      * `ActQuestions` lets it go, so a chooser cancelled or a mix refused keeps it and the control that opened it.
      */
     readonly toggleSpam: (messages: readonly ActedMessage[], onMarked?: () => void) => void;
-
-    /** Whether *Not spam* over those messages would move one of them out of the Spam folder, which it asks first. */
-    readonly notSpamMoves: (messages: readonly ActedMessage[]) => boolean;
 }
 
 /**
@@ -297,7 +294,6 @@ export const nothingActed: MailboxActs = {
     spamOffered: false,
     spamMarked: new Map(),
     toggleSpam: () => undefined,
-    notSpamMoves: () => false,
 };
 
 export const MailboxActsContext = createContext<MailboxActs>(nothingActed);

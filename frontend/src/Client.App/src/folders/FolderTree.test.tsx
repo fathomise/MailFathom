@@ -45,6 +45,7 @@ const tree = {
                 behind: false,
                 filesJunk: false,
                 marksExternalMail: false,
+                sendingAddress: null,
                 shared: false,
                 synchronizationStateSince: null,
                 behindSince: null,
@@ -103,6 +104,7 @@ const tree = {
                 behind: false,
                 filesJunk: false,
                 marksExternalMail: false,
+                sendingAddress: null,
                 shared: false,
                 synchronizationStateSince: null,
                 behindSince: null,
@@ -1150,8 +1152,8 @@ describe('FolderTree, under a drag carrying messages', () => {
             ordinal: 1,
             shared: false,
             destinations: [
-                { folderId: 'INBOX', name: 'INBOX', role: 'Inbox' },
-                { folderId: 'ARCHIWUM', name: 'Archiwum', role: null },
+                { folderId: 'INBOX', name: 'INBOX', role: 'Inbox', level: 0 },
+                { folderId: 'ARCHIWUM', name: 'Archiwum', role: null, level: 0 },
             ],
         },
     ];
@@ -1200,6 +1202,7 @@ describe('FolderTree, under a drag carrying messages', () => {
             folderId: 'ARCHIWUM',
             name: 'Archiwum',
             role: null,
+            level: 0,
         });
         expect(carry).toHaveBeenCalledWith([]);
         expect(row(/^Archiwum/).className).not.toContain('inset-ring-2');

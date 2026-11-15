@@ -255,12 +255,10 @@ function rowItems({
           ]
         : [];
 
-    // The spam control, before *Move* as the design draws it. *Not spam* says it asks first where it would move the
-    // message out of the Spam folder, and *Spam* always does, since it opens the chooser.
+    // The spam control, before *Move* as the design draws it. Both say they ask first: *Not spam* confirms and *Spam*
+    // opens the chooser.
     const out = refusing !== null;
-    const spamLabel = translate(
-        out ? (acts.notSpamMoves(messages) ? 'spam.notSpamAsking' : 'spam.notSpam') : 'spam.spamAsking',
-    );
+    const spamLabel = translate(out ? 'spam.notSpamAsking' : 'spam.spamAsking');
     const spamItem: ContextMenuItem = {
         icon: out ? 'report_off' : 'report',
         label: spamLabel,

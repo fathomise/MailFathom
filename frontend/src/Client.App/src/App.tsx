@@ -533,17 +533,15 @@ export function App({
         [session, asksMail, readsMail, draftsReplies, readMail],
     );
     // Which message the drafts folder shows the open composer's draft as, told by the composer at the open and after
-    // each save. A ref, because nothing is drawn from it: it is read at the press that deletes a message.
-    const composerFiledAs = useRef<string | null>(null);
-    const composerFiled = useCallback((storedEmailId: string | null) => {
-        composerFiledAs.current = storedEmailId;
-    }, []);
+    // each save. Read at the press that deletes a message, and by the drafts list to draw that row as the open one.
+    const [composerFiledAs, setComposerFiledAs] = useState<string | null>(null);
 
     const composing = useMemo(
         () => ({
             offered: writesMail,
             drafts,
             opening: written,
+            filedAs: composerFiledAs,
             compose: (asked: ComposerOpening) => {
                 // What asked for it, so that closing hands the keyboard back to it. The three controls that ask are in
                 // three different components, and remembering the one that had focus is one place rather than a ref
@@ -555,7 +553,7 @@ export function App({
             },
             close: (handFocusBack: boolean) => {
                 setWritten(null);
-                composerFiledAs.current = null;
+                setComposerFiledAs(null);
 
                 if (handFocusBack) {
                     if (askedFrom.current?.isConnected === true) {
@@ -571,7 +569,7 @@ export function App({
                 askedFrom.current = null;
             },
         }),
-        [writesMail, drafts, written, workspace.selection],
+        [writesMail, drafts, written, composerFiledAs, workspace.selection],
     );
 
     // What the whole client is blocked on, held here for the reason above and one more: the surface covers everything
@@ -1300,7 +1298,7 @@ export function App({
                                                                         written?.kind === 'draft'
                                                                             ? written.storedEmailId
                                                                             : null,
-                                                                        composerFiledAs.current,
+                                                                        composerFiledAs,
                                                                     ];
 
                                                                     if (
@@ -2042,7 +2040,7 @@ export function App({
                                                                                                                             composing.close
                                                                                                                         }
                                                                                                                         onFiledAs={
-                                                                                                                            composerFiled
+                                                                                                                            setComposerFiledAs
                                                                                                                         }
                                                                                                                     />
                                                                                                                 )

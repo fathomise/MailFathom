@@ -36,7 +36,14 @@ function drawHead({
     readonly handToAgent?: ((handOver: AgentHandOver) => void) | null;
 } = {}): { composed: ReturnType<typeof vi.fn> } {
     const composed = vi.fn();
-    const composing: Composing = { offered, drafts: false, opening: null, compose: composed, close: () => undefined };
+    const composing: Composing = {
+        offered,
+        drafts: false,
+        opening: null,
+        filedAs: null,
+        compose: composed,
+        close: () => undefined,
+    };
 
     render(
         <LocalizationProvider>

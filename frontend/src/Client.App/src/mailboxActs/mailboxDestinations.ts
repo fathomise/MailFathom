@@ -32,8 +32,14 @@ export interface MoveDestination {
     /** The identity MailFathom issued the folder, which is what the move route names it by. */
     readonly folderId: string;
 
-    /** What the folder is called, which is its place in the account's hierarchy. */
+    /**
+     * What the folder is called beneath the folder it is offered under: its own name, or the levels down to it where
+     * the folder above it is not itself offered.
+     */
     readonly name: string;
+
+    /** How deep it is offered, counted from zero: how many of the folders it sits beneath are offered above it. */
+    readonly level: number;
 
     /**
      * The role the folder plays, or `null` where its configuration labels it with none.
@@ -269,10 +275,7 @@ export function destinationsFor(
             // across the two screens.
             ordinal: directory.accounts.length > 1 ? at + 1 : at,
             shared: entry.account.shared,
-            destinations: entry.folders
-                .filter(admits)
-                .map((folder) => ({ folderId: folder.id, name: nameOf(folder), role: folder.role }))
-                .sort(byOfferedOrder),
+            destinations: nestedBeneath(entry.folders.filter(admits), [], 0),
         },
     ];
 }
@@ -433,9 +436,40 @@ function foldersOf(directory: MailFolderDirectory | null, account: string): read
     return directory?.accounts.find((entry) => entry.account.id === account)?.folders ?? [];
 }
 
-// What a folder is called: its place in the account's hierarchy, deepest level last.
-// The whole path rather than its last level, because two folders under different parents share a leaf name and a
-// dialog offering both would be asking somebody to pick between two identical rows.
-function nameOf(folder: MailFolder): string {
-    return folder.path.join(' / ');
+// The folders offered beneath one place in the hierarchy, each followed by the folders offered beneath it — the folder
+// column's own shape, so a folder is found in the dialog where it is found in the column. A folder sits beneath the
+// nearest folder above it that is itself offered, and is called by the levels from there down: its own name under its
+// parent, and the whole way down where the levels between are places no folder is offered at, since two folders under
+// different parents share a name and would otherwise be two identical rows.
+function nestedBeneath(folders: readonly MailFolder[], above: readonly string[], level: number): MoveDestination[] {
+    const beneath = folders.filter((folder) => folder.path.length > above.length && startsWith(folder.path, above));
+    const outermost = beneath.filter(
+        (folder) => !beneath.some((other) => other !== folder && startsWith(folder.path, other.path)),
+    );
+
+    // A role folder nothing has bound yet has no path, so it lies beneath nothing and is offered at the top by its
+    // role rather than dropped.
+    const placeless = above.length === 0 ? folders.filter((folder) => folder.path.length === 0) : [];
+
+    return [...placeless, ...outermost]
+        .map((folder) => ({
+            folder,
+            destination: {
+                folderId: folder.id,
+                name: folder.path.slice(above.length).join(' / '),
+                role: folder.role,
+                level,
+            },
+        }))
+        .sort((one, other) => byOfferedOrder(one.destination, other.destination))
+        .flatMap(({ folder, destination }) => [
+            destination,
+            ...(folder.path.length === 0 ? [] : nestedBeneath(beneath, folder.path, level + 1)),
+        ]);
+}
+
+// Whether a path lies at or beneath another, level by level rather than as text: a mail server's delimiter may be any
+// character a level's name could hold.
+function startsWith(path: readonly string[], above: readonly string[]): boolean {
+    return path.length >= above.length && above.every((name, at) => path[at] === name);
 }

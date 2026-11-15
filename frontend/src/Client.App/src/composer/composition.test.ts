@@ -120,7 +120,21 @@ describe('answerTo', () => {
         expect(composed.to).toEqual(['desk@example.invalid']);
     });
 
-    it('copies everybody else in when the reply is to everyone, and nobody twice', () => {
+    it('addresses a reply to the author alone, not to whoever posted the message for them', () => {
+        const composed = answerTo(
+            message('Invoice', [
+                participant('From', 'ada@example.invalid'),
+                participant('Sender', 'office@example.invalid'),
+                participant('To', 'bo@example.invalid'),
+            ]),
+            'senderOnly',
+        );
+
+        expect(composed.to).toEqual(['ada@example.invalid']);
+        expect(composed.cc).toEqual([]);
+    });
+
+    it('keeps everybody else where they were written when the reply is to everyone, and nobody twice', () => {
         const composed = answerTo(
             message('Invoice', [
                 participant('From', 'ada@example.invalid'),
@@ -132,8 +146,34 @@ describe('answerTo', () => {
             'everyone',
         );
 
-        expect(composed.to).toEqual(['ada@example.invalid']);
-        expect(composed.cc).toEqual(['bo@example.invalid', 'cy@example.invalid']);
+        expect(composed.to).toEqual(['ada@example.invalid', 'bo@example.invalid']);
+        expect(composed.cc).toEqual(['cy@example.invalid']);
+    });
+
+    it('leaves the account’s own address out of a reply to everyone, however it was spelled', () => {
+        const composed = answerTo(
+            message('Invoice', [
+                participant('From', 'ada@example.invalid'),
+                participant('To', 'Me@Example.invalid'),
+                participant('To', 'bo@example.invalid'),
+                participant('Cc', 'me@example.invalid'),
+            ]),
+            'everyone',
+            'me@example.invalid',
+        );
+
+        expect(composed.to).toEqual(['ada@example.invalid', 'bo@example.invalid']);
+        expect(composed.cc).toEqual([]);
+    });
+
+    it('still answers the author where the author is the account’s own address', () => {
+        const composed = answerTo(
+            message('Invoice', [participant('From', 'me@example.invalid'), participant('To', 'bo@example.invalid')]),
+            'everyone',
+            'me@example.invalid',
+        );
+
+        expect(composed.to).toEqual(['me@example.invalid', 'bo@example.invalid']);
     });
 
     it('addresses a forward to nobody, the conversation in it being somebody else’s', () => {
