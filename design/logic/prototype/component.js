@@ -1557,6 +1557,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     doDeleteThreads = (t) => {
       const op = { kind: "delete", ids: t };
+      /* A draft deleted while its composer stands takes the composer with it, unasked: the draft is given up with its
+         message, so there is nothing left for that composer to save. */
+      const written = this.state.compose && this.state.composeDraft;
+      if (written && t.indexOf(written.id) >= 0) {
+        if (this.tabsMode()) this.closeTab("compose");
+        this.setState({ compose: false, composeDraft: null, closeAsk: false });
+      }
       this.setState({ lastOp: op, sel: [], mailPane: "list" });
       this.animateRowsOut(t, () => { if (op.undone) return; this.setState(s => ({ deleted: (s.deleted || []).concat(t) })); }, "del");
       this.notify("Moved to trash - " + this.countWord(t.length), true);

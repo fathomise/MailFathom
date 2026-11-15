@@ -316,6 +316,10 @@ add no step, because opening a thread there replaced nothing. `backSteps` in the
 A press closes a surface the way its own control would. The composer with anything written in it asks first
 (`closeAsk`) and stays until that question is answered, and a surface standing in a tab closes its tab.
 
+One close is nobody's press on the composer: deleting a draft while the composer stands on it (`doDeleteThreads` over
+`composeDraft`) closes the composer without asking, because the draft is given up with its message and a save from the
+composer would have nothing to save into.
+
 ## Discover — `isDiscover`
 
 The run is a phase machine (`st.phase`), and the blocks arrive one at a time (`ready.<block>`).

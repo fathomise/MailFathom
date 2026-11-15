@@ -1568,7 +1568,9 @@ public sealed class ClientMailMutationsEndpointTests
             StubJunkMailFolderCatalog.None,
             this.SpamMarks(),
             Idempotency(),
-            new MailboxCustodianComposition(new FakeTimeProvider(RecordedAt)).CrossAccountFiler);
+            new MailboxCustodianComposition(new FakeTimeProvider(RecordedAt)).CrossAccountFiler,
+            new InMemoryMailDraftStore(),
+            new FakeTimeProvider(RecordedAt));
     }
 
     /// <summary>Builds the use case the spam route is given, under the grant that route carries.</summary>
@@ -1647,7 +1649,8 @@ public sealed class ClientMailMutationsEndpointTests
             CommitPolicy(),
             new MailAccountRunSignal(),
             new FakeTimeProvider(RecordedAt),
-            Idempotency());
+            Idempotency(),
+            new InMemoryMailDraftStore());
     }
 
     /// <summary>Builds the preferences the delete route reads the withdrawal window from.</summary>

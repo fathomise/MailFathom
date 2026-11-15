@@ -388,6 +388,38 @@ public sealed class InMemoryMailDraftStoreTests
         Assert.Null(store.Peek(draft.Id)!.PromotedTo);
     }
 
+    /// <summary>
+    /// Releasing the message a draft is filed as gives the draft up, stops it naming the message, and leaves the copy
+    /// carrying its current revision as one nothing will touch — and a message that shows no draft answers nothing.
+    /// </summary>
+    [Fact]
+    public async Task ReleaseFiledAsync_TheMessageADraftIsFiledAs_GivesTheDraftUpAndLeavesTheMessageAlone()
+    {
+        // Arrange
+        var store = new InMemoryMailDraftStore();
+        var draft = await OpenAsync(store);
+        var filed = StoredEmailId.Create(Guid.CreateVersion7());
+        var released = Moment.AddMinutes(5);
+
+        await store.RecordAppendIssuedAsync(Session, draft.Id, Drafts, Moment, TestContext.Current.CancellationToken);
+        await store.RecordAppendConfirmedAsync(Session, draft.Id, Appended, TestContext.Current.CancellationToken);
+        await store.RecordFiledAsync(Session, draft.Id, filed, draft.Revision, TestContext.Current.CancellationToken);
+
+        // Act
+        var first = await store.ReleaseFiledAsync(Session, Account, filed, released, TestContext.Current.CancellationToken);
+        var second = await store.ReleaseFiledAsync(Session, Account, filed, released, TestContext.Current.CancellationToken);
+
+        // Assert
+        var held = store.Peek(draft.Id)!;
+
+        Assert.Equal(draft.Id, first);
+        Assert.Null(second);
+        Assert.Equal(released, held.DiscardedAt);
+        Assert.Null(held.FiledEmail);
+        Assert.Null(held.FiledRevision);
+        Assert.Equal(MailDraftCopyStage.Abandoned, Assert.Single(held.Copies).Stage);
+    }
+
     /// <summary>Giving a draft up is written once, so a resumed attempt does not restamp the moment it happened.</summary>
     [Fact]
     public async Task RecordDiscardedAsync_ADraftGivenUpTwice_KeepsTheInstantTheFirstAttemptWrote()

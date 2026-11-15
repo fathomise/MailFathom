@@ -1283,6 +1283,18 @@ export function App({
                                                                 moves={filesMail}
                                                                 deletes={deletesMail}
                                                                 composes={writesMail}
+                                                                onDeleted={(messages) => {
+                                                                    if (
+                                                                        written?.kind === 'draft' &&
+                                                                        messages.some(
+                                                                            (message) =>
+                                                                                message.storedEmailId ===
+                                                                                written.storedEmailId,
+                                                                        )
+                                                                    ) {
+                                                                        composing.close(false);
+                                                                    }
+                                                                }}
                                                             >
                                                                 {/* Above the frame rather than inside the mail space, because what is being written outlives moving
             between the spaces, and because the three controls that ask for it are each several components below here.

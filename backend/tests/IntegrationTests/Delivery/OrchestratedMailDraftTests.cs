@@ -439,6 +439,77 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
         Assert.Contains(opened.Id, await HeldForUserAsync(services, cancellationToken));
     }
 
+    /// <summary>A draft whose filed message a person moved out of the drafts tree: what the row says afterwards, and which reads still reach it.</summary>
+    /// <remarks>
+    /// The release finds the draft by a predicate PostgreSQL evaluates — the account, the filed message, and neither a
+    /// give-up nor a promotion already written — and writes three columns in the session it is handed, so what it leaves
+    /// is the database's to answer: the draft stops being one its author is shown, is still one the pass owes a removal
+    /// for, and a second release of the same message finds nothing.
+    /// </remarks>
+    [Fact]
+    public async Task ReleaseFiledAsync_TheMessageADraftIsFiledAs_GivesTheDraftUpOnceAndStopsNamingTheMessage()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var subject = $"Released draft {Guid.NewGuid():N}";
+        var filed = StoredEmailId.Create(Guid.CreateVersion7());
+        var releasedAt = DateTimeOffset.UnixEpoch.AddMinutes(5);
+
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+
+        MailDraftRecord? opened = null;
+
+        await services.CommitAsync(
+            async (scope, session, token) =>
+            {
+                var drafts = scope.GetRequiredService<IMailDraftStore>();
+
+                opened = await drafts.OpenAsync(
+                    session,
+                    SyntheticMailAccount.Account,
+                    SyntheticMailAccount.User,
+                    OutgoingEmailRequester.Command(subject),
+                    [RecipientAtTheMailbox()],
+                    subject,
+                    OutgoingReceiptRequests.None,
+                    mimeByteLength: 128,
+                    DateTimeOffset.UnixEpoch,
+                    token);
+
+                await drafts.RecordFiledAsync(session, opened.Id, filed, opened.Revision, token);
+            },
+            cancellationToken);
+
+        Assert.NotNull(opened);
+
+        MailDraftId? first = null;
+        MailDraftId? second = null;
+
+        // Act
+        await services.CommitAsync(
+            async (scope, session, token) => first = await scope.GetRequiredService<IMailDraftStore>()
+                .ReleaseFiledAsync(session, SyntheticMailAccount.Account, filed, releasedAt, token),
+            cancellationToken);
+
+        await services.CommitAsync(
+            async (scope, session, token) => second = await scope.GetRequiredService<IMailDraftStore>()
+                .ReleaseFiledAsync(session, SyntheticMailAccount.Account, filed, releasedAt, token),
+            cancellationToken);
+
+        // Assert
+        Assert.Equal(opened.Id, first);
+        Assert.Null(second);
+
+        var stored = await FindAsync(services, opened.Id, cancellationToken);
+        Assert.NotNull(stored);
+        Assert.Equal(releasedAt, stored.DiscardedAt);
+        Assert.Null(stored.FiledEmail);
+        Assert.Null(stored.FiledRevision);
+
+        Assert.Contains(opened.Id, await OutstandingAsync(services, cancellationToken));
+        Assert.DoesNotContain(opened.Id, await HeldForUserAsync(services, cancellationToken));
+    }
+
     /// <summary>Reads which of this account's drafts owe the mail server something, as the pass reads it.</summary>
     private static async Task<IReadOnlyList<MailDraftId>> OutstandingAsync(
         OrchestratedMailFathomServices services,

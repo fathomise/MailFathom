@@ -1351,6 +1351,17 @@ storing a second message, and giving the draft up erases the stored message with
 settled. The source occurrence of a revision erased this way is never left for the drain: the appended copy it names
 is the one the replacement removes.
 
+**A draft whose message a person files out of the drafts tree is given up with it.** A move into the trash — which is
+how the client deletes a draft — a delete, or any other move that takes the message the draft's current revision is
+filed as out of the drafts folder and the folders beneath it gives the draft up in the same commit: the record stops
+naming that message, the copy carrying the current revision is settled as one nothing will touch again, and the pass
+then takes whatever earlier copies still stand out of the folder and removes the record. The moved message is left
+exactly where it was put. A record left naming it would file the next revision into the drafts folder and erase the
+message from the trash — a delete undone by a save — so revising such a draft answers `53008` `MailDraftNotFound`
+instead. A message moved to another folder inside the drafts tree is still the draft it was. A promoted draft is left
+alone here as it is below, and a held delete that is later withdrawn leaves a message in the folder that is no longer
+that draft.
+
 **Giving a draft up removes what this system put there and nothing else.** The record is marked before anything is
 issued and removed once the copies are settled, so a process that dies in between leaves a draft the pass finishes. A
 copy that could not be reached does not make the draft undeletable: it is marked as one nothing will touch again, the

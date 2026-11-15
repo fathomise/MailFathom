@@ -292,7 +292,9 @@ function acting(
         marking = nothingMarkedRead,
         status = 'online',
         listed = nothingListed,
+        onDeleted,
     }: {
+        onDeleted?: (messages: readonly ActedMessage[]) => void;
         flags?: boolean;
         moves?: boolean;
         deletes?: boolean;
@@ -328,6 +330,7 @@ function acting(
                                             moves={moves}
                                             deletes={deletes}
                                             composes={composes}
+                                            {...(onDeleted !== undefined && { onDeleted })}
                                         >
                                             {children}
                                         </MailboxActsProvider>
@@ -600,6 +603,28 @@ describe('MailboxActsProvider', () => {
             body: { moves: [{ storedEmailId: 'message-4', destinationFolder: 'work-trash' }] },
         });
         expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    });
+
+    // The deployment gives a draft up with its message, so whoever holds a composer open on it is told at the press —
+    // and told of a delete alone, since an archived message is still the one it was.
+    it('says which messages a delete was asked for at the press, and says nothing of another act', async () => {
+        const deployment = deploymentAnswering();
+        const deleted = vi.fn();
+        const { held } = acting(deployment, { onDeleted: deleted });
+
+        await waitFor(() => {
+            expect(held().refusalOf('delete', [unsent])).toBeNull();
+        });
+
+        perform(held, 'archive', [invoice]);
+
+        expect(deleted).not.toHaveBeenCalled();
+
+        perform(held, 'delete', [unsent]);
+
+        expect(deleted).toHaveBeenCalledExactlyOnceWith([unsent]);
+
+        await screen.findByText('Moved to the trash');
     });
 
     // Deleting from the trash is said plainly, and the way back is offered on the toast as it is for every other act
