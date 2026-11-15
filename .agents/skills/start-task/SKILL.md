@@ -194,7 +194,7 @@ them if that access were ever removed.
    In the fork role, open the issue and stop at what the probe allows. Without board write that is
    the issue alone: an arrival carries no type, no label, no milestone, no board fields, and no relation by
    design, and the maintainer's triage pass supplies them. With board write it is the issue plus its
-   `Area` and `Size`, and the type, the labels, the milestone, the parent, and the relations still wait for
+   `Area` and `Size` — and the `Sprint` step 10 writes when the work is taken — and the type, the labels, the milestone, the parent, and the relations still wait for
    triage — a relation or a sub-issue link is write access to this repository exactly as a label is. Step 8 is
    unaffected either way, the dependencies of a public issue being public, so the refusal it carries
    holds in both roles. Say which of the two happened in the brief, so nobody reads the absence as a
@@ -214,14 +214,17 @@ them if that access were ever removed.
     identified while the workspace turns out to be `blocked` was read and not taken. Nothing reads
     the label, so re-applying one already present is a harmless no-op and nothing has to look first,
     and it is never removed — `docs/operations/issue-tracking.md` § *Labels* holds what it claims and
-    why the claim is the weaker of the two available. In the fork role this step does not exist, for
-    the reason every label step does not: it is write access to this repository.
+    why the claim is the weaker of the two available. In the fork role the label is not applied, for
+    the reason every label step is not: it is write access to this repository.
 
-    **Wherever the board probe returned write access, the same step puts the issue in the current
-    sprint**, unless it already carries that one. Taking an issue is what commits it, and the sprint
-    is the board's one statement of that; `docs/operations/issue-tracking.md` § *Board fields* holds
-    the call that finds the current sprint and the `gh project item-edit --iteration-id` write that
-    follows it. Read the value back. Write no other sprint, and none on a parent.
+    **The sprint write beside it follows the board probe rather than the role.** Wherever the probe
+    returned write access — the owner's checkout, or a fork whose contributor the owner granted it —
+    taking the issue puts it in the current sprint, unless it already carries that one. Taking an
+    issue is what commits it, and the sprint is the board's one statement of that;
+    `docs/operations/issue-tracking.md` § *Board fields* holds the call that finds the current sprint
+    and the `gh project item-edit` write that follows it. Read the value back. Write no other sprint,
+    and none on a parent. Where that call prints nothing, no sprint is current: write nothing and say
+    so in the brief.
 11. Say whether the change looks large enough to split, in the `Scale` line of the brief. This is the
     board's `XL` warning, and it is raised here because this is the last point before the first edit
     at which anything has read the issue against the repository: the surfaces it reaches, the tests
@@ -250,7 +253,8 @@ Baseline: <the main commit the body was written against, what landed since that 
 Blocked by: <the open blockers refusing the work, or none — and any relation written>
 Placement: <issue type, stack label or neither, design label or not, Area, the milestone (always set), the feature parent or that none fitted, Size placeholder — or what the board probe left to triage>
 Scale: <no split warning, or what makes this look XL, which surfaces it reaches, and where a seam between two issues would fall>
-Claim: <agent:claude or agent:codex applied, already present, or not applicable in the fork role — and the current sprint written and read back, or no board write>
+Claim: <agent:claude or agent:codex applied, already present, or not applicable in the fork role>
+Sprint: <the current sprint written and read back, already carried, no sprint current, or no board write — by the board probe, in either role>
 Required context: <files read>
 Assumptions or blockers: <none or explicit list>
 Verification: <fast loop and final gate>

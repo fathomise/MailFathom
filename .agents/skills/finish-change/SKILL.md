@@ -89,7 +89,9 @@ Do not proceed while a gate fails.
    was opened for this task or already existed. `$start-task` writes it when it claims the issue, so
    this step usually only reads; an issue started any other way reaches it with none. No project
    automation can write that field, so a value that did not land is an incomplete gate in the same
-   way a missing `Closes #<issue>` is. It needs no clearing: the merge closes the issue out of every
+   way a missing `Closes #<issue>` is. The one exception is a board with no current sprint, which
+   `docs/operations/issue-tracking.md` § *Board fields* says how to recognize: nothing is written,
+   the report says so, and the gate holds. It needs no clearing: the merge closes the issue out of every
    view that reads `Sprint`. It is not written on an issue carrying the `parent` label, because a
    pull request closes the issue that does the work rather than the parent grouping it, and a
    `Closes` reference pointing at a parent is the defect to correct rather than an issue to give a
@@ -160,7 +162,7 @@ Push: <remote and branch>
 Pull request: <URL, and the base repository it targets>
 Issue link: <Closes #N confirmed in the published body>
 Related pull requests: <the ones scripts/report-related-pull-requests.sh named and what each changed here, or none>
-Sprint: <the current sprint confirmed on the board after the pull request existed, or not applicable (no board write)>
+Sprint: <the current sprint confirmed on the board after the pull request existed, no sprint current, or not applicable (no board write)>
 Size: <the band written from this pull request's own diff and confirmed, or not applicable (no board write, or a parent issue)>
 Placement: <issue type, stack label or neither, design label held against the diff under design/, Area, the milestone and the feature parent — or what this session's access left to triage>
 ```
