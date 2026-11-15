@@ -12,6 +12,7 @@ using MailFathom.Domain.Delivery.Filing;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Mutations;
 
 namespace MailFathom.Application.Mail.Delivery.Drafts;
 
@@ -299,6 +300,60 @@ public interface IMailDraftStore
         MailAccountId account,
         StoredEmailId filedEmail,
         DateTimeOffset releasedAt,
+        CancellationToken cancellationToken);
+
+    /// <summary>Records the folder beneath the drafts folder a draft's message was filed into, inside the transaction that files it.</summary>
+    /// <param name="session">The transaction the move commits in.</param>
+    /// <param name="account">The account the message belongs to.</param>
+    /// <param name="filedEmail">The stored message that was moved.</param>
+    /// <param name="folder">MailFathom's own name for the folder it was moved into.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>The draft that follows its message, or <see langword="null" /> where the message shows no draft still being written.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// The counterpart of <see cref="ReleaseFiledAsync" /> for a move that stays inside the drafts tree: the draft is
+    /// still a draft, so the record keeps naming its message and learns where that message now stands, which is where
+    /// the next revision is filed. A promoted draft is left alone, as there.
+    /// </remarks>
+    Task<MailDraftId?> RecordFiledIntoAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        StoredEmailId filedEmail,
+        MailFolderAlias folder,
+        CancellationToken cancellationToken);
+
+    /// <summary>Moves the record of a standing copy to where a move the mail server performed put it.</summary>
+    /// <param name="session">The transaction.</param>
+    /// <param name="account">The account the copy belongs to.</param>
+    /// <param name="movedFrom">The remote folder the server moved the message out of.</param>
+    /// <param name="uidValidity">The UIDVALIDITY the message was named under there.</param>
+    /// <param name="uid">The UID the message was named by there.</param>
+    /// <param name="movedInto">The remote folder the server moved it into.</param>
+    /// <param name="placement">Where the server said it put the message, which may name nothing.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns><see langword="true" /> where a standing copy was named by that occurrence and now names the new one.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> or <paramref name="placement" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// <para>
+    /// A copy is only ever removed by the occurrence a server reported for it, and a move is the one thing besides this
+    /// system's own append that changes that occurrence. The server's answer to the move is as much its own statement
+    /// about the message as the answer to the append was, so the record takes it: the copy can then be withdrawn from
+    /// the folder it actually stands in when a later revision replaces it. A move the server named no placement for
+    /// leaves the copy with none, which is a copy nothing can point at and nothing will remove.
+    /// </para>
+    /// <para>
+    /// The copy takes the alias its draft was filed under, which the move wrote before the server was asked. Most
+    /// messages a server moves are no draft's copy, and this then changes nothing.
+    /// </para>
+    /// </remarks>
+    Task<bool> RecordCopyRelocatedAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        RemoteFolderPath movedFrom,
+        ImapUidValidity uidValidity,
+        ImapUid uid,
+        RemoteFolderPath movedInto,
+        RemoteEmailPlacement placement,
         CancellationToken cancellationToken);
 
     /// <summary>Writes down the outgoing record a promotion produced for this draft.</summary>

@@ -10,6 +10,8 @@ using MailFathom.Application.Signals;
 using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Filing;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
@@ -369,6 +371,55 @@ public sealed class MailboxMutationPerformerTests
             Arg.Any<MailFolderResolution>(),
             Arg.Any<MailTransportSecurityPolicy>(),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// A draft's copy is withdrawn by the occurrence a server reported for it, so a copy the server moved learns the
+    /// occurrence the move gave it; one left naming where it was would stand beside the revision that replaces it.
+    /// </summary>
+    [Fact]
+    public async Task PerformAsync_AMoveOfADraftsStandingCopy_TellsTheCopyWhereTheServerPutIt()
+    {
+        // Arrange
+        var context = new PerformerContext();
+        var request = RelocationRequest();
+        var session = Substitute.For<IPersistenceSession>();
+        var draft = await context.Drafts.OpenAsync(
+            session,
+            Account,
+            SyntheticUser.Deployment,
+            OutgoingEmailRequester.Command("mfctl-draft"),
+            [],
+            "A draft",
+            OutgoingReceiptRequests.None,
+            mimeByteLength: 64,
+            context.Clock.GetUtcNow(),
+            CancellationToken.None);
+        await context.Drafts.RecordAppendIssuedAsync(session, draft.Id, InboxFolder, context.Clock.GetUtcNow(), CancellationToken.None);
+        await context.Drafts.RecordAppendConfirmedAsync(
+            session,
+            draft.Id,
+            new AppendedMailCopy(
+                RemoteEmailPlacement.Reported(request.Occurrence.UidValidity, request.Occurrence.Uid),
+                InternetMessageId: null),
+            CancellationToken.None);
+        context.WriteSession.RelocateAsync(
+                Arg.Any<EmailOccurrenceId>(),
+                Arg.Any<RemoteFolderPath>(),
+                Arg.Any<IMailboxMutationJournal>(),
+                Arg.Any<CancellationToken>())
+            .Returns(ArchivedAt);
+
+        // Act
+        var outcome = await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
+
+        // Assert
+        var copy = (await context.Drafts.FindAsync(draft.Id, CancellationToken.None))!.CurrentCopy!;
+
+        Assert.Equal(MailboxMutationStatus.Performed, outcome.Status);
+        Assert.Equal(ArchivePath, copy.FolderPath);
+        Assert.Equal(ArchivedAt, copy.Placement);
+        Assert.True(copy.IsStanding);
     }
 
     /// <summary>
@@ -1155,9 +1206,13 @@ public sealed class MailboxMutationPerformerTests
                     new InMemoryCrossAccountFilingStore()),
                 this.Delays,
                 signals ?? ClientSignalPublishers.ReachingNobody,
+                this.Drafts,
                 new MailboxMutationOptions(),
                 this.Clock);
         }
+
+        /// <summary>Gets the drafts a moved message may be the copy of.</summary>
+        internal InMemoryMailDraftStore Drafts { get; } = new();
 
         /// <summary>Gets the clock the refusal window is measured on, shared with the store that stamps a refusal.</summary>
         internal FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero));

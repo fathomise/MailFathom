@@ -41,6 +41,7 @@ internal sealed class MailDraftConfiguration : IEntityTypeConfiguration<MailDraf
         // audit query and survive any later reordering of their enum.
         entity.Property(draft => draft.RequesterOrigin).HasConversion<string>().HasMaxLength(64).IsRequired();
         entity.Property(draft => draft.DivergenceReason).HasConversion<string>().HasMaxLength(64);
+        entity.Property(draft => draft.FiledFolderAlias).HasMaxLength(128);
 
         // Unbounded text with a stored default of the empty string. No length is declared because nothing bounds a
         // subject on its own — what bounds it is the size of the composed message, which the composition already

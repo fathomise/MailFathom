@@ -114,10 +114,36 @@ public sealed class MailboxCopyAppender
     /// connection, the authentication, or the folder selection, none of which leaves anything in the folder. Past the
     /// issued write nothing is raised, because a shutdown there says nothing about a command that may be in flight.
     /// </remarks>
+    public Task<MailboxCopyAppendResult> AppendAsync(
+        MailAccountId account,
+        OutgoingMailFiling filing,
+        MailboxCopySource source,
+        Func<MailFolderResolution, CancellationToken, Task> recordIssuedAsync,
+        Func<AppendedMailCopy, Task> recordConfirmedAsync,
+        CancellationToken cancellationToken) =>
+        this.AppendAsync(account, filing, beneath: null, source, recordIssuedAsync, recordConfirmedAsync, cancellationToken);
+
+    /// <summary>Appends one copy into a folder beneath the one playing the filing's role, where one is named and still lies there.</summary>
+    /// <param name="account">The account whose folder the copy goes into.</param>
+    /// <param name="filing">Which place the copy goes into, which decides the role and the flags.</param>
+    /// <param name="beneath">MailFathom's own name for the folder beneath the role's the copy belongs in, or <see langword="null" /> for the role's own.</param>
+    /// <param name="source">The stored message the copy is appended from.</param>
+    /// <param name="recordIssuedAsync">Commits the caller's record that an append is about to be issued into the resolved folder.</param>
+    /// <param name="recordConfirmedAsync">Commits the caller's record of what the server said, which runs outside the caller's cancellation.</param>
+    /// <param name="cancellationToken">Cancels everything up to and including the append.</param>
+    /// <returns>What the server said about the copy, or the reason nothing was appended.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source" />, <paramref name="recordIssuedAsync" />, or <paramref name="recordConfirmedAsync" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="filing" /> is the unspecified struct default.</exception>
+    /// <remarks>
+    /// Everything the overload naming no folder states holds here. The named folder is taken only while it resolves and
+    /// lies in the tree of the folder playing the role; one that was removed, or moved out from under it, is read as
+    /// none, so the copy goes where the role points rather than nowhere.
+    /// </remarks>
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Past the issued write the append may already have reached the folder, so every way it can end has to be recorded as an outcome nobody can settle rather than raised into a retry that would file a second copy.")]
     public async Task<MailboxCopyAppendResult> AppendAsync(
         MailAccountId account,
         OutgoingMailFiling filing,
+        MailFolderAlias? beneath,
         MailboxCopySource source,
         Func<MailFolderResolution, CancellationToken, Task> recordIssuedAsync,
         Func<AppendedMailCopy, Task> recordConfirmedAsync,
@@ -132,7 +158,7 @@ public sealed class MailboxCopyAppender
             throw new ArgumentException("The unspecified default of the struct names no filing.", nameof(filing));
         }
 
-        if (await this.ResolveDestinationAsync(account, filing.Role, cancellationToken) is not { } destination)
+        if (await this.ResolveDestinationAsync(account, filing.Role, beneath, cancellationToken) is not { } destination)
         {
             return MailboxCopyAppendResult.DestinationUnavailable();
         }
@@ -184,12 +210,23 @@ public sealed class MailboxCopyAppender
     private async Task<MailboxDestination?> ResolveDestinationAsync(
         MailAccountId account,
         MailFolderSpecialUse role,
+        MailFolderAlias? beneath,
         CancellationToken cancellationToken)
     {
         var reference = MailFolderReference.ToRole(role);
 
         var resolved = await this.destinations.ResolveAsync(account, [reference], cancellationToken);
 
-        return resolved.Find(reference).Destination;
+        if (resolved.Find(reference).Destination is not { } playingTheRole || beneath is not { } alias)
+        {
+            return resolved.Find(reference).Destination;
+        }
+
+        var named = MailFolderReference.ToAlias(alias);
+
+        return (await this.destinations.ResolveAsync(account, [named], cancellationToken)).Find(named).Destination
+            is { } folder && folder.Path.IsWithin(playingTheRole.Path)
+            ? folder
+            : playingTheRole;
     }
 }

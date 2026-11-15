@@ -5,6 +5,7 @@
 using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Mail;
+using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Convergence;
@@ -260,6 +261,7 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
                 scope.GetRequiredService<MailFailureNotifications>(),
                 scope.GetRequiredService<IMailboxConvergenceDelayTelemetry>(),
                 ClientSignalPublishers.ReachingNobody,
+                scope.GetRequiredService<IMailDraftStore>(),
                 new MailboxMutationOptions(),
                 TimeProvider.System),
             scope.GetRequiredService<IMailTransportSecurityPolicyReader>(),
@@ -344,6 +346,7 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
                 scope.GetRequiredService<MailFailureNotifications>(),
                 scope.GetRequiredService<IMailboxConvergenceDelayTelemetry>(),
                 ClientSignalPublishers.ReachingNobody,
+                scope.GetRequiredService<IMailDraftStore>(),
                 new MailboxMutationOptions(),
                 TimeProvider.System),
             scope.GetRequiredService<IMailTransportSecurityPolicyReader>(),

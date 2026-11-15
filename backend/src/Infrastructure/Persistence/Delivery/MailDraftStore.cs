@@ -14,6 +14,7 @@ using MailFathom.Domain.Delivery.Filing;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Mutations;
 using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
@@ -512,6 +513,90 @@ internal sealed class MailDraftStore(MailFathomDbContext readContext) : IMailDra
         entity.DiscardedAt = releasedAt;
 
         return released;
+    }
+
+    /// <inheritdoc />
+    public async Task<MailDraftId?> RecordFiledIntoAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        StoredEmailId filedEmail,
+        MailFolderAlias folder,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        var accountValue = account.Value;
+        var filedValue = filedEmail.Value;
+
+        // Narrowed by the account first, for the reason giving a draft up is.
+        var draftId = await writeContext.MailDrafts
+            .Where(draft => draft.MailboxAccountId == accountValue
+                && draft.FiledStoredEmailId == filedValue
+                && draft.DiscardedAt == null
+                && draft.PromotedToOutgoingEmailId == null)
+            .Select(draft => (Guid?)draft.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (draftId is not { } found)
+        {
+            return null;
+        }
+
+        var followed = MailDraftId.Create(found);
+        var entity = await RequireAsync(session, followed, cancellationToken);
+
+        entity.FiledFolderAlias = folder.Value;
+
+        return followed;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> RecordCopyRelocatedAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        RemoteFolderPath movedFrom,
+        ImapUidValidity uidValidity,
+        ImapUid uid,
+        RemoteFolderPath movedInto,
+        RemoteEmailPlacement placement,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(placement);
+
+        var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        var accountValue = account.Value;
+        var fromValue = movedFrom.Value;
+        var uidValidityValue = uidValidity.Value;
+        var uidValue = uid.Value;
+
+        var draftId = await writeContext.MailDrafts
+            .Where(draft => draft.MailboxAccountId == accountValue
+                && draft.Copies.Any(copy => copy.Stage == MailDraftCopyStage.Standing
+                    && copy.FolderPath == fromValue
+                    && copy.PlacementUidValidity == uidValidityValue
+                    && copy.PlacementUid == uidValue))
+            .Select(draft => (Guid?)draft.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (draftId is not { } found)
+        {
+            return false;
+        }
+
+        var entity = await RequireAsync(session, MailDraftId.Create(found), cancellationToken);
+        var moved = entity.Copies.First(copy => copy.Stage == MailDraftCopyStage.Standing
+            && copy.FolderPath == fromValue
+            && copy.PlacementUidValidity == uidValidityValue
+            && copy.PlacementUid == uidValue);
+
+        moved.FolderAlias = entity.FiledFolderAlias ?? moved.FolderAlias;
+        moved.FolderPath = movedInto.Value;
+        moved.PlacementUidValidity = placement.UidValidity?.Value;
+        moved.PlacementUid = placement.Uid?.Value;
+
+        return true;
     }
 
     /// <inheritdoc />

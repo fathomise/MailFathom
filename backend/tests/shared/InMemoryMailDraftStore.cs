@@ -382,6 +382,65 @@ internal sealed class InMemoryMailDraftStore : IMailDraftStore
     }
 
     /// <inheritdoc />
+    public Task<MailDraftId?> RecordFiledIntoAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        StoredEmailId filedEmail,
+        MailFolderAlias folder,
+        CancellationToken cancellationToken)
+    {
+        var draft = this.drafts.Values.FirstOrDefault(candidate => candidate.AccountId == account
+            && candidate.FiledEmail == filedEmail
+            && !candidate.IsDiscarded
+            && candidate.PromotedTo is null);
+
+        if (draft is null)
+        {
+            return Task.FromResult<MailDraftId?>(null);
+        }
+
+        this.drafts[draft.Id] = draft with { FiledFolder = folder };
+
+        return Task.FromResult<MailDraftId?>(draft.Id);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> RecordCopyRelocatedAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        RemoteFolderPath movedFrom,
+        ImapUidValidity uidValidity,
+        ImapUid uid,
+        RemoteFolderPath movedInto,
+        RemoteEmailPlacement placement,
+        CancellationToken cancellationToken)
+    {
+        bool Names(MailDraftServerCopy copy) => copy.IsStanding
+            && copy.FolderPath.Value == movedFrom.Value
+            && copy.Placement.UidValidity == uidValidity
+            && copy.Placement.Uid == uid;
+
+        var draft = this.drafts.Values.FirstOrDefault(candidate => candidate.AccountId == account && candidate.Copies.Any(Names));
+
+        if (draft is null)
+        {
+            return Task.FromResult(false);
+        }
+
+        this.drafts[draft.Id] = draft with
+        {
+            Copies =
+            [
+                .. draft.Copies.Select(copy => Names(copy)
+                    ? copy with { FolderAlias = draft.FiledFolder ?? copy.FolderAlias, FolderPath = movedInto, Placement = placement }
+                    : copy),
+            ],
+        };
+
+        return Task.FromResult(true);
+    }
+
+    /// <inheritdoc />
     public Task RecordPromotedAsync(
         IPersistenceSession session,
         MailDraftId draftId,

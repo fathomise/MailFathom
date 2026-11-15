@@ -29,6 +29,7 @@ using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Delivery.Composition;
+using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Receipts;
 using MailFathom.Application.Mail.Mutations;
@@ -242,6 +243,7 @@ internal static class SynchronizationTestHost
         services.AddSingleton(new MailboxMutationOptions());
         services.AddSingleton(new MailboxConvergenceOptions());
         services.AddSingleton(Substitute.For<IMailboxWriteSessionFactory>());
+        services.AddSingleton<IMailDraftStore>(new InMemoryMailDraftStore());
         services.AddSingleton<MailboxConvergenceTelemetry>();
         services.AddSingleton<IMailboxConvergenceDelayTelemetry>(provider =>
             provider.GetRequiredService<MailboxConvergenceTelemetry>());

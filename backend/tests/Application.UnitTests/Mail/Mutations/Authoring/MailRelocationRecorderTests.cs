@@ -511,7 +511,8 @@ public sealed class MailRelocationRecorderTests
 
     /// <summary>
     /// A draft whose message is filed out of the drafts tree is given up with the move, and one filed elsewhere inside
-    /// the tree is still the draft it was. A record left naming a message in the trash would file the draft back into
+    /// the tree is still the draft it was and learns the folder, which is where its next revision is filed. A record
+    /// left naming a message in the trash would file the draft back into
     /// the drafts folder on its author's next save and erase the message from the trash.
     /// </summary>
     [Theory]
@@ -546,6 +547,7 @@ public sealed class MailRelocationRecorderTests
         Assert.NotNull(draft);
         Assert.Equal(givenUp, draft.IsDiscarded);
         Assert.Equal(givenUp ? null : LocalEmail, draft.FiledEmail);
+        Assert.Equal(givenUp ? null : DraftsClients, draft.FiledFolder);
     }
 
     /// <summary>

@@ -14,6 +14,7 @@ using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Delivery.Filing;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Notifications;
 using MailFathom.TestSupport;
@@ -160,6 +161,66 @@ public sealed class MailDraftFilerTests
         var diverged = harness.Drafts.Peek(draft.Id)!;
         Assert.Equal(MailDraftDivergenceReason.DestinationChanged, diverged.Divergence!.Reason);
         Assert.Equal(MailDraftCopyStage.Abandoned, diverged.FindCopy(1)!.Stage);
+    }
+
+    /// <summary>
+    /// A draft somebody sorted into a folder beneath the drafts folder is appended there, so carrying on writing it
+    /// leaves it where it was put. A folder that is not beneath the drafts folder is read as none.
+    /// </summary>
+    [Theory]
+    [InlineData("Drafts/Clients", "Drafts/Clients")]
+    [InlineData("Archive", "Drafts")]
+    public async Task SettleAsync_DraftFiledIntoAnotherFolder_AppendsItThereOnlyBeneathTheDraftsFolder(
+        string filedInto,
+        string appendedTo)
+    {
+        // Arrange
+        var harness = Harness();
+        harness.MapDraftsFolder(Account, "drafts", "Drafts", '/');
+        var sorted = harness.MapAnotherFolder(Account, "sorted", filedInto, '/');
+        var draft = await OpenAsync(harness, "first version");
+        await FileIntoAsync(harness, draft, sorted.Alias);
+
+        // Act
+        var result = await harness.Filer.SettleAsync(harness.Drafts.Peek(draft.Id)!, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(MailDraftFilingOutcome.Filed, result.Outcome);
+        Assert.Equal(appendedTo, harness.Drafts.Peek(draft.Id)!.CurrentCopy!.FolderPath.Value);
+    }
+
+    /// <summary>
+    /// The copy a move took beneath the drafts folder is withdrawn by the occurrence the server gave it there once a
+    /// revision replaces it, so the folder the draft was sorted into holds one draft rather than two.
+    /// </summary>
+    [Fact]
+    public async Task SettleAsync_RevisedDraftWhoseCopyTheServerMovedBeneathTheDraftsFolder_WithdrawsItFromThere()
+    {
+        // Arrange
+        var harness = Harness();
+        var drafts = harness.MapDraftsFolder(Account, "drafts", "Drafts", '/');
+        var sorted = harness.MapAnotherFolder(Account, "sorted", "Drafts/Clients", '/');
+        var draft = await OpenAsync(harness, "first version");
+        await harness.Filer.SettleAsync(draft, CancellationToken.None);
+        await FileIntoAsync(harness, draft, sorted.Alias);
+        await harness.Drafts.RecordCopyRelocatedAsync(
+            Substitute.For<IPersistenceSession>(),
+            Account,
+            drafts.RemotePath,
+            ImapUidValidity.Create(1),
+            ImapUid.Create(1),
+            sorted.RemotePath,
+            RemoteEmailPlacement.Reported(ImapUidValidity.Create(7), ImapUid.Create(9)),
+            CancellationToken.None);
+        var revised = await ReviseAsync(harness, draft.Id, "second version");
+
+        // Act
+        var result = await harness.Filer.SettleAsync(revised, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(MailDraftFilingOutcome.Replaced, result.Outcome);
+        Assert.Equal([(ImapUidValidity.Create(7), ImapUid.Create(9))], harness.Withdrawn);
+        Assert.Equal("Drafts/Clients", harness.Drafts.Peek(draft.Id)!.CurrentCopy!.FolderPath.Value);
     }
 
     /// <summary>A copy the server named no occurrence for cannot be pointed at, so nothing is expunged for it.</summary>
@@ -347,6 +408,16 @@ public sealed class MailDraftFilerTests
         TimeSpan.FromMinutes(1),
         TimeSpan.FromHours(1),
         TimeSpan.FromHours(8));
+
+    /// <summary>Records a draft as shown by a stored message somebody then moved into another folder.</summary>
+    private static async Task FileIntoAsync(MailDraftHarness harness, MailDraftRecord draft, MailFolderAlias folder)
+    {
+        var session = Substitute.For<IPersistenceSession>();
+        var message = StoredEmailId.Create(Guid.CreateVersion7());
+
+        await harness.Drafts.RecordFiledAsync(session, draft.Id, message, draft.Revision, CancellationToken.None);
+        await harness.Drafts.RecordFiledIntoAsync(session, Account, message, folder, CancellationToken.None);
+    }
 
     private static async Task<MailDraftRecord> OpenAsync(MailDraftHarness harness, string body)
     {
