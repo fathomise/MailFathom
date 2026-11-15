@@ -439,7 +439,10 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
             () => folderManagement(authenticatedClient, cancellationToken));
     }
 
-    /// <summary>Proves the connection still reaches the server, rebuilding it where it does not, before a change that is never repeated.</summary>
+    /// <summary>
+    /// Proves the connection still reaches the server, rebuilding it where it does not, before a change that is never
+    /// repeated.
+    /// </summary>
     /// <remarks>
     /// A connection the server closed while it sat idle in the write pool still reports itself connected until
     /// something reads from it, so the change itself would be the read that finds out — and a change is never repeated,

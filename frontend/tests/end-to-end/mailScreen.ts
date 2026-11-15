@@ -10,7 +10,10 @@ import { messagesIn, unseenIn, type DeliveredMessage, type StoredMessage } from 
 // the folders and the counts the tree draws, the notice an act raises, and the wait on the mail server. Each is read by
 // the role and the words the client draws, as everything in this directory is.
 
-/** How long a change may take to reach the screen or the mail server: a synchronization run, and the converger after it. */
+/**
+ * How long a change may take to reach the screen or the mail server: a synchronization run, and the converger after
+ * it.
+ */
 export const settles = { timeout: 60_000 } as const;
 
 /** Signs in and reaches the Mail space, waiting for the tree of folders to have been drawn. */
@@ -122,7 +125,10 @@ export async function onTheMailServer(
     return held;
 }
 
-/** The mail server holds exactly one message of the subject in the folder, and it carries every flag named and none refused. */
+/**
+ * The mail server holds exactly one message of the subject in the folder, and it carries every flag named and none
+ * refused.
+ */
 export function one({
     carrying = [],
     without = [],

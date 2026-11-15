@@ -106,10 +106,10 @@ const longestRecordsAnswer = 65_536;
  * What became of one message in a submitted batch.
  *
  * `recorded` wrote a change down for the mail server and carries the record to follow. `applied` says the change has
- * already taken effect in what MailFathom keeps: on an account the deployment holds on its own nothing follows it, and on
- * a mirrored or a restoring account it may name beside it the record carrying the change on to the mail server. The rest are each about that one message rather than about the request, which
- * is what lets a batch composed from a list that has moved on report exactly which entries did not apply and write the
- * rest down.
+ * already taken effect in what MailFathom keeps: on an account the deployment holds on its own nothing follows it, and
+ * on a mirrored or a restoring account it may name beside it the record carrying the change on to the mail server. The
+ * rest are each about that one message rather than about the request, which is what lets a batch composed from a list
+ * that has moved on report exactly which entries did not apply and write the rest down.
  */
 export type MailMutationOutcome =
     | 'recorded'
