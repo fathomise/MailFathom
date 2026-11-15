@@ -274,15 +274,14 @@ A view holds no state. Every one of them is a filter over fields that already ex
 |---|---|---|
 | `Current Sprint` | `sprint:@current -status:Done -has:sub-issues-progress` | the work committed to this week |
 | `Roadmap` | `is:open has:sprint -has:sub-issues-progress` | every open issue a sprint holds, past, current, or planned |
-| `Features` | `is:open has:sub-issues-progress` | the open parents, with `Sub-issues progress` as a column |
 | `Decisions` | `is:open type:Decision` | decision deliverables; other issue types can also wait in `Status: Needs decision` |
-| `Backlog` | `is:open no:sprint -type:Decision -has:sub-issues-progress` | open work in no sprint; decision deliverables remain visible in `Decisions` |
+| `Backlog` | `is:open` | everything open, grouped by milestone, so each epic reads as one list with its features and their issues |
 | `Triage` | `is:open no:milestone` | every open issue no epic holds yet |
 | `All` | `is:open` | everything open, unfiltered, for when a query is easier than a view |
 
-`Current Sprint` and `Roadmap` read `Sprint`, the first for this week and the second for every sprint that still holds open work, and `Backlog` is their complement. A decision hold moves work out of none of them: `Needs decision` records the awaited answer, not whether the work is committed. An issue left open in a sprint that has ended stays in `Roadmap`, which is where the owner sees what to carry over or return to the backlog.
+`Current Sprint` and `Roadmap` read `Sprint`, the first for this week, grouped by assignee, and the second for every sprint that still holds open work, laid out as a roadmap and grouped by parent. `Backlog` is the whole of the open work under its epics; its `Sprint` column is what tells committed work from the rest, an empty one being the backlog in the sense **Board fields** gives. A decision hold moves work out of none of them: `Needs decision` records the awaited answer, not whether the work is committed. An issue left open in a sprint that has ended stays in `Roadmap`, which is where the owner sees what to carry over or return to the backlog.
 
-`Features` is in table layout so that `Sub-issues progress` reads as a column beside `Area` and the milestone. It is the way into the parents, read off the one qualifier that asks what hangs beneath an item, and it filters `is:open` for the ordinary reason that a parent whose children are all delivered is closed with them. A sub-parent appears there beside the parent above it, since it has children too, and its own progress column is what makes the middle level worth reading.
+No view lists the parents alone. A parent appears in `Backlog` under its epic with its `Sub-issues progress`, and `has:sub-issues-progress` is the qualifier a query uses to find them; `Current Sprint` and `Roadmap` leave them out with its negation, because a sprint holds the issues that do the work.
 
 `Triage` lists every open issue with no milestone, which is an arrival none of the rules here reached; **Issues and pull requests from outside the project** is what empties it. An issue the project itself opened never belongs there, because a milestone is set as part of opening it. Every view filters `is:open` or leaves out `Done`, so no value outlives its issue.
 
