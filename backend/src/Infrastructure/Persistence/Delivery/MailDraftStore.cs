@@ -496,7 +496,12 @@ internal sealed class MailDraftStore(MailFathomDbContext readContext) : IMailDra
         var released = MailDraftId.Create(found);
         var entity = await RequireAsync(session, released, cancellationToken);
 
-        foreach (var copy in entity.Copies.Where(copy => copy.Revision == entity.Revision && copy.Stage == MailDraftCopyStage.Standing))
+        // The copy of the revision the message shows, which is not always the newest: a revision can be appended before
+        // synchronization binds its copy onto the filed message, and the copy of that newer revision is still the
+        // draft's own for the pass to withdraw.
+        var movedRevision = entity.FiledRevision;
+
+        foreach (var copy in entity.Copies.Where(copy => copy.Revision == movedRevision && copy.Stage == MailDraftCopyStage.Standing))
         {
             copy.Stage = MailDraftCopyStage.Abandoned;
             copy.SettledAt ??= releasedAt;

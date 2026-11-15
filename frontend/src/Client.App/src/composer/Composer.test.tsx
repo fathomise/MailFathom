@@ -74,6 +74,7 @@ function draftBody(overrides: Readonly<Record<string, unknown>> = {}): string {
         revision: 1,
         sizeOctets: 512,
         serverCopy: 'Filed',
+        filedEmailId: null,
         composedAt: '2026-09-04T11:50:00+00:00',
         revisedAt: '2026-09-04T11:55:00+00:00',
         sentAs: null,
@@ -95,6 +96,7 @@ function heldReading(overrides: Readonly<Record<string, unknown>> = {}): string 
                 recipients: [{ role: 'To', address: 'marta@example.invalid', displayName: null }],
                 attachments: [{ ...stagedFile, stagedAt: '2026-09-04T11:51:00+00:00' }],
                 serverCopy: 'AppendIssued',
+                filedEmailId: null,
                 divergence: 'AppendOutcomeUnknown',
                 ...overrides,
             }),
@@ -438,11 +440,13 @@ function drawComposer(
     rewriter: PassageRewriter | null = null,
 ): {
     closed: ReturnType<typeof vi.fn>;
+    filedAs: ReturnType<typeof vi.fn>;
     asked: ClientRequest[];
     upload: AttachmentUpload;
     point: (change: Partial<Workspace>) => void;
 } {
     const closed = vi.fn();
+    const filedAs = vi.fn();
     const { transport, asked } = deployment(answers);
     let revise: ((change: Partial<Workspace>) => void) | null = null;
 
@@ -492,6 +496,7 @@ function drawComposer(
                                                             drafts={drafts}
                                                             showsOutbox={showsOutbox}
                                                             onClosed={onClosed}
+                                                            onFiledAs={filedAs}
                                                         />
                                                     </PassageRewritingContext>
                                                 )}
@@ -509,6 +514,7 @@ function drawComposer(
 
     return {
         closed,
+        filedAs,
         asked,
         upload,
         point: (change) => {
@@ -2135,6 +2141,23 @@ describe('Composer, a draft MailFathom keeps', () => {
 
         await waitFor(() => {
             expect(screen.queryByText(/^Your mail server's copy of this draft/u)).toBeNull();
+        });
+    });
+
+    // Every save files the draft as another message, so the composer says which one it stands on now: that is what
+    // lets deleting that message close it.
+    it('says which message the drafts folder shows its draft as once the draft is read', async () => {
+        const { filedAs } = drawComposer(held, {
+            held: {
+                status: 200,
+                body: heldReading({ serverCopy: 'Filed', divergence: null, filedEmailId: 'message-9' }),
+            },
+        });
+
+        await screen.findByRole('textbox', { name: 'Subject' });
+
+        await waitFor(() => {
+            expect(filedAs).toHaveBeenLastCalledWith('message-9');
         });
     });
 

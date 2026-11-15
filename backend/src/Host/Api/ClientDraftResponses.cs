@@ -144,6 +144,7 @@ internal sealed record ClientDraftListResponse(IReadOnlyList<ClientDraftResponse
 /// <param name="SizeOctets">How many octets of MIME the current revision is.</param>
 /// <param name="ComposedAt">When the draft was first written down.</param>
 /// <param name="RevisedAt">When it last changed, which is what a screen sorts by.</param>
+/// <param name="FiledEmailId">The stored message the drafts folder shows this draft as, or <see langword="null" /> where none is filed — which is what tells a client that a message it just acted on is the draft a composer stands on.</param>
 /// <param name="SentAs">The queued send a promotion wrote, or <see langword="null" /> while the draft was never sent.</param>
 /// <param name="Divergence">Why the copy in the folder stopped being one MailFathom may touch, or <see langword="null" /> while none has.</param>
 /// <param name="LastFailureCode">The code of the failure the last attempt on the mailbox ended in, or <see langword="null" /> while none has failed.</param>
@@ -171,6 +172,7 @@ internal sealed record ClientDraftResponse(
     long SizeOctets,
     DateTimeOffset ComposedAt,
     DateTimeOffset RevisedAt,
+    Guid? FiledEmailId,
     Guid? SentAs,
     string? Divergence,
     int? LastFailureCode,
@@ -196,6 +198,7 @@ internal sealed record ClientDraftResponse(
             draft.MimeByteLength,
             draft.ComposedAt,
             draft.RevisedAt,
+            draft.FiledEmail?.Value,
             draft.PromotedTo?.Value,
             draft.Divergence?.Reason.ToString(),
             draft.LastFailure?.Value,

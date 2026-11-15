@@ -72,6 +72,7 @@ function draftBody(fields: Readonly<Record<string, unknown>> = {}): Answer {
             recipients: [{ role: 'To', address: 'anna@example.invalid', displayName: 'Anna', provenance: 'Author' }],
             attachments: [],
             serverCopy: 'Filed',
+            filedEmailId: null,
             revision: 1,
             sizeOctets: 812,
             composedAt: '2026-09-03T08:00:00+00:00',
@@ -156,6 +157,7 @@ describe('writeMailDraft', () => {
                     revision: 1,
                     sizeOctets: 812,
                     serverCopy: 'Filed',
+                    filedEmailId: null,
                     divergence: null,
                     lastFailureCode: null,
                     requestsDeliveryNotification: false,
@@ -179,7 +181,16 @@ describe('writeMailDraft', () => {
         });
     });
 
+    it('reads which message the drafts folder shows the draft as, and none where the answer names none', async () => {
+        const filed = await writeMailDraft(session, answering(draftBody({ filedEmailId: 'message-9' })), composition);
+        const unfiled = await writeMailDraft(session, answering(draftBody({ filedEmailId: undefined })), composition);
+
+        expect(filed).toMatchObject({ outcome: 'read', value: { draft: { filedEmailId: 'message-9' } } });
+        expect(unfiled).toMatchObject({ outcome: 'read', value: { draft: { filedEmailId: null } } });
+    });
+
     it.each([
+        ['a filed message that is not an identifier', { filedEmailId: 7 }],
         ['a copy stage this client does not name', { serverCopy: 'Lost' }],
         ['no copy stage at all', { serverCopy: undefined }],
         ['a divergence this client does not name', { divergence: 'Vanished' }],
@@ -572,6 +583,7 @@ describe('readMailDrafts', () => {
                     expect.objectContaining({
                         draftId,
                         serverCopy: 'AppendIssued',
+                        filedEmailId: null,
                         divergence: 'AppendOutcomeUnknown',
                     }),
                 ],

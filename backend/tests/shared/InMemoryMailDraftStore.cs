@@ -372,7 +372,7 @@ internal sealed class InMemoryMailDraftStore : IMailDraftStore
             DiscardedAt = releasedAt,
             Copies =
             [
-                .. draft.Copies.Select(copy => copy.Revision == draft.Revision && copy.IsStanding
+                .. draft.Copies.Select(copy => copy.Revision == draft.FiledRevision && copy.IsStanding
                     ? copy with { Stage = MailDraftCopyStage.Abandoned, SettledAt = copy.SettledAt ?? releasedAt }
                     : copy),
             ],

@@ -532,6 +532,13 @@ export function App({
                 : (request) => rewriteDraftPassages(session, readMail, request),
         [session, asksMail, readsMail, draftsReplies, readMail],
     );
+    // Which message the drafts folder shows the open composer's draft as, told by the composer at the open and after
+    // each save. A ref, because nothing is drawn from it: it is read at the press that deletes a message.
+    const composerFiledAs = useRef<string | null>(null);
+    const composerFiled = useCallback((storedEmailId: string | null) => {
+        composerFiledAs.current = storedEmailId;
+    }, []);
+
     const composing = useMemo(
         () => ({
             offered: writesMail,
@@ -548,6 +555,7 @@ export function App({
             },
             close: (handFocusBack: boolean) => {
                 setWritten(null);
+                composerFiledAs.current = null;
 
                 if (handFocusBack) {
                     if (askedFrom.current?.isConnected === true) {
@@ -1284,12 +1292,21 @@ export function App({
                                                                 deletes={deletesMail}
                                                                 composes={writesMail}
                                                                 onDeleted={(messages) => {
+                                                                    // The message the composer was opened on, and the one
+                                                                    // its draft is filed as now: every save files the
+                                                                    // draft as another message, so the first alone would
+                                                                    // miss a draft saved since it was opened.
+                                                                    const standsOn = [
+                                                                        written?.kind === 'draft'
+                                                                            ? written.storedEmailId
+                                                                            : null,
+                                                                        composerFiledAs.current,
+                                                                    ];
+
                                                                     if (
-                                                                        written?.kind === 'draft' &&
-                                                                        messages.some(
-                                                                            (message) =>
-                                                                                message.storedEmailId ===
-                                                                                written.storedEmailId,
+                                                                        written !== null &&
+                                                                        messages.some((message) =>
+                                                                            standsOn.includes(message.storedEmailId),
                                                                         )
                                                                     ) {
                                                                         composing.close(false);
@@ -2023,6 +2040,9 @@ export function App({
                                                                                                                         }
                                                                                                                         onClosed={
                                                                                                                             composing.close
+                                                                                                                        }
+                                                                                                                        onFiledAs={
+                                                                                                                            composerFiled
                                                                                                                         }
                                                                                                                     />
                                                                                                                 )

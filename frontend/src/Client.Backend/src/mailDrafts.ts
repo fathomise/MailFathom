@@ -109,6 +109,12 @@ export interface MailDraft {
     /** The code of the failure the last attempt on the mailbox ended in, or `null` while none has failed. */
     readonly lastFailureCode: number | null;
 
+    /**
+     * The message the drafts folder shows this draft as, or `null` where none is filed. It moves with every save, so it
+     * is what says a message somebody just deleted is the draft a composer stands on.
+     */
+    readonly filedEmailId: string | null;
+
     /** Whether a send of it asks to be told when each recipient's server delivers it or cannot. */
     readonly requestsDeliveryNotification: boolean;
 
@@ -721,6 +727,7 @@ function parseDraft(body: Readonly<Record<string, unknown>> | null): MailDraft |
     const requestsDeliveryNotification = record['requestsDeliveryNotification'];
     const requestsReadReceipt = record['requestsReadReceipt'];
     const revisedAt = record['revisedAt'];
+    const filedEmailId = record['filedEmailId'] ?? null;
 
     if (
         typeof draftId !== 'string' ||
@@ -729,6 +736,7 @@ function parseDraft(body: Readonly<Record<string, unknown>> | null): MailDraft |
         typeof revision !== 'number' ||
         typeof sizeOctets !== 'number' ||
         typeof revisedAt !== 'string' ||
+        (filedEmailId !== null && typeof filedEmailId !== 'string') ||
         typeof requestsDeliveryNotification !== 'boolean' ||
         typeof requestsReadReceipt !== 'boolean' ||
         !isOneOf(serverCopy, serverCopies) ||
@@ -757,6 +765,7 @@ function parseDraft(body: Readonly<Record<string, unknown>> | null): MailDraft |
               requestsDeliveryNotification,
               requestsReadReceipt,
               revisedAt,
+              filedEmailId,
           };
 }
 

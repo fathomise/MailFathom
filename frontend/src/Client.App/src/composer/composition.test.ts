@@ -211,6 +211,7 @@ describe('draftHeld', () => {
                 revision: 3,
                 sizeOctets: 400,
                 serverCopy: 'AppendIssued',
+                filedEmailId: null,
                 divergence: 'AppendOutcomeUnknown',
                 lastFailureCode: null,
                 requestsDeliveryNotification: false,

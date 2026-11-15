@@ -510,6 +510,49 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
         Assert.DoesNotContain(opened.Id, await HeldForUserAsync(services, cancellationToken));
     }
 
+    /// <summary>A promoted draft's message is a queued send, so releasing it finds no draft and writes nothing.</summary>
+    /// <remarks>
+    /// The exclusion is a term of the predicate PostgreSQL evaluates, and dropping it would give a queued send's draft
+    /// up without any store double noticing — so it is asked of the database, over a draft the book filed and the
+    /// promotion marked.
+    /// </remarks>
+    [Fact]
+    public async Task ReleaseFiledAsync_TheMessageOfAPromotedDraft_GivesNothingUp()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+
+        var draft = await SaveAsync(
+            services,
+            $"Promoted and moved {Guid.NewGuid():N}",
+            OutgoingReceiptRequests.None,
+            revises: null,
+            cancellationToken);
+        var filed = (await FindAsync(services, draft.Id, cancellationToken))?.FiledEmail;
+
+        Assert.NotNull(filed);
+
+        await PromoteAsync(services, draft.Id, cancellationToken);
+
+        MailDraftId? released = MailDraftId.Create(Guid.CreateVersion7());
+
+        // Act
+        await services.CommitAsync(
+            async (scope, session, token) => released = await scope.GetRequiredService<IMailDraftStore>()
+                .ReleaseFiledAsync(session, SyntheticMailAccount.Account, filed.Value, DateTimeOffset.UnixEpoch, token),
+            cancellationToken);
+
+        // Assert
+        var stored = await FindAsync(services, draft.Id, cancellationToken);
+
+        Assert.Null(released);
+        Assert.NotNull(stored);
+        Assert.Null(stored.DiscardedAt);
+        Assert.Equal(filed, stored.FiledEmail);
+    }
+
     /// <summary>Reads which of this account's drafts owe the mail server something, as the pass reads it.</summary>
     private static async Task<IReadOnlyList<MailDraftId>> OutstandingAsync(
         OrchestratedMailFathomServices services,

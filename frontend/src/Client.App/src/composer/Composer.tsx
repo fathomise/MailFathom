@@ -205,6 +205,7 @@ export function Composer({
     inFront = true,
     organizationName = null,
     onClosed,
+    onFiledAs,
 }: {
     readonly session: ClientSession;
     readonly transport: MailFathomTransport;
@@ -243,6 +244,12 @@ export function Composer({
      *   answering after somebody had moved on.
      */
     readonly onClosed: (handFocusBack: boolean) => void;
+
+    /**
+     * Told which message the drafts folder shows this draft as, at the open and after every save, so that deleting that
+     * message closes the composer standing on it.
+     */
+    readonly onFiledAs?: (storedEmailId: string | null) => void;
 }) {
     const { locale, translate } = useLocalization();
     const wide = useWideWorkspace();
@@ -250,6 +257,11 @@ export function Composer({
     const writeRefused = useWriteRefusal();
     const { disconnectedNow } = useConnectionStatus();
     const draft = useDraftAtDeployment(session, transport);
+    const filedAs = draft.record?.filedEmailId ?? null;
+
+    useEffect(() => {
+        onFiledAs?.(filedAs);
+    }, [onFiledAs, filedAs]);
     const zone = useReadingZone();
 
     // Part of the message rewritten where it stands. The words are the region's own, so the passages are marked in
