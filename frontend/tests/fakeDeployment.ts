@@ -2054,8 +2054,9 @@ export class FakeDeployment {
      * The folders the corpus states that no folder act has deleted, and the ones a folder act made, each at the place
      * the hierarchy puts it and with its counts moved by what was written.
      *
-     * A folder made here has never been synchronized and holds nothing yet, which is how the service answers a folder
-     * declared a moment ago that no pass has reached.
+     * A folder made here holds nothing yet, and reads as synchronized as its account is: the service answers one
+     * `NeverSynchronized` until the first pass reaches it, which is a write it carries out later, and the fake reports
+     * those finished at once as it reports every record.
      */
     private folders() {
         return {
@@ -2071,8 +2072,8 @@ export class FakeDeployment {
                         path: [],
                         storedEmailCount: 0,
                         unreadEmailCount: 0,
-                        synchronizationState: null,
-                        lastSynchronizedAt: null,
+                        synchronizationState: account.synchronizationState,
+                        lastSynchronizedAt: account.lastSynchronizedAt,
                         behind: false,
                     })),
                 ]

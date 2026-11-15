@@ -475,8 +475,11 @@ passing against one target and failing against the other is the one disagreement
   each fail the case that asked. A field left out does not, on the rule `scripts/test-agent-workflow.sh` argues for
   [the corpus](#the-corpus): the case that reads a field is what asserts it is there.
 - **A write the service applies to the mailbox later is waited on through its own report of it**, the record
-  `GET /mutations` answers, until that record is no longer `pending` or `converging` — never a duration. The fake
-  reports its records finished at once, so the wait costs it nothing.
+  `GET /mutations` answers, until that record is no longer `pending` or `converging` — never a duration. A folder act
+  is waited on through the folder tree the same way: a folder made is filed into once `GET /folders` states it
+  anything but `NeverSynchronized`, and where a folder stands after an act is read until the tree says so, because a
+  mirrored account files what the act did on its server into the tree on the pass after it. The fake reports its
+  records finished and its folders synchronized at once, so the wait costs it nothing.
 - **Where the two disagree, one of them is corrected in the same pull request**: the fake where it misread the service,
   together with every journey that stood on the misreading, and the service where it is the one that is wrong. The pull
   request names which side was wrong. A case is never narrowed, skipped, or split by target until both pass.

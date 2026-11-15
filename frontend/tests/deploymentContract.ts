@@ -210,6 +210,7 @@ interface Folder {
     readonly path: readonly string[];
     readonly storedEmailCount: number;
     readonly unreadEmailCount: number;
+    readonly synchronizationState: string | null;
 }
 
 interface FolderTree {
@@ -254,17 +255,12 @@ export interface Mailbox {
     readonly inbox: Folder;
 }
 
-let actsAsked = 0;
-
 /**
  * A key for one act, generated once per act as the client generates one: the service answers a repeat under a key with
- * the first outcome, so two acts sharing one would read as one. Counted across the process rather than per case,
- * because every case of a run asks the same deployment.
+ * the first outcome, so two acts sharing one — in two runs against one deployment as much as in one — would read as one.
  */
 function nextRequestId(): string {
-    actsAsked += 1;
-
-    return `0198f4a1-0000-7000-8000-${actsAsked.toString(16).padStart(12, '0')}`;
+    return crypto.randomUUID();
 }
 
 /** A change a write opened, followed until the service reports it finished. */
@@ -334,6 +330,20 @@ export class ContractDeployment {
     /** One folder as the folder tree answers it now, or `undefined` where the tree no longer holds it. */
     async folder(folderId: string): Promise<Folder | undefined> {
         return (await this.folderTree()).accounts.flatMap(({ folders }) => folders).find(({ id }) => id === folderId);
+    }
+
+    /**
+     * Answers once the service reports a folder made a moment ago reached by a synchronization pass. A mirrored account
+     * takes a folder made on its server into what it files into only then, and states it `NeverSynchronized` until it
+     * has.
+     */
+    async synchronized(folderId: string): Promise<void> {
+        await expect
+            .poll(async () => (await this.folder(folderId))?.synchronizationState ?? 'absent', {
+                message: `Folder ${folderId} was never synchronized`,
+                timeout: 120_000,
+            })
+            .not.toMatch(/^(?:NeverSynchronized|absent)$/u);
     }
 
     /** The first page of a folder, narrowed by whatever filters `query` adds. */
@@ -526,6 +536,7 @@ export const contractCases: readonly ContractCase[] = [
             const row = await deployment.firstRow(inbox.id);
 
             expect(made).toMatchObject({ change: 'Created', folder: { name: 'Moved by a case', parentId: null } });
+            await deployment.synchronized(made.folder.id);
             expect(await deployment.folder(made.folder.id)).toMatchObject({ storedEmailCount: 0 });
 
             await deployment.move(row.id, made.folder.id);
@@ -689,6 +700,14 @@ export const contractCases: readonly ContractCase[] = [
                 managed: (await deployment.managedFolders(account)).folders.find(({ id }) => id === folderId),
             });
 
+            // A mirrored account files what a folder act did on its server into the folder tree on the pass after it,
+            // so where a folder now stands is read until it says so rather than once.
+            const settledAt = (folderId: string) =>
+                expect.poll(() => placed(folderId), {
+                    message: `Folder ${folderId} never reached the place the act left it in`,
+                    timeout: 120_000,
+                });
+
             const parent = await deployment.folderAct('/managed-folders', {
                 account,
                 parentId: null,
@@ -701,7 +720,7 @@ export const contractCases: readonly ContractCase[] = [
             });
 
             expect(made).toMatchObject({ change: 'Created', folder: { name: 'Case child', parentId: null } });
-            expect(await placed(made.folder.id)).toMatchObject({
+            await settledAt(made.folder.id).toMatchObject({
                 tree: ['Case child'],
                 managed: { name: 'Case child', parentId: null },
             });
@@ -713,7 +732,7 @@ export const contractCases: readonly ContractCase[] = [
                     name: 'Case renamed',
                 }),
             ).toMatchObject({ change: 'Renamed', folder: { id: made.folder.id, name: 'Case renamed' } });
-            expect(await placed(made.folder.id)).toMatchObject({
+            await settledAt(made.folder.id).toMatchObject({
                 tree: ['Case renamed'],
                 managed: { name: 'Case renamed' },
             });
@@ -725,15 +744,15 @@ export const contractCases: readonly ContractCase[] = [
                     parentId: parent.folder.id,
                 }),
             ).toMatchObject({ change: 'Moved', folder: { id: made.folder.id, parentId: parent.folder.id } });
-            expect(await placed(made.folder.id)).toMatchObject({
+            await settledAt(made.folder.id).toMatchObject({
                 tree: ['Case parent', 'Case renamed'],
                 managed: { parentId: parent.folder.id },
             });
 
             await deployment.folderAct('/managed-folders/deletions', { account, folderId: parent.folder.id });
 
-            expect(await placed(parent.folder.id)).toStrictEqual({ tree: undefined, managed: undefined });
-            expect(await placed(made.folder.id)).toStrictEqual({ tree: undefined, managed: undefined });
+            await settledAt(parent.folder.id).toStrictEqual({ tree: undefined, managed: undefined });
+            await settledAt(made.folder.id).toStrictEqual({ tree: undefined, managed: undefined });
         },
     },
     {
