@@ -694,12 +694,17 @@ describe('MailboxActsProvider', () => {
         await screen.findByText('Not taken back - it is already being deleted');
 
         expect(screen.queryByText('Put back where it was')).toBeNull();
-        expect(held().asked.get('message-3')).toStrictEqual({
-            act: 'delete',
-            from: 'work-trash',
-            leaves: true,
-            destroys: true,
-            awaiting: false,
+
+        // Waited for on a budget of its own: the toast and the row's record are two writes, and the sentence may be
+        // on the screen a render before the record is.
+        await waitFor(() => {
+            expect(held().asked.get('message-3')).toStrictEqual({
+                act: 'delete',
+                from: 'work-trash',
+                leaves: true,
+                destroys: true,
+                awaiting: false,
+            });
         });
     });
 
