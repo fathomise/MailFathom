@@ -511,7 +511,8 @@ public sealed class MailRelocationRecorderTests
 
     /// <summary>
     /// A draft whose message is filed out of the drafts tree is given up with the move, and one filed elsewhere inside
-    /// the tree is still the draft it was. A record left naming a message in the trash would file the draft back into
+    /// the tree is still the draft it was and learns the folder, which is where its next revision is filed. A record
+    /// left naming a message in the trash would file the draft back into
     /// the drafts folder on its author's next save and erase the message from the trash.
     /// </summary>
     [Theory]
@@ -546,6 +547,44 @@ public sealed class MailRelocationRecorderTests
         Assert.NotNull(draft);
         Assert.Equal(givenUp, draft.IsDiscarded);
         Assert.Equal(givenUp ? null : LocalEmail, draft.FiledEmail);
+        Assert.Equal(givenUp ? null : DraftsClients, draft.FiledFolder);
+    }
+
+    /// <summary>
+    /// A draft moved back into the drafts folder itself stands where the role points again, so the record stops naming
+    /// the folder beneath it rather than naming the drafts folder as one.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_ADraftsMessageMovedBackIntoTheDraftsFolder_ForgetsTheFolderBeneathIt()
+    {
+        // Arrange
+        var drafts = this.MapMirrored(Drafts, "Drafts", MailFolderSpecialUse.Drafts);
+        var beneath = this.MapMirrored(DraftsClients, "Drafts/Clients");
+        var draftId = await this.FileDraftAsync();
+        await this.drafts.RecordFiledIntoAsync(
+            Substitute.For<IPersistenceSession>(),
+            Account,
+            LocalEmail,
+            DraftsClients,
+            TestContext.Current.CancellationToken);
+        var recorder = this.Recorder(TargetIn(beneath.Alias, beneath.RemotePath.Value));
+
+        // Act
+        var result = await recorder.RecordAsync(
+            LocalEmail,
+            IdOf(drafts.Alias),
+            Requester,
+            MailboxReaderKind.Person,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var draft = await this.drafts.FindAsync(draftId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(MailRelocationOutcome.Recorded, result.Outcome);
+        Assert.NotNull(draft);
+        Assert.False(draft.IsDiscarded);
+        Assert.Equal(LocalEmail, draft.FiledEmail);
+        Assert.Null(draft.FiledFolder);
     }
 
     /// <summary>

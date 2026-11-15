@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics.CodeAnalysis;
+using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.Observability;
@@ -45,6 +47,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
     private readonly MailFailureNotifications failures;
     private readonly IMailboxConvergenceDelayTelemetry delays;
     private readonly ClientSignals signals;
+    private readonly IMailDraftStore drafts;
     private readonly TimeProvider timeProvider;
     private readonly TimeSpan refusalWindow;
 
@@ -56,6 +59,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
     /// <param name="failures">Tells the account's users about a change that was given up.</param>
     /// <param name="delays">Measures how long a change waited before it ended.</param>
     /// <param name="signals">Tells an open client that a change it may be drawing as pending has settled.</param>
+    /// <param name="drafts">Tells a draft's copy where a move the server performed put it.</param>
     /// <param name="options">Supplies how long a change the server keeps declining is asked again.</param>
     /// <param name="timeProvider">Measures how long the server has been declining a change.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
@@ -68,6 +72,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
         MailFailureNotifications failures,
         IMailboxConvergenceDelayTelemetry delays,
         ClientSignals signals,
+        IMailDraftStore drafts,
         MailboxMutationOptions options,
         TimeProvider timeProvider)
     {
@@ -78,6 +83,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
         ArgumentNullException.ThrowIfNull(failures);
         ArgumentNullException.ThrowIfNull(delays);
         ArgumentNullException.ThrowIfNull(signals);
+        ArgumentNullException.ThrowIfNull(drafts);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.RefusalWindow, TimeSpan.Zero, nameof(options));
@@ -89,6 +95,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
         this.failures = failures;
         this.delays = delays;
         this.signals = signals;
+        this.drafts = drafts;
         this.timeProvider = timeProvider;
         this.refusalWindow = options.RefusalWindow;
     }
@@ -334,6 +341,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
                 journal,
                 cancellationToken);
 
+            await this.FollowDraftCopyAsync(request, folder, placement);
             await journal.CompleteAsync(placement, cancellationToken);
 
             return new MailboxMutationOutcome(journal.RecordId, MailboxMutationStatus.Performed, placement);
@@ -370,6 +378,46 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
             await journal.RecordFailureAsync(MailFathomErrorCode.MailboxMutationFailedUnexpectedly, cancellationToken);
 
             throw;
+        }
+    }
+
+    /// <summary>Tells the copy of a draft the server just moved where it now stands, and never lets that fail the move.</summary>
+    /// <remarks>
+    /// A draft's copy is withdrawn by the occurrence a server reported for it, so a copy somebody moved beneath the drafts
+    /// folder has to learn the occurrence the move gave it, or the revision that later replaces it would leave it
+    /// standing beside its successor. Written before the record is completed and outside the caller's cancellation,
+    /// because the move has already happened on the server whatever becomes of this process. Most moved messages are no
+    /// draft's copy, and this then writes nothing.
+    /// </remarks>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "The move has already happened on the mail server; a copy row that could not be written must not turn it into a failed mutation the converger would issue again.")]
+    [SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception", Justification = "There is no second action to take: a copy left naming where it was is one a later withdrawal finds nothing by and leaves alone.")]
+    private async Task FollowDraftCopyAsync(
+        MailboxMutationRequest request,
+        MailFolderResolution folder,
+        RemoteEmailPlacement placement)
+    {
+        if (request.Mutation != MailboxMutation.Relocate || request.DestinationPath is not { } movedInto)
+        {
+            return;
+        }
+
+        try
+        {
+            await this.commitPolicy.CommitAsync(
+                (session, token) => this.drafts.RecordCopyRelocatedAsync(
+                    session,
+                    request.Occurrence.AccountId,
+                    folder.RemotePath,
+                    request.Occurrence.UidValidity,
+                    request.Occurrence.Uid,
+                    movedInto,
+                    placement,
+                    token),
+                CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            // Nothing to restore: the move stands on the server whatever became of telling the draft.
         }
     }
 

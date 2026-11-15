@@ -23,7 +23,8 @@ namespace MailFathom.Application.Mail.Delivery.Drafts;
 /// <para>
 /// On a mirrored account it is the same filing mechanism a sent copy goes through, specialized to the one message whose
 /// copy has to change. The role and the flags are <see cref="OutgoingMailFiling.Draft" />'s, the folder is found by that
-/// role and never by name, and the append and the withdrawal are the two operations the write session opens for exactly
+/// role — or, for a draft somebody moved beneath the folder playing it, by the name MailFathom recorded for the folder
+/// the move filed it into, while that folder still lies there — and the append and the withdrawal are the two operations the write session opens for exactly
 /// this. What is not shared is the record: a filed copy is written once and kept, and a draft's copy is written, replaced,
 /// and taken back out, so the durable account of it hangs off the draft rather than off an outgoing record.
 /// </para>
@@ -169,16 +170,26 @@ public sealed class MailDraftFiler
     /// <summary>Reads and places a revision's local copy, where the account's custodian files one, before the transaction that writes the revision.</summary>
     /// <param name="account">The account the draft belongs to.</param>
     /// <param name="rawMime">The revision's message.</param>
+    /// <param name="revises">The draft the revision is of, or <see langword="null" /> for a draft being written for the first time.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The prepared copy, or <see langword="null" /> where the revision is appended to the server instead or no bound folder plays the drafts role.</returns>
+    /// <remarks>A revision of a draft somebody filed beneath the drafts folder is prepared for that folder, so the draft stays where it was put.</remarks>
     internal async Task<LocalMailCopy?> PrepareLocalCopyAsync(
         MailAccountId account,
         ReadOnlyMemory<byte> rawMime,
+        MailDraftId? revises,
         CancellationToken cancellationToken)
     {
         var custodian = await this.custodians.ResolveAsync(account, cancellationToken);
 
-        return await custodian.PrepareDraftCopyAsync(account, rawMime, cancellationToken);
+        if (await custodian.PrepareDraftCopyAsync(account, rawMime, cancellationToken) is not { } copy)
+        {
+            return null;
+        }
+
+        return revises is { } draftId && await this.drafts.FindAsync(draftId, cancellationToken) is { FiledFolder: not null } draft
+            ? await this.localFiler.InFiledFolderAsync(copy, draft.FiledFolder, cancellationToken)
+            : copy;
     }
 
     /// <summary>Files a revision's local copy and erases the one it replaces, inside the transaction that writes the revision.</summary>
@@ -271,6 +282,7 @@ public sealed class MailDraftFiler
         var appended = await this.appends.AppendAsync(
             draft.AccountId,
             OutgoingMailFiling.Draft,
+            draft.FiledFolder,
             MailboxCopySource.MailDraft(draft.Id),
             (binding, token) => this.commitPolicy.CommitAsync(
                 (persistenceSession, commitToken) => this.drafts.RecordAppendIssuedAsync(
@@ -392,12 +404,42 @@ public sealed class MailDraftFiler
 
         foreach (var copy in copies)
         {
-            var reason = await this.WithdrawOneAsync(draft, copy, destination, cancellationToken);
+            var reason = await this.FolderOfAsync(draft, copy, destination, cancellationToken) is { } folder
+                ? await this.WithdrawOneAsync(draft, copy, folder, cancellationToken)
+                : await this.AbandonAsync(draft, [copy], MailDraftDivergenceReason.DestinationChanged);
 
             divergence ??= reason;
         }
 
         return divergence;
+    }
+
+    /// <summary>Finds the folder a copy stands in: the one playing the drafts role, or the one beneath it the copy was appended or moved into.</summary>
+    /// <returns>The folder, or <see langword="null" /> where the copy's recorded path is no longer a folder this system can prove is that one.</returns>
+    /// <remarks>
+    /// A copy outside the tree of the folder the role means now is never looked for. One inside it is found by the name
+    /// MailFathom recorded for its folder, and only while that name still resolves to the recorded path.
+    /// </remarks>
+    private async Task<MailboxDestination?> FolderOfAsync(
+        MailDraftRecord draft,
+        MailDraftServerCopy copy,
+        MailboxDestination draftsFolder,
+        CancellationToken cancellationToken)
+    {
+        if (copy.NamesFolder(draftsFolder.Path))
+        {
+            return draftsFolder;
+        }
+
+        if (!copy.FolderPath.IsWithin(draftsFolder.Path))
+        {
+            return null;
+        }
+
+        var reference = MailFolderReference.ToAlias(copy.FolderAlias);
+        var resolved = await this.destinations.ResolveAsync(draft.AccountId, [reference], cancellationToken);
+
+        return resolved.Find(reference).Destination is { } folder && copy.NamesFolder(folder.Path) ? folder : null;
     }
 
     /// <summary>Withdraws one copy, or abandons it naming what put it out of reach.</summary>
@@ -407,11 +449,6 @@ public sealed class MailDraftFiler
         MailboxDestination destination,
         CancellationToken cancellationToken)
     {
-        if (!copy.NamesFolder(destination.Path))
-        {
-            return await this.AbandonAsync(draft, [copy], MailDraftDivergenceReason.DestinationChanged);
-        }
-
         if (copy.Placement is not { UidValidity: { } uidValidity, Uid: { } uid })
         {
             return await this.AbandonAsync(draft, [copy], MailDraftDivergenceReason.PlacementUnreported);
@@ -587,13 +624,15 @@ public sealed class MailDraftFiler
             return Result(draft, MailDraftFilingOutcome.AlreadySettled);
         }
 
-        if (await this.localFiler.PrepareDraftAsync(draft, cancellationToken) is not { } copy)
+        if (await this.localFiler.PrepareDraftAsync(draft, cancellationToken) is not { } prepared)
         {
             return await this.RecordFailureAsync(
                 draft,
                 MailFathomErrorCode.OutgoingEmailFilingDestinationUnavailable,
                 MailDraftFilingOutcome.DestinationUnavailable);
         }
+
+        var copy = await this.localFiler.InFiledFolderAsync(prepared, draft.FiledFolder, cancellationToken);
 
         var filed = await this.commitPolicy.CommitAsync(
             (session, token) => this.FileLocallyAsync(session, draft.Id, draft.Revision, copy, token),

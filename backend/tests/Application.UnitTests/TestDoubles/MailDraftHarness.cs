@@ -296,11 +296,13 @@ internal sealed class MailDraftHarness
     /// <param name="accountId">The account the folder belongs to.</param>
     /// <param name="alias">MailFathom's own name for it.</param>
     /// <param name="remotePath">The path the server holds it at, which defaults to the alias.</param>
+    /// <param name="hierarchyDelimiter">The delimiter the server reported for it, which is what lets another folder lie beneath it.</param>
     /// <returns>The binding, so a test can name the path it arranged.</returns>
     internal MailFolderResolution MapDraftsFolder(
         MailAccountId accountId,
         string alias = "drafts",
-        string? remotePath = null)
+        string? remotePath = null,
+        char? hierarchyDelimiter = null)
     {
         var folderAlias = MailFolderAlias.Create(alias);
 
@@ -308,13 +310,39 @@ internal sealed class MailDraftHarness
             accountId,
             MailFolderMapping.ToRemotePath(
                 folderAlias,
-                RemoteFolderPath.Create(remotePath ?? alias),
+                RemoteFolderPath.Create(remotePath ?? alias, hierarchyDelimiter),
                 MailFolderParticipation.Full,
                 mayCreateMissingFolder: false,
                 MailFolderSpecialUse.Drafts));
 
         this.BeginNewScope();
 
-        return this.folderResolutions.Bind(accountId, folderAlias, remotePath);
+        return this.folderResolutions.Bind(accountId, folderAlias, remotePath, hierarchyDelimiter);
+    }
+
+    /// <summary>Makes one more folder of an account resolve beside its drafts folder, as a folder somebody sorts drafts into does.</summary>
+    /// <param name="accountId">The account the folder belongs to.</param>
+    /// <param name="alias">MailFathom's own name for it.</param>
+    /// <param name="remotePath">The path the server holds it at.</param>
+    /// <param name="hierarchyDelimiter">The delimiter the server reported for it.</param>
+    /// <returns>The binding, so a test can name the path it arranged.</returns>
+    internal MailFolderResolution MapAnotherFolder(
+        MailAccountId accountId,
+        string alias,
+        string remotePath,
+        char hierarchyDelimiter)
+    {
+        var folderAlias = MailFolderAlias.Create(alias);
+
+        this.mappings = this.mappings.With(
+            accountId,
+            MailFolderMapping.ToRemotePath(
+                folderAlias,
+                RemoteFolderPath.Create(remotePath, hierarchyDelimiter),
+                MailFolderParticipation.Full));
+
+        this.BeginNewScope();
+
+        return this.folderResolutions.Bind(accountId, folderAlias, remotePath, hierarchyDelimiter);
     }
 }

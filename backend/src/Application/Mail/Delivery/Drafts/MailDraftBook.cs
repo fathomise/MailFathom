@@ -152,7 +152,7 @@ public sealed class MailDraftBook
 
         // On a held account the copy is filed in the transaction that writes the revision, so it is read and placed
         // before that transaction for the reason the draft's own message is.
-        var localCopy = await this.filer.PrepareLocalCopyAsync(account, composed.RawMime, cancellationToken);
+        var localCopy = await this.filer.PrepareLocalCopyAsync(account, composed.RawMime, revises, cancellationToken);
         FiledLocalEmail? filed = null;
 
         var draft = await this.retryPolicy.CommitAsync(

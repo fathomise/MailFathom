@@ -85,6 +85,9 @@ internal sealed class MailDraftEntity
     /// <summary>Gets or sets the revision <see cref="FiledStoredEmailId" /> shows, and <see langword="null" /> while none is filed.</summary>
     public int? FiledRevision { get; set; }
 
+    /// <summary>Gets or sets the alias of the folder beneath the drafts folder the draft's message was last filed into, and <see langword="null" /> while it stands in the folder playing the drafts role.</summary>
+    public string? FiledFolderAlias { get; set; }
+
     /// <summary>Gets or sets why the tracked copy stopped being one MailFathom may touch, and <see langword="null" /> while none has.</summary>
     public MailDraftDivergenceReason? DivergenceReason { get; set; }
 

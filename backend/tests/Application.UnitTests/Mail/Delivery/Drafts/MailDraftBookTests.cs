@@ -166,6 +166,48 @@ public sealed class MailDraftBookTests
         Assert.Empty(harness.Withdrawn);
     }
 
+    /// <summary>
+    /// A held account's draft somebody moved into a folder beneath the drafts folder is revised there: the save files
+    /// the new message into the local folder that source folder feeds, rather than back into the drafts folder.
+    /// </summary>
+    [Fact]
+    public async Task SaveAsync_RevisionOfAHeldAccountsDraftMovedBeneathTheDraftsFolder_FilesItWhereItWasMoved()
+    {
+        // Arrange
+        var harness = Harness();
+        harness.MapDraftsFolder(Account);
+        var held = harness.HoldAccount(Account);
+        var draft = await SaveAsync(harness, "first version");
+        var sorted = new LocalMailFolder(
+            MailFolderId.Mint(Moment),
+            held.Folders.Folders.Single(static folder => folder.Role == MailFolderSpecialUse.Drafts).Id,
+            LocalMailFolderName.Create("Clients"),
+            Role: null,
+            held.MapFolderBeneath("drafts", "clients"));
+        held.Folders.Add(sorted);
+        await harness.Drafts.RecordFiledIntoAsync(
+            Substitute.For<IPersistenceSession>(),
+            Account,
+            draft.FiledEmail!.Value,
+            sorted.SourceFolderAlias!.Value,
+            CancellationToken.None);
+
+        // Act
+        var revised = await harness.Book.SaveAsync(
+            Account,
+            SyntheticUser.Deployment,
+            OutgoingEmailRequester.Command("mfctl-4f2a"),
+            Composed("second version"),
+            OutgoingReceiptRequests.None,
+            draft.Id,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(sorted.Id, held.Folders.Placements[revised.FiledEmail!.Value]);
+        Assert.Equal([draft.FiledEmail.Value], held.Folders.ErasedEmails);
+        Assert.Equal(0, harness.AppendCount);
+    }
+
     /// <summary>Saving a held account's draft again tells its clients, once the commit lands, of the new message and of the one it replaced.</summary>
     [Fact]
     public async Task SaveAsync_RevisionOnAHeldAccount_AnnouncesTheNewMessageAndTheOneItReplaced()

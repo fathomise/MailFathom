@@ -129,6 +129,28 @@ internal sealed class HeldLocalMailbox
         this.folderResolutions.Bind(this.Account, folderAlias);
     }
 
+    /// <summary>Maps and binds a source folder beneath the one playing a role, which is where somebody sorts that role's mail.</summary>
+    /// <param name="roleAlias">The alias of the folder playing the role, which is bound again under a delimiter so the other lies beneath it.</param>
+    /// <param name="alias">MailFathom's own name for the folder beneath it.</param>
+    /// <returns>The alias, so a test can name the folder it arranged.</returns>
+    internal MailFolderAlias MapFolderBeneath(string roleAlias, string alias)
+    {
+        var folderAlias = MailFolderAlias.Create(alias);
+        var remotePath = $"{roleAlias}/{alias}";
+
+        this.mappings = this.mappings.With(
+            this.Account,
+            MailFolderMapping.ToRemotePath(
+                folderAlias,
+                RemoteFolderPath.Create(remotePath, '/'),
+                MailFolderParticipation.Full));
+
+        this.folderResolutions.Bind(this.Account, MailFolderAlias.Create(roleAlias), roleAlias, '/');
+        this.folderResolutions.Bind(this.Account, folderAlias, remotePath, '/');
+
+        return folderAlias;
+    }
+
     /// <summary>Withdraws every role mapping, which is the arrangement of a folder the operator stopped mapping.</summary>
     internal void UnmapRoles() => this.mappings = StubMailFolderMappings.Nothing;
 

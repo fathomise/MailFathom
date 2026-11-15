@@ -19,8 +19,8 @@ namespace MailFathom.Domain.Delivery.Drafts;
 /// <para>
 /// The occurrence recorded here is the server's own statement about the copy it accepted, never a search for something
 /// that looks like the message. That is the whole of what makes the removal safe: the only UID this system ever expunges
-/// is one an <c>APPEND</c> of its own reported, so a draft the user wrote themselves is unreachable from here by
-/// construction rather than by a check.
+/// is one an <c>APPEND</c> of its own reported, or the one the server answered a move of that very copy with, so a
+/// draft the user wrote themselves is unreachable from here by construction rather than by a check.
 /// </para>
 /// <para>
 /// Nothing here is mail content. A folder, an alias, a UID, and an identity MailFathom minted itself are its own or the

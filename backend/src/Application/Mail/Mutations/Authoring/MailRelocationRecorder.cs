@@ -102,7 +102,7 @@ public sealed class MailRelocationRecorder
     /// <param name="spamMarks">Writes the person's spam verdict a move into the junk folder makes.</param>
     /// <param name="idempotency">Answers a repeat of an act the person already made, and keeps the key of one that commits.</param>
     /// <param name="filer">Files a message into a folder of another account the person holds.</param>
-    /// <param name="drafts">Gives up the draft a message filed out of the drafts tree is the current revision of.</param>
+    /// <param name="drafts">Gives up the draft a message filed out of the drafts tree is the current revision of, and tells one filed within the tree where its message went.</param>
     /// <param name="timeProvider">Supplies the instant such a draft is given up at.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public MailRelocationRecorder(
@@ -263,7 +263,9 @@ public sealed class MailRelocationRecorder
         var crossesOnTheServer = await this.keptTrees.CrossesAsync(account, target.Folder, folder, cancellationToken);
 
         // Read ahead of the commit, because it reads bindings and the commit is one transaction.
-        var leavesTheDraftsTree = !await this.keptTrees.HoldsAsync(account, folder.Alias, folder.Path, cancellationToken);
+        var keptRoot = await this.keptTrees.RootOfAsync(account, folder.Alias, folder.Path, cancellationToken);
+        var staysInItsTree = keptRoot is not null
+            && keptRoot == await this.keptTrees.RootOfAsync(account, target.Folder.Alias, target.Folder.RemotePath, cancellationToken);
 
         AuthoredDeleteEmailDisposition? localDisposition;
 
@@ -332,15 +334,30 @@ public sealed class MailRelocationRecorder
                     // deleted — is given up in the commit that files it. A record left naming the message would file
                     // the draft back into the drafts folder on its next save and erase the message from where it was
                     // put. A message that shows no draft answers nothing here, so this asks whichever folder it left.
-                    if (leavesTheDraftsTree
-                        && moved.Outcome is MailboxChangeSubmissionOutcome.Recorded or MailboxChangeSubmissionOutcome.Applied)
+                    //
+                    // A move that stays inside the tree leaves the draft a draft, and the record follows its message:
+                    // it learns the folder beneath the drafts folder, or that the message is back in the drafts folder
+                    // itself, which is where the next revision is filed. A move into the other kept tree writes neither.
+                    if (moved.Outcome is MailboxChangeSubmissionOutcome.Recorded or MailboxChangeSubmissionOutcome.Applied)
                     {
-                        await this.drafts.ReleaseFiledAsync(
-                            session,
-                            account,
-                            storedEmailId,
-                            this.timeProvider.GetUtcNow(),
-                            attemptCancellationToken);
+                        if (keptRoot is null)
+                        {
+                            await this.drafts.ReleaseFiledAsync(
+                                session,
+                                account,
+                                storedEmailId,
+                                this.timeProvider.GetUtcNow(),
+                                attemptCancellationToken);
+                        }
+                        else if (staysInItsTree)
+                        {
+                            await this.drafts.RecordFiledIntoAsync(
+                                session,
+                                account,
+                                storedEmailId,
+                                folder.Alias == keptRoot ? null : folder.Alias,
+                                attemptCancellationToken);
+                        }
                     }
 
                     if (markedSpam is not null)

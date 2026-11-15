@@ -154,6 +154,32 @@ public sealed class LocalMailFiler
             : null;
     }
 
+    /// <summary>Aims a prepared draft copy at the folder beneath the drafts folder its draft was filed into.</summary>
+    /// <param name="copy">The copy, prepared for the folder playing the drafts role.</param>
+    /// <param name="filedFolder">MailFathom's own name for the folder the draft's message was last filed into, or <see langword="null" /> for none.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>The copy bound to that folder, or <paramref name="copy" /> itself where no folder is named, it no longer resolves, or it has left the drafts tree.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="copy" /> is <see langword="null" />.</exception>
+    /// <remarks>Only bindings already stored are read, so nothing here reaches a mail server.</remarks>
+    internal async Task<LocalMailCopy> InFiledFolderAsync(
+        LocalMailCopy copy,
+        MailFolderAlias? filedFolder,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(copy);
+
+        if (filedFolder is not { } alias
+            || alias == copy.Binding.Alias
+            || await this.folderResolutions.GetCurrentResolutionAsync(copy.Account, alias, cancellationToken) is not { } folder
+            || await this.folderResolutions.GetCurrentResolutionAsync(copy.Account, copy.Binding.Alias, cancellationToken) is not { } playingTheRole
+            || !folder.RemotePath.IsWithin(playingTheRole.RemotePath))
+        {
+            return copy;
+        }
+
+        return copy with { Binding = folder.Id };
+    }
+
     /// <summary>Prepares the sent copy of a delivered message, where its account files one and its custodian files it locally.</summary>
     /// <param name="record">The send that was accepted.</param>
     /// <param name="cancellationToken">
@@ -397,7 +423,18 @@ public sealed class LocalMailFiler
     {
         var found = holding.ToTree();
         var missing = found.MissingProtectedFolders(this.MintId);
-        var folder = found.With(missing).PlaceArrival(copy.Binding.Alias, copy.Filing.Role, sourceFolderName: null, this.MintId);
+        var tree = found.With(missing);
+        var playingTheRole = tree.PlaceArrival(copy.Binding.Alias, copy.Filing.Role, sourceFolderName: null, this.MintId);
+
+        // A copy bound to another folder than the one playing its role is a draft somebody sorted beneath the drafts
+        // folder, and it goes into the local folder that source folder feeds while that folder still lies there.
+        var folder = this.folderMappings.FindFolderPlayingRole(copy.Account, copy.Filing.Role) is { } mapping
+            && mapping.Alias != copy.Binding.Alias
+            && tree.PlaceArrival(copy.Binding.Alias, sourceRole: null, sourceFolderName: null, this.MintId) is { } sorted
+            && tree.Find(sorted.Folder)?.SourceFolderAlias == copy.Binding.Alias
+            && !tree.CrossesDraftsOrSentTree(playingTheRole.Folder, sorted.Folder)
+            ? sorted
+            : playingTheRole;
 
         if (missing.Count > 0)
         {

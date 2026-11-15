@@ -389,6 +389,86 @@ public sealed class InMemoryMailDraftStoreTests
     }
 
     /// <summary>
+    /// A draft whose message is filed into a folder beneath the drafts folder is still a draft: the record keeps naming
+    /// the message and learns the folder. A message that shows no draft answers nothing.
+    /// </summary>
+    [Fact]
+    public async Task RecordFiledIntoAsync_TheMessageADraftIsFiledAs_TellsTheDraftTheFolderAndNoOtherMessageDoes()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var store = new InMemoryMailDraftStore();
+        var draft = await OpenAsync(store);
+        var filed = StoredEmailId.Create(Guid.CreateVersion7());
+        var sorted = MailFolderAlias.Create("clients");
+
+        await store.RecordFiledAsync(Session, draft.Id, filed, draft.Revision, cancellationToken);
+
+        // Act
+        var another = await store.RecordFiledIntoAsync(Session, Account, StoredEmailId.Create(Guid.CreateVersion7()), sorted, cancellationToken);
+        var followed = await store.RecordFiledIntoAsync(Session, Account, filed, sorted, cancellationToken);
+
+        // Assert
+        var held = store.Peek(draft.Id)!;
+
+        Assert.Null(another);
+        Assert.Equal(draft.Id, followed);
+        Assert.Equal(sorted, held.FiledFolder);
+        Assert.Equal(filed, held.FiledEmail);
+        Assert.False(held.IsDiscarded);
+    }
+
+    /// <summary>
+    /// A standing copy the server moved names the occurrence the move gave it under the folder its draft was filed
+    /// into, and a move of a message that is no draft's copy changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task RecordCopyRelocatedAsync_TheOccurrenceAStandingCopyIsNamedBy_MovesTheCopyAndNoOtherOccurrenceDoes()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var store = new InMemoryMailDraftStore();
+        var draft = await OpenAsync(store);
+        var filed = StoredEmailId.Create(Guid.CreateVersion7());
+        var sorted = MailFolderAlias.Create("clients");
+        var movedInto = RemoteFolderPath.Create("Drafts/Clients", '/');
+        var placedAt = RemoteEmailPlacement.Reported(ImapUidValidity.Create(31), ImapUid.Create(4));
+
+        await store.RecordAppendIssuedAsync(Session, draft.Id, Drafts, Moment, cancellationToken);
+        await store.RecordAppendConfirmedAsync(Session, draft.Id, Appended, cancellationToken);
+        await store.RecordFiledAsync(Session, draft.Id, filed, draft.Revision, cancellationToken);
+        await store.RecordFiledIntoAsync(Session, Account, filed, sorted, cancellationToken);
+
+        // Act
+        var another = await store.RecordCopyRelocatedAsync(
+            Session,
+            Account,
+            Drafts.RemotePath,
+            ImapUidValidity.Create(1),
+            ImapUid.Create(4_000),
+            movedInto,
+            placedAt,
+            cancellationToken);
+        var moved = await store.RecordCopyRelocatedAsync(
+            Session,
+            Account,
+            Drafts.RemotePath,
+            ImapUidValidity.Create(1),
+            ImapUid.Create(7),
+            movedInto,
+            placedAt,
+            cancellationToken);
+
+        // Assert
+        var copy = store.Peek(draft.Id)!.CurrentCopy!;
+
+        Assert.False(another);
+        Assert.True(moved);
+        Assert.Equal((sorted, movedInto, placedAt), (copy.FolderAlias, copy.FolderPath, copy.Placement));
+        Assert.True(copy.IsStanding);
+    }
+
+    /// <summary>
     /// Releasing the message a draft is filed as gives the draft up, stops it naming the message, and leaves the copy
     /// carrying its current revision as one nothing will touch — and a message that shows no draft answers nothing.
     /// </summary>

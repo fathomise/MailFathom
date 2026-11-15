@@ -6,6 +6,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Domain.Delivery.Drafts;
 
@@ -175,6 +176,15 @@ public sealed record MailDraftRecord
 
     /// <summary>Gets the revision <see cref="FiledEmail" /> shows, or <see langword="null" /> where none was filed.</summary>
     public int? FiledRevision { get; init; }
+
+    /// <summary>Gets the folder beneath the drafts folder the draft's message was last filed into, or <see langword="null" /> while it stands in the folder playing the drafts role.</summary>
+    /// <remarks>
+    /// Written by the move that files the message there, and read by every filing afterwards: the next revision is
+    /// stored and appended in this folder rather than in the one playing the role, so a draft somebody sorted stays
+    /// where they put it. It is MailFathom's own name for the folder, never a path, so a folder renamed on the server is
+    /// still the one meant; a folder that no longer resolves, or one that has left the drafts tree, is read as none.
+    /// </remarks>
+    public MailFolderAlias? FiledFolder { get; init; }
 
     /// <summary>Gets the copy carrying the revision the stored message is.</summary>
     public MailDraftServerCopy? CurrentCopy =>

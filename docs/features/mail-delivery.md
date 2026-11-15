@@ -1358,9 +1358,26 @@ naming that message, the copy carrying the current revision is settled as one no
 then takes whatever earlier copies still stand out of the folder and removes the record. The moved message is left
 exactly where it was put. A record left naming it would file the next revision into the drafts folder and erase the
 message from the trash — a delete undone by a save — so revising such a draft answers `53008` `MailDraftNotFound`
-instead. A message moved to another folder inside the drafts tree is still the draft it was. A promoted draft is left
-alone here as it is below, and a held delete that is later withdrawn leaves a message in the folder that is no longer
-that draft.
+instead. A promoted draft is left alone here as it is below, and a held delete that is later withdrawn leaves a message
+in the folder that is no longer that draft.
+
+**A draft moved to another folder inside the drafts tree is still the draft it was, and its record follows it.** The
+move is an ordinary move of mail, and the commit that records it writes the folder onto the draft. Every filing
+afterwards reads it: the next revision is stored and appended in that folder rather than in the one playing the drafts
+role, so a draft somebody sorted beneath the drafts folder stays where they put it when they carry on writing it. The
+folder is kept by MailFathom's own name for it and is read as none once it no longer resolves or no longer lies beneath
+the folder playing the role, which sends the next revision back to that folder rather than nowhere.
+
+What the three custody phases do with that is the same decision in three places. On a mirrored account the server
+performs the move, and its answer — the occurrence it gave the message in the new folder — is written onto the draft's
+copy by the converger, because a copy is only ever withdrawn by an occurrence a server reported for it: the answer to a
+move is as much the server's own statement about that message as the answer to the append was. The revision that
+later replaces the copy is appended beside it in the same folder, and the copy is then withdrawn from where it
+actually stands. A move the server named no placement for leaves the copy with none, which is a copy nothing can point
+at: it is left in the folder and the divergence is written onto the draft, as for an append that named none. On a held
+account the move and every later filing commit locally, into the local folder the source folder feeds, and no server is
+reached. A restoring account files locally as a held one does and appends and withdraws as a mirrored one does. A draft
+written in another mail client has no record here, so moving it is moving mail and nothing more in every phase.
 
 **Giving a draft up removes what this system put there and nothing else.** The record is marked before anything is
 issued and removed once the copies are settled, so a process that dies in between leaves a draft the pass finishes. A

@@ -1011,6 +1011,7 @@ public sealed class MailboxMutationConvergerTests
                 failures,
                 this.Delays,
                 ClientSignalPublishers.ReachingNobody,
+                new InMemoryMailDraftStore(),
                 new MailboxMutationOptions(),
                 this.Clock);
             this.Store.RefusalClock = this.Clock;
