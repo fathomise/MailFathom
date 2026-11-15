@@ -149,8 +149,10 @@ test('takes back a send the Outbox still holds, so nothing leaves and nothing re
     await expect(notice(page, 'Sending cancelled')).toBeVisible();
     await expect(waiting).toHaveCount(0);
 
+    // A reload opens no Outbox, so the list cannot witness it; the tree marks an account's Outbox only while it holds a
+    // send, and the mark this spec pressed above is gone once the service no longer holds the one it cancelled.
     await reloaded(page);
-    await expect(waiting).toHaveCount(0);
+    await expect(outbox).toHaveCount(0, settles);
 
     await onTheMailServer('Sent', subject, none);
     await onTheMailServer('INBOX', subject, none);
