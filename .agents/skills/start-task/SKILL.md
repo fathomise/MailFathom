@@ -166,12 +166,14 @@ them if that access were ever removed.
    lands in one of the two stacks and neither where it lands in neither, the `design` label where it
    changes `design/` — alone, or beside `frontend` where a client change has to draw its design half in
    the same pull request — an `Area`
-   value on the board, the parent it is a sub-issue of, a milestone when the milestone rule assigns one, and the `Size` placeholder
+   value on the board, the milestone of the epic it belongs to, the parent it is a sub-issue of where it is part of a feature, and the `Size` placeholder
    that page's one rule produces — a placeholder rather than an estimate, because the value the board
    keeps is the one `$finish-change` measures off the diff. Decide each from the rules on that page rather than asking.
    Link the issue beneath the open parent whose outcome it serves, with the call that page
-   § *Issue content* gives, and leave it with none where no parent fits: the `Triage` view then
-   shows it to the owner, and a parent is never opened to hold one issue. A new issue takes no
+   § *Issue content* gives, and give it that parent's milestone; with no parent it takes the
+   thematic epic it plainly serves. Where no epic fits, leave the milestone empty: the `Triage` view
+   then shows it to the owner. A parent is never opened to hold one issue, an epic is never opened by
+   an agent, and a release epic is chosen only as that page § *Milestones* allows. A new issue takes no
    `Sprint`, which makes it backlog; step 10 writes the current one when the work is taken. A parent
    carries no `Sprint` at all, and its `parent` label and `[P] ` title prefix identify the hierarchy.
    Waiting for an ADR, an internal decision, or a measurement is `Status: Needs decision`,
@@ -245,7 +247,7 @@ Protected paths: <none reached, or which — and whether the pull request waits 
 Issue: <number and title, or created with reason>
 Baseline: <the main commit the body was written against, what landed since that touches it and what that changed, or none recorded>
 Blocked by: <the open blockers refusing the work, or none — and any relation written>
-Placement: <issue type, stack label or neither, design label or not, Area, parent or none fitted, Size placeholder, milestone or none — or what the board probe left to triage>
+Placement: <issue type, stack label or neither, design label or not, Area, epic (milestone) or none fitted, parent or none, Size placeholder — or what the board probe left to triage>
 Scale: <no split warning, or what makes this look XL, which surfaces it reaches, and where a seam between two issues would fall>
 Claim: <agent:claude or agent:codex applied, already present, or not applicable in the fork role — and the current sprint written and read back, or no board write>
 Required context: <files read>

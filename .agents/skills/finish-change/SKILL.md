@@ -121,8 +121,8 @@ Do not proceed while a gate fails.
 
 Confirm the issue is still placed, against `docs/operations/issue-tracking.md`, as far as this
 session's access reaches: its issue type, a `backend` or `frontend` label where the work
-landed in one of the two stacks, the `design` label exactly when the diff changes `design/`, and a
-milestone if the release rule assigns one, all of which need write access to the repository, and an
+landed in one of the two stacks, the `design` label exactly when the diff changes `design/`, and the
+milestone of the epic it belongs to, all of which need write access to the repository, and an
 `Area` and a `Size` on the board, the `Size` being what step 8 measured rather than the placeholder
 the issue was opened with. A change that grew past what the issue described may have outgrown its
 placement too.
