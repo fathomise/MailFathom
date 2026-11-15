@@ -361,10 +361,12 @@ Publication runs the gates instead, in an order that spends the cheap ones first
 3. **The integration suite**, for a release only, and only after CI has passed. It starts PostgreSQL, applies the
    baseline migration, and asserts against the result, which is minutes of container time no commit a unit test would
    have rejected is worth. A nightly does not run it.
-4. **The image gates.** The image is built for one architecture, started, and required to report the version and
-   revision its labels claim, to run as the unprivileged `1654` account, to expose both listeners, and to carry none of
-   the three listener-shaped variables the host refuses; then Trivy scans it, which refuses to publish a release
-   carrying a fixable `HIGH` or `CRITICAL` finding and only reports one on a nightly.
+4. **The image gates.** A release reaches them only once a person has approved the publication, which is asked after
+   everything above has passed; [the release procedure](release-procedure.md#the-approval-a-publication-waits-for)
+   records that step, and a nightly has none. The image is built for one architecture, started, and required to report
+   the version and revision its labels claim, to run as the unprivileged `1654` account, to expose both listeners, and
+   to carry none of the three listener-shaped variables the host refuses; then Trivy scans it, which refuses to publish
+   a release carrying a fixable `HIGH` or `CRITICAL` finding and only reports one on a nightly.
 
    The listener check reads `ASPNETCORE_URLS`, `ASPNETCORE_HTTP_PORTS`, and `ASPNETCORE_HTTPS_PORTS` back off the built
    image's config rather than reading the Dockerfile, because a value under any of them can arrive from the base image

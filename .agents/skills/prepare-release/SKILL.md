@@ -241,6 +241,7 @@ cut, and stated in the `CHANGELOG.md` section the release pull request writes; t
 - The changelog pull request `[#<issue>] Prepare release x.y.z` merges first; **its merge commit is what is tagged and
   published**, so the tagged tree carries the released changelog and the prose files naming the release they ship in.
 - An annotated `vx.y.z` tag is pushed on that merge commit, by the owner. Nothing else pushes it.
+- The owner approves the publication on the release run once its gates have passed. Nothing publishes before that.
 - The multi-architecture image reaches **both** GHCR and Docker Hub under one digest, tagged `x.y.z`, with `latest`
   moved onto that digest in both; the packaged chart states `appVersion: x.y.z`; the GitHub release carries
   `mailfathom-schema-x.y.z.sql` with its checksum and the `mfctl` binaries with theirs; the release notes are the
@@ -619,7 +620,8 @@ Release x.y.z is prepared. Merge in this order — the tag has to land between t
        git push origin vx.y.z
    This is what triggers the release workflow. Before publishing anything it asserts the tag against VersionPrefix,
    against the highest existing tag on the same major.minor line, and against the changelog section for this version.
-   It then publishes the image under vx.y.z to both registries as one manifest list under one digest, moves `latest`
+   Once its gates have passed it waits for your approval: open the run and approve `Approve the publication` under
+   Review deployments. Rejecting it ends the run with nothing published. Once approved it publishes the image under vx.y.z to both registries as one manifest list under one digest, moves `latest`
    onto that digest — `latest` follows the newest release and never a nightly — and publishes the Helm chart against
    the digest the image publication produced, at the same version.
 

@@ -221,8 +221,9 @@ unavailable:
    suite beside them, and the repository contracts with the chart rendering, followed by the integration suite. The
    one it does not run is `dotnet format`, in either stack — formatting is a property of the files a change wrote, so
    the pull request that wrote them settled it, and no commit reaches a tag without having been one. It builds nothing
-   at all until the first two and the suite have passed. Only then does it build and gate the image, with the contract
-   gate named on that step as well, push it to both registries under `<x.y.z>`, move `latest` onto the same digest,
+   at all until the first two and the suite have passed. Then it stops and waits for
+   [the approval](#the-approval-a-publication-waits-for), and only once that is given does it build and gate the image,
+   with the contract gate named on that step as well, push it to both registries under `<x.y.z>`, move `latest` onto the same digest,
    attest it, publish the Helm chart against that digest, and open the GitHub release with that changelog section as
    its notes. Under the section it links
    `CHANGELOG.md` at the tag, so a reader of an older release reaches the file as that release shipped it rather than a
@@ -336,6 +337,40 @@ configuration rather than arriving as a rejected credential half-way through a p
 and only affects nightly pruning on GHCR; without it that step warns and deletes nothing. `WINGET_PKGS_TOKEN` is the
 third, described below; its job is paused, so a release currently needs it for nothing.
 
+### The approval a publication waits for
+
+Pushing the tag starts the run, and the run does not publish on the strength of that alone. Once the tag assertion, the
+schema artifact, the integration suite, the client stack's gate, and the repository contracts have all passed, the
+`Approve the publication` job waits for a person, and the image, the chart, and the GitHub release wait for it: the
+image job names it, and the other two wait for the image. So the decision to publish is taken with every verdict
+already on the run, rather than at the tag push, before any of them exists.
+
+The command binaries and the desktop client do not wait for it. They publish nothing by themselves — the release page
+is what attaches them — so they build beside the gates, and an approver reads a run whose artifacts are already there.
+
+**Approving** is done on the run's page, under **Review deployments**, or with the notification GitHub sends the
+reviewer when the job starts waiting. **Rejecting** ends the run with nothing published: no image, no chart, no release
+page. The tag is still there, and what to do with it is the same as after a failed assertion — delete it and push it
+again from the right commit, or leave it and approve a re-run. A run nobody answers waits thirty days and then fails
+the same way.
+
+The approval is a property of the repository's `release` deployment environment, not of the workflow, so it is
+configured once under **Settings → Environments → release**:
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Required reviewers | The owner | This is the approval |
+| Prevent self-review | Off | The reviewer is also who pushes the tag, and with it on nobody could approve their own release |
+| Deployment branches and tags | Selected branches and tags, with one tag rule: `v*` | No branch and no other tag can name the environment |
+
+An environment a workflow names and the repository does not have is created when the job starts, with no rule on it,
+and an environment with no rule approves everything at once. The job therefore reads the environment's protection rules
+before it passes and fails when no required reviewer is configured, so a `release` environment that was deleted,
+renamed, or never set up stops the release rather than letting it through unasked. After configuring it, re-run the
+failed job; nothing has been published at that point.
+
+The nightly channel has no approval and names no environment: publishing unattended is what that channel is for.
+
 ### The Windows Package Manager, which is paused
 
 **A release submits no winget manifest today.** `Submit the winget manifest` carries `if: false` in
@@ -394,7 +429,8 @@ today.
 
 ### When one registry published and the other did not
 
-Re-run the release workflow on the same tag. It rebuilds nothing: a version already in both registries from that commit
+Re-run the release workflow on the same tag. A re-run of the failed jobs alone keeps the approval the run already has,
+while a re-run of every job asks for it again. It rebuilds nothing: a version already in both registries from that commit
 is reported and left alone, and a version in one but not the other is **copied across by digest**, so the artifact that
 reaches the second registry is the one the first already answers for. Rebuilding would produce a second digest for a
 version one registry already published, which is exactly what pushing one manifest list to both exists to prevent.

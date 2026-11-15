@@ -10197,6 +10197,55 @@ no_channel_builds_an_artifact_before_the_commit_has_verified() {
   fi
 }
 
+# A release publishes only after a person approved it, and the approval is a deployment environment's
+# required reviewers rather than anything this repository can hold: `approve` names the environment and
+# `publish` waits for it, so the chart and the release page wait through `publish`. Three things undo
+# that silently, which is why they are asserted. `publish` no longer waiting for `approve` leaves a job
+# that asks and gates nothing; `approve` no longer naming the environment leaves a job that never asks;
+# and an environment nobody configured is created empty by the first job to name it, which approves
+# everything — so the job reads the environment's own rules and refuses one without a reviewer. The
+# artifacts that publish nothing are held to the opposite: an approval they waited for would be asked
+# before there was a built release to approve.
+a_release_publishes_only_after_it_was_approved() {
+  local workflow="$source_repository_root/.github/workflows/release.yml"
+  local dependencies
+  local approve_job
+  local job
+  local failures=''
+
+  dependencies="$(extract_workflow_job_dependencies "$workflow")"
+  approve_job="$(awk '
+    $0 == "  approve:" { in_job = 1; next }
+    in_job && /^  [a-zA-Z0-9_-]+:[[:space:]]*$/ { exit }
+    in_job { print }
+  ' "$workflow")"
+
+  for job in publish publish-chart announce; do
+    workflow_job_waits_for "$dependencies" "$job" approve ||
+      failures+="${job} does not wait for approve. "
+  done
+
+  for job in assert schema-artifact integration-tests verify-client verify-contracts; do
+    workflow_job_waits_for "$dependencies" approve "$job" ||
+      failures+="approve does not wait for ${job}. "
+  done
+
+  for job in schema-artifact cli-binaries desktop-client; do
+    ! workflow_job_waits_for "$dependencies" "$job" approve ||
+      failures+="${job} waits for approve, which is asked before it is built. "
+  done
+
+  grep -qxF '    environment: release' <<< "$approve_job" ||
+    failures+='approve does not name the release environment. '
+  grep -qF 'environments/release' <<< "$approve_job" && grep -qF 'required_reviewers' <<< "$approve_job" ||
+    failures+='approve does not refuse an environment without a required reviewer. '
+
+  if [[ -n "$failures" ]]; then
+    printf 'release.yml does not hold a release for approval as recorded: %s\n' "$failures" >&2
+    return 1
+  fi
+}
+
 # A nightly verifies and builds every night, and only its publication waits for `main` to have moved.
 # The run is what writes the day's apt cache entries, and a pull request installs without asking a
 # mirror only when it restores that day's entry exactly, so a condition on any other job would put
@@ -13548,6 +13597,7 @@ run_test every_write_scope_is_one_the_policy_records
 run_test every_checkout_refuses_to_persist_credentials
 run_test the_release_restores_the_annotated_tag_before_asserting_it
 run_test no_channel_builds_an_artifact_before_the_commit_has_verified
+run_test a_release_publishes_only_after_it_was_approved
 run_test the_desktop_publication_is_stamped_with_the_version_its_caller_resolved
 run_test the_android_artifact_is_debug_signed_and_stamped_from_its_caller
 run_test the_mutation_score_is_reported_and_never_gated

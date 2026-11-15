@@ -228,10 +228,53 @@ jobs:
       ref: ${{ needs.assert.outputs.revision }}
       version: ${{ needs.assert.outputs.version }}
 
+  # Where a release stops and waits for a person. Everything above has answered by now and nothing below has started,
+  # so what is approved is a commit every gate passed and what a rejection costs is nothing published: `publish` waits
+  # for this job, and the chart and the release page wait for `publish`. The builds that publish nothing do not wait,
+  # so an approver reads a run whose artifacts are already there.
+  #
+  # The approval itself is the `release` environment's required reviewers, configured on the repository rather than
+  # here; docs/operations/release-procedure.md records the settings. A run waits up to thirty days for it, and the
+  # timeout below starts counting only once it is given.
+  approve:
+    name: Approve the publication
+    needs:
+      - assert
+      - schema-artifact
+      - integration-tests
+      - verify-client
+      - verify-contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    permissions:
+      # What reading a deployment environment takes. Nothing here checks the repository out or writes anywhere.
+      actions: read
+    steps:
+      # A job naming an environment the repository does not have creates it, empty, and an empty environment approves
+      # everything at once. So an environment that was deleted, renamed, or never configured would turn this job into
+      # one that passes without asking anybody — which reads on the run exactly like an approval. This is what makes
+      # that state fail instead. An unreadable answer fails too: the count is then empty, and empty is not one.
+      - name: Refuse an environment nobody has to approve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          reviewers="$(gh api "repos/${REPOSITORY}/environments/release" \
+            --jq '[.protection_rules[] | select(.type == "required_reviewers") | .reviewers[]] | length')"
+
+          if [[ ! "$reviewers" =~ ^[1-9][0-9]*$ ]]; then
+            echo '::error::The release environment requires no reviewer, so nothing approved this publication. Configure its required reviewers, then re-run this job.'
+            exit 1
+          fi
+
   publish:
     name: Publish
     needs:
       - assert
+      # The approval, after every gate named below rather than instead of any of them: they stay named here because what
+      # gates a publication is read off the job that publishes.
+      - approve
       # A release that cannot produce its schema artifact publishes no image. An operator handed an image and no way to
       # reach the schema it requires has a deployment that starts, fails the startup gate, and stays down.
       - schema-artifact
