@@ -161,7 +161,8 @@ export interface MailMutationResult {
     readonly outcome: MailMutationOutcome;
 
     /**
-     * The records this message's change became, which is empty for every outcome but `recorded`.
+     * The records this message's change became: those of `recorded`, those an `applied` change on a mirrored or a
+     * restoring account names beside it, and none for any other outcome.
      *
      * A record per value rather than per message, because a record is the unit the account's pass resumes, abandons,
      * and attributes an observation back to: a message whose seen flag completes while its keywords are still

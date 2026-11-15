@@ -532,6 +532,24 @@ the way an operator stands one up, with mail that arrived at a mail server and w
   again. A spec that had to build its own furniture first would assert against what it had just done, and the order the
   files happen to run in would become part of what they prove; a spec that left its record behind would do the same to
   the file after it.
+- **An act on mail has a second witness: the mail server.** A spec that changes the mailbox — a delete, a move, a flag,
+  a read mark, a spam mark, a send, a draft, a folder — asserts what the screen draws once the act is done, what it
+  draws after a reload, which is the service's answer rather than the client's optimistic one, and what the mail server
+  holds, read over IMAP by `end-to-end/mailbox.ts`: the message in the folder it went to, the flag on it, the message
+  gone, the folder listed. The mailbox is the witness because where a person's mail ended up is the outcome they care
+  about, and a client drawing a row gone over a mailbox still holding it is the defect neither the screen nor a reload
+  would show. The database is the service's own and is never read. The reading opens every folder with `EXAMINE`, so it
+  never changes what it reads, and the unread count the tree draws is held to the count the server reports rather than
+  to one read before the act.
+- **A spec leaves the mailbox as the next spec expects it, by acting on mail it delivered itself.** The suite runs on one
+  worker over one mailbox, and the corpus is exchanges — a subject read off the screen names a conversation, and the
+  protocol searches subjects as substrings — so no corpus message can be named exactly on both sides. A spec acting on
+  mail therefore delivers its own over SMTP first, through the same helper, under a subject carrying a mark drawn for
+  that delivery, and acts on that: whatever the act removes or moves, the corpus every other spec reads is untouched,
+  and any spec runs alone under `--grep`. Anything else a spec changes about the deployment — reading the list by
+  conversation is a preference the deployment keeps — is put back in a `finally`. A wait is the service's own report —
+  the row drawn, the server's answer, the counts agreeing — and never a duration, because a change reaches the mail
+  server after the screen has drawn it.
 - **Discover is held to the screen it opens on, and not to an answer.** Pressing one of the
   questions it offers starts a real run, but composing an answer needs a chat provider and this run configures none —
   so a spec that waited for a block would be waiting on a model nothing here provides, and one that asserted a

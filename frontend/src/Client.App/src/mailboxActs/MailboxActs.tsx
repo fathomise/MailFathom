@@ -150,16 +150,22 @@ function writtenDown(batches: readonly Submitted[]): ReadonlySet<string> {
 }
 
 /**
- * The messages the deployment answered `applied` for, which it changed at once and wrote no record of.
+ * The messages the deployment answered `applied` for with no record beside the answer, which it changed at once and
+ * has nothing left to carry anywhere.
  *
- * A permanent delete is only what the records stand behind: a message the deployment applied a delete to was filed into
- * the trash of an account it holds alone, so it is reported the way a delete into the trash is, never as destroyed.
+ * A permanent delete is only what the records stand behind: a message the deployment applied a delete to with no record
+ * was filed into the trash of an account it holds alone, so it is reported the way a delete into the trash is, never as
+ * destroyed. A mirrored account answers a permanent delete `applied` too, having committed it at once, and names beside
+ * it the record carrying it to the mail server — held for the same window as one only `recorded`, so that one is the
+ * permanent delete it was.
  */
 function appliedTo(batches: readonly Submitted[]): ReadonlySet<string> {
     return new Set(
         batches.flatMap(({ answer }) =>
             answer.outcome === 'read'
-                ? answer.value.filter((result) => result.outcome === 'applied').map((result) => result.storedEmailId)
+                ? answer.value
+                      .filter((result) => result.outcome === 'applied' && result.changes.length === 0)
+                      .map((result) => result.storedEmailId)
                 : [],
         ),
     );
@@ -170,15 +176,16 @@ function appliedTo(batches: readonly Submitted[]): ReadonlySet<string> {
  * delete back names.
  *
  * Records rather than messages, because a record is the unit the deployment holds, cancels, and takes in hand — and a
- * message it answered `recorded` for is exactly a message whose changes carry one. The message travels with it because
- * a withdrawal nobody answered says nothing about its records, and what the screen does next is about messages.
+ * message it answered `recorded` for, or `applied` with a record beside it, is exactly a message whose changes carry
+ * one. The message travels with it because a withdrawal nobody answered says nothing about its records, and what the
+ * screen does next is about messages.
  */
 function recordsWritten(batches: readonly Submitted[]): ReadonlyMap<string, string> {
     return new Map(
         batches.flatMap(({ answer }) =>
             answer.outcome === 'read'
                 ? answer.value
-                      .filter((result) => result.outcome === 'recorded')
+                      .filter((result) => result.outcome === 'recorded' || result.outcome === 'applied')
                       .flatMap((result) =>
                           result.changes.map((change) => [change.recordId, result.storedEmailId] as const),
                       )
