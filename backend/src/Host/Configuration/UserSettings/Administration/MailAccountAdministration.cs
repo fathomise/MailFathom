@@ -696,13 +696,18 @@ internal sealed class MailAccountAdministration(
     /// <remarks>
     /// A list is one value across the layers of a policy, so an account that states no folders and is served a
     /// default's has a whole list to change one folder of. Composing the change over the account's own document would
-    /// state a list holding that one folder and drop every other the person was looking at.
+    /// state a list holding that one folder and drop every other the person was looking at. One served no list by any
+    /// layer reads its inbox by default, which is written down for the same reason.
     /// </remarks>
     private static string WithTheFoldersItIsServed(MailAccountRecord account)
     {
         if (MailAccountPolicyResolution.ResolveUnderItsPolicies(account)?.Find(FoldersProperty)
-                is not { EffectiveValue: { } served } folders
-            || folders.Source == SettingsValueSource.Record
+            is not { EffectiveValue: { } served } folders)
+        {
+            return MailAccountFolderComposition.WithTheDefaultInboxStated(account.Document);
+        }
+
+        if (folders.Source == SettingsValueSource.Record
             || GovernedRecordResolution.ReadDocument(account.Document) is not { } document)
         {
             return account.Document;
