@@ -642,7 +642,7 @@ public sealed class MailKitImapWriteSessionTests
         await session.CopyAsync(CreateOccurrenceId(42U), Archive, new RecordingMailboxMutationJournal(), CancellationToken.None);
 
         // Assert
-        Assert.Equal(["NOOP", "UID FETCH"], commands.TakeLast(2));
+        Assert.Equal(["NOOP", "NOOP", "UID FETCH"], commands);
     }
 
     /// <summary>A placement already confirmed is finished, whatever the source now holds, so a resumed copy asks nothing.</summary>

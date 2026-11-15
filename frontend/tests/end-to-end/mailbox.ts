@@ -183,9 +183,10 @@ class ImapSession {
 
             if (line.startsWith(`${tag} `)) {
                 if (!line.startsWith(`${tag} OK`)) {
-                    const command = parts.filter((part) => typeof part === 'string').join('');
+                    // The verb alone: the rest of a command can be the mailbox's credential.
+                    const verb = typeof parts[0] === 'string' ? (parts[0].split(' ')[0] ?? '') : 'a literal';
 
-                    throw new Error(`The mail server refused ${command}: ${line}`);
+                    throw new Error(`The mail server refused ${verb}: ${line}`);
                 }
 
                 return untagged;
