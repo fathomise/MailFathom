@@ -341,3 +341,41 @@ test.describe('at the phone composition', () => {
         expect(Math.abs((box?.width ?? Number.NaN) - phoneWindow.width)).toBeLessThanOrEqual(1);
     });
 });
+
+// A result judged spam folds in the search results as it does in the folder, and the results are laid out from the
+// same two heights. A result offers no act of its own, so the mark is made in the folder and the search finds it.
+test('draws a spam result folded in the search results at its own height, with the next result where it ends', async ({
+    page,
+    deployment,
+}) => {
+    await openTheInbox(page, deployment);
+    await pickOut(page, 'Message 2');
+    await markPickedSpam(page);
+    await expect(listed(page, 'Message 2')).toHaveAccessibleName(/Spam: Marketing, marked by you\./u);
+
+    const search = page.getByRole('searchbox', { name: 'Find a message' });
+
+    deployment.findAcrossTheFolder();
+    await search.fill('Message');
+    await search.press('Enter');
+
+    const found = page.getByRole('listbox', { name: 'What this search found' });
+    const result = (subject: string): Locator =>
+        found.getByRole('option', { name: new RegExp(`\\b${subject}\\b`, 'u') });
+
+    await expect(result('Message 2')).toHaveAccessibleName(/Spam: Marketing, marked by you\./u);
+
+    const heightOfResult = async (subject: string): Promise<number> =>
+        (await result(subject).boundingBox())?.height ?? Number.NaN;
+
+    await expect.poll(() => heightOfResult('Message 2')).toBeLessThan(await heightOfResult('Message 1'));
+
+    // The results are laid out from those heights, so the result drawn after the folded one starts where it ends.
+    const folded = await result('Message 2').boundingBox();
+    const tops = await Promise.all(
+        (await found.getByRole('option').all()).map(async (option) => (await option.boundingBox())?.y ?? Number.NaN),
+    );
+    const nextTop = Math.min(...tops.filter((top) => top > (folded?.y ?? Number.POSITIVE_INFINITY)));
+
+    expect(Math.abs((folded?.y ?? 0) + (folded?.height ?? 0) - nextTop)).toBeLessThanOrEqual(1);
+});
