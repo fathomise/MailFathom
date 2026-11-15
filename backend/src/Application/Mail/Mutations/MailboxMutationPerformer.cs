@@ -381,7 +381,6 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
         }
     }
 
-    /// <summary>Issues the change the request names, resuming from whatever stage the journal carries into the session.</summary>
     /// <summary>Tells the copy of a draft the server just moved where it now stands, and never lets that fail the move.</summary>
     /// <remarks>
     /// A draft's copy is withdrawn by the occurrence a server reported for it, so a copy somebody moved beneath the drafts
@@ -422,6 +421,7 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
         }
     }
 
+    /// <summary>Issues the change the request names, resuming from whatever stage the journal carries into the session.</summary>
     private async Task<RemoteEmailPlacement> PerformThroughSessionAsync(
         MailboxMutationRequest request,
         MailFolderResolution folder,

@@ -302,11 +302,11 @@ public interface IMailDraftStore
         DateTimeOffset releasedAt,
         CancellationToken cancellationToken);
 
-    /// <summary>Records the folder beneath the drafts folder a draft's message was filed into, inside the transaction that files it.</summary>
+    /// <summary>Records where inside the drafts tree a draft's message was filed, inside the transaction that files it.</summary>
     /// <param name="session">The transaction the move commits in.</param>
     /// <param name="account">The account the message belongs to.</param>
     /// <param name="filedEmail">The stored message that was moved.</param>
-    /// <param name="folder">MailFathom's own name for the folder it was moved into.</param>
+    /// <param name="folder">MailFathom's own name for the folder beneath the drafts folder it was moved into, or <see langword="null" /> where it was moved back into the drafts folder itself.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The draft that follows its message, or <see langword="null" /> where the message shows no draft still being written.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> is <see langword="null" />.</exception>
@@ -319,7 +319,7 @@ public interface IMailDraftStore
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId filedEmail,
-        MailFolderAlias folder,
+        MailFolderAlias? folder,
         CancellationToken cancellationToken);
 
     /// <summary>Moves the record of a standing copy to where a move the mail server performed put it.</summary>

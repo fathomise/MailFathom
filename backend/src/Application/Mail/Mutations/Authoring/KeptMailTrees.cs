@@ -53,6 +53,19 @@ internal sealed class KeptMailTrees(MailFolderReferenceResolver folderReferences
         CancellationToken cancellationToken) =>
         TreeOf(alias, path, await this.ReadKeptTreeRootsAsync(account, cancellationToken)) is not null;
 
+    /// <summary>Names the folder at the root of the kept tree a folder lies in.</summary>
+    /// <param name="account">The account the folder belongs to.</param>
+    /// <param name="alias">MailFathom's own name for the folder.</param>
+    /// <param name="path">Where the folder is on the server.</param>
+    /// <param name="cancellationToken">Cancels the binding reads.</param>
+    /// <returns>The alias of the drafts or the sent folder the folder is, or lies beneath, or <see langword="null" /> where it lies in neither tree.</returns>
+    internal async Task<MailFolderAlias?> RootOfAsync(
+        MailAccountId account,
+        MailFolderAlias alias,
+        RemoteFolderPath path,
+        CancellationToken cancellationToken) =>
+        TreeOf(alias, path, await this.ReadKeptTreeRootsAsync(account, cancellationToken));
+
     /// <summary>Reads where the account's drafts folder and sent folder were last found, without asking the mail server.</summary>
     /// <remarks>
     /// A folder the account maps to neither role contributes no tree. One mapped and never bound — never synchronized,

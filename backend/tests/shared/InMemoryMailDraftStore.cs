@@ -386,7 +386,7 @@ internal sealed class InMemoryMailDraftStore : IMailDraftStore
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId filedEmail,
-        MailFolderAlias folder,
+        MailFolderAlias? folder,
         CancellationToken cancellationToken)
     {
         var draft = this.drafts.Values.FirstOrDefault(candidate => candidate.AccountId == account

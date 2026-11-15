@@ -520,7 +520,7 @@ internal sealed class MailDraftStore(MailFathomDbContext readContext) : IMailDra
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId filedEmail,
-        MailFolderAlias folder,
+        MailFolderAlias? folder,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -546,7 +546,7 @@ internal sealed class MailDraftStore(MailFathomDbContext readContext) : IMailDra
         var followed = MailDraftId.Create(found);
         var entity = await RequireAsync(session, followed, cancellationToken);
 
-        entity.FiledFolderAlias = folder.Value;
+        entity.FiledFolderAlias = folder?.Value;
 
         return followed;
     }

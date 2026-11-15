@@ -551,6 +551,43 @@ public sealed class MailRelocationRecorderTests
     }
 
     /// <summary>
+    /// A draft moved back into the drafts folder itself stands where the role points again, so the record stops naming
+    /// the folder beneath it rather than naming the drafts folder as one.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_ADraftsMessageMovedBackIntoTheDraftsFolder_ForgetsTheFolderBeneathIt()
+    {
+        // Arrange
+        var drafts = this.MapMirrored(Drafts, "Drafts", MailFolderSpecialUse.Drafts);
+        var beneath = this.MapMirrored(DraftsClients, "Drafts/Clients");
+        var draftId = await this.FileDraftAsync();
+        await this.drafts.RecordFiledIntoAsync(
+            Substitute.For<IPersistenceSession>(),
+            Account,
+            LocalEmail,
+            DraftsClients,
+            TestContext.Current.CancellationToken);
+        var recorder = this.Recorder(TargetIn(beneath.Alias, beneath.RemotePath.Value));
+
+        // Act
+        var result = await recorder.RecordAsync(
+            LocalEmail,
+            IdOf(drafts.Alias),
+            Requester,
+            MailboxReaderKind.Person,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var draft = await this.drafts.FindAsync(draftId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(MailRelocationOutcome.Recorded, result.Outcome);
+        Assert.NotNull(draft);
+        Assert.False(draft.IsDiscarded);
+        Assert.Equal(LocalEmail, draft.FiledEmail);
+        Assert.Null(draft.FiledFolder);
+    }
+
+    /// <summary>
     /// Where the two folders are is read from what was recorded, so a move between two other folders asks the mail
     /// server nothing about a drafts folder nobody has found yet — and that folder still keeps its own mail as itself.
     /// </summary>
