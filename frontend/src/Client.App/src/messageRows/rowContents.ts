@@ -2,15 +2,18 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type {
-    MailEnrichmentAspect,
-    MailSpamSubcategory,
-    MailSpamVerdictValue,
-    MailTimelineEntry,
-    SignalledFlags,
+import {
+    isSpam,
+    type MailEnrichmentAspect,
+    type MailSpamSubcategory,
+    type MailSpamVerdict,
+    type MailSpamVerdictValue,
+    type MailTimelineEntry,
+    type SignalledFlags,
 } from '@mailfathom/client-backend';
 import { senderMarkOf, type SenderMark } from '../senderMark/senderMarks';
 import { leadingReading } from './messageReadings';
+import type { MessageRowShape } from './rowWindow';
 
 // What a row draws, as one value two answers about the same message can be compared by. It is what decides whether a
 // reader is shown a row changing, and it sits beside the row rather than beside the list that animates one: what makes
@@ -134,4 +137,16 @@ export function rowWithFlags(mark: RowContents, stated: SignalledFlags): RowCont
 /** Who a row is about: the sender, else the address it came from, else who it was written to. */
 export function correspondent(email: MailTimelineEntry): string | undefined {
     return email.senderDisplayName ?? email.senderAddress ?? email.toAddresses[0];
+}
+
+/**
+ * What a row draws a message as: folded to one line where it is spam and the list is not the Spam folder, and whole
+ * otherwise. One answer for the row and for the list windowing it, because a row drawn at one height and laid out at
+ * the other is a row standing somewhere other than where the list drew the space for it.
+ *
+ * @param spam The verdict the row draws, the reader's own mark from this session counted first.
+ * @param inSpamFolder Whether the list is an account's Spam folder, where a spam row keeps its shape and names its kind.
+ */
+export function rowShapeOf(spam: MailSpamVerdict | null, inSpamFolder: boolean): MessageRowShape {
+    return isSpam(spam) && !inSpamFolder ? 'folded' : 'whole';
 }

@@ -6,8 +6,8 @@ import { expect } from '@playwright/test';
 
 import { openSignedIn, readOnward, restingFirstRow, test } from './client.harness';
 
-// The message list as a window over a folder of two hundred and fourteen thousand rows: one row height, a bounded
-// document however far a reader scrolls, and the reader put back where they were.
+// The message list as a window over a folder of two hundred and fourteen thousand rows: one height per shape of row, a
+// bounded document however far a reader scrolls, and the reader put back where they were.
 
 test('reads its mail exactly as it always did against a deployment serving no signal channel', async ({ page }) => {
     const asked: string[] = [];
@@ -37,12 +37,14 @@ test('reads its mail exactly as it always did against a deployment serving no si
     expect(logged.filter((line) => line.toLowerCase().includes('signal'))).toStrictEqual([]);
 });
 
-// What only a browser can say about the message list: every row is one height, the document holds a window of rows
+// What only a browser can say about the message list: every whole row is one height, the document holds a window of rows
 // rather than the folder, and a reader who leaves and comes back is put back where they were. Everything else about
 // it — the paging arithmetic, the states, the selection, and every sentence — is jsdom's and lives in the unit suite
 // beside the source.
 
-test('draws every row of the list at one height, which is what the window is arithmetic over', async ({ page }) => {
+test('draws every whole row of the list at one height, which is what the window is arithmetic over', async ({
+    page,
+}) => {
     await openSignedIn(page, '/#/mail');
 
     const list = page.getByRole('listbox', { name: 'Messages' });

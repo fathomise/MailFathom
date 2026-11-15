@@ -9,7 +9,6 @@ import type {
     ListedMailThread,
     MailAccount,
     MailFathomTransport,
-    MailTimelinePageDirection,
 } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { withToggled } from '../contextMenu/rowSelection';
@@ -29,6 +28,7 @@ import {
     cursorAfter,
     heldRows,
     nothingHeld,
+    pageKey,
     refillsHeldRows,
     refreshAsked,
     rowAt,
@@ -98,11 +98,6 @@ function newestOf(thread: ListedMailThread): string {
 
 function variantOf(thread: ListedMailThread): ThreadRowVariant {
     return rowVariantOf(titleStateOf(thread), drawsCategories(thread.categories));
-}
-
-// A page is named by its cursor and the way it was read from it, which is how it is read again.
-function pageKey(cursor: string | null, readAs: MailTimelinePageDirection): string {
-    return `${readAs}\n${cursor ?? ''}`;
 }
 
 // One row of a page as it answered: the conversation it stood for, and the variant it was drawn as.

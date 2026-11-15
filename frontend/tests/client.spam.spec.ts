@@ -192,6 +192,109 @@ test('moves a message marked not spam out of the Spam folder into the inbox wher
     await expect(listed(page, phishingSubject)).toHaveCount(0);
 });
 
+/** How tall a listed row stands, which only a browser lays out. */
+async function heightOf(page: Page, subject: string): Promise<number> {
+    return (await listed(page, subject).boundingBox())?.height ?? Number.NaN;
+}
+
+/** Where a listed row stands in the window, read once it has stopped moving. */
+async function restingTopOf(page: Page, subject: string): Promise<number> {
+    let previous = Number.NaN;
+
+    await expect
+        .poll(async () => {
+            const now = (await listed(page, subject).boundingBox())?.y ?? Number.NaN;
+            const rested = now === previous;
+
+            previous = now;
+
+            return rested;
+        })
+        .toBe(true);
+
+    return previous;
+}
+
+/** Marks the messages picked out spam from the selection bar, as marketing. */
+async function markPickedSpam(page: Page): Promise<void> {
+    await selectionBar(page).getByRole('button', { name: 'Spam', exact: true }).click();
+
+    const chooser = page.getByRole('dialog', { name: /^Mark \d+ messages? as spam$/u });
+
+    await chooser.getByRole('radio', { name: /^Marketing/u }).check();
+    await chooser.getByRole('button', { name: 'Mark as spam' }).click();
+}
+
+/**
+ * Leaves the message picked out above the top of the list, still drawn and out of sight, with the keyboard on a row the
+ * reader is reading. The keyboard moves first and picks nothing out on its own, so the act that follows hands focus
+ * back to a row in sight rather than scrolling the picked one back into it.
+ */
+async function readBelow(page: Page, picked: string, reading: string): Promise<void> {
+    await pickOut(page, picked);
+
+    for (let step = 0; step < 4; step += 1) {
+        await page.keyboard.press('ArrowDown');
+    }
+
+    await expect(listed(page, reading)).toBeFocused();
+    await listed(page, reading).hover();
+    await page.mouse.wheel(0, 2 * (await heightOf(page, 'Message 0')));
+    await expect(listed(page, picked)).not.toBeInViewport();
+    await expect(listed(page, reading)).toBeInViewport({ ratio: 1 });
+}
+
+test('draws a spam row folded outside the Spam folder at a height of its own, shorter than the rows around it', async ({
+    page,
+    deployment,
+}) => {
+    await openTheInbox(page, deployment);
+    await pickOut(page, 'Message 2');
+    await markPickedSpam(page);
+
+    await expect(listed(page, 'Message 2')).toHaveAccessibleName(/Spam: Marketing, marked by you\./u);
+    await expect.poll(() => heightOf(page, 'Message 2')).toBeLessThan(await heightOf(page, 'Message 1'));
+    expect(await heightOf(page, 'Message 4')).toBe(await heightOf(page, 'Message 1'));
+
+    // The window is laid out from those heights, so the row under the folded one starts where the folded one ends.
+    const folded = await listed(page, 'Message 2').boundingBox();
+    const next = await listed(page, 'The racking quote').boundingBox();
+
+    expect(Math.abs((folded?.y ?? 0) + (folded?.height ?? 0) - (next?.y ?? Number.NaN))).toBeLessThanOrEqual(1);
+});
+
+test('folds a row above the reader without moving the row they are reading', async ({ page, deployment }) => {
+    await openTheInbox(page, deployment);
+    await readBelow(page, 'Message 1', 'Message 5');
+
+    const reading = await restingTopOf(page, 'Message 5');
+
+    await markPickedSpam(page);
+
+    await expect(listed(page, 'Message 1')).toHaveAccessibleName(/Spam: Marketing, marked by you\./u);
+    expect(await restingTopOf(page, 'Message 5')).toBe(reading);
+});
+
+test('unfolds a row above the reader without moving the row they are reading', async ({ page, deployment }) => {
+    await openTheInbox(page, deployment);
+    await pickOut(page, 'Message 1');
+    await markPickedSpam(page);
+    await expect(listed(page, 'Message 1')).toHaveAccessibleName(/Spam: Marketing, marked by you\./u);
+
+    await readBelow(page, 'Message 1', 'Message 5');
+
+    const reading = await restingTopOf(page, 'Message 5');
+
+    await selectionBar(page).getByRole('button', { name: 'Not spam', exact: true }).click();
+    await page
+        .getByRole('dialog', { name: 'Mark this message not spam?' })
+        .getByRole('button', { name: 'Not spam', exact: true })
+        .click();
+
+    await expect(listed(page, 'Message 1')).not.toHaveAccessibleName(/Spam/u);
+    expect(await restingTopOf(page, 'Message 5')).toBe(reading);
+});
+
 // How wide the chooser stands is geometry, which only a browser lays out: a dialog of its own width in a wide window,
 // and the whole width of the screen as a sheet on a phone.
 test.describe('in the desktop window', () => {

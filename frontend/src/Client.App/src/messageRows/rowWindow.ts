@@ -4,10 +4,10 @@
 
 // Which rows of a list of mail are in the document, which is the whole of what keeps a mailbox of two hundred thousand
 // messages costing what a screenful costs. It is arithmetic over a few numbers rather than a package, and the
-// measurement that decided it is in `frontend/README.md`: every row of the folder's list and the search's results is one
-// height, which both window the same row the same way, and the list read by conversation has three, one per variant of
-// its row, each measured from a drawn row of it. `windowOfHeights` walks those heights; a virtualizer would add nothing
-// for a list whose heights come in so few kinds.
+// measurement that decided it is in `frontend/README.md`: a row of the folder's list and the search's results is one of
+// two heights, the whole row or the one line a spam row folds to, which both window the same row the same way, and the
+// list read by conversation has one per variant of its row. Each height is measured from a drawn row of its kind, and
+// `windowOfHeights` walks them; a virtualizer would add nothing for a list whose heights come in so few kinds.
 //
 // It sits beside the message row rather than inside a screen because more than one list windows its rows here.
 //
@@ -145,10 +145,104 @@ export function windowOfHeights(heights: readonly number[], scrollTop: number, v
         past += 1;
     }
 
+    // The overscan the leading end has no rows for is drawn after the screen instead, as `windowOf` draws it, so the
+    // window holds as many rows at the top of the list as anywhere further down.
     const first = Math.max(visible - overscanRows, 0);
-    const end = Math.min(past + overscanRows, heights.length);
+    const end = Math.min(past + overscanRows * 2 - (visible - first), heights.length);
     const sum = (from: number, to: number): number =>
         heights.slice(from, to).reduce((total, height) => total + height, 0);
 
     return { first, count: end - first, above: sum(0, first), below: sum(end, heights.length) };
+}
+
+/**
+ * What a row of mail is drawn as, which is what decides its height: the whole row of three lines, or the one line a spam
+ * row folds to outside the Spam folder.
+ */
+export type MessageRowShape = 'whole' | 'folded';
+
+/**
+ * The estimates a list of mail draws its first frame under, one per shape, before a row of that shape has been
+ * rendered to measure. Only close, for the reason {@link estimatedRowHeight} gives.
+ */
+export const estimatedRowHeights: Readonly<Record<MessageRowShape, number>> = {
+    whole: estimatedRowHeight,
+    folded: 44,
+};
+
+/**
+ * The heights a list of mail lays its rows out at once these rows have been measured: the first drawn row of each
+ * shape stands for every row of it, since every row of a shape draws the same lines.
+ *
+ * @param current What each shape measured before.
+ * @param drawn The shape and the measured height of each drawn row, in pixels; a row with no height yet is passed over.
+ * @returns The heights with what was measured in them, and the same object where nothing changed.
+ */
+export function measuredRowHeights(
+    current: Readonly<Record<MessageRowShape, number>>,
+    drawn: Iterable<readonly [MessageRowShape, number]>,
+): Readonly<Record<MessageRowShape, number>> {
+    const measured: Partial<Record<MessageRowShape, number>> = {};
+
+    for (const [shape, height] of drawn) {
+        if (height > 0 && measured[shape] === undefined) {
+            measured[shape] = height;
+        }
+    }
+
+    const next = { ...current, ...measured };
+
+    return next.whole === current.whole && next.folded === current.folded ? current : next;
+}
+
+/** How far a list whose rows are not all one height has to be scrolled for a row to be the first one under its top. */
+export function offsetOfRowIn(heights: readonly number[], row: number): number {
+    let offset = 0;
+
+    for (let at = 0; at < Math.min(row, heights.length); at += 1) {
+        offset += heights[at] ?? 0;
+    }
+
+    return offset;
+}
+
+/** The row under the top of a scroller whose rows are not all one height, which {@link leadingRow} is for one height. */
+export function leadingRowIn(heights: readonly number[], scrollTop: number): number {
+    const reached = Math.max(scrollTop, 0);
+    let top = 0;
+    let row = 0;
+
+    while (row < heights.length - 1 && top + (heights[row] ?? 0) <= reached) {
+        top += heights[row] ?? 0;
+        row += 1;
+    }
+
+    return row;
+}
+
+/**
+ * Where a scroller stands once some of its rows have changed height, so the reader is still on the row they were on.
+ *
+ * What {@link offsetKeptAcross} is for rows of one height, and for the same two causes and one more: a composition that
+ * draws rows at other heights, a measurement replacing an estimate, and a row above the reader folding or unfolding in
+ * place as it is marked spam or not spam. Rows above the reader move the scroller by what they gained or lost, and the
+ * reader's own row keeps the same share of itself above the top of the scroller.
+ *
+ * @param scrollTop How far the scroller stands, in pixels, measured against the old heights.
+ * @param from What each row measured before, in pixels.
+ * @param to What each row measures now, in pixels, row for row.
+ * @returns The offset that puts the same row at the same place under the top of the scroller.
+ */
+export function offsetKeptAcrossHeights(scrollTop: number, from: readonly number[], to: readonly number[]): number {
+    if (from.length === 0) {
+        return scrollTop;
+    }
+
+    const row = leadingRowIn(from, scrollTop);
+    const within = Math.max(scrollTop, 0) - offsetOfRowIn(from, row);
+    const fromHeight = from[row] ?? 0;
+    const toHeight = to[row] ?? fromHeight;
+    const kept = fromHeight <= 0 ? within : Math.round((within * toHeight) / fromHeight);
+
+    return offsetOfRowIn(to, row) + kept;
 }

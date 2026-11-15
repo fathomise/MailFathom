@@ -22,12 +22,19 @@ import {
 import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization, type Translate } from '../localization/useLocalization';
-import { opensAsDraft, useMailboxActs } from '../mailboxActs/useMailboxActs';
+import { drawnSpam, opensAsDraft, useMailboxActs } from '../mailboxActs/useMailboxActs';
 import { useListedMail } from '../messageList/useListedMail';
 import { MessageRow } from '../messageRows/MessageRow';
 import { SenderDetails, type AskedSender } from '../senderMark/SenderDetails';
 import { marksSender } from '../senderMark/senderMarks';
-import { estimatedRowHeight, offsetKeptAcross, offsetOfRow, windowOf } from '../messageRows/rowWindow';
+import { rowShapeOf } from '../messageRows/rowContents';
+import {
+    estimatedRowHeights,
+    measuredRowHeights,
+    offsetKeptAcrossHeights,
+    offsetOfRowIn,
+    windowOfHeights,
+} from '../messageRows/rowWindow';
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { explainingFileOf } from './citedFile';
@@ -153,7 +160,7 @@ export function SearchResults({
 
     const [scrollTop, setScrollTop] = useState(0);
     const [viewport, setViewport] = useState(0);
-    const [rowHeight, setRowHeight] = useState(estimatedRowHeight);
+    const [rowHeights, setRowHeights] = useState(estimatedRowHeights);
     const [keyboardRow, setKeyboardRow] = useState(0);
 
     const scroller = useRef<HTMLDivElement>(null);
@@ -162,7 +169,11 @@ export function SearchResults({
 
     const results = found?.results ?? [];
     const rowCount = results.length;
-    const drawn = windowOf(rowCount, rowHeight, scrollTop, viewport);
+
+    // A result judged spam folds to one line here as in every list but the Spam folder, at the height of its own shape.
+    const shapes = results.map((result) => rowShapeOf(drawnSpam(acts, result), false));
+    const heights = shapes.map((shape) => rowHeights[shape]);
+    const drawn = windowOfHeights(heights, scrollTop, viewport);
     const lastDrawn = drawn.first + drawn.count - 1;
 
     // The row the keyboard is on, held within what is found: a refresh replaces the results with a head that may be
@@ -239,9 +250,13 @@ export function SearchResults({
         [signalledChanges],
     );
 
-    // The two measurements the window is arithmetic over, taken after the browser has laid the results out rather than
-    // written down as numbers here, for the reason the folder's list measures them: the row's height is a token
-    // decision this must not hold a second copy of.
+    // The heights the results were last laid out at, which a change of height is measured against so the reader stays
+    // on the row they were on.
+    const laidOut = useRef<readonly number[] | null>(null);
+
+    // The measurements the window is arithmetic over, taken after the browser has laid the results out rather than
+    // written down as numbers here, for the reason the folder's list measures them: a row's height is a token decision
+    // this must not hold a second copy of. In practice after every commit, for the reason that list gives too.
     useLayoutEffect(() => {
         const element = scroller.current;
 
@@ -253,15 +268,37 @@ export function SearchResults({
             setViewport(element.clientHeight);
         }
 
-        const measured = elements.current.get(drawn.first)?.offsetHeight ?? 0;
+        const measured = measuredRowHeights(
+            rowHeights,
+            Array.from({ length: drawn.count }, (_, at) => drawn.first + at).flatMap((row) => {
+                const shape = shapes[row];
+                const drawnRow = elements.current.get(row);
 
-        if (measured > 0 && measured !== rowHeight) {
-            const kept = offsetKeptAcross(element.scrollTop, rowHeight, measured);
+                return shape === undefined || drawnRow === undefined ? [] : [[shape, drawnRow.offsetHeight] as const];
+            }),
+        );
 
-            // Rows drawn at another height by another composition keep the reader on the row they were on.
-            setRowHeight(measured);
-            element.scrollTop = kept;
-            setScrollTop(kept);
+        if (measured !== rowHeights) {
+            setRowHeights(measured);
+        }
+
+        // Rows drawn at another height — by another composition, or by a result folding as it is marked spam — keep
+        // the reader on the row they were on, wherever every row is still the row it was.
+        const before = laidOut.current;
+
+        laidOut.current = heights;
+
+        if (
+            before !== null &&
+            before.length === heights.length &&
+            before.some((height, row) => height !== heights[row])
+        ) {
+            const kept = offsetKeptAcrossHeights(element.scrollTop, before, heights);
+
+            if (kept !== element.scrollTop) {
+                element.scrollTop = kept;
+                setScrollTop(kept);
+            }
         }
 
         if (wantsFocus.current) {
@@ -272,7 +309,7 @@ export function SearchResults({
                 wantsFocus.current = false;
             }
         }
-    }, [viewport, rowHeight, rowCount, drawn.first, focusedRow]);
+    }, [viewport, rowHeights, drawn.count, drawn.first, heights, shapes, focusedRow]);
 
     // A window resized changes how many rows are drawn, and a resize is not a commit.
     useEffect(() => {
@@ -298,12 +335,13 @@ export function SearchResults({
             return;
         }
 
-        const top = offsetOfRow(row, rowHeight);
+        const top = offsetOfRowIn(heights, row);
+        const bottom = top + (heights[row] ?? 0);
 
         if (top < element.scrollTop) {
             element.scrollTop = top;
-        } else if (top + rowHeight > element.scrollTop + element.clientHeight) {
-            element.scrollTop = top + rowHeight - element.clientHeight;
+        } else if (bottom > element.scrollTop + element.clientHeight) {
+            element.scrollTop = bottom - element.clientHeight;
         }
     }
 

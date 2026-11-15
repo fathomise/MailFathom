@@ -5317,8 +5317,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ...(folded ? {
             isUnread: false,
             foldedStyle: row.rowStyle + "flex-direction:row;align-items:center;justify-content:flex-start;gap:9px;padding:" + (isMobile ? "0 16px" : "0 14px") +
-              // As tall as the three-line row beside it: the client's list is windowed at one row height.
-              ";min-height:" + (isMobile ? 111 : 93) + "px;box-sizing:border-box",
+              // One line at a height of its own, so folded mail takes less of the list than mail somebody reads: 40 at
+              // the desktop, the 44 a finger needs under one, and 48 at the phone, where every row is taller. The phone's
+              // row floor is the whole row's, so the folded one sets its own.
+              ";min-height:0;height:" + (isMobile ? 48 : touch ? 44 : 40) + "px;box-sizing:border-box",
             foldGlyphStyle: "flex:0 0 " + avSz + "px;width:" + avSz + "px;display:flex;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--faint)",
             foldFromStyle: "flex:0 0 auto;max-width:38%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--muted)",
             foldSubjStyle: "flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--muted)",

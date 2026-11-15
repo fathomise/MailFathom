@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { MailEnrichment, MailSpamVerdict, MailTimelineEntry } from '@mailfathom/client-backend';
-import { rowMark, rowWithFlags, sameRow } from './rowContents';
+import { rowMark, rowShapeOf, rowWithFlags, sameRow } from './rowContents';
 
 function message(over: Partial<MailTimelineEntry> = {}): MailTimelineEntry {
     return {
@@ -169,5 +169,20 @@ describe('rowWithFlags', () => {
         const read = rowMark(message({ unread: false, flagged: true }));
 
         expect(sameRow(stated, read)).toBe(true);
+    });
+});
+
+describe('rowShapeOf', () => {
+    it('folds a spam row in a list that is not the Spam folder', () => {
+        expect(rowShapeOf(judged(), false)).toBe('folded');
+    });
+
+    it('keeps a spam row whole in the Spam folder, where it names its kind instead', () => {
+        expect(rowShapeOf(judged(), true)).toBe('whole');
+    });
+
+    it('keeps a row whole where the message is not spam or carries no verdict', () => {
+        expect(rowShapeOf(judged({ verdict: 'NotSpam' }), false)).toBe('whole');
+        expect(rowShapeOf(null, false)).toBe('whole');
     });
 });

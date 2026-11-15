@@ -20,7 +20,7 @@ import { useSignalledChanges, type SignalledChange } from '../signals/signalledC
 // holds, so these are exactly the ones it may be wrong about — and what another mail app shows of them too.
 //
 // It stands below the list rather than inside its scroll, because the list draws only the rows in view and reserves the
-// space of the rest by arithmetic over one row height: a group of another height inside it would put every row below it
+// space of the rest by arithmetic over the heights of its rows: a group of another height inside it would put every row below it
 // out of step with the space the list drew for it. Below rather than above, because its answer lands after the rows are
 // drawn and comes and goes as drafts are saved: at the foot, neither moves a row somebody is about to press.
 //
