@@ -11582,6 +11582,87 @@ the_dependency_survey_refuses_what_would_write_without_being_asked() {
   "$script" --help > /dev/null
 }
 
+# `scripts/write-end-to-end-client-report.sh` is what a session triaging a night reads, so what it must get right is
+# the judgement it makes and the paths it hands on. An error-level service entry is expected only inside the span of a
+# spec that declared it, an entry before or after that span and a line the host wrote before its configuration existed
+# are not, a failed spec's error loses the terminal's colour codes and its trace is named inside the browser artifact,
+# and a run that stopped before Playwright says the specs did not run rather than that none failed.
+the_end_to_end_report_lets_through_only_the_errors_a_spec_declared() {
+  local script="$source_repository_root/scripts/write-end-to-end-client-report.sh"
+  local fixture="$test_directory/end-to-end-report"
+  local specs_directory="$source_repository_root/frontend/tests/end-to-end"
+  local output_directory="$source_repository_root/frontend/.playwright-end-to-end"
+
+  [[ -x "$script" ]] || {
+    printf 'scripts/write-end-to-end-client-report.sh is not executable\n' >&2
+    return 1
+  }
+
+  mkdir -p "$fixture"
+
+  jq --null-input --arg specs "$specs_directory" --arg output "$output_directory" '{
+    config: {rootDir: $specs, projects: [{outputDir: $output}]},
+    suites: [
+      {title: "outage.spec.ts", file: "outage.spec.ts", line: 0, column: 0, specs: [{
+        title: "takes the mailbox away", file: "outage.spec.ts", line: 40, tests: [{
+          annotations: [{type: "expected-service-errors", description: "The mail server is taken away."}],
+          results: [{status: "passed", duration: 60000, startTime: "2026-11-15T03:10:00.000Z", errors: [], attachments: []}]
+        }]
+      }]},
+      {title: "mail.spec.ts", file: "mail.spec.ts", line: 0, column: 0, specs: [{
+        title: "draws the list", file: "mail.spec.ts", line: 66, tests: [{
+          annotations: [],
+          results: [{
+            status: "failed", duration: 5000, startTime: "2026-11-15T03:12:00.000Z",
+            errors: [{message: "\u001b[31mError:\u001b[39m the list is empty", location: {file: ($specs + "/mail.spec.ts"), line: 70, column: 5}}],
+            attachments: [
+              {name: "trace", contentType: "application/zip", path: ($output + "/mail-draws/trace.zip")},
+              {name: "screenshot", contentType: "image/png", path: ($output + "/mail-draws/test-failed-1.png")}
+            ]
+          }]
+        }]
+      }]}
+    ],
+    errors: []
+  }' > "$fixture/playwright.json"
+
+  cat > "$fixture/service.log" << 'LOG'
+fail: MailFathom.Host[0]
+      refused before configuration
+{"Timestamp":"2026-11-15T03:09:59.999Z","EventId":1,"LogLevel":"Error","Category":"Before","Message":"before the window"}
+{"Timestamp":"2026-11-15T03:10:30.500Z","EventId":2,"LogLevel":"Error","Category":"Inside","Message":"mail server away","Exception":"System.IO.IOException: refused\n   at Somewhere"}
+{"Timestamp":"2026-11-15T03:10:45.000Z","EventId":3,"LogLevel":"Warning","Category":"Inside","Message":"only a warning"}
+{"Timestamp":"2026-11-15T03:11:00.001Z","EventId":4,"LogLevel":"Critical","Category":"After","Message":"after the window"}
+LOG
+
+  "$script" --output "$fixture/report" --commit 0123abcd --started 1763176200 --finished 1763177400 --exit-code 1 \
+    --step 'driving the client in a browser' --playwright-results "$fixture/playwright.json" \
+    --service-log "$fixture/service.log"
+
+  assert_json '"driving the client in a browser"' '.failedStep' "$fixture/report/report.json"
+  assert_json '1' '.expectedServiceErrorCount' "$fixture/report/report.json"
+  assert_json '["MailFathom.Host[0]","Before","After"]' '[.unexpectedServiceErrors[].category]' "$fixture/report/report.json"
+  assert_json '"refused before configuration"' '.unexpectedServiceErrors[0].message' "$fixture/report/report.json"
+  assert_json '["passed","failed"]' '[.specs[].outcome]' "$fixture/report/report.json"
+  assert_json '{"message":"Error: the list is empty","file":"frontend/tests/end-to-end/mail.spec.ts","line":70}' \
+    '.specs[1].errors[0]' "$fixture/report/report.json"
+  assert_json '["mail-draws/trace.zip","mail-draws/test-failed-1.png"]' '[.specs[1].trace, .specs[1].screenshot]' \
+    "$fixture/report/report.json"
+  assert_contains '- Stopped while: **driving the client in a browser** (exit 1)' "$fixture/report/report.md"
+
+  "$script" --output "$fixture/early" --commit 0123abcd --started 1763176200 --finished 1763176260 --exit-code 1 \
+    --step 'building the client bundle' --playwright-results "$fixture/absent.json" --service-log "$fixture/absent.log"
+
+  assert_json 'false' '.specsRan' "$fixture/early/report.json"
+  assert_json '[]' '.unexpectedServiceErrors' "$fixture/early/report.json"
+  assert_contains '- Specs: did not run' "$fixture/early/report.md"
+
+  if "$script" --output "$fixture/refused" --commit 0123abcd > /dev/null 2>&1; then
+    printf 'write-end-to-end-client-report.sh wrote a report without being told what the run found\n' >&2
+    return 1
+  fi
+}
+
 # `scripts/inject-fault.sh` talks to a proxy nobody runs here, so a fake `curl` records each request and answers the
 # two reads the script makes, and a fake `sleep` stands in for the duration: it lasts for as long as a gate file
 # exists, so the test decides when a fault's time is up. What the script must get right is that `start` returns while
@@ -13493,6 +13574,7 @@ run_test the_client_job_runs_every_check_the_full_gate_runs
 run_test workflow_scripts_use_flat_manual_layout
 run_test the_dependency_survey_refuses_what_would_write_without_being_asked
 run_test the_fault_script_holds_a_fault_in_the_background_and_removes_only_that_one
+run_test the_end_to_end_report_lets_through_only_the_errors_a_spec_declared
 run_test the_dependency_rewrite_encodes_a_hostile_version_into_a_pin_file
 run_test the_dependency_survey_names_the_bump_that_may_break
 run_test every_hash_commented_file_carries_the_license_header

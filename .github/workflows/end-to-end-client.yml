@@ -4,17 +4,32 @@
 
 name: End-to-end client
 
-# Manual dispatch and nothing else. It is not a pull-request check, it is not on a schedule, `Nightly` does not call it,
-# and `Release` does not either — so nothing in this repository is gated on it and no merge waits for it. That is the
-# decision rather than an omission: the question it answers is whether the whole thing still holds together, which is a
-# question the owner asks when they want to and not one every change should pay for.
+# Every night `main` moved, and whenever somebody dispatches it. It is not a pull-request check, `Nightly` does not call
+# it, and `Release` does not either — so nothing in this repository is gated on it and no merge waits for it. What it
+# answers is whether the whole thing still holds together, and the client is where the defects are and nobody tries it
+# by hand, so the question is asked the night after a change merges rather than whenever somebody next thinks to.
 #
-# What it costs, on a GitHub-hosted runner and stated plainly because a manual dispatch is somebody choosing to spend
-# it: roughly fifteen to twenty minutes of runner time. Two container images are pulled, the client bundle and the
-# service are both built, the schema artifact is generated through `aspire publish`, a mailbox is filled over SMTP one
-# message at a time, and a real browser then drives the result. Nothing here calls an AI provider, so it spends no
-# provider credit at all.
+# **A night on which `main` did not move costs one short job.** `decide` reads whether a completed scheduled run of this
+# workflow already ran the commit `main` is at, whatever that run concluded: a commit that failed last night is not run
+# again tonight, because its report already says why and a re-run is a dispatch away. When one did, the run ends there
+# and names it. A dispatch is exempt and always runs, with or without a `ref`.
+#
+# What a run that does go ahead costs, on a GitHub-hosted runner: roughly fifteen to twenty minutes of runner time. Two
+# container images are pulled, the client bundle and the service are both built, the schema artifact is generated
+# through `aspire publish`, a mailbox is filled over SMTP one message at a time, and a real browser then drives the
+# result. Nothing here calls an AI provider, so it spends no provider credit at all.
+#
+# **Every run that reaches the pipeline leaves a report**, passed or failed and wherever the script stopped: the
+# `end-to-end-client-report` artifact carries `report.json` for a session triaging the night and `report.md` for a
+# person, and the job summary is the Markdown. It names the commit, the step the pipeline stopped in, every spec with
+# its outcome, each failed one with its error and the path of its trace inside `end-to-end-client-browser`, and every
+# error-level entry the service logged that no spec declared it would cause — which fails the run on its own.
+# `docs/operations/end-to-end-client-run.md` is the page.
 on:
+  # 03:00 UTC, clear of `Nightly` at midnight and of the hosted queue's busiest hour. A schedule runs on the default
+  # branch, so a scheduled run is always `main`.
+  schedule:
+    - cron: '0 3 * * *'
   workflow_dispatch:
     inputs:
       ref:
@@ -32,8 +47,51 @@ permissions:
   contents: read
 
 jobs:
+  # Decides one thing: whether a scheduled run has anything to prove. It reads this workflow's own completed scheduled
+  # runs on the commit `main` is at, which is the record of what a night already answered for — no state is kept beside
+  # it, so a deleted run or a re-run cannot leave the answer stale.
+  decide:
+    name: Decide whether main moved
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - name: Look for a scheduled run that already ran this commit
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if [[ "$EVENT" != 'schedule' ]]; then
+            printf 'run=true\n' >> "$GITHUB_OUTPUT"
+            printf 'A %s runs regardless of what an earlier run answered for.\n' "$EVENT" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Newest first, so the last one is the run that actually drove the commit; any after it ended here.
+          answered="$(
+            gh api "repos/$REPOSITORY/actions/workflows/end-to-end-client.yml/runs?event=schedule&status=completed&head_sha=$HEAD_SHA&per_page=100" \
+              --jq '.workflow_runs | last | select(. != null) | "\(.html_url) (\(.conclusion))"'
+          )"
+
+          if [[ -n "$answered" ]]; then
+            printf 'run=false\n' >> "$GITHUB_OUTPUT"
+            printf 'main has not moved: %s was already run by %s. Dispatch the workflow to run it again.\n' \
+              "$HEAD_SHA" "$answered" | tee --append "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'run=true\n' >> "$GITHUB_OUTPUT"
+            printf 'main moved to %s, which no scheduled run has driven yet.\n' "$HEAD_SHA" | tee --append "$GITHUB_STEP_SUMMARY"
+          fi
+
   end-to-end-client:
     name: End-to-end client
+    needs: decide
+    if: needs.decide.outputs.run == 'true'
     runs-on: ubuntu-latest
 
     # Well above what a run takes and well below the six hours a job is otherwise given. Every wait inside the pipeline
@@ -48,7 +106,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          # The commit `decide` judged rather than the branch it was on, which may have moved since.
+          ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
 
       - name: Set up .NET SDK
@@ -130,7 +189,27 @@ jobs:
       # MailFathom, provisions the credential, replays the corpus, waits for the account to synchronize, and then drives
       # the client. A failure names the step it happened in.
       - name: Run the end-to-end client pipeline
+        id: pipeline
         run: bash scripts/run-end-to-end-client.sh
+
+      # The report the script wrote on its way out, whatever it concluded. A run that reached the pipeline and left no
+      # report is a defect in the script rather than a quiet night, so a missing file fails the upload.
+      - name: Upload the report
+        if: ${{ !cancelled() && steps.pipeline.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: end-to-end-client-report
+          path: |
+            artifacts/end-to-end-client-report/report.json
+            artifacts/end-to-end-client-report/report.md
+          if-no-files-found: error
+
+      - name: Write the report to the job summary
+        if: ${{ !cancelled() && steps.pipeline.outcome != 'skipped' }}
+        run: |
+          if [[ -f artifacts/end-to-end-client-report/report.md ]]; then
+            cat artifacts/end-to-end-client-report/report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       # Kept, unlike the pull-request browser suite's, and for the reason that suite's configuration records: every
       # message in this run is fabricated and its mailbox is destroyed with the run, so a trace carries no personal data

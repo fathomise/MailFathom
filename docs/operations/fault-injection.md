@@ -145,7 +145,9 @@ cannot reach its deployment is held by the browser suite against its fake one in
 mailbox is current, starts `imap-down`, waits for the freshness line to say the account is not current and opens it
 onto *Mail server unreachable*, then stops the fault and waits for every account to be current again. The run
 shortens the mail connection's budgets so that takes minutes rather than an hour — what the run sets, and why, is on
-[its own page](end-to-end-client-run.md#what-it-stands-up-in-order).
+[its own page](end-to-end-client-run.md#what-it-stands-up-in-order). Its `expected-service-errors` annotation declares
+the errors the service logs while the mailbox is away, so they are the only ones
+[the run's report](end-to-end-client-run.md#the-report) lets through; a spec that injects a fault declares the same.
 
 ## What it cannot inject
 

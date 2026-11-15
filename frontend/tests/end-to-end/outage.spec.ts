@@ -37,39 +37,50 @@ async function faultScript(...command: string[]): Promise<string> {
     return stdout;
 }
 
-test('says the mail server cannot be reached while it is away, and that every account is current once it is back', async ({
-    page,
-}) => {
-    // The outage is noticed at the account's next run and drawn once it has held a minute, and the recovery waits for
-    // the run after the server returns — minutes of a deployment's own pacing rather than of the client's.
-    test.setTimeout(5 * 60_000);
+// The annotation is this spec stating that the service logs errors while it runs: a synchronization run that cannot
+// reach the mail server fails, and says so at error level. `scripts/write-end-to-end-client-report.sh` lets an
+// error-level entry through only inside the span of a test carrying it, so an error logged before the fault or after
+// the recovery still fails the run.
+test(
+    'says the mail server cannot be reached while it is away, and that every account is current once it is back',
+    {
+        annotation: {
+            type: 'expected-service-errors',
+            description: 'The mail server is taken away, so synchronization runs fail until it is back.',
+        },
+    },
+    async ({ page }) => {
+        // The outage is noticed at the account's next run and drawn once it has held a minute, and the recovery waits for
+        // the run after the server returns — minutes of a deployment's own pacing rather than of the client's.
+        test.setTimeout(5 * 60_000);
 
-    await signIn(page);
-    await page.getByRole('link', { name: 'Mail' }).click();
-    await expect(page.getByRole('tree', { name: 'Mailboxes and folders' })).toBeVisible();
+        await signIn(page);
+        await page.getByRole('link', { name: 'Mail' }).click();
+        await expect(page.getByRole('tree', { name: 'Mailboxes and folders' })).toBeVisible();
 
-    const current = page.getByText('Every account is up to date.');
-    const notCurrent = page.getByRole('button', { name: /is not up to date\.$/u });
+        const current = page.getByText('Every account is up to date.');
+        const notCurrent = page.getByRole('button', { name: /is not up to date\.$/u });
 
-    await expect(current).toBeVisible();
+        await expect(current).toBeVisible();
 
-    expect(await faultScript('start', 'imap-down', '--for', '10m')).toContain('Started imap-down:');
+        expect(await faultScript('start', 'imap-down', '--for', '10m')).toContain('Started imap-down:');
 
-    let stopped: string;
+        let stopped: string;
 
-    try {
-        await expect(notCurrent).toBeVisible({ timeout: 3 * 60_000 });
+        try {
+            await expect(notCurrent).toBeVisible({ timeout: 3 * 60_000 });
 
-        await notCurrent.click();
+            await notCurrent.click();
 
-        await expect(page.getByText('Mail server unreachable', { exact: true })).toBeVisible();
-        await expect(page.getByText(/^Its mail server cannot be reached/u)).toBeVisible();
-    } finally {
-        stopped = await faultScript('stop', 'imap-down');
-    }
+            await expect(page.getByText('Mail server unreachable', { exact: true })).toBeVisible();
+            await expect(page.getByText(/^Its mail server cannot be reached/u)).toBeVisible();
+        } finally {
+            stopped = await faultScript('stop', 'imap-down');
+        }
 
-    expect(stopped).toContain('Removed imap-down.');
+        expect(stopped).toContain('Removed imap-down.');
 
-    await expect(current).toBeVisible({ timeout: 2 * 60_000 });
-    await expect(notCurrent).toHaveCount(0);
-});
+        await expect(current).toBeVisible({ timeout: 2 * 60_000 });
+        await expect(notCurrent).toHaveCount(0);
+    },
+);
