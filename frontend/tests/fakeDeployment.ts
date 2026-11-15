@@ -794,9 +794,10 @@ export class FakeDeployment {
             case 'GET /drafts':
                 return answering({
                     ...drafts.draftList,
-                    drafts: [...[...this.draftsHeld.values()].reverse().map(({ record }) => record), ...drafts.draftList.drafts].filter(
-                        ({ account }) => account === request.query.get('account'),
-                    ),
+                    drafts: [
+                        ...[...this.draftsHeld.values()].reverse().map(({ record }) => record),
+                        ...drafts.draftList.drafts,
+                    ].filter(({ account }) => account === request.query.get('account')),
                 });
             case 'GET /replies/drafting':
                 return answering(drafts.draftsReplies);

@@ -2065,7 +2065,8 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) => this.ValidateForSynchronization(synchronizationEnabled: true);
 
     /// <summary>Builds the folder an account that configured none synchronizes.</summary>
-    private static MailFolderMappingOptions CreateDefaultInboxFolder() => new()
+    /// <remarks>Read as well by what declares an account's first folder, which writes this one down beside it so the account keeps reading its inbox.</remarks>
+    internal static MailFolderMappingOptions CreateDefaultInboxFolder() => new()
     {
         Alias = nameof(MailFolderSpecialUse.Inbox),
         SpecialUse = nameof(MailFolderSpecialUse.Inbox),

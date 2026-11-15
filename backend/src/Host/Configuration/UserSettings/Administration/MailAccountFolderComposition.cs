@@ -186,7 +186,26 @@ internal static class MailAccountFolderComposition
             folder[SpecialUseProperty] = role;
         }
 
-        return WithFolderAdded(accountJson, folder.ToJsonString());
+        // An account declaring no folder reads its inbox by default, and a list holding only the folder made here would
+        // replace that default rather than add to it: making a folder would stop the account reading its inbox. So the
+        // default is written down first, under the alias and the role it was already read under.
+        var declaring = FoldersIn(AccountOf(accountJson)).Count == 0
+            ? WithFolderAdded(accountJson, DefaultInboxDeclaration()).Candidate ?? accountJson
+            : accountJson;
+
+        return WithFolderAdded(declaring, folder.ToJsonString());
+    }
+
+    /// <summary>The folder an account declaring none reads, as the declaration that states it.</summary>
+    private static string DefaultInboxDeclaration()
+    {
+        var inbox = MailSynchronizationAccountOptions.CreateDefaultInboxFolder();
+
+        return new JsonObject
+        {
+            [AliasProperty] = inbox.Alias,
+            [SpecialUseProperty] = inbox.SpecialUse,
+        }.ToJsonString();
     }
 
     /// <summary>Produces the settings one folder pointed at the path it has been renamed or moved to would leave.</summary>

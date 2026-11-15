@@ -64,7 +64,10 @@ const recording = JSON.parse(
         join(import.meta.dirname, '..', '..', 'backend', 'tests', 'PublicSurfaces.UnitTests', 'http-api-contract.json'),
         'utf8',
     ),
-) as { paths: Record<string, Record<string, { responses?: Record<string, Schema> }>>; components: { schemas: Record<string, Schema> } };
+) as {
+    paths: Record<string, Record<string, { responses?: Record<string, Schema> }>>;
+    components: { schemas: Record<string, Schema> };
+};
 
 const clientPrefix = '/api/client';
 
@@ -78,7 +81,10 @@ function templateOf(route: string): string | undefined {
 
     return Object.keys(recording.paths)
         .filter((template) =>
-            new RegExp(`^${template.replace(/[.*+?^$()|[\]\\]/gu, '\\$&').replace(/\\?\{[^}]+\\?\}/gu, '[^/]+')}$`, 'u').test(path),
+            new RegExp(
+                `^${template.replace(/[.*+?^$()|[\]\\]/gu, '\\$&').replace(/\\?\{[^}]+\\?\}/gu, '[^/]+')}$`,
+                'u',
+            ).test(path),
         )
         .sort((one, other) => parameters(one) - parameters(other))[0];
 }
@@ -148,11 +154,13 @@ export function departuresFrom(schema: Schema, value: unknown, at = '$'): string
     if (alternatives !== undefined) {
         const each = alternatives.map((alternative) => departuresFrom(alternative, value, at));
 
-        return each.some((departures) => departures.length === 0) ? [] : (each.sort((one, other) => one.length - other.length)[0] ?? []);
+        return each.some((departures) => departures.length === 0)
+            ? []
+            : (each.sort((one, other) => one.length - other.length)[0] ?? []);
     }
 
     const declared = stated['type'];
-    const types = declared === undefined ? [] : Array.isArray(declared) ? (declared as string[]) : [String(declared)];
+    const types = typeof declared === 'string' ? [declared] : ((declared ?? []) as readonly string[]);
     const actual = typeOf(value);
 
     if (types.length > 0 && !types.includes(actual) && !(actual === 'integer' && types.includes('number'))) {
@@ -168,7 +176,9 @@ export function departuresFrom(schema: Schema, value: unknown, at = '$'): string
     if (Array.isArray(value)) {
         const items = stated['items'] as Schema | undefined;
 
-        return items === undefined ? [] : value.flatMap((item, index) => departuresFrom(items, item, `${at}[${String(index)}]`));
+        return items === undefined
+            ? []
+            : value.flatMap((item, index) => departuresFrom(items, item, `${at}[${String(index)}]`));
     }
 
     if (actual !== 'object') {
@@ -244,6 +254,19 @@ export interface Mailbox {
     readonly inbox: Folder;
 }
 
+let actsAsked = 0;
+
+/**
+ * A key for one act, generated once per act as the client generates one: the service answers a repeat under a key with
+ * the first outcome, so two acts sharing one would read as one. Counted across the process rather than per case,
+ * because every case of a run asks the same deployment.
+ */
+function nextRequestId(): string {
+    actsAsked += 1;
+
+    return `0198f4a1-0000-7000-8000-${actsAsked.toString(16).padStart(12, '0')}`;
+}
+
 /** A change a write opened, followed until the service reports it finished. */
 const unfinished = new Set(['pending', 'converging']);
 
@@ -268,12 +291,18 @@ export class ContractDeployment {
     async answered(method: string, route: string, body?: unknown, status = 200): Promise<unknown> {
         const answer = await this.target.ask(method, route, body);
 
-        expect(answer.status, `${method} ${route} answered ${String(answer.status)}: ${JSON.stringify(answer.body)}`).toBe(status);
+        expect(
+            answer.status,
+            `${method} ${route} answered ${String(answer.status)}: ${JSON.stringify(answer.body)}`,
+        ).toBe(status);
 
         const schema = recordedSchema(method, route, status);
 
         if (schema !== undefined) {
-            expect(departuresFrom(schema, answer.body), `${method} ${route} answered a shape the service does not`).toStrictEqual([]);
+            expect(
+                departuresFrom(schema, answer.body),
+                `${method} ${route} answered a shape the service does not`,
+            ).toStrictEqual([]);
         }
 
         return answer.body;
@@ -287,11 +316,16 @@ export class ContractDeployment {
     async mailbox(): Promise<Mailbox> {
         const tree = await this.folderTree();
         const found = tree.accounts
-            .map(({ account, folders }) => ({ account: account.id, inbox: folders.find(({ role }) => role === 'Inbox') }))
+            .map(({ account, folders }) => ({
+                account: account.id,
+                inbox: folders.find(({ role }) => role === 'Inbox'),
+            }))
             .find(({ inbox }) => inbox !== undefined && inbox.storedEmailCount > 0);
 
         if (found?.inbox === undefined) {
-            throw new Error('No account holds an inbox with mail in it, so there is nothing for a mail case to act on.');
+            throw new Error(
+                'No account holds an inbox with mail in it, so there is nothing for a mail case to act on.',
+            );
         }
 
         return { account: found.account, inbox: found.inbox };
@@ -360,7 +394,10 @@ export class ContractDeployment {
 
     /** Asks for flags on one message, and answers once the change it opened has finished. */
     async flag(storedEmailId: string, flags: { seen?: boolean; flagged?: boolean }): Promise<void> {
-        const answer = (await this.answered('POST', '/mutations/flags', { changes: [{ storedEmailId, flags }] })) as {
+        const answer = (await this.answered('POST', '/mutations/flags', {
+            requestId: nextRequestId(),
+            changes: [{ storedEmailId, flags }],
+        })) as {
             results: readonly { outcome: string; changes: readonly RecordedChange[] }[];
         };
 
@@ -370,7 +407,10 @@ export class ContractDeployment {
 
     /** Moves one message, and answers once the move has finished. */
     async move(storedEmailId: string, destinationFolder: string): Promise<void> {
-        const answer = (await this.answered('POST', '/mutations/moves', { moves: [{ storedEmailId, destinationFolder }] })) as {
+        const answer = (await this.answered('POST', '/mutations/moves', {
+            requestId: nextRequestId(),
+            moves: [{ storedEmailId, destinationFolder }],
+        })) as {
             results: readonly { outcome: string; destinationFolder: string | null; change: RecordedChange | null }[];
         };
 
@@ -378,7 +418,9 @@ export class ContractDeployment {
         await this.settled(answer.results.flatMap(({ change }) => (change === null ? [] : [change.recordId])));
     }
 
-    async managedFolders(account: string): Promise<{ creatableRoles: readonly string[]; folders: readonly ManagedFolder[] }> {
+    async managedFolders(
+        account: string,
+    ): Promise<{ creatableRoles: readonly string[]; folders: readonly ManagedFolder[] }> {
         return (await this.answered('GET', `/managed-folders?account=${encodeURIComponent(account)}`)) as {
             creatableRoles: readonly string[];
             folders: readonly ManagedFolder[];
@@ -390,7 +432,11 @@ export class ContractDeployment {
     }
 
     async drafts(account: string): Promise<readonly Draft[]> {
-        return ((await this.answered('GET', `/drafts?account=${encodeURIComponent(account)}`)) as { drafts: readonly Draft[] }).drafts;
+        return (
+            (await this.answered('GET', `/drafts?account=${encodeURIComponent(account)}`)) as {
+                drafts: readonly Draft[];
+            }
+        ).drafts;
     }
 
     /**
@@ -399,7 +445,9 @@ export class ContractDeployment {
      */
     async withDraftsFolder(account: string): Promise<void> {
         if ((await this.managedFolders(account)).creatableRoles.includes('Drafts')) {
-            expect(await this.folderAct('/managed-folders', { account, role: 'Drafts' })).toMatchObject({ change: 'Created' });
+            expect(await this.folderAct('/managed-folders', { account, role: 'Drafts' })).toMatchObject({
+                change: 'Created',
+            });
         }
     }
 
@@ -470,7 +518,11 @@ export const contractCases: readonly ContractCase[] = [
         title: 'files a moved message in the other folder’s list and count and out of its own, and back again',
         run: async (deployment) => {
             const { account, inbox } = await deployment.mailbox();
-            const made = await deployment.folderAct('/managed-folders', { account, parentId: null, name: 'Moved by a case' });
+            const made = await deployment.folderAct('/managed-folders', {
+                account,
+                parentId: null,
+                name: 'Moved by a case',
+            });
             const row = await deployment.firstRow(inbox.id);
 
             expect(made).toMatchObject({ change: 'Created', folder: { name: 'Moved by a case', parentId: null } });
@@ -497,7 +549,10 @@ export const contractCases: readonly ContractCase[] = [
         run: async (deployment) => {
             const { inbox } = await deployment.mailbox();
             const row = await deployment.firstRow(inbox.id);
-            const deleted = (await deployment.answered('POST', '/mutations/deletes', { deletes: [{ storedEmailId: row.id }] })) as {
+            const deleted = (await deployment.answered('POST', '/mutations/deletes', {
+                requestId: nextRequestId(),
+                deletes: [{ storedEmailId: row.id }],
+            })) as {
                 results: readonly { storedEmailId: string; outcome: string; change: RecordedChange | null }[];
             };
 
@@ -525,27 +580,26 @@ export const contractCases: readonly ContractCase[] = [
         run: async (deployment) => {
             const { inbox } = await deployment.mailbox();
             const row = await deployment.firstRow(inbox.id);
-            const mark = async (requestId: string, verdict: 'Spam' | 'NotSpam') => {
+            const mark = async (verdict: 'Spam' | 'NotSpam') => {
                 const answer = (await deployment.answered('POST', '/mutations/spam', {
-                    requestId,
+                    requestId: nextRequestId(),
                     verdict,
                     spamSubcategory: null,
                     storedEmailIds: [row.id],
                 })) as { results: readonly { outcome: string; moved: boolean; changes: readonly RecordedChange[] }[] };
 
                 expect(answer.results).toMatchObject([{ outcome: taken, moved: false }]);
-                await deployment.settled(answer.results.flatMap(({ changes }) => changes.map(({ recordId }) => recordId)));
+                await deployment.settled(
+                    answer.results.flatMap(({ changes }) => changes.map(({ recordId }) => recordId)),
+                );
 
                 return (await deployment.answered('GET', `/messages/${encodeURIComponent(row.id)}`)) as {
                     spam: { verdict: string } | null;
                 };
             };
 
-            // Each mark carries an identity of its own, which is what the service holds a repeated request to.
-            expect(await mark('0198f4a1-0000-7000-8000-00000000c0a1', 'Spam')).toMatchObject({ spam: { verdict: 'Spam' } });
-            expect(await mark('0198f4a1-0000-7000-8000-00000000c0a2', 'NotSpam')).toMatchObject({
-                spam: { verdict: 'NotSpam' },
-            });
+            expect(await mark('Spam')).toMatchObject({ spam: { verdict: 'Spam' } });
+            expect(await mark('NotSpam')).toMatchObject({ spam: { verdict: 'NotSpam' } });
         },
     },
     {
@@ -558,9 +612,11 @@ export const contractCases: readonly ContractCase[] = [
             const written = await deployment.writeDraft(account, 'Written by a contract case');
 
             expect(written).toMatchObject({ subject: 'Written by a contract case' });
-            expect((await deployment.drafts(account)).find(({ draftId }) => draftId === written.draftId)).toMatchObject({
-                subject: 'Written by a contract case',
-            });
+            expect((await deployment.drafts(account)).find(({ draftId }) => draftId === written.draftId)).toMatchObject(
+                {
+                    subject: 'Written by a contract case',
+                },
+            );
 
             const revised = (await deployment.answered(
                 'PUT',
@@ -570,13 +626,15 @@ export const contractCases: readonly ContractCase[] = [
 
             expect(revised).toMatchObject({ draftId: written.draftId, subject: 'Revised by a contract case' });
             expect(revised.revision).toBeGreaterThan(written.revision);
-            expect((await deployment.drafts(account)).filter(({ draftId }) => draftId === written.draftId)).toMatchObject([
-                { subject: 'Revised by a contract case' },
-            ]);
+            expect(
+                (await deployment.drafts(account)).filter(({ draftId }) => draftId === written.draftId),
+            ).toMatchObject([{ subject: 'Revised by a contract case' }]);
 
-            expect(await deployment.answered('DELETE', `/drafts/${encodeURIComponent(written.draftId)}`)).toMatchObject({
-                draftId: written.draftId,
-            });
+            expect(await deployment.answered('DELETE', `/drafts/${encodeURIComponent(written.draftId)}`)).toMatchObject(
+                {
+                    draftId: written.draftId,
+                },
+            );
             expect((await deployment.drafts(account)).map(({ draftId }) => draftId)).not.toContain(written.draftId);
         },
     },
@@ -585,9 +643,11 @@ export const contractCases: readonly ContractCase[] = [
         run: async (deployment) => {
             const { account } = await deployment.mailbox();
             const outbox = async () =>
-                ((await deployment.answered('GET', `/outbox?account=${encodeURIComponent(account)}`)) as {
-                    sends: readonly { outgoingEmail: string; stage: string }[];
-                }).sends;
+                (
+                    (await deployment.answered('GET', `/outbox?account=${encodeURIComponent(account)}`)) as {
+                        sends: readonly { outgoingEmail: string; stage: string }[];
+                    }
+                ).sends;
             const waiting = async () =>
                 (await deployment.folderTree()).accounts.find((held) => held.account.id === account)?.outbox?.waiting;
 
@@ -629,8 +689,16 @@ export const contractCases: readonly ContractCase[] = [
                 managed: (await deployment.managedFolders(account)).folders.find(({ id }) => id === folderId),
             });
 
-            const parent = await deployment.folderAct('/managed-folders', { account, parentId: null, name: 'Case parent' });
-            const made = await deployment.folderAct('/managed-folders', { account, parentId: null, name: 'Case child' });
+            const parent = await deployment.folderAct('/managed-folders', {
+                account,
+                parentId: null,
+                name: 'Case parent',
+            });
+            const made = await deployment.folderAct('/managed-folders', {
+                account,
+                parentId: null,
+                name: 'Case child',
+            });
 
             expect(made).toMatchObject({ change: 'Created', folder: { name: 'Case child', parentId: null } });
             expect(await placed(made.folder.id)).toMatchObject({
@@ -639,9 +707,16 @@ export const contractCases: readonly ContractCase[] = [
             });
 
             expect(
-                await deployment.folderAct('/managed-folders/renames', { account, folderId: made.folder.id, name: 'Case renamed' }),
+                await deployment.folderAct('/managed-folders/renames', {
+                    account,
+                    folderId: made.folder.id,
+                    name: 'Case renamed',
+                }),
             ).toMatchObject({ change: 'Renamed', folder: { id: made.folder.id, name: 'Case renamed' } });
-            expect(await placed(made.folder.id)).toMatchObject({ tree: ['Case renamed'], managed: { name: 'Case renamed' } });
+            expect(await placed(made.folder.id)).toMatchObject({
+                tree: ['Case renamed'],
+                managed: { name: 'Case renamed' },
+            });
 
             expect(
                 await deployment.folderAct('/managed-folders/moves', {
@@ -665,7 +740,11 @@ export const contractCases: readonly ContractCase[] = [
         title: 'lists a task it was written, answers it done once marked, and forgets it once erased',
         run: async (deployment) => {
             const listed = async () =>
-                ((await deployment.answered('GET', '/tasks')) as { tasks: readonly { id: string; completed: boolean }[] }).tasks;
+                (
+                    (await deployment.answered('GET', '/tasks')) as {
+                        tasks: readonly { id: string; completed: boolean }[];
+                    }
+                ).tasks;
             const written = (await deployment.answered('POST', '/tasks', {
                 title: 'Written by a contract case',
                 dueOn: caseDay,
@@ -678,7 +757,9 @@ export const contractCases: readonly ContractCase[] = [
             expect((await listed()).find(({ id }) => id === written.id)).toMatchObject({ completed: false });
 
             expect(
-                await deployment.answered('POST', `/tasks/${encodeURIComponent(written.id)}/completion`, { completed: true }),
+                await deployment.answered('POST', `/tasks/${encodeURIComponent(written.id)}/completion`, {
+                    completed: true,
+                }),
             ).toMatchObject({ id: written.id, completed: true });
             expect((await listed()).find(({ id }) => id === written.id)).toMatchObject({ completed: true });
 
@@ -735,9 +816,11 @@ export const contractCases: readonly ContractCase[] = [
         title: 'finds a person it was written in the book by a fragment of their name, as amended, and not once erased',
         run: async (deployment) => {
             const found = async () =>
-                ((await deployment.answered('GET', '/contacts?search=contract')) as {
-                    contacts: readonly { id: string; note: string | null }[];
-                }).contacts;
+                (
+                    (await deployment.answered('GET', '/contacts?search=contract')) as {
+                        contacts: readonly { id: string; note: string | null }[];
+                    }
+                ).contacts;
             const person = (note: string) => ({
                 displayName: 'Written by a contract case',
                 addresses: ['written@contract.invalid'],
@@ -760,7 +843,9 @@ export const contractCases: readonly ContractCase[] = [
             ).toMatchObject({ contact: { id: written.contact.id, note: 'As amended' } });
             expect((await found()).find(({ id }) => id === written.contact.id)).toMatchObject({ note: 'As amended' });
 
-            expect(await deployment.answered('DELETE', `/contacts/${encodeURIComponent(written.contact.id)}`)).toMatchObject({
+            expect(
+                await deployment.answered('DELETE', `/contacts/${encodeURIComponent(written.contact.id)}`),
+            ).toMatchObject({
                 contact: written.contact.id,
                 wasHeld: true,
             });

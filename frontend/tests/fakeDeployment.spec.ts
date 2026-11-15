@@ -524,7 +524,9 @@ test('counts no Outbox for a session that reads mail and cannot send it, as the 
 
 test('lists a queued send in the Outbox and counts it until it is taken back', () => {
     const deployment = sendingDeployment();
-    const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as { draftId: string };
+    const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as {
+        draftId: string;
+    };
     const queued = ask(deployment, 'POST', `/drafts/${written.draftId}/send`) as { outgoingEmail: string };
 
     expect(inTheOutbox(deployment)).toStrictEqual({
@@ -585,7 +587,9 @@ test('answers the preview of a send that left at the stage it ended at, out of t
 
 test('lets a send it queued leave the Outbox as one the corpus held does, out of the list, the count and the preview', () => {
     const deployment = sendingDeployment();
-    const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as { draftId: string };
+    const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as {
+        draftId: string;
+    };
     const queued = ask(deployment, 'POST', `/drafts/${written.draftId}/send`) as { outgoingEmail: string };
 
     deployment.sendLeaves(queued.outgoingEmail);

@@ -483,10 +483,10 @@ public sealed class MailAccountFolderCompositionTests
             .Candidate;
 
         // Assert
-        Assert.Equal("PROJECTS", ReadFolderAlias(candidate, "0"));
-        Assert.Equal("Archive/Projects", JsonNode.Parse(candidate!)!["Folders"]!["0"]!["RemotePath"]!.GetValue<string>());
-        Assert.True(ReadFolderSwitch(candidate, "0", "Synchronize"));
-        Assert.True(ReadFolderSwitch(candidate, "0", "CreateIfMissing"));
+        Assert.Equal("PROJECTS", ReadFolderAlias(candidate, "1"));
+        Assert.Equal("Archive/Projects", JsonNode.Parse(candidate!)!["Folders"]!["1"]!["RemotePath"]!.GetValue<string>());
+        Assert.True(ReadFolderSwitch(candidate, "1", "Synchronize"));
+        Assert.True(ReadFolderSwitch(candidate, "1", "CreateIfMissing"));
     }
 
     [Fact]
@@ -498,7 +498,42 @@ public sealed class MailAccountFolderCompositionTests
             .Candidate;
 
         // Assert
-        Assert.Equal("Archive", JsonNode.Parse(candidate!)!["Folders"]!["0"]!["SpecialUse"]!.GetValue<string>());
+        Assert.Equal("Archive", JsonNode.Parse(candidate!)!["Folders"]!["1"]!["SpecialUse"]!.GetValue<string>());
+    }
+
+    /// <summary>
+    /// An account declaring no folder reads its inbox by default, so the first folder made on it is written down beside
+    /// that inbox rather than in its place — otherwise making a folder would stop the account reading its inbox.
+    /// </summary>
+    [Fact]
+    public void WithFolderDeclared_AnAccountDeclaringNoFolder_DeclaresTheInboxItReadsBeforeTheFolderMade()
+    {
+        // Act
+        var candidate = MailAccountFolderComposition
+            .WithFolderDeclared("""{"Host":"mail.example.test"}""", "PROJECTS", "Projects", role: null)
+            .Candidate;
+
+        // Assert
+        var folders = JsonNode.Parse(candidate!)!["Folders"]!;
+
+        Assert.Equal(["Inbox", "PROJECTS"], [ReadFolderAlias(candidate, "0"), ReadFolderAlias(candidate, "1")]);
+        Assert.Equal("Inbox", folders["0"]!["SpecialUse"]!.GetValue<string>());
+        Assert.Null(folders["0"]!["RemotePath"]);
+        Assert.Null(folders["2"]);
+    }
+
+    [Fact]
+    public void WithFolderDeclared_AnAccountAlreadyDeclaringFolders_AddsOnlyTheFolderMade()
+    {
+        // Arrange
+        const string account = """{"Folders":{"0":{"Alias":"INBOX","SpecialUse":"Inbox","RemotePath":"INBOX"}}}""";
+
+        // Act
+        var candidate = MailAccountFolderComposition.WithFolderDeclared(account, "PROJECTS", "Projects", role: null).Candidate;
+
+        // Assert
+        Assert.Equal(["INBOX", "PROJECTS"], [ReadFolderAlias(candidate, "0"), ReadFolderAlias(candidate, "1")]);
+        Assert.Null(JsonNode.Parse(candidate!)!["Folders"]!["2"]);
     }
 
     /// <summary>An alias is what the stored mail is keyed by, so a rename moves the path and leaves everything else where it was.</summary>

@@ -788,6 +788,12 @@ created for is answered `400`. On
 a mirrored account the role is carried to the server with `CREATE-SPECIAL-USE` ([RFC 6154](https://www.rfc-editor.org/rfc/rfc6154))
 where the server advertises it, and MailFathom records the role either way.
 
+**Making a folder never stops an account reading its inbox.** On a mirrored account a creation is written into the
+account's own record as one more folder declaration, and an account whose record declares no folder at all reads its
+inbox by default — a list holding only the new folder would replace that default rather than add to it. So the first
+folder made on such an account is declared beside the inbox it was already read under, by the alias and the role
+`Inbox` the default carries, and the account goes on reading both.
+
 **A folder playing a role is never renamed, moved, or deleted**, on any account: it is the place the account files
 something into, and every rule [the folder routes of an account's own settings](admin-endpoint.md) apply holds here
 too — `Synchronize` and `CreateIfMissing` are always true, a role is stated when a folder is declared rather than given

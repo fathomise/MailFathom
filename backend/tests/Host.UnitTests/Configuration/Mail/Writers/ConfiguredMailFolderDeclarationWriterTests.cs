@@ -123,7 +123,7 @@ public sealed class ConfiguredMailFolderDeclarationWriterTests
         // Assert
         Assert.Null(outcome.Refusal);
         Assert.Single(surface.MailServer.ReceivedCalls());
-        Assert.Equal("Projects", FolderIn(deployment, work, "0")["RemotePath"]!.GetValue<string>());
+        Assert.Equal("Projects", FolderIn(deployment, work, "1")["RemotePath"]!.GetValue<string>());
     }
 
     /// <summary>A client draws its menus from the read, so an act a policy withholds is not offered there to fail when asked for.</summary>
@@ -200,8 +200,9 @@ public sealed class ConfiguredMailFolderDeclarationWriterTests
         // Assert
         Assert.Null(outcome.Refusal);
 
-        var folder = FolderIn(deployment, work, "0");
+        var folder = FolderIn(deployment, work, "1");
 
+        Assert.Equal("Inbox", FolderIn(deployment, work, "0")["Alias"]!.GetValue<string>());
         Assert.Equal("PROJECTS", folder["Alias"]!.GetValue<string>());
         Assert.Equal("Archive/Projects", folder["RemotePath"]!.GetValue<string>());
         Assert.True(folder["Synchronize"]!.GetValue<bool>());
