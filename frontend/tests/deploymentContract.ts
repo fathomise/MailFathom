@@ -543,21 +543,33 @@ export const contractCases: readonly ContractCase[] = [
             });
             const row = await deployment.firstRow(inbox.id);
 
+            // Where the message stands is read until the reads agree rather than once: a mirrored account's pass that
+            // rediscovers a message the first move filed can put it back there after the second move was taken, and the
+            // next pass over the folder it was moved back to brings it home.
+            const placed = async () => ({
+                inInbox: (await deployment.rowIds(inbox.id)).includes(row.id),
+                inMade: await deployment.rowIds(made.folder.id),
+                inboxCount: (await deployment.folder(inbox.id))?.storedEmailCount,
+                madeCount: (await deployment.folder(made.folder.id))?.storedEmailCount,
+            });
+            const settledAs = (expected: Awaited<ReturnType<typeof placed>>) =>
+                expect
+                    .poll(placed, { message: `Message ${row.id} never stood where the move left it`, timeout: 60_000 })
+                    .toStrictEqual(expected);
+
             expect(made).toMatchObject({ change: 'Created', folder: { name: 'Moved by a case', parentId: null } });
             expect(await deployment.folder(made.folder.id)).toMatchObject({ storedEmailCount: 0 });
 
             await deployment.move(row.id, made.folder.id);
-
-            expect(await deployment.rowIds(inbox.id)).not.toContain(row.id);
-            expect(await deployment.rowIds(made.folder.id)).toStrictEqual([row.id]);
-            expect((await deployment.folder(inbox.id))?.storedEmailCount).toBe(inbox.storedEmailCount - 1);
-            expect(await deployment.folder(made.folder.id)).toMatchObject({ storedEmailCount: 1 });
+            await settledAs({
+                inInbox: false,
+                inMade: [row.id],
+                inboxCount: inbox.storedEmailCount - 1,
+                madeCount: 1,
+            });
 
             await deployment.move(row.id, inbox.id);
-
-            expect(await deployment.rowIds(inbox.id)).toContain(row.id);
-            expect(await deployment.rowIds(made.folder.id)).toStrictEqual([]);
-            expect((await deployment.folder(inbox.id))?.storedEmailCount).toBe(inbox.storedEmailCount);
+            await settledAs({ inInbox: true, inMade: [], inboxCount: inbox.storedEmailCount, madeCount: 0 });
 
             await deployment.folderAct('/managed-folders/deletions', { account, folderId: made.folder.id });
         },

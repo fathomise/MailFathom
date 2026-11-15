@@ -478,8 +478,8 @@ passing against one target and failing against the other is the one disagreement
   `GET /mutations` answers, until that record is no longer `pending` or `converging` — never a duration. A folder act
   is waited on through the service's answers the same way, because a mirrored account carries what the act did on its
   server into its bindings and its tree on the pass the act starts: a move into a folder made a moment ago is asked
-  again while it answers `destination-not-found`, which records nothing, and where a folder stands after an act is read
-  until `GET /folders` says so. The fake reports its records finished and applies its folder acts at once, so neither
+  again while it answers `destination-not-found`, which records nothing, and where a folder or a moved message stands after
+  an act is read until the folder tree and the folder's list say so. The fake reports its records finished and applies its folder acts at once, so neither
   wait costs it anything.
 - **Where the two disagree, one of them is corrected in the same pull request**: the fake where it misread the service,
   together with every journey that stood on the misreading, and the service where it is the one that is wrong. The pull
