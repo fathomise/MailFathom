@@ -7470,7 +7470,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         sideCollapsed,
         toggleSide: drawer
           ? (() => this.setState({ sideDrawer: false }))
-          : (() => this.setState(s2 => ({ sideCollapsed: !s2.sideCollapsed }))),
+          : (() => this.setState({ sideCollapsed: !sideCollapsed })),
         /* The panel's show/hide control leads the mail toolbar, kept apart from *New message* by a
            rule, so a long folder tree never scrolls it away. The drawer closes from its own head. */
         sideToggleIcon: sideCollapsed ? "left_panel_open" : "left_panel_close",
