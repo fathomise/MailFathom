@@ -56,6 +56,40 @@ public sealed class ConfiguredMailFolderDeclarationWriterTests
         Assert.Equal([MailFolderAlias.Create("PROJECTS")], declared);
     }
 
+    /// <summary>An account no layer states a list for reads its inbox, so that inbox is what it declares.</summary>
+    [Fact]
+    public async Task AliasesTheAccountDeclaresAsync_AnAccountDeclaringNoFolder_ReadsTheInboxItIsServed()
+    {
+        // Arrange
+        var work = Mailbox("work@example.test", "work");
+        var writer = WriterOver(work, out _);
+
+        // Act
+        var declared = await writer.AliasesTheAccountDeclaresAsync(AccountOf(work), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([MailFolderAlias.Create("Inbox")], declared);
+    }
+
+    /// <summary>The inbox an account is served plays a role, so stating it on the account is no way to take it away.</summary>
+    [Fact]
+    public async Task WithdrawAsync_TheInboxAnAccountDeclaringNoFolderIsServed_IsRefusedAndWritesNothing()
+    {
+        // Arrange
+        var work = Mailbox("work@example.test", "work");
+        var writer = WriterOver(work, out var deployment);
+
+        // Act
+        var outcome = await writer.WithdrawAsync(
+            AccountOf(work),
+            MailFolderAlias.Create("Inbox"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailFolderActRefusal.NotRecorded, outcome.Refusal);
+        Assert.False(AccountIn(deployment, work).ContainsKey("Folders"));
+    }
+
     [Fact]
     public async Task AliasesTheAccountDeclaresAsync_AnAccountTheUserDoesNotHold_ReadsNone()
     {
@@ -123,7 +157,7 @@ public sealed class ConfiguredMailFolderDeclarationWriterTests
         // Assert
         Assert.Null(outcome.Refusal);
         Assert.Single(surface.MailServer.ReceivedCalls());
-        Assert.Equal("Projects", FolderIn(deployment, work, "0")["RemotePath"]!.GetValue<string>());
+        Assert.Equal("Projects", FolderIn(deployment, work, "1")["RemotePath"]!.GetValue<string>());
     }
 
     /// <summary>A client draws its menus from the read, so an act a policy withholds is not offered there to fail when asked for.</summary>
@@ -200,8 +234,9 @@ public sealed class ConfiguredMailFolderDeclarationWriterTests
         // Assert
         Assert.Null(outcome.Refusal);
 
-        var folder = FolderIn(deployment, work, "0");
+        var folder = FolderIn(deployment, work, "1");
 
+        Assert.Equal("Inbox", FolderIn(deployment, work, "0")["Alias"]!.GetValue<string>());
         Assert.Equal("PROJECTS", folder["Alias"]!.GetValue<string>());
         Assert.Equal("Archive/Projects", folder["RemotePath"]!.GetValue<string>());
         Assert.True(folder["Synchronize"]!.GetValue<bool>());

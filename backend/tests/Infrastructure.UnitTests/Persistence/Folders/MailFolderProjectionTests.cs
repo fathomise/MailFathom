@@ -45,6 +45,22 @@ public sealed class MailFolderProjectionTests
         Assert.Equal(2, folders.Count);
     }
 
+    /// <summary>A folder made and then moved under another made a moment earlier is rebound before its new parent is, and a second row under the parent's name would break the sibling-name index on every pass until it was.</summary>
+    [Fact]
+    public void Project_AParentDeclaredButNotYetBound_HangsTheRowUnderTheDeclaredRow()
+    {
+        // Arrange
+        var parent = Row("Case parent", "CASE PARENT", role: null);
+        var folders = new List<MailFolderEntity> { parent };
+
+        // Act
+        var child = Project(folders, Binding("CASE CHILD", "Case parent/Case renamed"));
+
+        // Assert
+        Assert.Equal(parent.Id, child.ParentId);
+        Assert.Equal(2, folders.Count);
+    }
+
     [Fact]
     public void Project_AFolderAlreadyInShape_AddsNoRowAndKeepsItsIdentity()
     {

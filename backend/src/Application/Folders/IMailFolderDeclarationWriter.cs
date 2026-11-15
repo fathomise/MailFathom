@@ -32,7 +32,7 @@ public interface IMailFolderDeclarationWriter
     /// <summary>Reads the aliases the account's own record declares, which are the folders this surface may act on.</summary>
     /// <param name="accountId">The account.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
-    /// <returns>The aliases, empty where the record declares none or names no such account.</returns>
+    /// <returns>The aliases, the default inbox's where nothing states a list for the account, and empty where the record names no such account.</returns>
     /// <remarks>Asked by the reader that publishes which acts a folder allows, so a folder an operator fixed is reported as allowing none rather than refusing the act after the person has asked for it.</remarks>
     Task<IReadOnlySet<MailFolderAlias>> AliasesTheAccountDeclaresAsync(
         MailAccountId accountId,

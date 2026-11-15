@@ -394,7 +394,8 @@ the declaration states. So a default list is a starting set an account replaces 
 own entries are added to. One consequence reaches the person: [the folder routes](client-endpoint.md#the-record-routes)
 change one folder of the list the account is *served*, so the first folder a person adds, restates, or withdraws on an
 account that was served a default's folders writes the whole resulting list onto that account, which from then on
-states its own.
+states its own. An account no layer states a list for is served its inbox, so the first folder added there is written
+beside an `Inbox` entry playing the `Inbox` role rather than in place of the inbox the account was reading.
 
 **The identity properties take no value from a policy.** `EmailAddress`, `DisplayName`, `UserName`,
 `Delivery:UserName`, `Delivery:FromAddress`, and `Delivery:FromDisplayName` say who or which rather than how, and the

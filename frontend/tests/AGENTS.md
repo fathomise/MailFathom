@@ -340,8 +340,9 @@ dropping it is not, and neither is asserting it in jsdom where it would pass for
 - **No journey asserts a service behaviour the fake merely assumes.** The fake holds one reading of what the service
   does — that a moved message leaves the folder it came from, that emptying the trash empties it — and a journey proves
   the client agrees with that reading, never that the service does. Agreement with a real service stays with the
-  service's integration suite and with [the end-to-end suite](#the-end-to-end-suite); a journey pinning a service rule
-  would pass while the fake and the client both disagreed with the deployment.
+  service's integration suite, with [the contract set](#the-contract-set), and with
+  [the end-to-end suite](#the-end-to-end-suite); a journey pinning a service rule would pass while the fake and the
+  client both disagreed with the deployment.
 - **A journey never waits out a real duration.** The fake answers at once, an AI answer included: nothing in it
   simulates how long a model takes, and where a journey needs a running answer it calls `startNextAnswerRunning()`
   before it asks: the fake hands the next answer back running and the next read the journey causes answers it finished.
@@ -393,7 +394,8 @@ dropping it is not, and neither is asserting it in jsdom where it would pass for
   on the wire.
 - **`fakeDeployment.spec.ts` proves the fake itself**, asking it directly with no page: that each write reaches the read
   after it. A journey stands on that, and a fake that got it wrong would make a journey pass or fail for a reason nobody
-  could see on the screen.
+  could see on the screen. It proves the fake against the corpus and against what only the fake does;
+  [the contract set](#the-contract-set) holds the same reading against a deployment.
 - **A check about Discover, Tasks, or Calendar opens with `openSignedInAsDeveloper`.** The client offers those three
   only while developer mode is on, so `client.harness.ts` switches it on the way a developer does — five presses on the
   version line in Settings — and every other check signs in to the client as anybody else meets it, which opens in the
@@ -445,6 +447,43 @@ between them, reloads one, and moves back and forward through the client's own h
 address is a fragment, and which nothing but a real document with a history can answer. Where the composition changes
 is here as well, because it is geometry: the navigation sits beside the workspace in a wide window and under it in a
 narrow one, asked of two viewport widths rather than of two heads.
+
+## The contract set
+
+`deploymentContract.ts` is what holds the fake to the service: one statement of each behaviour the journeys stand on,
+asked of two targets. `deploymentContract.spec.ts` asks it of the fake in process, with no page, in the browser suite's
+job on every pull request that reaches the client; `end-to-end/deploymentContract.spec.ts` asks it of the deployment
+[the end-to-end run](#the-end-to-end-suite) stands up, over HTTP beneath `/api/client` with the credential that run
+provisioned and with no browser either. Everything else here can only say that the client and the fake agree; a case
+passing against one target and failing against the other is the one disagreement with the service this stack can see.
+
+- **What belongs in it is a write a journey relies on, and the reads it moves**: the mail writes — a flag, a read mark,
+  a move, a delete and its withdrawal, a spam mark, and the record each opens — then drafts and the Outbox, managed
+  folders, and the task, calendar, and contact writes. **A new write the fake answers arrives with a case here**, in the
+  change that teaches the fake to answer it, and so does a write whose meaning the change alters.
+- **What stays out is what only the fake can do** — `stopAnswering()`, `refuseNextChange()`, `serveSignals()`, a
+  running Agent answer — and anything needing a chat provider, which the end-to-end run configures none of. Those stay in
+  `fakeDeployment.spec.ts`, which keeps every check it held: the set adds cases, it moved none out.
+- **A case is relational, never literal.** The fake starts from the corpus and the deployment from generated mail, so a
+  case names no message, folder, or count. It reads where it starts, makes one write, asserts how the reads after it
+  moved — a deleted message out of its folder's list and one off its count, a moved one out of one list and into
+  another, an undo putting the row back — and then puts back what it changed, because the end-to-end specs after it
+  meet the same mailbox.
+- **Every answer is held to the shape the service published**, read out of
+  `backend/tests/PublicSurfaces.UnitTests/http-api-contract.json` rather than restated in a case: a status the route
+  never answers, a field the service does not answer — which is how a renamed one arrives — and a field typed otherwise
+  each fail the case that asked. A field left out does not, on the rule `scripts/test-agent-workflow.sh` argues for
+  [the corpus](#the-corpus): the case that reads a field is what asserts it is there.
+- **A write the service applies to the mailbox later is waited on through its own report of it**, the record
+  `GET /mutations` answers, until that record is no longer `pending` or `converging` — never a duration. A folder act
+  is waited on through the service's answers the same way, because a mirrored account carries what the act did on its
+  server into its bindings and its tree on the pass the act starts: a move into a folder made a moment ago is asked
+  again while it answers `destination-not-found`, which records nothing, and where a folder or a moved message stands after
+  an act is read until the folder tree and the folder's list say so. The fake reports its records finished and applies its folder acts at once, so neither
+  wait costs it anything.
+- **Where the two disagree, one of them is corrected in the same pull request**: the fake where it misread the service,
+  together with every journey that stood on the misreading, and the service where it is the one that is wrong. The pull
+  request names which side was wrong. A case is never narrowed, skipped, or split by target until both pass.
 
 ## The end-to-end suite
 

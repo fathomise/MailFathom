@@ -788,6 +788,12 @@ created for is answered `400`. On
 a mirrored account the role is carried to the server with `CREATE-SPECIAL-USE` ([RFC 6154](https://www.rfc-editor.org/rfc/rfc6154))
 where the server advertises it, and MailFathom records the role either way.
 
+**Making a folder never stops an account reading its inbox.** On a mirrored account a creation is written into the
+account's own record as one more folder declaration, and an account whose record declares no folder at all reads its
+inbox by default — a list holding only the new folder would replace that default rather than add to it. So the first
+folder made on such an account is declared beside the inbox it was already read under, by the alias and the role
+`Inbox` the default carries, and the account goes on reading both.
+
 **A folder playing a role is never renamed, moved, or deleted**, on any account: it is the place the account files
 something into, and every rule [the folder routes of an account's own settings](admin-endpoint.md) apply holds here
 too — `Synchronize` and `CreateIfMissing` are always true, a role is stated when a folder is declared rather than given
@@ -803,20 +809,28 @@ such an account's first read already lists all five and `creatableRoles` is empt
 
 **On a mirrored account**, each act runs on the mail server: `CREATE` for a creation and `RENAME` for both a rename and
 a move, over the one write connection an account holds, which selects no folder. A created folder joins what the
-account synchronizes in the same act and appears in the next read without waiting for a synchronization pass, and a
+account synchronizes in the same act and appears in the next read without waiting for a synchronization pass; it takes
+mail once the pass that act starts has bound it, and a move into it before then answers `destination-not-found` and
+records nothing, so it is asked again. A
 renamed or moved folder stays synchronized under its new place and keeps its `id` — only the path behind it moves. A
 rename leaves a folder under the parent it sits in and a move keeps its own name, and both read where a folder sits
 through the hierarchy delimiter the account's synchronization recorded, since a path the account's record declares is
 text and carries none; on an account no synchronization pass has reached yet, every declared folder reads as sitting at
-the top until one does. What a deletion does there is [the account's own setting](configuration-mail.md):
-*Delete on the server* issues `DELETE`, takes the folder out of what the account synchronizes, and removes the mail
-stored from it, answering `Deleted`; *Mark deleted only* reaches the server not at all and marks the folder deleted in
-MailFathom, which takes it out of the tree and out of every mailbox query while the mail stays stored, answering
-`MarkedDeleted`. A folder the deployment's own configuration declares rather than the account's record is answered
-`NotDeclaredByTheAccount`: what an operator wrote is theirs to change.
+the top until one does. A deletion takes the folder with every folder the account declares beneath it, as it does
+on a held account, and what it does there is [the account's own setting](configuration-mail.md): *Delete on the server*
+issues `DELETE` for each, the deepest first — a server may refuse to delete a folder that still has children — takes
+each out of what the account synchronizes as soon as its server has deleted it, and removes the mail stored from them,
+answering `Deleted`; *Mark deleted only* reaches the server not at all and marks them deleted in MailFathom, which
+takes them out of the tree and out of every mailbox query while the mail stays stored, answering `MarkedDeleted`. A
+server refusing part of the way through answers `ServerRefused` with the folders it had already deleted gone and the
+rest standing. A folder the deployment's own configuration declares rather than the account's record is answered
+`NotDeclaredByTheAccount`, and so is a folder with one beneath it: what an operator wrote is theirs to change. A folder
+with a folder playing a role beneath it is refused as one playing a role itself is.
 
 **The source is asked before anything is written down**, so a server that refuses an act leaves nothing changed
-anywhere and a refusal is never half an act. Each act is bounded by the same timeout and retry rules every other write
+anywhere and a refusal is never half an act. A deletion reaching folders beneath the one named is one such act per
+folder, which is why a server refusing part of the way through it leaves the folders already deleted gone and the
+rest standing, as above. Each act is bounded by the same timeout and retry rules every other write
 to that server carries.
 
 Every write answers `mailErasureDeferred`, which is `true` only for an act whose mail erasure committed while the queue

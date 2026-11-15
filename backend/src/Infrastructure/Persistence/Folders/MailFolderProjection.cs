@@ -126,8 +126,11 @@ internal static class MailFolderProjection
                 && ancestorAlias != binding.Alias
                     ? liveFolders.FirstOrDefault(row => row.Alias == ancestorAlias)
                     : null;
+            // A row another alias names under the ancestor's name is the ancestor too — an alias declared and not bound
+            // yet, above all — and adding a second row there could only break the sibling-name index.
             var ancestor = declaredAncestor
                 ?? FindUnnamedSibling(liveFolders, parentId, ancestorName)
+                ?? liveFolders.FirstOrDefault(row => row.ParentId == parentId && row.NameKey == KeyOf(ancestorName))
                 ?? Added(liveFolders, binding.MailboxAccountId, parentId, ancestorName, mintFolderId);
 
             parentId = ancestor.Id;

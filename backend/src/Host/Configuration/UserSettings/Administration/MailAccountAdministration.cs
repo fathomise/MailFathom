@@ -555,7 +555,7 @@ internal sealed class MailAccountAdministration(
     /// <summary>Reads the aliases one of the signed-in user's accounts declares in the user's own record.</summary>
     /// <param name="accountId">The account's identifier.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The aliases as the record writes them, empty where the account declares none, where a settings policy holds its folders against the user, or where the record names no such account.</returns>
+    /// <returns>The aliases as the record writes them, the default inbox's where no layer states a list for the account, and empty where a settings policy holds its folders against the user or where the record names no such account.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="accountId" /> is <see langword="null" />, empty, or white space.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller acts for no user, or its grant omits <see cref="MailFathomPermission.MailRead" />.</exception>
     /// <remarks>
@@ -696,13 +696,18 @@ internal sealed class MailAccountAdministration(
     /// <remarks>
     /// A list is one value across the layers of a policy, so an account that states no folders and is served a
     /// default's has a whole list to change one folder of. Composing the change over the account's own document would
-    /// state a list holding that one folder and drop every other the person was looking at.
+    /// state a list holding that one folder and drop every other the person was looking at. One served no list by any
+    /// layer reads its inbox by default, which is written down for the same reason.
     /// </remarks>
     private static string WithTheFoldersItIsServed(MailAccountRecord account)
     {
         if (MailAccountPolicyResolution.ResolveUnderItsPolicies(account)?.Find(FoldersProperty)
-                is not { EffectiveValue: { } served } folders
-            || folders.Source == SettingsValueSource.Record
+            is not { EffectiveValue: { } served } folders)
+        {
+            return MailAccountFolderComposition.WithTheDefaultInboxStated(account.Document);
+        }
+
+        if (folders.Source == SettingsValueSource.Record
             || GovernedRecordResolution.ReadDocument(account.Document) is not { } document)
         {
             return account.Document;

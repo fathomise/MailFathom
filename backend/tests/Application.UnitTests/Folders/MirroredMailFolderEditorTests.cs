@@ -584,6 +584,130 @@ public sealed class MirroredMailFolderEditorTests
         await deployment.Jobs.Received(1).EnqueueAsync(Arg.Any<JobEnqueueRequest>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A folder is deleted with everything beneath it, the deepest first, because a server may refuse to delete a folder that still has children and a declaration left naming a folder beneath a deleted one would read as standing nowhere.</summary>
+    [Fact]
+    public async Task DeleteAsync_AFolderWithAFolderBeneathIt_DeletesAndWithdrawsTheDeepestFirstAndQueuesBothFoldersMail()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Projects/Archive", '/')));
+        deployment.Declarations.Declared.UnionWith([Projects, Archive]);
+
+        // Act
+        var outcome = await deployment.Editor.DeleteAsync(Account, Projects, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailFolderChangeKind.Deleted, outcome.Change);
+        Assert.Equal(["deleted ARCHIVE", "withdrew ARCHIVE", "deleted PROJECTS", "withdrew PROJECTS"], deployment.Log);
+        await deployment.Jobs.Received(2).EnqueueAsync(Arg.Any<JobEnqueueRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// A server refusing the folder above once the one beneath it is gone answers the refusal, and leaves each folder
+    /// whole on one side: the deeper one withdrawn with its mail on its way out, the refused one still declared, and the
+    /// open clients told what already went.
+    /// </summary>
+    [Fact]
+    public async Task DeleteAsync_TheServerRefusesTheFolderAboveOnceTheOneBeneathIsDeleted_KeepsTheDeeperOneGoneAndTellsTheClients()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Projects/Archive", '/')));
+        deployment.Declarations.Declared.UnionWith([Projects, Archive]);
+        deployment.RemoteEditor
+            .DeleteFolderAsync(
+                Arg.Any<MailAccountId>(),
+                Projects,
+                Arg.Any<RemoteFolderPath>(),
+                Arg.Any<MailTransportSecurityPolicy>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => throw new RemoteFolderEditRefusedException(Account, Projects, MailFolderAct.Delete));
+
+        // Act
+        var outcome = await deployment.Editor.DeleteAsync(Account, Projects, TestContext.Current.CancellationToken);
+        await deployment.AnnouncedAsync();
+
+        // Assert
+        Assert.Equal(MailFolderActRefusal.ServerRefused, outcome.Refusal);
+        Assert.Equal([Projects], deployment.Declarations.Declared);
+        Assert.Contains("withdrew ARCHIVE", deployment.Log);
+        await deployment.Jobs.Received(1).EnqueueAsync(Arg.Any<JobEnqueueRequest>(), Arg.Any<CancellationToken>());
+        Assert.Equal(ClientSignal.FoldersChanged(Account).Scope, Assert.Single(deployment.Channel.Published).Scope);
+    }
+
+    /// <summary>
+    /// A declaration refusing the folder above once the one beneath it is gone is answered the same way: the refusal,
+    /// the deeper folder withdrawn with its mail on its way out, and the open clients told what already went.
+    /// </summary>
+    [Fact]
+    public async Task DeleteAsync_TheRecordRefusesTheFolderAboveOnceTheOneBeneathIsWithdrawn_KeepsTheDeeperOneGoneAndTellsTheClients()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Projects/Archive", '/')));
+        deployment.Declarations.Declared.UnionWith([Projects, Archive]);
+        deployment.Declarations.RefusesToWithdraw = Projects;
+
+        // Act
+        var outcome = await deployment.Editor.DeleteAsync(Account, Projects, TestContext.Current.CancellationToken);
+        await deployment.AnnouncedAsync();
+
+        // Assert
+        Assert.Equal(MailFolderActRefusal.NotRecorded, outcome.Refusal);
+        Assert.Equal(
+            ["deleted ARCHIVE", "withdrew ARCHIVE", "deleted PROJECTS", "refused to withdraw PROJECTS"],
+            deployment.Log);
+        await deployment.Jobs.Received(1).EnqueueAsync(Arg.Any<JobEnqueueRequest>(), Arg.Any<CancellationToken>());
+        Assert.Equal(ClientSignal.FoldersChanged(Account).Scope, Assert.Single(deployment.Channel.Published).Scope);
+    }
+
+    /// <summary>A folder beneath that no act may take away keeps the one above it too, so the deletion is refused before the server is reached.</summary>
+    [Fact]
+    public async Task DeleteAsync_AFolderWithARoleFolderBeneathIt_IsRefusedAsProtectedAndTouchesNothing()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
+            MailFolderMapping.ToRemotePath(
+                MailFolderAlias.Create("Trash"),
+                RemoteFolderPath.Create("Projects/Trash", '/'),
+                specialUse: MailFolderSpecialUse.Trash));
+        deployment.Declarations.Declared.UnionWith([Projects, MailFolderAlias.Create("Trash")]);
+
+        // Act
+        var outcome = await deployment.Editor.DeleteAsync(Account, Projects, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailFolderActRefusal.ProtectedRole, outcome.Refusal);
+        Assert.Empty(deployment.Log);
+    }
+
+    /// <summary>What an operator declared beneath a person's folder is still the operator's, so the deletion that would take it is refused.</summary>
+    [Fact]
+    public async Task DeleteAsync_AFolderWithAFolderTheDeploymentDeclaresBeneathIt_IsRefusedAndTouchesNothing()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Projects/Archive", '/')));
+        deployment.Declarations.Declared.Add(Projects);
+
+        // Act
+        var outcome = await deployment.Editor.DeleteAsync(Account, Projects, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailFolderActRefusal.NotDeclaredByTheAccount, outcome.Refusal);
+        Assert.Empty(deployment.Log);
+    }
+
     /// <summary>Marking deleted reaches the server not at all, and the folder's mail stays stored against the day it is declared again.</summary>
     [Fact]
     public async Task DeleteAsync_TheAccountMarksDeletedOnly_WithdrawsItWithoutReachingTheServerOrTheMail()
@@ -723,7 +847,7 @@ public sealed class MirroredMailFolderEditorTests
             AuthoredFolderDeleteDisposition disposition = AuthoredFolderDeleteDisposition.DeleteOnServer,
             params MailFathomPermission[] granted)
         {
-            this.Signals = new ClientSignals([this.Channel], new FakeTimeProvider());
+            this.Signals = new ClientSignals([this.Channel], this.Clock);
             this.Declarations = new RecordingDeclarationWriter(this.Log);
             this.mappings.FoldersOf(Arg.Any<MailAccountId>()).Returns(_ => this.folders);
 
@@ -779,6 +903,8 @@ public sealed class MirroredMailFolderEditorTests
 
         internal RecordingClientSignalChannel Channel { get; } = new();
 
+        internal FakeTimeProvider Clock { get; } = new();
+
         internal ClientSignals Signals { get; }
 
         internal MirroredMailFolderEditor Editor { get; }
@@ -824,6 +950,13 @@ public sealed class MirroredMailFolderEditorTests
                     return RemoteFolderPath.Create(advertisedPath, '/');
                 });
 
+        /// <summary>Lets the signals the act raised through the folding window to the channel.</summary>
+        internal async Task AnnouncedAsync()
+        {
+            this.Clock.Advance(ClientSignals.FoldingWindow);
+            await this.Signals.DrainAsync();
+        }
+
         public ValueTask DisposeAsync() => this.Signals.DisposeAsync();
     }
 
@@ -834,6 +967,9 @@ public sealed class MirroredMailFolderEditorTests
 
         /// <summary>The token each write was given, which is how a test reads whether the write could have been cancelled.</summary>
         internal List<CancellationToken> WriteTokens { get; } = [];
+
+        /// <summary>The folder whose withdrawal the record refuses, which a test states to stand for a write that lost.</summary>
+        internal MailFolderAlias? RefusesToWithdraw { get; set; }
 
         /// <summary>Why the record takes no new folder, which a test states to stand for a settings policy holding the list.</summary>
         internal MailFolderActRefusal? DeclarationRefusal { get; set; }
@@ -879,8 +1015,16 @@ public sealed class MirroredMailFolderEditorTests
             MailFolderAlias folderAlias,
             CancellationToken cancellationToken)
         {
-            log.Add($"withdrew {folderAlias.Value}");
             this.WriteTokens.Add(cancellationToken);
+
+            if (folderAlias == this.RefusesToWithdraw)
+            {
+                log.Add($"refused to withdraw {folderAlias.Value}");
+
+                return Task.FromResult(MailFolderDeclarationOutcome.Refused(MailFolderActRefusal.NotRecorded));
+            }
+
+            log.Add($"withdrew {folderAlias.Value}");
             this.Declared.Remove(folderAlias);
 
             return Task.FromResult(MailFolderDeclarationOutcome.Committed);

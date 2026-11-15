@@ -1,6 +1,6 @@
 # The end-to-end client run
 
-<!-- describes: scripts/run-end-to-end-client.sh, scripts/write-end-to-end-client-report.sh, .github/workflows/end-to-end-client.yml, frontend/playwright.end-to-end.config.ts, frontend/tests/end-to-end/**, backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs -->
+<!-- describes: scripts/run-end-to-end-client.sh, scripts/write-end-to-end-client-report.sh, .github/workflows/end-to-end-client.yml, frontend/playwright.end-to-end.config.ts, frontend/tests/end-to-end/**, frontend/tests/deploymentContract.ts, backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs -->
 
 One pipeline, run every night `main` moved and whenever somebody asks for it, that stands a throwaway MailFathom up the
 way an operator stands one up, drives the real client against it in a real browser, and leaves a report of what it
@@ -61,7 +61,7 @@ that never reached the mailbox and a client that cannot draw a list are two diff
 | The database, the mail server, and the fault proxy | The app model, on the topology `EndToEndClient=true FaultProxy=true` selects: PostgreSQL, GreenMail, and the Toxiproxy instance [Injecting network faults](fault-injection.md#in-the-end-to-end-client-run) describes in front of GreenMail, under the ephemeral run prefix, and no MailFathom |
 | The schema | The artifact applied with `psql` inside the database container, the route [the schema page](database-schema.md) gives an operator whose database is not reachable from where they stand |
 | MailFathom | `dotnet publish` of `Host`, the bundle copied to `wwwroot/` beside it as the image does, started with the client endpoint on and serving the page |
-| The mailbox | `POST /api/admin/users` recording the user this run serves — the database it created holds nobody — then `POST /api/admin/mail-accounts` creating the mail account — reading the mailbox through the fault proxy's IMAP port rather than GreenMail's own — and assigning it to that user, because no configuration source declares a mailbox — the mailbox is served from that write, without a restart. The record states the account's language and carries an `env:` reference to the mailbox password rather than the password, because MailFathom refuses a secret's material into a persisted record whatever wrote it |
+| The mailbox | `POST /api/admin/users` recording the user this run serves — the database it created holds nobody — then `POST /api/admin/mail-accounts` creating the mail account — reading the mailbox through the fault proxy's IMAP port rather than GreenMail's own — and assigning it to that user, because no configuration source declares a mailbox — the mailbox is served from that write, without a restart. The record states the account's language and carries an `env:` reference to the mailbox password rather than the password, because MailFathom refuses a secret's material into a persisted record whatever wrote it. It also switches sending on against GreenMail's SMTP port, because the contract set below queues a send and takes it back, and an account with nowhere to submit refuses a send before it is queued |
 | The role | `POST /api/admin/role-assignments` giving that user the seeded `User` role at their own scope, found by its name in `GET /api/admin/roles`, because a recorded user holds no permission until a role is assigned and the credential below takes the user's own |
 | The credential | `POST /api/admin/users/{id}/credentials` on [the administrative endpoint](admin-endpoint.md), so the password this run signs in with was made the way an operator makes one |
 | The mail | `SyntheticMail replay` of `backend/tools/SyntheticMail/corpora/office-en.zip` into the mailbox over SMTP |
@@ -125,6 +125,18 @@ opens. Every day in it is an offset from the day the run happens on, stated in U
 pins, so *Today*, *This week* and *Later* are each reachable whichever weekday a run lands on. Each of the three spaces
 also writes one record of its own through its screen and removes it again, which is where the client's own write path
 is held to account and what keeps the files runnable in any order.
+
+**The contract set is asked of the deployment as well as of the fake.** `deploymentContract.spec.ts` runs the cases
+`frontend/tests/deploymentContract.ts` states — the same cases the pull-request browser suite asks of the fake deployment
+its journeys sign in to — over the client API with the credential the run provisioned and with no browser: a flag, a
+read mark, a move into a folder it makes, a delete and its withdrawal, a spam mark, a draft written, revised and given up,
+a send queued for a day years away and cancelled, a folder made, renamed, moved and deleted, and a task, an event and a
+contact each written, changed and erased. Each asserts how the reads after its write moved rather than any value of the
+generated mail, holds every answer to the shape `backend/tests/PublicSurfaces.UnitTests/http-api-contract.json` records,
+waits on a change the mailbox takes later through the record the service reports for it, and puts back what it changed,
+so the specs after it meet the mailbox they would have met without it. A case failing here and passing in the
+pull-request suite is the fake disagreeing with the service; [the client test instructions](https://github.com/fathomise/MailFathom/blob/main/frontend/tests/AGENTS.md#the-contract-set)
+say which side is corrected.
 
 **One spec takes the mailbox away.** `outage.spec.ts` opens Mail on a deployment whose freshness line says every
 account is current, starts `imap-down` through `scripts/inject-fault.sh` on the proxy the run asked for, and waits for
