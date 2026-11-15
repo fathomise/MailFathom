@@ -118,7 +118,7 @@ delivered part of it. Nothing in a pull request says which case it is in, which 
 inferred.
 
 Resolve each issue the merged pull requests closed against its parent. The sub-issue links are the source of truth for
-the hierarchy — the `parent` label mirrors them for the board and can be stale — so the lookup follows the link, and
+the hierarchy, so the lookup follows the link, and
 only GraphQL exposes it:
 
 ```bash

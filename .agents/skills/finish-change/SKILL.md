@@ -92,7 +92,7 @@ Do not proceed while a gate fails.
    way a missing `Closes #<issue>` is. The one exception is a board with no current sprint, which
    `docs/operations/issue-tracking.md` § *Board fields* says how to recognize: nothing is written,
    the report says so, and the gate holds. It needs no clearing: the merge closes the issue out of every
-   view that reads `Sprint`. It is not written on an issue carrying the `parent` label, because a
+   view that reads `Sprint`. It is not written on a parent — an issue that has sub-issues — because a
    pull request closes the issue that does the work rather than the parent grouping it, and a
    `Closes` reference pointing at a parent is the defect to correct rather than an issue to give a
    sprint.
@@ -112,8 +112,8 @@ Do not proceed while a gate fails.
    `Sprint` is confirmed. `docs/operations/issue-tracking.md` § *Board fields* holds the boundaries and
    why the value is taken here rather than argued over: this is the first moment the field can state a
    measurement instead of a guess, and a review round that later carries the change across a boundary
-   leaves it one band out rather than wrong in kind. It is skipped on an issue carrying the `parent`
-   label for the reason `Sprint` is — a parent's size is the sum of its children, and no pull request
+   leaves it one band out rather than wrong in kind. It is skipped on a parent
+   for the reason `Sprint` is — a parent's size is the sum of its children, and no pull request
    closes one.
 
    Without that access there is no board write and no gate here. The board is the owner's and a grant

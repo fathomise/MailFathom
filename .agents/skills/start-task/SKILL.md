@@ -176,7 +176,7 @@ them if that access were ever removed.
    the brief says it has no feature. A parent is never opened to hold one issue, a milestone is never
    created here, and a release epic is chosen only as that page § *Milestones* allows. A new issue takes no
    `Sprint`, which makes it backlog; step 10 writes the current one when the work is taken. A parent
-   carries no `Sprint` at all, and its `parent` label and `[P] ` title prefix identify the hierarchy.
+   carries no `Sprint` at all, and its sub-issue links and `[P] ` title prefix identify the hierarchy.
    Waiting for an ADR, an internal decision, or a measurement is `Status: Needs decision`,
    independent of `Sprint`: record the awaited answer in the issue, link a `Decision` issue where
    one exists, and do not begin implementation until it is settled.
