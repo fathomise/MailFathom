@@ -162,7 +162,7 @@ Issue link: <Closes #N confirmed in the published body>
 Related pull requests: <the ones scripts/report-related-pull-requests.sh named and what each changed here, or none>
 Sprint: <the current sprint confirmed on the board after the pull request existed, or not applicable (no board write)>
 Size: <the band written from this pull request's own diff and confirmed, or not applicable (no board write, or a parent issue)>
-Placement: <issue type, stack label or neither, design label held against the diff under design/, Area, milestone or none — or what this session's access left to triage>
+Placement: <issue type, stack label or neither, design label held against the diff under design/, Area, the milestone and the feature parent — or what this session's access left to triage>
 ```
 
 Never claim completion without fresh evidence for every line.
