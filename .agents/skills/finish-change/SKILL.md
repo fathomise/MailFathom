@@ -84,15 +84,16 @@ Do not proceed while a gate fails.
    through `gh api repos/<owner>/<repo>/pulls/<number> -X PATCH -f body=...`. That endpoint names the
    *base* repository even for a fork's pull request, and it is the author who is allowed to patch it
    rather than anyone with write access to that repository.
-8. **Wherever the board probe in `$start-task` returned write access:** set `Queue: Next` on the
-   issue the pull request closes, whether it was opened for this task or already existed, and
-   confirm the value landed. No project automation can
-   write that field, so a value that did not land is an incomplete gate in the same way a missing
-   `Closes #<issue>` is. It needs no clearing: the merge
-   closes the issue out of every view that reads `Queue`. It is not written on an issue carrying the
-   `parent` label, because a pull request closes the issue that does the work rather than the parent
-   grouping it, and a `Closes` reference pointing at a parent is the defect to correct rather than an
-   issue to move to `Next`.
+8. **Wherever the board probe in `$start-task` returned write access:** confirm the issue the pull
+   request closes is in the current sprint, and write that sprint where it is not, whether the issue
+   was opened for this task or already existed. `$start-task` writes it when it claims the issue, so
+   this step usually only reads; an issue started any other way reaches it with none. No project
+   automation can write that field, so a value that did not land is an incomplete gate in the same
+   way a missing `Closes #<issue>` is. It needs no clearing: the merge closes the issue out of every
+   view that reads `Sprint`. It is not written on an issue carrying the `parent` label, because a
+   pull request closes the issue that does the work rather than the parent grouping it, and a
+   `Closes` reference pointing at a parent is the defect to correct rather than an issue to give a
+   sprint.
 
    **The same board write sets `Size`, and it takes it from the diff rather than from the placeholder
    the issue was opened with.** The pull request exists by this step, so its own line count is
@@ -106,11 +107,11 @@ Do not proceed while a gate fails.
 
    That endpoint names the base repository in both roles, exactly as the body patch above does. Write
    the band it printed with one more `item-edit` against the `Size` field, and confirm it landed as
-   `Queue` is confirmed. `docs/operations/issue-tracking.md` § *Board fields* holds the boundaries and
+   `Sprint` is confirmed. `docs/operations/issue-tracking.md` § *Board fields* holds the boundaries and
    why the value is taken here rather than argued over: this is the first moment the field can state a
    measurement instead of a guess, and a review round that later carries the change across a boundary
    leaves it one band out rather than wrong in kind. It is skipped on an issue carrying the `parent`
-   label for the reason `Queue` is — a parent's size is the sum of its children, and no pull request
+   label for the reason `Sprint` is — a parent's size is the sum of its children, and no pull request
    closes one.
 
    Without that access there is no board write and no gate here. The board is the owner's and a grant
@@ -140,7 +141,7 @@ unfinished work instead when the client now shows something `design/` does not d
 `AGENTS.md` § *The design leads the client, never the other way round* puts that design half in this
 pull request.
 
-Preserve `Sprint`: publishing a pull request never assigns, changes, or clears the user's sprint.
+Step 8's is the one `Sprint` write here: publishing a pull request plans no other sprint and clears none.
 Leave review and merge statuses to the project automation. `Status: Needs decision` records an
 outstanding ADR, internal decision, or measurement; an unresolved one stops completion. Starting
 work may set `In progress` as the task flow specifies; retrospective closed issues take `Done`.
@@ -159,7 +160,7 @@ Push: <remote and branch>
 Pull request: <URL, and the base repository it targets>
 Issue link: <Closes #N confirmed in the published body>
 Related pull requests: <the ones scripts/report-related-pull-requests.sh named and what each changed here, or none>
-Queue: <Next confirmed on the board after the pull request existed, or not applicable (no board write)>
+Sprint: <the current sprint confirmed on the board after the pull request existed, or not applicable (no board write)>
 Size: <the band written from this pull request's own diff and confirmed, or not applicable (no board write, or a parent issue)>
 Placement: <issue type, stack label or neither, design label held against the diff under design/, Area, milestone or none — or what this session's access left to triage>
 ```

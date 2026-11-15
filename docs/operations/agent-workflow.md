@@ -846,8 +846,8 @@ worded as *does not exist* and is read as neither. One call, and the answer a
 What differs is narrow and is listed in both skills at the step it applies to,
 and it splits along those two facts. The repository decides the branch name and
 the linked worktree, the issue's type, every label it carries, and its milestone, and which
-remote is pushed to; the board probe decides the `Area`, `Queue`, and `Size`
-fields and the `Queue: Next` write when the pull request opens. A contributor the
+remote is pushed to; the board probe decides the `Area`, `Size`, and `Sprint`
+fields, the last written when the work is taken and confirmed when the pull request opens. A contributor the
 owner granted board write therefore places an issue exactly as the owner's
 checkout does while still neither typing nor labelling it, which is the point of separating
 them. What does not differ is everything else, including both verification
@@ -987,7 +987,7 @@ The canonical skills are:
   verification, checks the final diff, reports the open pull requests related
   to the change, creates a focused commit, pushes the branch, opens a pull
   request that references its issue with `Closes #<issue>` and names those
-  related pull requests, and then moves that issue to `Queue: Next` so the board
+  related pull requests, and then confirms that issue is in the current sprint so the board
   shows the work as in flight and writes its `Size` from the pull request's own
   `additions + deletions`, which is the first moment that field can state a
   measurement rather than the placeholder the issue was opened with;
@@ -1033,11 +1033,11 @@ themselves: which work needs an issue, what an issue body contains, the issue
 type it carries, the `backend` or `frontend` label saying which stack the work
 lands in and the case that takes neither, the `design` label on work that changes
 `design/` and how `finish-change` holds it against the diff, the `agent:claude` or `agent:codex` marker a session
-applies when it takes one, the `Area`, `Queue` and `Size` fields that place it on
-the board, the milestone that scopes it to a release, the dependency relation
+applies when it takes one, the `Area`, `Size` and `Sprint` fields that place it on
+the board, the parent every issue hangs beneath, the milestone that scopes it to a release, the dependency relation
 that records which issue has to land before which — distinct from both the
 sub-issue hierarchy and the `blocked` label, and read by `start-task` before it
-takes anything — the delivery table every parent carries those relations in, and
+takes anything — the delivery table every feature parent carries those relations in, and
 which board transitions belong to the project automation rather than to an
 agent. It sits there rather
 than in root `AGENTS.md` because it is acted on twice per task and read by
@@ -1046,13 +1046,13 @@ issue. `start-task` and `finish-change` each name it at the step that writes the
 board. Placing an issue is part of opening it, because the built-in workflows
 set `Status` and nothing else.
 
-That same limit is why `Queue: Next` is written by a skill rather than by an
-automation. No project workflow can set a custom single-select field, and the
+That same limit is why `Sprint` is written by a skill rather than by an
+automation. No project workflow can set an iteration field, and the
 only Actions credential that reaches the board is the `Fathomise projects` App's
-token, which the board jobs mint to write `Status` alone — so the `Queue` write
-stays with the skill that opens the pull request, where the decision behind it is
-made, and a pull request opened by neither
-`finish-change` nor `prepare-release` moves nothing.
+token, which the board jobs mint to write `Status` alone — so the write
+stays with `start-task`, which takes the issue, and is confirmed by the skill
+that opens the pull request, and a pull request opened by neither
+`finish-change` nor `prepare-release` confirms nothing.
 
 Those rules describe an issue an agent opened. A public repository also receives
 issues nobody here opened, and one arrives with no issue type, no stack or

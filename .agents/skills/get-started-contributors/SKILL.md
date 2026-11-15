@@ -436,8 +436,8 @@ offer to go deeper on any one of them instead of expanding all six.
    | Set an issue type, or put a stack or design label or a milestone on an issue | `permissions.push` | Without it, an issue arrives bare **by design** and triage supplies them; nothing failed and nothing is missing |
    | Claim an issue with `agent:claude` or `agent:codex` | `permissions.push` | It is a label like any other. Without it the step does not exist, rather than being skipped |
    | Push the branch | `permissions.push` | Without it the branch goes to their own fork and the pull request crosses from there, which is the ordinary shape rather than a workaround |
-   | Read `Area`, `Queue`, and `Size` | The board probe | `true` or `false` both allow reading it for context |
-   | Write `Area`, `Queue`, or `Size` | The board probe | `true` alone. On `false` or no access, every board write is reported as unavailable rather than attempted |
+   | Read `Area`, `Size`, and `Sprint` | The board probe | `true` or `false` both allow reading it for context |
+   | Write `Area`, `Size`, or `Sprint` | The board probe | `true` alone. On `false` or no access, every board write is reported as unavailable rather than attempted |
 
    **Board access is never repository access**, which is why the board holds rows of its own in that table rather than
    following the ones above it. The maintainer may grant write on project `1` to somebody who still cannot label an
@@ -496,7 +496,7 @@ offer to go deeper on any one of them instead of expanding all six.
 
    The roadmap board, project `1`, is private to the maintainer and I have no access to it.
    Do not read it, do not write it, and do not treat that as a step that failed: an issue I
-   open carries no issue type, no stack or design label, no milestone, and no `Area`, `Queue`, or
+   open carries no issue type, no stack or design label, no milestone, no parent, and no `Area` or
    `Size` value by design, and the maintainer's triage supplies them. `$start-task` opens the issue and stops
    there; `$finish-change` reports the board write as `not applicable (no board write)`.
 
