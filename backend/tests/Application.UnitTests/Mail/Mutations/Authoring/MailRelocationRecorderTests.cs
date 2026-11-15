@@ -596,10 +596,10 @@ public sealed class MailRelocationRecorderTests
 
     /// <summary>
     /// Giving a draft up erases it, which the grant to move mail does not cover: a caller who may move and may not
-    /// delete is refused, and the draft stands.
+    /// delete is told what they were told before any occurrence is bound, and the draft stands.
     /// </summary>
     [Fact]
-    public async Task RecordAsync_ACallerWithoutTheDeleteGrantMovingADraftsMessageThatHoldsNoOccurrenceIntoTheTrash_IsRefusedAndLeavesTheDraft()
+    public async Task RecordAsync_ACallerWithoutTheDeleteGrantMovingADraftsMessageThatHoldsNoOccurrenceIntoTheTrash_FindsNoMessageAndLeavesTheDraft()
     {
         // Arrange
         this.MapMirrored(Drafts, "Drafts", MailFolderSpecialUse.Drafts);
@@ -608,17 +608,17 @@ public sealed class MailRelocationRecorderTests
         var recorder = this.Recorder(target: null);
 
         // Act
-        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() => recorder.RecordAsync(
+        var result = await recorder.RecordAsync(
             LocalEmail,
             IdOf(trash.Alias),
             Requester,
             MailboxReaderKind.Person,
-            TestContext.Current.CancellationToken));
+            TestContext.Current.CancellationToken);
 
         // Assert
         var draft = await this.drafts.FindAsync(draftId, TestContext.Current.CancellationToken);
 
-        Assert.Equal(MailFathomPermission.MailDelete, refusal.RequiredPermission);
+        Assert.Equal(MailRelocationOutcome.MessageNotFound, result.Outcome);
         Assert.NotNull(draft);
         Assert.False(draft.IsDiscarded);
     }

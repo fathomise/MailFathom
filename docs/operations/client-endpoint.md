@@ -2661,6 +2661,9 @@ appended for it is withdrawn from the server's drafts folder, and `PUT /api/clie
 afterwards. Nothing is left to follow, to withdraw, or to move back. A copy that could not be withdrawn on the request
 is withdrawn by the account's next draft pass, and the message stays listed until then. Every other move of such a
 message, and the same act asked by anybody but the draft's author, is `message-not-found` until an occurrence is bound.
+The move erases, so it is answered only for a caller who also holds `mailfathom.mail.delete` over the account; one
+holding `mailfathom.mail.move` alone is answered `message-not-found` for that message, the draft stands, and the rest
+of the batch is unaffected.
 
 **On an account whose mailbox MailFathom holds, a change is made rather than recorded.** There is no server to carry it
 to, so a flag, a keyword, a move, or a delete on a [held account](#the-folder-management-routes) is committed to the stored

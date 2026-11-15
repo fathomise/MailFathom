@@ -1371,7 +1371,8 @@ custodian settles it on the request as it settles a draft given up by its identi
 withdraws every copy still standing — the one appended for the revision the folder shows among them, whether or not
 synchronization has bound it since — and then erases the stored message with the record, and a held account erases the
 message with the record and reaches no server. The answer says the act is finished and names no record, because there
-is none to follow and nothing to move back. A settlement that could not finish, because the server could not be
+is none to follow and nothing to move back. A move that gives a draft up erases it, so it needs the grant to delete
+beside the grant to move, and a caller without it is told the message is not there. A settlement that could not finish, because the server could not be
 reached or a copy could not be withdrawn, is the draft pass's to finish, exactly as for any other draft given up, and
 the message stays listed until it does. Only the author is answered this way, since giving a draft up is its author's
 act; anybody else, and every other move of such a message, finds no message until an occurrence is bound.
