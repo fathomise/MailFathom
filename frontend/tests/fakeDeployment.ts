@@ -789,10 +789,14 @@ export class FakeDeployment {
                 return answering(this.sendDismissed(request.body));
             case 'POST /outbox/reopening':
                 return answering(this.sendReopened(request.body));
+            // What a check wrote heads the list, newest first, ahead of what the corpus holds — and leaves it once sent or
+            // given up, which is what takes it out of the book.
             case 'GET /drafts':
                 return answering({
                     ...drafts.draftList,
-                    drafts: drafts.draftList.drafts.filter(({ account }) => account === request.query.get('account')),
+                    drafts: [...[...this.draftsHeld.values()].reverse().map(({ record }) => record), ...drafts.draftList.drafts].filter(
+                        ({ account }) => account === request.query.get('account'),
+                    ),
                 });
             case 'GET /replies/drafting':
                 return answering(drafts.draftsReplies);
@@ -1337,7 +1341,9 @@ export class FakeDeployment {
         }
 
         if (method === 'DELETE' && part === undefined) {
-            return this.draftGone(id) ? nothing : { status: 404, body: '' };
+            return this.draftGone(id)
+                ? answering({ draftId: id, outcome: 'Discarded', divergence: null, failureCode: null })
+                : { status: 404, body: '' };
         }
 
         if (method === 'POST' && part === 'send') {
@@ -2590,7 +2596,7 @@ export class FakeDeployment {
             files: held?.files ?? [],
         });
 
-        return answering({ ...drafts.savedDraft, draft });
+        return answering(draft);
     }
 
     /** A fresh identity in the shape the service mints, numbered so a run is the same run every time. */

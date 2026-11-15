@@ -387,17 +387,15 @@ test('keeps a draft across saves as a revision each time, and forgets it once it
         to: ['yard@example.invalid'],
     };
 
-    const written = ask(deployment, 'POST', '/drafts', composition) as { draft: { draftId: string; revision: number } };
-    const { draftId } = written.draft;
+    const written = ask(deployment, 'POST', '/drafts', composition) as { draftId: string; revision: number };
+    const { draftId } = written;
     const revised = ask(deployment, 'PUT', `/drafts/${draftId}`, { ...composition, subject: 'The yard, Tuesday' });
 
     expect(revised).toMatchObject({
-        draft: {
-            draftId,
-            subject: 'The yard, Tuesday',
-            revision: 2,
-            recipients: [{ role: 'To', address: 'yard@example.invalid' }],
-        },
+        draftId,
+        subject: 'The yard, Tuesday',
+        revision: 2,
+        recipients: [{ role: 'To', address: 'yard@example.invalid' }],
     });
     expect(ask(deployment, 'POST', `/drafts/${draftId}/send`)).toHaveProperty('outgoingEmail');
     expect(ask(deployment, 'PUT', `/drafts/${draftId}`, composition)).toBe(404);
@@ -412,8 +410,8 @@ test('files a draft with its staged file in the drafts folder, reads it back who
         to: ['yard@example.invalid'],
     };
 
-    const written = ask(deployment, 'POST', '/drafts', composition) as { draft: { draftId: string } };
-    const { draftId } = written.draft;
+    const written = ask(deployment, 'POST', '/drafts', composition) as { draftId: string };
+    const { draftId } = written;
 
     deployment.answer({
         method: 'POST',
@@ -455,8 +453,8 @@ test('names the draft a filed message shows, as revised, until the draft is sent
     const deployment = new FakeDeployment('0.0.0');
     const composition = { account: fixtures.workAccount.id, subject: 'The yard', plainTextBody: 'Tuesday?' };
 
-    const written = ask(deployment, 'POST', '/drafts', composition) as { draft: { draftId: string } };
-    const { draftId } = written.draft;
+    const written = ask(deployment, 'POST', '/drafts', composition) as { draftId: string };
+    const { draftId } = written;
 
     ask(deployment, 'PUT', `/drafts/${draftId}`, { ...composition, plainTextBody: 'Wednesday?' });
 
@@ -482,9 +480,9 @@ test('puts a send taken back into the drafts folder as it was sent, and knows no
         to: ['yard@example.invalid'],
     };
 
-    const written = ask(deployment, 'POST', '/drafts', composition) as { draft: { draftId: string } };
+    const written = ask(deployment, 'POST', '/drafts', composition) as { draftId: string };
     const [filed = ''] = listed(deployment, 'folder=DRAFTS');
-    const queued = ask(deployment, 'POST', `/drafts/${written.draft.draftId}/send`) as { outgoingEmail: string };
+    const queued = ask(deployment, 'POST', `/drafts/${written.draftId}/send`) as { outgoingEmail: string };
 
     expect(listed(deployment, 'folder=DRAFTS')).toStrictEqual([]);
     expect(ask(deployment, 'POST', '/outbox/cancellation', { outgoingEmail: queued.outgoingEmail })).toStrictEqual({
@@ -526,10 +524,8 @@ test('counts no Outbox for a session that reads mail and cannot send it, as the 
 
 test('lists a queued send in the Outbox and counts it until it is taken back', () => {
     const deployment = sendingDeployment();
-    const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as {
-        draft: { draftId: string };
-    };
-    const queued = ask(deployment, 'POST', `/drafts/${written.draft.draftId}/send`) as { outgoingEmail: string };
+    const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as { draftId: string };
+    const queued = ask(deployment, 'POST', `/drafts/${written.draftId}/send`) as { outgoingEmail: string };
 
     expect(inTheOutbox(deployment)).toStrictEqual({
         sends: [queued.outgoingEmail, ...outbox.outboxPage.sends.map(({ outgoingEmail }) => outgoingEmail)],
@@ -555,8 +551,8 @@ test('names a queued send’s first three recipients on its row and counts the r
         subject: 'Four of them',
         to,
         cc: ['e@example.invalid'],
-    }) as { draft: { draftId: string } };
-    const queued = ask(deployment, 'POST', `/drafts/${written.draft.draftId}/send`) as { outgoingEmail: string };
+    }) as { draftId: string };
+    const queued = ask(deployment, 'POST', `/drafts/${written.draftId}/send`) as { outgoingEmail: string };
     const page = ask(deployment, 'GET', `/outbox?account=${fixtures.workAccount.id}&pageSize=200`) as {
         sends: { outgoingEmail: string; recipients: unknown[]; otherRecipientCount: number }[];
     };
@@ -589,10 +585,8 @@ test('answers the preview of a send that left at the stage it ended at, out of t
 
 test('lets a send it queued leave the Outbox as one the corpus held does, out of the list, the count and the preview', () => {
     const deployment = sendingDeployment();
-    const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as {
-        draft: { draftId: string };
-    };
-    const queued = ask(deployment, 'POST', `/drafts/${written.draft.draftId}/send`) as { outgoingEmail: string };
+    const written = ask(deployment, 'POST', '/drafts', { account: fixtures.workAccount.id, subject: 'The yard' }) as { draftId: string };
+    const queued = ask(deployment, 'POST', `/drafts/${written.draftId}/send`) as { outgoingEmail: string };
 
     deployment.sendLeaves(queued.outgoingEmail);
 

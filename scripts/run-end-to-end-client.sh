@@ -428,6 +428,10 @@ served_user="$(
 # TLS, and a deployment reaching a clear-text server has to say so wherever the mailbox is declared. The language is
 # stated for a different reason: every account names the one MailFathom writes about its mail in, and this run replays
 # an English corpus.
+#
+# Sending is switched on, against the same server's SMTP port, because the contract set asks the deployment to queue a
+# send and to take it back again, and an account with nowhere to submit refuses the send before it is queued. The send
+# that case makes names a day years away and is cancelled at once, so nothing this run queues ever reaches the server.
 
 # A refusal answers 200 with the reasons rather than a failing status, because every one of them is something the caller
 # composes the next attempt from. So the outcome is read rather than the status code.
@@ -441,6 +445,7 @@ mailbox_declaration="$(
         --arg emailAddress "$mailbox_address" \
         --arg host "$loopback" \
         --argjson port "$fault_proxy_imap_port" \
+        --argjson smtpPort "$smtp_port" \
         --arg userName "$mailbox_login" \
         --arg passwordReference "env:$mailbox_password_variable" \
         '{
@@ -462,6 +467,13 @@ mailbox_declaration="$(
                ConnectionSecurity: "None",
                AllowInsecureConnection: true,
                AllowClearTextAuthenticationOverUnencryptedConnection: true
+             },
+             Delivery: {
+               Enabled: true,
+               Host: $host,
+               Port: $smtpPort,
+               ConnectionSecurity: "None",
+               FromAddress: $emailAddress
              }
            } | tojson)
          }'

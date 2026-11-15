@@ -136,8 +136,8 @@ export const outOfStepDraftReading = {
     document: null,
 };
 
-/** What a save answers with, which is the record wrapped the way the surface is documented as free to wrap it. */
-export const savedDraft = { draft };
+/** What a save answers with, which is the record itself. */
+export const savedDraft = { ...draft };
 
 /** What a send answers with once the message is queued: an identity to watch in the outbox and nothing else. */
 export const queuedSend = { outgoingEmail: '00000000-0000-4000-8000-0000000000e0' };
