@@ -228,10 +228,11 @@ jobs:
       ref: ${{ needs.assert.outputs.revision }}
       version: ${{ needs.assert.outputs.version }}
 
-  # Where a release stops and waits for a person. Everything above has answered by now and nothing below has started,
-  # so what is approved is a commit every gate passed and what a rejection costs is nothing published: `publish` waits
-  # for this job, and the chart and the release page wait for `publish`. The builds that publish nothing do not wait,
-  # so an approver reads a run whose artifacts are already there.
+  # Where a release stops and waits for a person. Every gate has answered by now and nothing below has started, so
+  # what is approved is a commit every gate passed and what a rejection costs is nothing published: `publish` waits
+  # for this job, and the chart and the release page wait for `publish`. The command binaries and the desktop client
+  # are neither waited for nor made to wait: they run beside the gates and may still be building when the approval is
+  # asked, and the release page waits for them as it waits for this.
   #
   # The approval itself is the `release` environment's required reviewers, configured on the repository rather than
   # here; docs/operations/release-procedure.md records the settings. A run waits up to thirty days for it, and the

@@ -345,8 +345,10 @@ schema artifact, the integration suite, the client stack's gate, and the reposit
 image job names it, and the other two wait for the image. So the decision to publish is taken with every verdict
 already on the run, rather than at the tag push, before any of them exists.
 
-The command binaries and the desktop client do not wait for it. They publish nothing by themselves — the release page
-is what attaches them — so they build beside the gates, and an approver reads a run whose artifacts are already there.
+The command binaries and the desktop client neither wait for it nor are waited for. They publish nothing by themselves
+— the release page is what attaches them — so they build beside the gates and may still be running when the approval is
+asked. Approving over one that has not finished costs nothing: the release page waits for both, and a build that fails
+is left off it and visible on the run, exactly as without the approval.
 
 **Approving** is done on the run's page, under **Review deployments**, or with the notification GitHub sends the
 reviewer when the job starts waiting. **Rejecting** ends the run with nothing published: no image, no chart, no release

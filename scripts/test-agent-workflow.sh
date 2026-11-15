@@ -10203,7 +10203,8 @@ no_channel_builds_an_artifact_before_the_commit_has_verified() {
 # that silently, which is why they are asserted. `publish` no longer waiting for `approve` leaves a job
 # that asks and gates nothing; `approve` no longer naming the environment leaves a job that never asks;
 # and an environment nobody configured is created empty by the first job to name it, which approves
-# everything — so the job reads the environment's own rules and refuses one without a reviewer. The
+# everything — so the job reads the environment's own rules and refuses one without a reviewer, and the
+# step that refuses is run here against each answer the environment can give. The
 # artifacts that publish nothing are held to the opposite: an approval they waited for would be asked
 # before there was a built release to approve.
 a_release_publishes_only_after_it_was_approved() {
@@ -10237,8 +10238,53 @@ a_release_publishes_only_after_it_was_approved() {
 
   grep -qxF '    environment: release' <<< "$approve_job" ||
     failures+='approve does not name the release environment. '
-  grep -qF 'environments/release' <<< "$approve_job" && grep -qF 'required_reviewers' <<< "$approve_job" ||
-    failures+='approve does not refuse an environment without a required reviewer. '
+  # The refusal is run rather than read, because a step that still names the endpoint and the rule type passes any
+  # reading of its text with the branch that fails deleted. It is the job's only `run:` block and the last thing in
+  # the job, which is what the extraction relies on; `bash -n` is what notices when that stops being true.
+  local work
+  local step
+  local answer
+  local expected
+  local environment_case
+
+  work="$(mktemp -d "$test_directory/approve-XXXXXX")"
+  step="$work/step.sh"
+  awk '
+    /^        run: \|$/ { in_run = 1; next }
+    in_run && /^          / { print substr($0, 11); next }
+    in_run && /^[[:space:]]*$/ { print ""; next }
+    in_run { exit }
+  ' <<< "$approve_job" > "$step"
+
+  if [[ ! -s "$step" ]] || ! bash -n "$step"; then
+    failures+='approve carries no step that could be extracted and run. '
+  else
+    mkdir "$work/bin"
+    cat > "$work/bin/gh" << 'FAKE_GH'
+#!/usr/bin/env bash
+# Answers `gh api <path> --jq <filter>` from a fixture, or fails the way a refused read does.
+[[ "$1" == 'api' && "$2" == 'repos/fathomise/MailFathom/environments/release' && "$3" == '--jq' ]] || exit 64
+[[ -n "$FAKE_ENVIRONMENT" ]] || exit 1
+jq -r "$4" <<< "$FAKE_ENVIRONMENT"
+FAKE_GH
+    chmod +x "$work/bin/gh"
+
+    # What GitHub creates for a job naming an environment nobody configured, an environment holding the tag policy
+    # and no reviewer, a read that was refused, and the configured one.
+    for environment_case in \
+      'refused|{"protection_rules":[]}' \
+      'refused|{"protection_rules":[{"type":"branch_policy"}]}' \
+      'refused|{"protection_rules":[{"type":"required_reviewers","reviewers":[]}]}' \
+      'refused|' \
+      'approved|{"protection_rules":[{"type":"branch_policy"},{"type":"required_reviewers","reviewers":[{"type":"User"}]}]}'; do
+      expected="${environment_case%%|*}"
+      answer='refused'
+      PATH="$work/bin:$PATH" REPOSITORY='fathomise/MailFathom' FAKE_ENVIRONMENT="${environment_case#*|}" \
+        bash -e "$step" > /dev/null 2>&1 && answer='approved'
+      [[ "$answer" == "$expected" ]] ||
+        failures+="approve ${answer} the environment '${environment_case#*|}', which is to be ${expected}. "
+    done
+  fi
 
   if [[ -n "$failures" ]]; then
     printf 'release.yml does not hold a release for approval as recorded: %s\n' "$failures" >&2
