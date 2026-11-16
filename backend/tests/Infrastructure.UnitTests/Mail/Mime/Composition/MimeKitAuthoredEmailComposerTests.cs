@@ -432,6 +432,97 @@ public sealed class MimeKitAuthoredEmailComposerTests
             StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>A reply address is written into the <c>Reply-To</c> header and offered the message by nothing.</summary>
+    [Fact]
+    public void Compose_ReplyAddresses_AreNamedInTheReplyToHeaderAndNeverInTheEnvelope()
+    {
+        // Arrange
+        var composer = CreateComposer();
+        var authored = Authored() with { ReplyTo = ["desk@example.test", "Desk@example.test", "office@example.test"] };
+
+        // Act
+        var composition = composer.Compose(Account, SyntheticUser.Deployment, Requester(), authored, Capabilities());
+
+        // Assert
+        Assert.Equal(
+            ["desk@example.test", "office@example.test"],
+            Parse(composition).ReplyTo.Mailboxes.Select(static mailbox => mailbox.Address));
+        Assert.Equal(
+            "anna@example.test",
+            Assert.Single(composition.Email!.Request.Recipients).Address.Address);
+    }
+
+    /// <summary>A message naming no reply address carries no such header, so a reply goes back to the sending address.</summary>
+    [Fact]
+    public void Compose_NoReplyAddress_WritesNoReplyToHeader()
+    {
+        // Arrange
+        var composer = CreateComposer();
+
+        // Act
+        var composition = composer.Compose(Account, SyntheticUser.Deployment, Requester(), Authored(), Capabilities());
+
+        // Assert
+        Assert.False(Parse(composition).Headers.Contains(HeaderId.ReplyTo));
+    }
+
+    /// <summary>A reply address is held to what a recipient is held to, and the refusal names the header.</summary>
+    [Theory]
+    [InlineData("not-a-mailbox", AuthoredEmailRefusalReason.FieldUnusable)]
+    [InlineData(Injection, AuthoredEmailRefusalReason.HeaderInjected)]
+    public void ComposeDraft_UnusableReplyAddress_IsRefusedNamingTheReplyToHeader(
+        string replyAddress,
+        AuthoredEmailRefusalReason reason)
+    {
+        // Arrange
+        var authored = Authored() with { ReplyTo = [replyAddress] };
+
+        // Act
+        var composition = CreateComposer().ComposeDraft(Account, authored, Capabilities());
+
+        // Assert
+        var refusal = composition.Refusal!;
+        Assert.Equal((reason, AuthoredEmailField.ReplyTo), (refusal.Reason, refusal.Field));
+    }
+
+    /// <summary>More reply addresses than the deployment addresses one message to is refused naming that number.</summary>
+    [Fact]
+    public void Compose_MoreReplyAddressesThanConfigured_IsRefusedNamingTheBound()
+    {
+        // Arrange
+        var authored = Authored() with
+        {
+            ReplyTo = [.. Enumerable.Range(0, 4).Select(index => $"desk{index}@example.test")],
+        };
+
+        // Act
+        var composition = CreateComposer().Compose(Account, SyntheticUser.Deployment, Requester(), authored, Capabilities());
+
+        // Assert
+        AssertBoundExceeded(composition, AuthoredEmailField.ReplyTo, Bounds().MaxRecipientCount);
+    }
+
+    /// <summary>An occasion of a recurring send goes out with the reply addresses its stored draft was composed with.</summary>
+    [Fact]
+    public void RecomposeAsOccurrence_DraftNamingAReplyAddress_KeepsIt()
+    {
+        // Arrange
+        var composer = CreateComposer();
+        var draft = composer.ComposeDraft(Account, Authored() with { ReplyTo = ["desk@example.test"] }, Capabilities()).Draft!;
+
+        // Act
+        var composition = composer.RecomposeAsOccurrence(
+            Account,
+            SyntheticUser.Deployment,
+            Requester(),
+            [Recipient("anna@example.test")],
+            draft.RawMime,
+            Capabilities());
+
+        // Assert
+        Assert.Equal("desk@example.test", Assert.Single(Parse(composition).ReplyTo.Mailboxes).Address);
+    }
+
     /// <summary>An address that names no mailbox is refused against the header the author wrote it in, never against the address.</summary>
     [Theory]
     [InlineData(OutgoingRecipientRole.To, AuthoredEmailField.To)]
@@ -805,6 +896,55 @@ public sealed class MimeKitAuthoredEmailComposerTests
         Assert.Equal(
             "zoë@example.test",
             Assert.IsType<MailboxAddress>(Assert.Single(Parse(composition).To)).Address);
+    }
+
+    /// <summary>
+    /// An internationalized reply address is written raw where the server carries one, though every address the
+    /// envelope offers is ASCII — the stored message is in the international format because of it alone.
+    /// </summary>
+    [Fact]
+    public void Compose_InternationalizedReplyAddressAgainstServerAdvertisingSupport_IsWrittenRaw()
+    {
+        // Arrange
+        var authored = Authored() with { ReplyTo = ["zoë@example.test"] };
+
+        // Act
+        var composition = CreateComposer().Compose(
+            Account,
+            SyntheticUser.Deployment,
+            Requester(),
+            authored,
+            Capabilities(acceptsInternationalizedAddresses: true));
+
+        // Assert
+        Assert.Equal("zoë@example.test", Assert.Single(Parse(composition).ReplyTo.Mailboxes).Address);
+        Assert.Contains(
+            "zoë@example.test",
+            Encoding.UTF8.GetString(composition.Email!.RawMime.Span),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>An internationalized reply address the server cannot carry is refused naming the header, as a recipient's is.</summary>
+    [Fact]
+    public void Compose_InternationalizedReplyAddressAgainstServerWithoutSupport_IsRefusedNamingTheHeader()
+    {
+        // Arrange
+        var authored = Authored() with { ReplyTo = ["zoë@example.test"] };
+
+        // Act
+        var composition = CreateComposer().Compose(
+            Account,
+            SyntheticUser.Deployment,
+            Requester(),
+            authored,
+            Capabilities(acceptsInternationalizedAddresses: false));
+
+        // Assert
+        AssertRefused(
+            composition,
+            AuthoredEmailRefusalReason.InternationalizationUnsupported,
+            AuthoredEmailField.ReplyTo,
+            MailFathomErrorCode.OutgoingEmailInternationalizationUnsupported);
     }
 
     /// <summary>

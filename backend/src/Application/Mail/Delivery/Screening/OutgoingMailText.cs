@@ -33,7 +33,11 @@ namespace MailFathom.Application.Mail.Delivery.Screening;
 /// the name into the header having checked it only for an embedded line break. Nothing published today lets a caller
 /// state one — every recipient is an address, or a contact whose name this deployment holds — so this is a gap in what
 /// is guaranteed rather than a value going out unexamined. An entrypoint that does let a caller name a recipient in
-/// their own words is what would make it one, and screening the header is what it would owe.
+/// their own words is what would make it one, and screening the header is what it would owe. <b>A reply address is
+/// neither either</b>: <c>Reply-To</c> names nobody the message is offered to, so the policy never reads it, and the
+/// composer holds it to form and bounds alone — a usable address, no line break, the recipient count. It is an address
+/// rather than words, so it is not among the three, and its display name is never a caller's: nothing published lets
+/// one be stated.
 /// </para>
 /// <para>
 /// <b>An attachment is read as far as something here can read it, and a file that could not be read stops the act.</b>
@@ -54,6 +58,14 @@ public sealed record OutgoingMailText(string Subject, string PlainTextBody, stri
     /// which is the same answer an image gets and for the same reason.
     /// </remarks>
     public IReadOnlyList<string> AttachmentTexts { get; init; } = [];
+
+    /// <summary>Gets the addresses the message's <c>Reply-To</c> header names, which is none where it carries no such header.</summary>
+    /// <remarks>
+    /// They are read here, in the one parse a draft read back for its author already makes, so a draft whose words come
+    /// back comes back with them too — a draft reopened without them would lose them on its next save. They are not
+    /// among <see cref="ScreenedValues" />: an address is judged by what it is, never scanned as words.
+    /// </remarks>
+    public IReadOnlyList<string> ReplyTo { get; init; } = [];
 
     /// <summary>Gets why the message's attachments left nothing to judge them by, or <see langword="null" /> where every document it carries was read.</summary>
     /// <remarks>

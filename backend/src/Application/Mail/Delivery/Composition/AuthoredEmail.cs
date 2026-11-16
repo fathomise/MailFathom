@@ -31,6 +31,21 @@ public sealed record AuthoredEmail
     /// <summary>Gets the people the message is addressed to, in the headers the author named them in.</summary>
     public required IReadOnlyList<AuthoredEmailRecipient> Recipients { get; init; }
 
+    /// <summary>Gets the addresses the author asks replies to go to, which is ordinarily none.</summary>
+    /// <remarks>
+    /// <para>
+    /// They are held apart from <see cref="Recipients" /> because nobody here is offered the message: the composed
+    /// message names them in its <c>Reply-To</c> header and the envelope never names them, so none of them reaches
+    /// <c>RCPT TO</c>. None leaves no such header, which is what makes a reply go back to the sending address.
+    /// </para>
+    /// <para>
+    /// They live in the composed message alone, for the reason a recipient's display name does: a send resumes from
+    /// the addresses it is offered to, and a reply address is not one of them. A draft opened again reads them back out
+    /// of its stored message, and every occasion of a recurring send is recomposed from that same message.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string> ReplyTo { get; init; } = [];
+
     /// <summary>Gets the subject line the author wrote.</summary>
     public required string Subject { get; init; }
 

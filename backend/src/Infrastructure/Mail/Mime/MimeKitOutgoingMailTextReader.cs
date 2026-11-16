@@ -114,6 +114,7 @@ internal sealed class MimeKitOutgoingMailTextReader(
         {
             AttachmentTexts = attachments.Texts,
             AttachmentRefusal = attachments.Refusal,
+            ReplyTo = [.. message.ReplyTo.Mailboxes.Select(static mailbox => mailbox.Address)],
         };
     }
 

@@ -201,6 +201,26 @@ public sealed class AuthoredResponseDraftingTests
         Assert.Equal([picture], composed.Pictures);
     }
 
+    /// <summary>The reply addresses an answer's author named reach the composition apart from the people it goes to.</summary>
+    [Fact]
+    public async Task SaveAsync_AnAnswerNamingAReplyAddress_ComposesItApartFromTheRecipients()
+    {
+        // Arrange
+        var drafting = DraftingOverAnsweredMail(Harness(), out var composer);
+
+        // Act
+        await drafting.SaveAsync(Forward() with { ReplyTo = ["desk@example.test"] }, TestContext.Current.CancellationToken);
+
+        // Assert
+        var composed = (AuthoredEmail)composer
+            .ReceivedCalls()
+            .Last(call => call.GetMethodInfo().Name == nameof(IAuthoredEmailComposer.ComposeDraft))
+            .GetArguments()[1]!;
+
+        Assert.Equal(["desk@example.test"], composed.ReplyTo);
+        Assert.DoesNotContain(composed.Recipients, recipient => recipient.Address == "desk@example.test");
+    }
+
     private static MailResponseDraftRequest Request() => new()
     {
         Reader = MailboxReaderKind.Agent,
