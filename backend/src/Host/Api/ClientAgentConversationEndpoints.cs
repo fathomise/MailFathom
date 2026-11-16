@@ -95,7 +95,8 @@ internal static class ClientAgentConversationEndpoints
     internal const int MaxSearchRequestBytes = 4 * 1024;
 
     /// <summary>The greatest size an answer to a proposal may have on the wire.</summary>
-    internal const int MaxProposalAnswerRequestBytes = 1024;
+    /// <remarks>Generous against the longest edited body an acceptance may carry in any encoding, as a posted message's bound is against its text, and small enough that a body is refused before it is read.</remarks>
+    internal const int MaxProposalAnswerRequestBytes = 24 * 1024;
 
     /// <summary>Maps the routes into the client group, so they inherit the group's requirement, its policy, and its limits.</summary>
     /// <param name="api">The client route group.</param>
@@ -583,7 +584,7 @@ internal static class ClientAgentConversationEndpoints
     /// <param name="request">The decision.</param>
     /// <param name="scopeResolver">Names the acting user, whose proposal it has to be.</param>
     /// <param name="controls">Records a decline and announces it.</param>
-    /// <param name="acceptance">Records an acceptance and carries out exactly the act that was proposed.</param>
+    /// <param name="acceptance">Records an acceptance and carries out the act that was proposed, with the edited body in place of a proposed message's.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns><c>200</c> naming the place the last answer to the proposal was written at; <c>400</c> for a decision that is neither accepted nor declined, or an edited body that is not acceptable text or comes with a decline; <c>409</c> where there is no proposal at that place this person can answer that way — none offered, not theirs, already answered, or one sending no message offered an edited body; or <c>403</c> for a caller whose grant does not carry <c>mailfathom.assistant.use</c>, or, on accepting, every grant the proposed act needs.</returns>
     /// <remarks>

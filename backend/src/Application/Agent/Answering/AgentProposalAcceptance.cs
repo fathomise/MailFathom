@@ -10,7 +10,7 @@ using MailFathom.Domain.Access;
 
 namespace MailFathom.Application.Agent.Answering;
 
-/// <summary>Accepts a proposal the Agent made and carries out exactly the act it stands for.</summary>
+/// <summary>Accepts a proposal the Agent made and carries out the act it stands for, a proposed message going out with the person's edited body where one was given.</summary>
 /// <remarks>
 /// <para>
 /// <strong>The acceptance is recorded before the act is carried out, and a failure after it.</strong> Recording is what

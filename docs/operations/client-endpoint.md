@@ -5316,7 +5316,8 @@ tried again. The one decided proposal that can still be answered is a `failed` o
 accepted one either way. A caller whose grant does not carry every permission the act needs — `mailfathom.mail.drafts.write`
 and `mailfathom.mail.send` for a message, `mailfathom.mail.read` as well for an answer to one,
 `mailfathom.calendar.write` for an event, and `mailfathom.tasks.write` for a task — is `403` before anything is
-recorded. Declining carries nothing out.
+recorded. Declining carries nothing out. The answer's body is bounded at 24 KiB, which holds the longest edited body in
+any encoding, and one past it is answered `413`.
 
 **A proposed message is sent as the person edited it when the acceptance carries the body they wrote:**
 

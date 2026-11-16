@@ -50,6 +50,22 @@ public sealed class ClientAgentConversationEndpointTests
 
     private IReadOnlyList<AgentConversationFile> held = [];
 
+    /// <summary>An acceptance carrying the longest edited body a proposal answer may hold, every character in the widest escape, is a request the route's bound admits.</summary>
+    [Fact]
+    public void MaxProposalAnswerRequestBytes_TheLongestEditedBodyInTheWidestEscape_IsABodyTheBoundAdmits()
+    {
+        // Arrange
+        var largest = new ClientAgentProposalAnswerRequest(
+            ClientAgentProposalAnswerRequest.Accepted,
+            new string('\u0001', PresentationText.MaxLength));
+
+        // Act
+        var written = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(largest, System.Text.Json.JsonSerializerOptions.Web);
+
+        // Assert
+        Assert.InRange(written.LongLength, 1, ClientAgentConversationEndpoints.MaxProposalAnswerRequestBytes);
+    }
+
     /// <summary>The paths a client composes from constants of its own, pinned so a rename is a decision rather than an accident.</summary>
     [Fact]
     public void Routes_AreThePathsAClientComposes() =>
