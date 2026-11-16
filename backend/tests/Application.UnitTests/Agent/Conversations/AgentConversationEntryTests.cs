@@ -93,6 +93,15 @@ public sealed class AgentConversationEntryTests
         Assert.Throws<ArgumentException>(() => new AgentProposalResolved(1, AgentProposalState.Pending));
     }
 
+    /// <summary>A decline sent nothing, so it cannot say a body was sent in place of the proposed one.</summary>
+    [Fact]
+    public void Constructor_ADeclineCarryingAnEditedBody_IsRefused()
+    {
+        // Act, Assert
+        Assert.Throws<ArgumentException>(
+            () => new AgentProposalResolved(1, AgentProposalState.Declined, EditedBody: PresentationText.Create("Thursday works.")));
+    }
+
     [Theory]
     [InlineData(AgentProposalState.Accepted)]
     [InlineData(AgentProposalState.Failed)]

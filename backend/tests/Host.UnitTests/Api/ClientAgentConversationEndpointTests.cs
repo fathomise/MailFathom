@@ -50,6 +50,22 @@ public sealed class ClientAgentConversationEndpointTests
 
     private IReadOnlyList<AgentConversationFile> held = [];
 
+    /// <summary>An acceptance carrying the longest edited body a proposal answer may hold, every character in the widest escape, is a request the route's bound admits.</summary>
+    [Fact]
+    public void MaxProposalAnswerRequestBytes_TheLongestEditedBodyInTheWidestEscape_IsABodyTheBoundAdmits()
+    {
+        // Arrange
+        var largest = new ClientAgentProposalAnswerRequest(
+            ClientAgentProposalAnswerRequest.Accepted,
+            new string('\u0001', PresentationText.MaxLength));
+
+        // Act
+        var written = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(largest, System.Text.Json.JsonSerializerOptions.Web);
+
+        // Assert
+        Assert.InRange(written.LongLength, 1, ClientAgentConversationEndpoints.MaxProposalAnswerRequestBytes);
+    }
+
     /// <summary>The paths a client composes from constants of its own, pinned so a rename is a decision rather than an accident.</summary>
     [Fact]
     public void Routes_AreThePathsAClientComposes() =>
@@ -217,7 +233,7 @@ public sealed class ClientAgentConversationEndpointTests
         // Assert
         Assert.Equal(StatusCodes.Status409Conflict, StatusOf(answered.Result));
         await this.store.DidNotReceive().TryResolveProposalAsync(
-            Arg.Any<AgentConversationId>(), Arg.Any<UserId>(), Arg.Any<long>(), Arg.Any<AgentProposalState>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+            Arg.Any<AgentConversationId>(), Arg.Any<UserId>(), Arg.Any<long>(), Arg.Any<AgentProposalState>(), Arg.Any<PresentationText?>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Each refusal the store reports is a status a client can act on, and a conversation that is not the person's reads as none.</summary>
@@ -338,13 +354,55 @@ public sealed class ClientAgentConversationEndpointTests
         Assert.Empty(this.store.ReceivedCalls());
     }
 
+    /// <summary>An edited body comes only with accepting and is text a proposed message could carry, and anything else is refused before the store is asked.</summary>
+    [Theory]
+    [InlineData(ClientAgentProposalAnswerRequest.Declined, "Thursday works.")]
+    [InlineData(ClientAgentProposalAnswerRequest.Accepted, "   ")]
+    [InlineData(ClientAgentProposalAnswerRequest.Accepted, "<p>Thursday works.</p>")]
+    [InlineData(ClientAgentProposalAnswerRequest.Accepted, "Thursday\u0007works.")]
+    public async Task AnswerProposal_AnEditedBodyThatCannotBeSent_IsRefused(string decision, string body)
+    {
+        // Act
+        var answered = await ClientAgentConversationEndpoints.AnswerProposal(
+            Conversation,
+            proposedAt: 3,
+            new ClientAgentProposalAnswerRequest(decision, body),
+            Resolver(),
+            this.Controls(),
+            this.Acceptance(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, StatusOf(answered.Result));
+        Assert.Empty(this.store.ReceivedCalls());
+    }
+
+    /// <summary>An over-long edited body is refused at the bound every proposed body is held to.</summary>
+    [Fact]
+    public async Task AnswerProposal_AnEditedBodyPastTheBound_IsRefused()
+    {
+        // Act
+        var answered = await ClientAgentConversationEndpoints.AnswerProposal(
+            Conversation,
+            proposedAt: 3,
+            new ClientAgentProposalAnswerRequest(ClientAgentProposalAnswerRequest.Accepted, new string('a', PresentationText.MaxLength + 1)),
+            Resolver(),
+            this.Controls(),
+            this.Acceptance(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, StatusOf(answered.Result));
+        Assert.Empty(this.store.ReceivedCalls());
+    }
+
     /// <summary>A decision the store records answers with its place, and one it refuses — already decided, or not the person's — is a conflict.</summary>
     [Fact]
     public async Task AnswerProposal_RecordedThenRepeated_AnswersWithThePlaceThenAConflict()
     {
         // Arrange
         this.store
-            .TryResolveProposalAsync(Arg.Any<AgentConversationId>(), SyntheticUser.Deployment, 3, AgentProposalState.Declined, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .TryResolveProposalAsync(Arg.Any<AgentConversationId>(), SyntheticUser.Deployment, 3, AgentProposalState.Declined, null, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(8L, (long?)null);
         var request = new ClientAgentProposalAnswerRequest(ClientAgentProposalAnswerRequest.Declined);
 

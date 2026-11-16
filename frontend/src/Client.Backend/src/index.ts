@@ -260,6 +260,7 @@ export type {
     TimelineEntry,
     UnreadableSource,
 } from './presentationBlocks';
+export { longestPresentationText } from './presentationBlocks';
 export {
     type MailEnrichment,
     type MailEnrichmentAspect,

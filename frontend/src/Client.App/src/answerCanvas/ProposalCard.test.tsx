@@ -6,6 +6,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { AgentProposalDecision, DeclaredSource } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { ReadingZoneContext } from '../localization/useReadingZone';
 import { AnswerSourcesContext } from './answerSources';
 import { ProposalCard, type ProposalControl, type ProposalKind } from './ProposalCard';
 import {
@@ -33,6 +34,8 @@ function answeringIn(phase: ProposalPhase, overrides: Partial<ProposalAnswering>
         phase,
         answering: false,
         refused: null,
+        answeredAt: null,
+        editedBody: null,
         answer: () => undefined,
         askAnotherTime: () => undefined,
         look: () => undefined,
@@ -112,6 +115,49 @@ describe('ProposalCard', () => {
         expect(within(card()).getByText('done')).toBeDefined();
         expect(within(card()).getByText('Added to the calendar')).toBeDefined();
         expect(within(card()).queryByRole('button', { name: /^Add to calendar/ })).toBeNull();
+    });
+
+    it('says when it was answered at the end of the result line, worded against the reader’s own day', () => {
+        // The time is worded against the reader's own day and zone, so both are pinned rather than taken from the machine.
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-22T15:00:00Z'));
+
+        try {
+            render(
+                <LocalizationProvider>
+                    <ReadingZoneContext value="UTC">
+                        <AnswerSourcesContext value={{ sources: new Map(), follow: null }}>
+                            <ProposalAnsweringContext
+                                value={answeringIn('accepted', { answeredAt: '2026-09-22T09:42:00+00:00' })}
+                            >
+                                <ProposalCard
+                                    citations={[]}
+                                    controls={[]}
+                                    kind="eventProposal"
+                                    label={label}
+                                    title={title}
+                                >
+                                    <p>{body}</p>
+                                </ProposalCard>
+                            </ProposalAnsweringContext>
+                        </AnswerSourcesContext>
+                    </ReadingZoneContext>
+                </LocalizationProvider>,
+            );
+
+            expect(within(card()).getByText(/^Added to the calendar · 9:42\sAM$/u)).toBeDefined();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('tries a proposal sent as edited again with the words it was sent with', () => {
+        const answer = vi.fn<(decision: AgentProposalDecision, editedBody?: string) => void>();
+        drawCard({ answering: answeringIn('failed', { answer, editedBody: 'Agreed, from Monday.' }) });
+
+        fireEvent.click(within(card()).getByRole('button', { name: 'Try again: Renewal call' }));
+
+        expect(answer).toHaveBeenCalledWith('accepted', 'Agreed, from Monday.');
     });
 
     it('offers only trying again once accepting failed, which accepts it again', () => {

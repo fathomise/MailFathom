@@ -93,7 +93,16 @@ function inConversation(
     phase: ProposalPhase,
     answer: (decision: AgentProposalDecision) => void = () => undefined,
 ): ProposalAnswering {
-    return { phase, answering: false, refused: null, answer, askAnotherTime: () => undefined, look: null };
+    return {
+        phase,
+        answering: false,
+        refused: null,
+        answeredAt: null,
+        editedBody: null,
+        answer,
+        askAnotherTime: () => undefined,
+        look: null,
+    };
 }
 
 function renderDraft(
@@ -285,8 +294,8 @@ describe('Draft', () => {
             expect(screen.getByText('Agreed.')).toBeDefined();
         });
 
-        it('holds Send once the text differs from what was proposed, and says why', () => {
-            const answer = vi.fn<(decision: AgentProposalDecision) => void>();
+        it('sends the text as the reader edited it, while editing and after editing stopped', () => {
+            const answer = vi.fn<(decision: AgentProposalDecision, editedBody?: string) => void>();
             renderDraft(drafted(), inConversation('pending', answer));
 
             fireEvent.click(
@@ -296,9 +305,43 @@ describe('Draft', () => {
             );
             fireEvent.change(screen.getByRole('textbox', { name: 'Draft text' }), { target: { value: 'Agreed.' } });
             fireEvent.click(screen.getByRole('button', { name: 'Send the edited draft to anna@contoso.example' }));
+            fireEvent.click(screen.getByRole('button', { name: 'Stop editing the draft to anna@contoso.example' }));
+            fireEvent.click(screen.getByRole('button', { name: 'Send the edited draft to anna@contoso.example' }));
+
+            expect(answer.mock.calls).toEqual([
+                ['accepted', 'Agreed.'],
+                ['accepted', 'Agreed.'],
+            ]);
+        });
+
+        it('holds Send while the edit holds nothing but space, saying why, and takes no more than a draft body may hold', () => {
+            const answer = vi.fn<(decision: AgentProposalDecision, editedBody?: string) => void>();
+            renderDraft(drafted(), inConversation('pending', answer));
+
+            fireEvent.click(
+                screen.getByRole('button', {
+                    name: 'Edit here - the draft to anna@contoso.example, inside the conversation',
+                }),
+            );
+            const field = screen.getByRole('textbox', { name: 'Draft text' });
+            fireEvent.change(field, { target: { value: '   ' } });
+            fireEvent.click(
+                screen.getByRole('button', {
+                    name: 'Send the edited draft to anna@contoso.example - write the message first',
+                }),
+            );
 
             expect(answer).not.toHaveBeenCalled();
-            expect(screen.getByText(/Your edit cannot be sent from here yet/)).toBeDefined();
+            expect(field.getAttribute('maxlength')).toBe('4000');
+        });
+
+        it('shows the text that was sent where the record says it was sent as edited', () => {
+            renderDraft(drafted(), { ...inConversation('accepted'), editedBody: 'Agreed, from Monday.' });
+
+            expect(screen.getByText('Agreed, from Monday.')).toBeDefined();
+            expect(
+                screen.queryByText('We accept shortening the response time to 2 hours on business days.'),
+            ).toBeNull();
         });
 
         it('reads the subject and the text out in the language they were written in', () => {
@@ -602,6 +645,24 @@ describe('Draft, rewriting a selected part', () => {
 
         expect(screen.getByText(twoSentences)).toBeDefined();
         expect(screen.queryByText('rewritten with the agent')).toBeNull();
+    });
+
+    it('sends a kept change as an edited draft, the words the rewrite left being the ones that leave', async () => {
+        const answer = vi.fn<(decision: AgentProposalDecision, editedBody?: string) => void>();
+        renderDraft(
+            withTwoSentences(),
+            inConversation('pending', answer),
+            new Map(),
+            answeringWith(rewritten('The signed addendum is needed by Friday.')).rewriter,
+        );
+        openTheBar('signed addendum');
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite the selection: shorter' }));
+        fireEvent.click(await screen.findByRole('button', { name: /^Keep the rewritten text/ }));
+        fireEvent.click(screen.getByRole('button', { name: 'Send the edited draft to anna@contoso.example' }));
+
+        expect(answer.mock.calls).toEqual([
+            ['accepted', 'We accept the two-hour response time. The signed addendum is needed by Friday.'],
+        ]);
     });
 
     it('leaves an edit made after the keep alone when the toast’s Undo is pressed', async () => {

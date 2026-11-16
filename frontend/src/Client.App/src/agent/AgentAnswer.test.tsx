@@ -35,6 +35,8 @@ const answered: Answer = {
         {
             sequence: 3,
             phase: null,
+            answeredAt: null,
+            editedBody: null,
             block: {
                 type: 'answer',
                 named: 'answer',
@@ -146,6 +148,8 @@ describe('AgentAnswer', () => {
                 {
                     sequence: 1,
                     phase: null,
+                    answeredAt: null,
+                    editedBody: null,
                     block: {
                         type: 'file',
                         named: 'file',
@@ -187,6 +191,8 @@ describe('AgentAnswer', () => {
                 {
                     sequence: 9,
                     phase: null,
+                    answeredAt: null,
+                    editedBody: null,
                     block: {
                         type: 'report',
                         named: 'report',

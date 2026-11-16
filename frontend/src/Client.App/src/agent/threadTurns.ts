@@ -7,7 +7,6 @@ import type {
     AgentAnswerOutcome,
     AgentConversationEntry,
     AgentMessageScope,
-    AgentProposalState,
     AgentRunCeiling,
     AnswerBlock,
     DeclaredSource,
@@ -23,7 +22,15 @@ export interface AnsweredBlock {
     readonly sequence: number;
     readonly block: AnswerBlock;
     readonly phase: ProposalPhase | null;
+
+    /** When the latest answer to the proposal was recorded, and `null` before one was or where the service did not say. */
+    readonly answeredAt: string | null;
+
+    /** The body the latest answer sent in place of the proposed one, and `null` where it sent what was proposed. */
+    readonly editedBody: string | null;
 }
+
+type Resolution = Extract<AgentConversationEntry, { kind: 'resolution' }>;
 
 /** One turn of the thread, in the order it was written. */
 export type ThreadTurn =
@@ -95,7 +102,7 @@ export type Answer = Extract<ThreadTurn, { kind: 'answer' }>;
 export function threadOf(entries: readonly AgentConversationEntry[]): readonly ThreadTurn[] {
     const turns: ThreadTurn[] = [];
     const answers = new Map<string, number>();
-    const phases = new Map<number, AgentProposalState>();
+    const resolutions = new Map<number, Resolution>();
 
     let lastScope: AgentMessageScope | null = null;
     let lastQuestion: string | null = null;
@@ -105,7 +112,7 @@ export function threadOf(entries: readonly AgentConversationEntry[]): readonly T
 
     for (const entry of entries) {
         if (entry.kind === 'resolution') {
-            phases.set(entry.proposedAt, entry.state);
+            resolutions.set(entry.proposedAt, entry);
         }
     }
 
@@ -178,7 +185,9 @@ export function threadOf(entries: readonly AgentConversationEntry[]): readonly T
                 break;
 
             case 'block':
-            case 'proposal':
+            case 'proposal': {
+                const resolution = resolutions.get(entry.sequence);
+
                 revise(entry.run, (answer) => ({
                     ...answer,
                     blocks: [
@@ -186,12 +195,15 @@ export function threadOf(entries: readonly AgentConversationEntry[]): readonly T
                         {
                             sequence: entry.sequence,
                             block: entry.block,
-                            phase: entry.kind === 'proposal' ? (phases.get(entry.sequence) ?? 'pending') : null,
+                            phase: entry.kind === 'proposal' ? (resolution?.state ?? 'pending') : null,
+                            answeredAt: resolution?.answeredAt ?? null,
+                            editedBody: resolution?.editedBody ?? null,
                         },
                     ],
                 }));
 
                 break;
+            }
 
             case 'answerEnded':
                 lastEnding = entry.outcome;

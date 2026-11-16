@@ -4155,6 +4155,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const bstate = (st.bkState || {})[key] || b.state || "ready";
       const editRaw = (st.bkEdit || {})[key];
       const editing = typeof editRaw === "string";
+      // An edit cleared to nothing is not a message, so Send waits for one, as it does for a send encryption refuses.
+      const blank = editing && !editRaw.trim();
       const LABEL = { answer: "Answer", timeline: "Timeline", evidence: "Evidence", threadstate: "Thread state", facttable: "Fact table", attachments: "Attachments", draft: "Draft", event: "Event proposal", task: "Task proposal", action: "Suggested action" };
       const declined = phase === "declined";
       const accepted = phase === "accepted";
@@ -4208,7 +4210,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { label: "Undo", aria: "Leave the draft as it was", run: () => this.dropChange(key) },
         ];
         else if (b.type === "draft") raw = editing
-          ? [{ label: sendSaid, aria: sendBlocked ? "Send - no key for " + prot.refused.length + (prot.refused.length > 1 ? " recipients" : " recipient") + ", so it cannot be sent encrypted" : "Send the edited draft to " + b.to + sendWhen, primary: true, off: sendBlocked, run: () => { if (!sendBlocked) this.acceptBk(key, b); } },
+          ? [{ label: sendSaid, aria: sendBlocked ? "Send - no key for " + prot.refused.length + (prot.refused.length > 1 ? " recipients" : " recipient") + ", so it cannot be sent encrypted" : "Send the edited draft to " + b.to + sendWhen + (blank ? " - write the message first" : ""), primary: true, off: sendBlocked || blank, run: () => { if (!sendBlocked && !blank) this.acceptBk(key, b); } },
              { label: "Stop editing", aria: "Stop editing the draft to " + b.to, run: () => this.editBk(key, false) }]
           : [{ label: sendSaid, aria: sendBlocked ? "Send - no key for " + prot.refused.length + (prot.refused.length > 1 ? " recipients" : " recipient") + ", so it cannot be sent encrypted" : "Send the draft to " + b.to + sendWhen, primary: true, off: sendBlocked, run: () => { if (!sendBlocked) this.acceptBk(key, b); } },
              { label: "Edit here", aria: "Edit the draft to " + b.to + " inside the conversation", run: () => this.editBk(key, true, dParas.join("\n\n")) },

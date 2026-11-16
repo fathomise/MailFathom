@@ -60,6 +60,8 @@ function pending(overrides: Partial<ProposalAnswering> = {}): ProposalAnswering 
         phase: 'pending',
         answering: false,
         refused: null,
+        answeredAt: null,
+        editedBody: null,
         answer: () => undefined,
         askAnotherTime: () => undefined,
         look: null,
