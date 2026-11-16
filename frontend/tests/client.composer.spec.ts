@@ -34,7 +34,7 @@ async function openMailWriting(page: Page, deployment: FakeDeployment): Promise<
 }
 
 /** Writes an address into one header and commits it, the way a person finishes typing one. */
-async function address(page: Page, header: 'To' | 'Cc' | 'Bcc', written: string): Promise<void> {
+async function address(page: Page, header: 'To' | 'Cc' | 'Bcc' | 'Reply-to', written: string): Promise<void> {
     await page.getByRole('combobox', { name: header, exact: true }).fill(written);
     await page.getByRole('combobox', { name: header, exact: true }).press('Enter');
     await expect(page.getByRole('button', { name: `Remove ${written} from ${header}` })).toBeVisible();
@@ -91,6 +91,7 @@ test('sends a new message carrying exactly the recipient, the subject, and the w
             to: [recipient],
             cc: [],
             bcc: [],
+            replyTo: [],
             requestsDeliveryNotification: false,
             requestsReadReceipt: false,
             account: deploymentCorpus.workAccount.id,
@@ -189,6 +190,7 @@ for (const answer of [
                 to: answer.to.length === 0 ? [recipient] : answer.to,
                 cc: answer.cc,
                 bcc: [],
+                replyTo: [],
                 requestsDeliveryNotification: false,
                 requestsReadReceipt: false,
                 answeredEmailId: 'message-0',
@@ -301,7 +303,37 @@ test('shows the copy headers, keeps what they hold while hidden, and sends nothi
     await expect(sent(page)).toBeVisible();
 
     expect(deployment.requests('POST', '/drafts').map(({ body }) => body)).toStrictEqual([
-        expect.objectContaining({ to: [recipient], cc: [], bcc: [] }),
+        expect.objectContaining({ to: [recipient], cc: [], bcc: [], replyTo: [] }),
+    ]);
+});
+
+test('sends an address named under Reply-to as the one replies go to, and to nobody as a recipient', async ({
+    page,
+    deployment,
+}) => {
+    const replies = 'desk@example.invalid';
+
+    await openMailWriting(page, deployment);
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+
+    await address(page, 'To', recipient);
+    await page.getByLabel('Subject').fill(subject);
+    await write(page, words);
+
+    await page.getByRole('button', { name: 'Show CC and BCC fields' }).click();
+    await address(page, 'Reply-to', replies);
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+
+    const confirmation = page.getByRole('dialog', { name: 'Send this message?' });
+
+    await expect(confirmation.getByText(`To ${recipient}`)).toBeVisible();
+    await expect(confirmation.getByText(replies)).toHaveCount(0);
+
+    await confirmation.getByRole('button', { name: /^Send/u }).click();
+    await expect(sent(page)).toBeVisible();
+
+    expect(deployment.requests('POST', '/drafts').map(({ body }) => body)).toStrictEqual([
+        expect.objectContaining({ to: [recipient], cc: [], bcc: [], replyTo: [replies] }),
     ]);
 });
 
