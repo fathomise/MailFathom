@@ -647,6 +647,24 @@ describe('Draft, rewriting a selected part', () => {
         expect(screen.queryByText('rewritten with the agent')).toBeNull();
     });
 
+    it('sends a kept change as an edited draft, the words the rewrite left being the ones that leave', async () => {
+        const answer = vi.fn<(decision: AgentProposalDecision, editedBody?: string) => void>();
+        renderDraft(
+            withTwoSentences(),
+            inConversation('pending', answer),
+            new Map(),
+            answeringWith(rewritten('The signed addendum is needed by Friday.')).rewriter,
+        );
+        openTheBar('signed addendum');
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite the selection: shorter' }));
+        fireEvent.click(await screen.findByRole('button', { name: /^Keep the rewritten text/ }));
+        fireEvent.click(screen.getByRole('button', { name: 'Send the edited draft to anna@contoso.example' }));
+
+        expect(answer.mock.calls).toEqual([
+            ['accepted', 'We accept the two-hour response time. The signed addendum is needed by Friday.'],
+        ]);
+    });
+
     it('leaves an edit made after the keep alone when the toast’s Undo is pressed', async () => {
         renderDraft(
             withTwoSentences(),
