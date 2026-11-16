@@ -405,8 +405,19 @@ inside each user's document could not be.
 | `UserId` | The user served, a foreign key onto `settings_accounts` (`fk_mail_account_assignments_settings_accounts`) with `ON DELETE CASCADE` |
 | `MailAccountId` | The account they are served, a foreign key onto `settings_mail_accounts` (`fk_mail_account_assignments_settings_mail_accounts`) with `ON DELETE CASCADE`, under the index `ix_mail_account_assignments_mail_account_id`. It is not unique: an account of an organization is assigned to as many of its members as an administrator assigns it to, and the mail graph is keyed by the account alone, so one mailbox stays one mailbox — synchronized once, ruled once, and read by each of them. What the index is for is the reverse read, which users an account serves, which a signal fan-out and an erasure both ask |
 | `AssignedAt` | When the assignment was made |
+| `AccountInNoOrganization` | Whether the account stands in no organization, `boolean`, not null. No writer sets it: the trigger `compute_assignment_outside_organization` computes it from the account on every insert and update of the row, whatever value the statement carried, and `carry_mail_account_organization` rewrites it on every assignment of an account in the statement that changes that account's `OrganizationId` |
 
-The primary key is `(UserId, MailAccountId)`, so one user is assigned one account once. **One address is one account,
+The primary key is `(UserId, MailAccountId)`, so one user is assigned one account once. **A mail account in no
+organization is one person's, and the index is the guarantee**: `ix_mail_account_assignments_sole_user_outside_organization`
+is unique over `MailAccountId` where `AccountInNoOrganization` is true. An index predicate cannot read another table,
+which is why the flag stands beside the account it copies, and why two triggers keep it rather than the writers that
+uphold the rule: a second user written for an account in none — by this build, by an older one during a rolling upgrade,
+or by a statement typed at the database — is refused, and so is an account leaving every organization while two users
+hold it, because the move rewrites both flags in its own statement and the second one violates the index. The stores
+still count an account's users under its row lock before they write, so the refusal an operator meets names an
+organization as the way to share the mailbox, and an assignment whose conflict clause meets the index anyway inserts
+nothing and is answered with the same refusal. The migration that created the index ended every assignment beyond the earliest of an account in none that
+already held several, the way an unassignment ends one. **One address is one account,
 and the index is the guarantee**: `ix_settings_mail_accounts_normalized_email_address` is unique over
 `NormalizedEmailAddress` where it is not null, so two writers claiming one address at once are separated by PostgreSQL
 rather than by a read either of them made first. Both foreign keys cascade, so erasing a user ends what they were

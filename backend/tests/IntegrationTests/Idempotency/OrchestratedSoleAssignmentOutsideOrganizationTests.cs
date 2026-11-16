@@ -12,6 +12,7 @@ using MailFathom.Infrastructure.Persistence.Users;
 using MailFathom.IntegrationTests.Orchestration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Xunit;
 
 namespace MailFathom.IntegrationTests.Idempotency;
@@ -24,7 +25,8 @@ namespace MailFathom.IntegrationTests.Idempotency;
 /// sequential repeat can produce it. The move out of every organization is the other write that could leave such an
 /// account shared, and it is here for the same reason — its refusal is a count taken under the lock an assignment
 /// waits on. A move of a user with the accounts they hold alone is the third, and is here beside them: what it moves
-/// and what it refuses over is decided under the same locks, against the same rows.
+/// and what it refuses over is decided under the same locks, against the same rows. Beneath all three stands the index
+/// that holds the rule for whatever writes the row, which is a claim about PostgreSQL and nothing else.
 /// </para>
 /// <para>
 /// This class shares a database with every other in the collection, so every row it writes names a user, an account,
@@ -182,6 +184,7 @@ public sealed class OrchestratedSoleAssignmentOutsideOrganizationTests(MailFatho
         await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
         var holder = Guid.CreateVersion7();
         var colleague = Guid.CreateVersion7();
+        var standing = Guid.CreateVersion7();
         var organization = Guid.CreateVersion7();
         var soleAccount = Guid.CreateVersion7();
         var sharedAccount = Guid.CreateVersion7();
@@ -205,10 +208,18 @@ public sealed class OrchestratedSoleAssignmentOutsideOrganizationTests(MailFatho
                         token),
                     cancellationToken)).Outcome);
 
-            // An account in none shared by two people is what a deployment older than that rule may still hold.
+            // Sharing a mailbox is something an organization does, so the colleagues share one in the organization they
+            // both stand in, and the holder has a second there that is theirs alone.
+            await CreateOrganizationAsync(services, standing, cancellationToken);
+            Assert.Equal(
+                OrganizationWriteOutcome.Written,
+                (await MoveUserAsync(services, holder, standing, withMailAccounts: false, cancellationToken)).Outcome);
+            Assert.Equal(
+                OrganizationWriteOutcome.Written,
+                (await MoveUserAsync(services, colleague, standing, withMailAccounts: false, cancellationToken)).Outcome);
             await SeedAsync(
                 services,
-                [Record(soleAccount, organizationId: null), Record(sharedAccount, organizationId: null)],
+                [Record(soleAccount, standing), Record(sharedAccount, standing)],
                 [Assignment(soleAccount, holder), Assignment(sharedAccount, holder), Assignment(sharedAccount, colleague)],
                 cancellationToken);
 
@@ -232,7 +243,7 @@ public sealed class OrchestratedSoleAssignmentOutsideOrganizationTests(MailFatho
             Assert.Equal(2, withoutAccounts.StandingAssignments);
             Assert.Equal(OrganizationWriteOutcome.AssignmentsOutsideOrganization, whileShared.Outcome);
             Assert.Equal(1, whileShared.StandingAssignments);
-            Assert.Equal([null, null, null], heldBack);
+            Assert.Equal([standing, standing, standing], heldBack);
             Assert.Equal(OrganizationWriteOutcome.Written, moved.Outcome);
             Assert.Equal([organization, organization, organization], arrived);
             Assert.Equal(OrganizationWriteOutcome.Written, movedBack.Outcome);
@@ -246,11 +257,98 @@ public sealed class OrchestratedSoleAssignmentOutsideOrganizationTests(MailFatho
             await RemoveAccountAsync(services, sharedAccount);
             await OrchestratedForeignUser.EraseAsync(services, holder);
             await OrchestratedForeignUser.EraseAsync(services, colleague);
-            await services.InScopeAsync(
-                (scope, token) => scope.GetRequiredService<IOrganizationStore>().DeleteAsync(organization, token),
-                CancellationToken.None);
+            await DeleteOrganizationAsync(services, standing);
+            await DeleteOrganizationAsync(services, organization);
         }
     }
+
+    /// <summary>
+    /// PostgreSQL itself refuses a second user for an account in no organization, whatever writes the row: a second
+    /// assignment inserted past the store, and a shared account moved out of its organization past the store, both
+    /// fail on the index — while the same second assignment stands once the account is in an organization.
+    /// </summary>
+    [Fact]
+    public async Task SoleUserIndex_WritesPastTheStoreThatWouldShareAnAccountInNoOrganization_AreRefusedByTheDatabase()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var holder = Guid.CreateVersion7();
+        var colleague = Guid.CreateVersion7();
+        var organization = Guid.CreateVersion7();
+        var account = Guid.CreateVersion7();
+        FormattableString assignColleague =
+            $"""INSERT INTO mail_account_assignments ("UserId", "MailAccountId", "AssignedAt") VALUES ({colleague}, {account}, now())""";
+
+        try
+        {
+            Assert.Equal(
+                PersistenceCommitResult.Committed,
+                await OrchestratedForeignUser.ProvisionAsync(services, holder, cancellationToken));
+            Assert.Equal(
+                PersistenceCommitResult.Committed,
+                await OrchestratedForeignUser.ProvisionAsync(services, colleague, cancellationToken));
+            await CreateOrganizationAsync(services, organization, cancellationToken);
+            await SeedAsync(services, [Record(account, organizationId: null)], [Assignment(account, holder)], cancellationToken);
+
+            // Act
+            var secondUser = await Assert.ThrowsAsync<PostgresException>(
+                () => ExecuteAsync(services, assignColleague, cancellationToken));
+            await ExecuteAsync(
+                services,
+                $"""UPDATE settings_mail_accounts SET "OrganizationId" = {organization} WHERE "Id" = {account}""",
+                cancellationToken);
+            await ExecuteAsync(services, assignColleague, cancellationToken);
+            var leaving = await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(
+                services,
+                $"""UPDATE settings_mail_accounts SET "OrganizationId" = NULL WHERE "Id" = {account}""",
+                cancellationToken));
+
+            // Assert
+            Assert.Equal(PersistenceConstraintNames.MailAccountAssignmentSoleUserIndexName, secondUser.ConstraintName);
+            Assert.Equal(PersistenceConstraintNames.MailAccountAssignmentSoleUserIndexName, leaving.ConstraintName);
+            Assert.Equal(organization, await ReadOrganizationAsync(services, account, cancellationToken));
+            Assert.Equal(
+                new[] { holder, colleague }.Order(),
+                (await ReadAssignedUsersAsync(services, account, cancellationToken)).Order());
+        }
+        finally
+        {
+            await RemoveAccountAsync(services, account);
+            await OrchestratedForeignUser.EraseAsync(services, holder);
+            await OrchestratedForeignUser.EraseAsync(services, colleague);
+            await DeleteOrganizationAsync(services, organization);
+        }
+    }
+
+    /// <summary>Runs one parameterized statement past every store, which is the writer the index exists for.</summary>
+    private static Task<int> ExecuteAsync(
+        OrchestratedMailFathomServices services,
+        FormattableString statement,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().Database.ExecuteSqlAsync(statement, token),
+            cancellationToken);
+
+    private static async Task CreateOrganizationAsync(
+        OrchestratedMailFathomServices services,
+        Guid organization,
+        CancellationToken cancellationToken) => Assert.Equal(
+            OrganizationWriteOutcome.Written,
+            (await services.InScopeAsync(
+                (scope, token) => scope.GetRequiredService<IOrganizationStore>().CreateAsync(
+                    organization,
+                    $"Organization {organization:N}",
+                    OrganizationShortName.Create($"{organization:N}"),
+                    RecordedAt,
+                    token),
+                cancellationToken)).Outcome);
+
+    /// <summary>Removes an organization this class wrote.</summary>
+    /// <remarks>Uncancellable for the reason <see cref="OrchestratedForeignUser.EraseAsync" /> is: it runs in a <c>finally</c>.</remarks>
+    private static Task<OrganizationWriteResult> DeleteOrganizationAsync(OrchestratedMailFathomServices services, Guid organization) =>
+        services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IOrganizationStore>().DeleteAsync(organization, token),
+            CancellationToken.None);
 
     private static Task<OrganizationWriteResult> MoveUserAsync(
         OrchestratedMailFathomServices services,
