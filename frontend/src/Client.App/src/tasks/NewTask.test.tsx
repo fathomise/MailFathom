@@ -66,7 +66,7 @@ describe('NewTask', () => {
         expect(screen.getByRole('radio', { name: 'I am waiting for this' })).toBeDefined();
         expect(screen.getByLabelText('Task description')).toBeDefined();
         expect(screen.getByLabelText('Due date')).toBeDefined();
-        expect(screen.getByLabelText('Duration (minutes)')).toBeDefined();
+        expect(screen.getByLabelText('Duration (e.g. 30 min)')).toBeDefined();
         expect(screen.queryByLabelText('Reminders')).toBeNull();
     });
 
@@ -75,7 +75,7 @@ describe('NewTask', () => {
 
         fireEvent.click(screen.getByRole('radio', { name: 'I am waiting for this' }));
         typeInto('Task description', 'Signed addendum from Anna');
-        typeInto('Duration (minutes)', '30');
+        typeInto('Duration (e.g. 30 min)', '30 min');
 
         expect(screen.getByRole('heading', { name: 'New waiting task' })).toBeDefined();
 
@@ -95,7 +95,7 @@ describe('NewTask', () => {
         drawForm();
 
         typeInto('Task description', 'Answer the tender');
-        typeInto('Duration (minutes)', '3');
+        typeInto('Duration (e.g. 30 min)', '3');
 
         expect(screen.getByRole('button', { name: 'Add task' }).hasAttribute('disabled')).toBe(true);
         expect(screen.getByText('A duration is between 5 and 720 minutes.')).toBeDefined();

@@ -9,6 +9,7 @@ import { useRowPress } from '../contextMenu/rowPress';
 import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
 import { SymbolControl } from '../controls/SymbolControl';
+import { useTip } from '../controls/useTip';
 import type { IconName } from '../controls/icons';
 import { calendarDayIn, wordCalendarDay, wordInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
@@ -19,10 +20,40 @@ import { wordCounterpart, wordEstimate, wordPlan, wordReply, wordTaskDay } from 
 
 const anchorGlyphs: Readonly<Record<TaskAnchor['kind'], IconName>> = { Thread: 'mail', Event: 'event' };
 
+const contextChip =
+    'flex max-w-full min-w-0 items-center gap-1.25 rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent-deep';
+
+// What the task belongs to, pressed to open it. Its name is the label a reader sees, so a voice control reaches it by
+// what is on the screen; what pressing it does is the sentence a mouse rests on, a key focuses, or a finger holds.
+function AnchorChip({
+    glyph,
+    label,
+    hint,
+    onOpen,
+}: {
+    readonly glyph: IconName;
+    readonly label: string;
+    readonly hint: string;
+    readonly onOpen: () => void;
+}) {
+    const { anchor, tip } = useTip({ says: hint, describes: true, onPress: onOpen, tapReveals: false });
+
+    return (
+        <>
+            <button type="button" {...anchor} className={`${contextChip} hover:underline`}>
+                <Icon name={glyph} className="size-icon-xs shrink-0" />
+                <span className="truncate">{label}</span>
+            </button>
+            {tip}
+        </>
+    );
+}
+
 // One commitment, as the design draws a task row: the box that completes it — a round dashed hourglass for one the
 // person waits on, and the *AI* or *Agent* tag in its place on a proposal — the line, then what is set and nothing
-// that is not: what it belongs to and who it is with, where it is planned or how long it takes, a clash with the
-// calendar, the day it is due or followed up on, and the reminder bell. Pressed, it opens the task.
+// that is not: what it belongs to — the thread or event, or the person where it has neither — where it is planned or
+// how long it takes, a clash with the calendar, the day it is due or followed up on, and the reminder bell. Pressed, it
+// opens the task.
 //
 // **Where a proposal came from is read off what it cites.** One that cites a message was read out of mail; one that
 // cites none was suggested by the Agent, which is the only other writer of proposals.
@@ -316,29 +347,26 @@ export function TaskRow({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-                {anchor === null ? null : onOpenAnchor === undefined ? (
-                    <span className="flex max-w-full min-w-0 items-center gap-1.25 rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent-deep">
-                        <Icon name={anchorGlyphs[anchor.kind]} className="size-icon-xs shrink-0" />
-                        <span className="truncate">{anchor.label}</span>
+                {/* One chip for what the task belongs to: the thread or event, or the person where it is anchored to
+                    neither, which is one more thing the design lets a task belong to. */}
+                {anchor !== null && onOpenAnchor !== undefined ? (
+                    <AnchorChip
+                        glyph={anchorGlyphs[anchor.kind]}
+                        label={anchor.label}
+                        hint={translate(anchor.kind === 'Thread' ? 'tasks.openThread' : 'tasks.openEvent')}
+                        onOpen={onOpenAnchor}
+                    />
+                ) : anchor !== null || task.counterpart !== null ? (
+                    <span className={contextChip}>
+                        <Icon
+                            name={anchor === null ? 'person' : anchorGlyphs[anchor.kind]}
+                            className="size-icon-xs shrink-0"
+                        />
+                        <span className="truncate">
+                            {anchor?.label ?? (task.counterpart === null ? '' : wordCounterpart(task.counterpart))}
+                        </span>
                     </span>
-                ) : (
-                    <button
-                        type="button"
-                        aria-label={translate(anchor.kind === 'Thread' ? 'tasks.openThread' : 'tasks.openEvent')}
-                        className="flex max-w-full min-w-0 items-center gap-1.25 rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent-deep hover:underline"
-                        onClick={onOpenAnchor}
-                    >
-                        <Icon name={anchorGlyphs[anchor.kind]} className="size-icon-xs shrink-0" />
-                        <span className="truncate">{anchor.label}</span>
-                    </button>
-                )}
-
-                {task.counterpart === null ? null : (
-                    <span className="flex max-w-full min-w-0 items-center gap-1.25 rounded-full border border-line px-2 py-0.5 text-xs text-text-soft">
-                        <Icon name="person" className="size-icon-xs shrink-0" />
-                        <span className="truncate">{wordCounterpart(task.counterpart)}</span>
-                    </span>
-                )}
+                ) : null}
 
                 {proposal ? (
                     <span className="text-sm whitespace-nowrap text-muted">
@@ -441,8 +469,8 @@ export function TaskRow({
         </li>
     );
 
-    // The day at the end of the row: when it is due, when to follow up on a wait — in the warning colour once that
-    // day has come — or who replied and when, for a wait the reply closed.
+    // The day at the end of the row: when it is due, when to follow up on a wait — *today*, in the warning colour, once
+    // that day has come or gone — or who replied and when, for a wait the reply closed.
     function dueWording() {
         if (answer !== null) {
             return (
@@ -463,9 +491,17 @@ export function TaskRow({
                 dateTime={task.dueOn}
                 className={`text-base whitespace-nowrap ${followUpCame ? 'text-warning' : 'text-text-soft'}`}
             >
-                <span aria-hidden="true">{awaited ? translate('tasks.followUpOn', { day }) : day}</span>
+                <span aria-hidden="true">
+                    {awaited
+                        ? followUpCame
+                            ? translate('tasks.followUpToday')
+                            : translate('tasks.followUpOn', { day })
+                        : day}
+                </span>
                 <span className="sr-only">
-                    {translate('tasks.dueOn', { day: wordCalendarDay(task.dueOn, locale) })}
+                    {translate(awaited ? 'tasks.followUpDueOn' : 'tasks.dueOn', {
+                        day: wordCalendarDay(task.dueOn, locale),
+                    })}
                 </span>
             </time>
         );

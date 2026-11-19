@@ -389,7 +389,7 @@ describe('TaskRow', () => {
         expect(screen.getByText('From the Agent')).toBeDefined();
     });
 
-    it('draws what a task belongs to, who it is with, and how long it takes while nothing is planned', () => {
+    it('draws the one thing a task belongs to, named as it reads, and how long it takes while nothing is planned', () => {
         const onOpenAnchor = vi.fn();
 
         drawRow({
@@ -401,12 +401,22 @@ describe('TaskRow', () => {
             onOpenAnchor,
         });
 
-        expect(screen.getByText('Marta Nowak')).toBeDefined();
+        const chip = screen.getByRole('button', { name: 'CPI calculation 2027' });
+
+        expect(chip.getAttribute('aria-describedby')).not.toBeNull();
+        expect(screen.getByText('Open the thread')).toBeDefined();
+        expect(screen.queryByText('Marta Nowak')).toBeNull();
         expect(screen.getByText('45 min')).toBeDefined();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Open the thread' }));
+        fireEvent.click(chip);
 
         expect(onOpenAnchor).toHaveBeenCalledOnce();
+    });
+
+    it('draws who a task is with where it belongs to no thread or event', () => {
+        drawRow({ task: taskOf({ counterpart: { address: 'marta@contoso.example', displayName: 'Marta Nowak' } }) });
+
+        expect(screen.getByText('Marta Nowak')).toBeDefined();
     });
 
     it('draws the planned stretch in place of the estimate, and a clash with the calendar', () => {
@@ -437,6 +447,14 @@ describe('TaskRow', () => {
 
         expect(screen.getByRole('checkbox', { name: 'Mark Answer the tender as received' })).toBeDefined();
         expect(screen.getByText(/^follow up /u)).toBeDefined();
+        expect(screen.getByText(/^Follow up /u).className).toContain('sr-only');
+
+        cleanup();
+
+        // A wait whose day has come or gone is followed up now, which is what the row says.
+        drawRow({ task: taskOf({ direction: 'Awaited', dueOn: '2026-09-18' }) });
+
+        expect(screen.getByText('follow up today')).toBeDefined();
 
         cleanup();
 

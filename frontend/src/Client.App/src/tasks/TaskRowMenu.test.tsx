@@ -39,6 +39,7 @@ function menuOver({
     onReminders,
     onSchedule = vi.fn(),
     onAskErasure = vi.fn(),
+    onDismiss = vi.fn(),
 }: {
     task?: PersonalTask;
     onSelect?: () => void;
@@ -50,6 +51,7 @@ function menuOver({
     onReminders?: (() => void) | undefined;
     onSchedule?: () => void;
     onAskErasure?: () => void;
+    onDismiss?: () => void;
 } = {}): void {
     render(
         <LocalizationProvider>
@@ -65,6 +67,7 @@ function menuOver({
                 onReminders={onReminders}
                 onSchedule={onSchedule}
                 onAskErasure={onAskErasure}
+                onDismiss={onDismiss}
                 onClose={vi.fn()}
             />
         </LocalizationProvider>,
@@ -112,6 +115,17 @@ describe('TaskRowMenu', () => {
         menuOver({ task: taskOf({ origin: 'Proposed' }), onAccept: vi.fn() });
 
         expect(drawn()).toStrictEqual(['Accept', 'Dismiss task']);
+    });
+
+    it('dismisses a proposal at once rather than asking about an erasure', () => {
+        const onDismiss = vi.fn();
+        const onAskErasure = vi.fn();
+
+        menuOver({ task: taskOf({ origin: 'Proposed' }), onAccept: vi.fn(), onDismiss, onAskErasure });
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Dismiss task' }));
+
+        expect(onDismiss).toHaveBeenCalledOnce();
+        expect(onAskErasure).not.toHaveBeenCalled();
     });
 
     it('words the completion by what pressing it would do', () => {

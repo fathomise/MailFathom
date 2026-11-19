@@ -136,6 +136,7 @@ export const iconNames = [
     'notifications',
     'notifications_active',
     'notifications_off',
+    'open_in_full',
     'open_in_new',
     'outbox',
     'pending_actions',

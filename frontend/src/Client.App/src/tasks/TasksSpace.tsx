@@ -27,6 +27,7 @@ import {
 } from '@mailfathom/client-backend';
 import { Confirmation } from '../confirmation/Confirmation';
 import { Control } from '../controls/Control';
+import { useTabSwipe } from '../controls/useTabSwipe';
 import type { MessageKey } from '../localization/en';
 import { calendarDayIn } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
@@ -43,7 +44,7 @@ import { TasksHead } from './TasksHead';
 import { TodayCalendar } from './TodayCalendar';
 import { dayAround, endAfter, startOfDay } from './dayInstants';
 import { reachedTheRowsRead } from './rowsRead';
-import { clashOf, openIn, openOwedToday, plannedDay, tasksIn, type TaskView } from './taskViews';
+import { clashOf, openIn, openOwedToday, plannedDay, taskViews, tasksIn, type TaskView } from './taskViews';
 import { useTasks } from './useTasks';
 import { useTodayCalendar } from './useTodayCalendar';
 
@@ -220,6 +221,17 @@ export function TasksSpace({
     const panel = useRef<HTMLDialogElement | null>(null);
     const opening = useRef<HTMLDialogElement | null>(null);
 
+    // Which thread read is the latest one asked for; an earlier read, or one answering after the screen went, opens
+    // nothing, so a slow answer cannot take the reader to a thread they have since moved away from.
+    const threadAsked = useRef(0);
+
+    useEffect(
+        () => () => {
+            threadAsked.current += 1;
+        },
+        [],
+    );
+
     const reading = useTasks(session, transport);
     const day = useTodayCalendar(readsCalendar ? session : null, transport, now);
 
@@ -284,6 +296,14 @@ export function TasksSpace({
         }
     }, [openedId]);
 
+    function chooseView(chosen: TaskView): void {
+        setSelected([]);
+        setView(chosen);
+    }
+
+    // A swipe across the list walks the views in the order the head draws them, as the calendar's does.
+    const viewSwipe = useTabSwipe(taskViews, view, chooseView);
+
     // How what a task belongs to is opened from here, or `undefined` where this credential cannot reach it.
     function anchorOpener(anchor: TaskAnchor): (() => void) | undefined {
         if (anchor.kind === 'Event') {
@@ -297,8 +317,16 @@ export function TasksSpace({
         return session === null || onOpenMessage === undefined
             ? undefined
             : () => {
+                  threadAsked.current += 1;
+
+                  const asking = threadAsked.current;
+
                   void readMailThread(session, transport, anchor.id, null).then((answer) => {
                       const first = answer.outcome === 'read' ? answer.value.messages[0] : undefined;
+
+                      if (asking !== threadAsked.current) {
+                          return;
+                      }
 
                       if (first === undefined) {
                           setSaid({ said: 'tasks.threadUnopened' });
@@ -427,7 +455,7 @@ export function TasksSpace({
     // Erasing several tasks is several writes rather than one, so the answers are counted rather than reduced to
     // whether any of them failed: a batch in which one refusal stood beside four erasures would otherwise say nothing
     // was changed while the list came back four rows shorter.
-    function erase(tasks: readonly PersonalTask[]): void {
+    function erase(tasks: readonly PersonalTask[], done: MessageKey = 'tasks.erased'): void {
         if (session === null || tasks.length === 0) {
             return;
         }
@@ -435,7 +463,7 @@ export function TasksSpace({
         void Promise.all(tasks.map((task) => eraseTask(session, transport, task.id).then(wrote))).then((answers) => {
             setSelected([]);
             setErasing([]);
-            void after(answers, 'tasks.erased');
+            void after(answers, done);
         });
     }
 
@@ -663,10 +691,7 @@ export function TasksSpace({
                 planned={plannedToday.length}
                 clashes={clashesToday}
                 now={now}
-                onView={(chosen) => {
-                    setSelected([]);
-                    setView(chosen);
-                }}
+                onView={chooseView}
             />
 
             {said === null ? null : (
@@ -676,7 +701,8 @@ export function TasksSpace({
             )}
 
             <div
-                className="flex min-h-0 flex-1 flex-col overflow-y-auto panes:flex-row panes:overflow-visible"
+                className="flex min-h-0 flex-1 touch-pan-y touch-pinch-zoom flex-col overflow-y-auto panes:flex-row panes:overflow-visible"
+                {...viewSwipe}
                 onScroll={(event) => {
                     if (reachedTheRowsRead(event.currentTarget)) {
                         reading.readMore();
@@ -711,6 +737,10 @@ export function TasksSpace({
                     }}
                     onSchedule={writesCalendar ? schedule : undefined}
                     onAskErasure={askErasure}
+                    onDismiss={(dismissed) => {
+                        setSaid(null);
+                        erase([dismissed], 'tasks.dismissed');
+                    }}
                     onReadMore={reading.readMore}
                     onReadAgain={() => {
                         void reading.readAgain();

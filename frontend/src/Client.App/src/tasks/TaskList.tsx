@@ -86,6 +86,7 @@ export function TaskList({
     onReminders,
     onSchedule,
     onAskErasure,
+    onDismiss,
     onReadMore,
     onReadAgain,
 }: {
@@ -147,6 +148,9 @@ export function TaskList({
 
     /** Raises the question an erasure stands behind, over the tasks it is about. */
     readonly onAskErasure: (tasks: readonly PersonalTask[]) => void;
+
+    /** Turns a proposal down at once: nobody had taken it on, so there is nothing to confirm losing. */
+    readonly onDismiss: (task: PersonalTask) => void;
 
     /** Asks for the page after the ones held, which reaching the foot of the list is what calls. */
     readonly onReadMore: () => void;
@@ -246,7 +250,7 @@ export function TaskList({
                                 onDismiss={
                                     task.origin === 'Proposed'
                                         ? () => {
-                                              onAskErasure([task]);
+                                              onDismiss(task);
                                           }
                                         : undefined
                                 }
@@ -320,6 +324,9 @@ export function TaskList({
                         }}
                         onAskErasure={() => {
                             onAskErasure([menu.task]);
+                        }}
+                        onDismiss={() => {
+                            onDismiss(menu.task);
                         }}
                         onClose={() => {
                             rows.current.get(menu.task.id)?.focus();

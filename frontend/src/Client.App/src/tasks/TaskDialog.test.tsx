@@ -35,31 +35,55 @@ const held: PersonalTask = {
     answer: null,
 };
 
-// The deployment behind the dialog: a revise answers with the task it was handed, or with the status a case names.
-function deployment(status = 200): { readonly transport: MailFathomTransport; readonly sent: ClientRequest[] } {
+const answered: PersonalTask = {
+    ...held,
+    id: 'wait-a',
+    title: 'Signed addendum from Anna',
+    direction: 'Awaited',
+    completed: true,
+    plan: null,
+    answer: { messageId: 'reply-a', arrivedAt: '2026-09-24T07:12:00+00:00' },
+};
+
+// The deployment behind the dialog: a revise answers with the task it was handed, or with the status a case names —
+// at once, or only when the case lets it go.
+function deployment(status = 200, waits = false) {
     const sent: ClientRequest[] = [];
+    let release: () => void = () => undefined;
+    const transport: MailFathomTransport = (request) => {
+        sent.push(request);
+
+        const answer: ClientResponse =
+            status === 200 ? { status, headers: {}, body: JSON.stringify(held) } : { status, headers: {}, body: '' };
+
+        return waits
+            ? new Promise((resolve) => {
+                  release = () => {
+                      resolve(answer);
+                  };
+              })
+            : Promise.resolve(answer);
+    };
 
     return {
         sent,
-        transport: (request) => {
-            sent.push(request);
-
-            const answer: ClientResponse =
-                status === 200
-                    ? { status, headers: {}, body: JSON.stringify(held) }
-                    : { status, headers: {}, body: '' };
-
-            return Promise.resolve(answer);
+        transport,
+        release: () => {
+            release();
         },
     };
 }
 
 function Opened({
+    task,
     transport,
     onWritten,
+    onToggleCompleted,
 }: {
+    readonly task: PersonalTask;
     readonly transport: MailFathomTransport;
     readonly onWritten: (said: string) => void;
+    readonly onToggleCompleted: (task: PersonalTask) => void;
 }) {
     const asked = useRef<HTMLDialogElement>(null);
 
@@ -71,11 +95,11 @@ function Opened({
         <TaskDialog
             session={session}
             transport={transport}
-            task={held}
+            task={task}
             asked={asked}
             events={[]}
             onWritten={onWritten}
-            onToggleCompleted={vi.fn()}
+            onToggleCompleted={onToggleCompleted}
             onAskErasure={vi.fn()}
             onReminders={vi.fn()}
             onOpenAnchor={undefined}
@@ -84,27 +108,30 @@ function Opened({
     );
 }
 
-function drawDialog(status = 200) {
-    const { transport, sent } = deployment(status);
+function drawDialog({ status = 200, task = held, waits = false } = {}) {
+    const { transport, sent, release } = deployment(status, waits);
     const written = vi.fn();
+    const toggled = vi.fn();
 
     render(
         <LocalizationProvider>
-            <Opened transport={transport} onWritten={written} />
+            <Opened task={task} transport={transport} onWritten={written} onToggleCompleted={toggled} />
         </LocalizationProvider>,
     );
 
-    return { sent, written };
+    return { sent, written, toggled, release };
 }
 
-function revised(sent: readonly ClientRequest[]): unknown {
-    const [put] = sent.filter(({ method }) => method === 'PUT');
+function revisions(sent: readonly ClientRequest[]): unknown[] {
+    return sent.filter(({ method }) => method === 'PUT').map(({ body }) => JSON.parse(body ?? 'null') as unknown);
+}
 
-    return put === undefined ? undefined : JSON.parse(put.body ?? 'null');
+function dialog(): HTMLDialogElement {
+    return screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
 }
 
 describe('TaskDialog', () => {
-    it('saving a new title revises the task with the whole record', async () => {
+    it('saving a new title revises the task with the whole record and closes', async () => {
         const { sent, written } = drawDialog();
 
         fireEvent.change(screen.getByLabelText('What is it?'), { target: { value: '  Send the signed addendum  ' } });
@@ -117,77 +144,111 @@ describe('TaskDialog', () => {
         expect(sent.map(({ method, path }) => `${method} ${path}`)).toStrictEqual([
             'PUT https://mail.example.invalid/api/client/tasks/task-a',
         ]);
-        expect(revised(sent)).toStrictEqual({
-            title: 'Send the signed addendum',
-            dueOn: '2026-09-24',
-            reminders: [60],
-            dueDayOffsetMinutes: dueDayOffsetMinutes('2026-09-24', null),
-            sourceMessageId: 'message-a',
-            direction: 'Owed',
-            estimatedMinutes: 45,
-            plan: { startAt: '2026-09-24T09:00:00+00:00', minutes: 45 },
-            anchor: {
-                kind: 'Thread',
-                id: '0190f3c2-8a7b-7cde-9f01-23456789abcd',
-                label: 'Contract addendum - signatures',
+        expect(revisions(sent)).toStrictEqual([
+            {
+                title: 'Send the signed addendum',
+                dueOn: '2026-09-24',
+                reminders: [60],
+                dueDayOffsetMinutes: dueDayOffsetMinutes('2026-09-24', null),
+                sourceMessageId: 'message-a',
+                direction: 'Owed',
+                estimatedMinutes: 45,
+                plan: { startAt: '2026-09-24T09:00:00+00:00', minutes: 45 },
+                anchor: {
+                    kind: 'Thread',
+                    id: '0190f3c2-8a7b-7cde-9f01-23456789abcd',
+                    label: 'Contract addendum - signatures',
+                },
+                counterpart: { address: 'anna@contoso.example', displayName: 'Anna Kowalska' },
             },
-            counterpart: { address: 'anna@contoso.example', displayName: 'Anna Kowalska' },
-        });
+        ]);
+        expect(dialog().open).toBe(false);
     });
 
-    it('removing the anchor sends anchor null', async () => {
+    it('removing the anchor writes anchor null at once and keeps the dialog open on the person', async () => {
         const { sent, written } = drawDialog();
 
         fireEvent.click(screen.getByRole('button', { name: 'Remove the link to Contract addendum - signatures' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
         await waitFor(() => {
-            expect(written).toHaveBeenCalled();
+            expect(written).toHaveBeenCalledWith('tasks.revised');
         });
 
-        expect(revised(sent)).toMatchObject({ anchor: null, counterpart: held.counterpart });
+        expect(revisions(sent)).toMatchObject([{ anchor: null, counterpart: held.counterpart, title: held.title }]);
+        expect(dialog().open).toBe(true);
+        expect(screen.getByText('Anna Kowalska')).toBeDefined();
+        expect(screen.getByText('Person')).toBeDefined();
     });
 
-    it('changes which way the task runs and the day it is followed up on', async () => {
+    it('writes each chip as it is pressed, the typed line waiting for Save', async () => {
         const { sent, written } = drawDialog();
 
+        fireEvent.change(screen.getByLabelText('What is it?'), { target: { value: 'Not yet saved' } });
         fireEvent.click(screen.getByRole('radio', { name: 'I am waiting for this' }));
-        fireEvent.click(screen.getByRole('radio', { name: 'No day' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
         await waitFor(() => {
-            expect(written).toHaveBeenCalled();
+            expect(written).toHaveBeenCalledTimes(1);
+        });
+
+        fireEvent.click(screen.getByRole('radio', { name: 'No day' }));
+
+        await waitFor(() => {
+            expect(written).toHaveBeenCalledTimes(2);
         });
 
         // A task with no day announces nothing, because a lead is measured back from the day.
-        expect(revised(sent)).toMatchObject({
-            direction: 'Awaited',
-            dueOn: null,
-            reminders: [],
-            dueDayOffsetMinutes: null,
-        });
+        expect(revisions(sent)).toMatchObject([
+            { title: held.title, direction: 'Awaited', dueOn: '2026-09-24', reminders: [60] },
+            { title: held.title, direction: 'Awaited', dueOn: null, reminders: [], dueDayOffsetMinutes: null },
+        ]);
+        expect(screen.getByRole('heading', { name: 'Waiting for' })).toBeDefined();
+        expect(dialog().open).toBe(true);
     });
 
-    it('says in the dialog that a reply already answered the task when its direction cannot change', async () => {
-        const { written } = drawDialog(409);
+    it('says a reply already answered a wait turned round, and puts the chip back', async () => {
+        const { written } = drawDialog({ status: 409, task: answered });
 
-        fireEvent.click(screen.getByRole('radio', { name: 'I am waiting for this' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+        fireEvent.click(screen.getByRole('radio', { name: 'I owe this' }));
 
         expect(
             await screen.findByText('A reply already answered this task, so which way it runs cannot change.'),
         ).toBeDefined();
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'I am waiting for this' }).checked).toBe(true);
         expect(written).not.toHaveBeenCalled();
     });
 
+    it('keeps waiting on a wait a reply closed without leaving the dialog', () => {
+        const { toggled } = drawDialog({ task: answered });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Keep waiting' }));
+
+        expect(toggled).toHaveBeenCalledWith(answered);
+        expect(dialog().open).toBe(true);
+    });
+
     it('lets go of a task the deployment no longer holds when nothing about what it belongs to changed', async () => {
-        const { written } = drawDialog(404);
+        const { written } = drawDialog({ status: 404 });
 
         fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
         await waitFor(() => {
             expect(written).toHaveBeenCalledWith('tasks.gone');
         });
+    });
+
+    it('closes nothing it was not asked from when a write answers after the dialog was left', async () => {
+        const { release, written } = drawDialog({ waits: true });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+        dialog().showModal();
+        release();
+
+        await waitFor(() => {
+            expect(written).toHaveBeenCalledWith('tasks.revised');
+        });
+
+        expect(dialog().open).toBe(true);
     });
 
     it('refuses to save a title nobody typed', () => {
@@ -199,12 +260,12 @@ describe('TaskDialog', () => {
         expect(sent).toStrictEqual([]);
     });
 
-    it('draws where the task is planned and what it belongs to', () => {
+    it('draws where the task is planned and the one thing it belongs to', () => {
         drawDialog();
 
         expect(screen.getByRole('dialog', { name: 'Task' })).toBeDefined();
         expect(screen.getByText('Contract addendum - signatures')).toBeDefined();
-        expect(screen.getByText('Anna Kowalska')).toBeDefined();
+        expect(screen.queryByText('Anna Kowalska')).toBeNull();
         expect(screen.getByText('Planned')).toBeDefined();
     });
 });

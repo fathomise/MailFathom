@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useId, useState, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import {
     dueDayOffsetMinutes,
     longestTaskTitle,
@@ -36,18 +36,25 @@ import { clashOf } from './taskViews';
 import { wordCounterpart, wordPlan, wordReply } from './taskWording';
 
 // One task opened, which is where it is read and where it is changed: its line, which way it runs, the day it is due
-// or followed up on, where it is planned, what it belongs to and who it is with, what announces it, and the three acts
-// the design puts at its foot.
+// or followed up on, where it is planned, what it belongs to — the thread or event, or the person where it has neither
+// — what announces it, and the three acts the design puts at its foot. *Keep waiting* on a wait a reply closed reopens
+// it here, with the dialog left open on it.
 //
-// **One *Save* writes the whole of it.** The route takes the whole record rather than the part that changed, so what
-// was edited here is restated beside everything the dialog does not edit — the reminders, the estimate, the plan and
-// the message it cites — and the write is this dialog's own, so the calendar and a person's page can open the same
-// task and get the same answer to a refusal.
+// **A chip applies as it is pressed, and only the line waits for *Save*.** Which way the task runs, its day and what it
+// belongs to are each written the moment they are chosen, as the design's dialog applies them; the line is typed, so it
+// is written when the person says they are done with it. Every write restates the whole record, because the route takes
+// the whole record rather than the part that changed — the reminders, the estimate, the plan and the message it cites
+// travel beside the one field that moved — and the write is this dialog's own, so the calendar and a person's page can
+// open the same task and get the same answer to a refusal.
 //
 // **A refusal is read for what it means here.** A `404` names the task gone when nothing about what it belongs to
 // changed, and the context it was moved to otherwise; a `409` is the deployment refusing to turn a task a reply already
-// answered the other way. Each is said in the dialog, which stays open on what was typed, except a task that is gone,
-// which there is nothing left to edit.
+// answered the other way. Each is said in the dialog, which stays open with the chip back where the deployment holds
+// it, except a task that is gone, which there is nothing left to edit.
+//
+// **An answer outlives the dialog it was asked from**, because the caller holds one dialog element for every task it
+// opens. So an answer arriving after this dialog was left only tells the screen what the write did; it never closes
+// or speaks in whatever dialog is open by then.
 //
 // **Four things the design draws here are not drawn yet, each the change of a later task.** *Plan* and *Move* open the
 // plan dialog; *Change* beside *Belongs to* chooses among recent threads and events, which no route lists; *Follow up*
@@ -114,8 +121,8 @@ function refusalOf(failure: ClientFailure, anchorMoved: boolean): MessageKey | '
     return wentUnanswered(failure) ? 'tasks.writeUnknown' : 'tasks.writeFailed';
 }
 
-interface TaskEdit {
-    readonly title: string;
+// What the dialog's chips write, each the moment it is pressed.
+interface TaskChoices {
     readonly dueOn: string | null;
     readonly direction: TaskDirection;
     readonly anchor: TaskAnchor | null;
@@ -172,68 +179,110 @@ export function TaskDialog({
     // Read once for the life of the dialog, as the screen reads it: a chip that moved from *Tomorrow* to *Today* under
     // a reader's finger at midnight would be a different day than the one they pressed.
     const [now] = useState(() => Date.now());
-    const [edit, setEdit] = useState<TaskEdit>(() => ({
-        title: task.title,
+    const [title, setTitle] = useState(task.title);
+
+    // What a chip pressed here applied, over what the task the screen read holds: the chip stands where it was pressed
+    // while its write is out, and stays there once the deployment took it, whatever the list has read back by then.
+    const [applied, setApplied] = useState<Partial<TaskChoices>>({});
+    const [said, setSaid] = useState<MessageKey | null>(null);
+    const [writing, setWriting] = useState<'save' | 'chip' | null>(null);
+    // Whether this dialog still stands, and how many times it has been left: an answer acts here only where neither
+    // moved since its write went out, since a dialog left and opened again on the same task is a different question.
+    const here = useRef(true);
+    const leftTimes = useRef(0);
+
+    useEffect(() => {
+        here.current = true;
+
+        return () => {
+            here.current = false;
+        };
+    }, []);
+
+    const chosen: TaskChoices = {
         dueOn: task.dueOn,
         direction: task.direction,
         anchor: task.anchor,
         counterpart: task.counterpart,
-    }));
-    const [said, setSaid] = useState<MessageKey | null>(null);
-    const [saving, setSaving] = useState(false);
-
+        ...applied,
+    };
     const writeRefused = useWriteRefusal();
     const refused = writeRefused(translate('tasks.save'));
     const today = calendarDayIn(now, timeZone);
-    const line = edit.title.trim();
-    const savable = line !== '' && line.length <= longestTaskTitle && !saving;
-    const awaited = edit.direction === 'Awaited';
+    const line = title.trim();
+    const savable = line !== '' && line.length <= longestTaskTitle && writing === null;
+    const awaited = chosen.direction === 'Awaited';
     const replied =
         task.answer === null ? null : wordReply(task.answer.arrivedAt, task.counterpart, locale, timeZone, translate);
     const clash = clashOf(task, events);
     const plan = task.plan === null ? null : wordPlan(task.plan, locale, now, timeZone, translate);
 
-    function save(): void {
-        if (session === null || !savable || refused !== null) {
+    // One write of the whole record, with what changed laid over it. Its answer acts on this dialog only while the
+    // dialog still stands; once it has been left, the screen is told what the write did and nothing else.
+    function write(change: Partial<TaskChoices>, line: string, closes: boolean): void {
+        if (session === null || writing !== null || refused !== null) {
             return;
         }
 
-        const anchorMoved = edit.anchor !== null && edit.anchor.id !== task.anchor?.id;
+        const before = applied;
+        const next = { ...chosen, ...change };
+        const anchorMoved = next.anchor !== null && next.anchor.id !== task.anchor?.id;
 
-        setSaving(true);
+        if (!closes) {
+            setApplied({ ...applied, ...change });
+        }
+
+        setWriting(closes ? 'save' : 'chip');
         setSaid(null);
+
+        const asking = leftTimes.current;
 
         void reviseTask(session, transport, task.id, {
             title: line,
-            dueOn: edit.dueOn,
+            dueOn: next.dueOn,
             // A lead is measured back from the due day, so a task with no day announces nothing.
-            reminders: edit.dueOn === null ? [] : task.reminders,
-            dueDayOffsetMinutes: dueDayOffsetMinutes(edit.dueOn, timeZone),
+            reminders: next.dueOn === null ? [] : task.reminders,
+            dueDayOffsetMinutes: dueDayOffsetMinutes(next.dueOn, timeZone),
             sourceMessageId: task.sourceMessageId,
-            direction: edit.direction,
+            direction: next.direction,
             estimatedMinutes: task.estimatedMinutes,
             plan: task.plan,
-            anchor: edit.anchor,
-            counterpart: edit.counterpart,
+            anchor: next.anchor,
+            counterpart: next.counterpart,
         }).then((answer) => {
-            setSaving(false);
+            const refusal = answer.outcome === 'read' ? null : refusalOf(answer.failure, anchorMoved);
+            const standing = here.current && leftTimes.current === asking && asked.current?.open === true;
 
-            if (answer.outcome === 'read') {
-                asked.current?.close();
-                onWritten('tasks.revised');
+            if (refusal === null || refusal === 'gone') {
+                if (standing && (closes || refusal === 'gone')) {
+                    asked.current?.close();
+                }
+
+                if (standing) {
+                    setWriting(null);
+                }
+
+                onWritten(refusal === null ? 'tasks.revised' : 'tasks.gone');
 
                 return;
             }
 
-            const refusal = refusalOf(answer.failure, anchorMoved);
-
-            if (refusal === 'gone') {
-                asked.current?.close();
-                onWritten('tasks.gone');
-            } else {
+            if (standing) {
+                setWriting(null);
+                setApplied(before);
                 setSaid(refusal);
             }
         });
+    }
+
+    function apply(change: Partial<TaskChoices>): void {
+        write(change, task.title, false);
+    }
+
+    function save(): void {
+        if (savable) {
+            write({}, line, true);
+        }
     }
 
     function closeThen(act: () => void): void {
@@ -241,8 +290,10 @@ export function TaskDialog({
         act();
     }
 
-    const anchor = edit.anchor;
-    const counterpart = edit.counterpart;
+    // What the task belongs to, which is one thing: the thread or event it is anchored to, or the person it is with
+    // where it is anchored to nothing — a person being one more thing a task can belong to.
+    const anchor = chosen.anchor;
+    const counterpart = anchor === null ? chosen.counterpart : null;
 
     return (
         <dialog
@@ -252,7 +303,11 @@ export function TaskDialog({
             className="surface-pop m-auto w-dialog max-w-dialog-narrow rounded-lg border border-line bg-panel p-0 text-text shadow-dialog backdrop:bg-scrim"
             // The screen lets go of the task as the dialog is left, which takes this component down with it — so
             // nothing half-typed outlives the question it was typed into.
-            onClose={onLeft}
+            onClose={() => {
+                leftTimes.current += 1;
+                setWriting(null);
+                onLeft();
+            }}
         >
             <form
                 className="flex flex-col"
@@ -286,9 +341,7 @@ export function TaskDialog({
                                 type="button"
                                 className="text-sm text-accent-deep hover:underline"
                                 onClick={() => {
-                                    closeThen(() => {
-                                        onToggleCompleted(task);
-                                    });
+                                    onToggleCompleted(task);
                                 }}
                             >
                                 {translate('tasks.keepWaiting')}
@@ -304,10 +357,10 @@ export function TaskDialog({
                         type="text"
                         maxLength={longestTaskTitle}
                         placeholder={translate('tasks.whatIsIt')}
-                        value={edit.title}
+                        value={title}
                         className={dialogField}
                         onChange={(typing) => {
-                            setEdit({ ...edit, title: typing.target.value });
+                            setTitle(typing.target.value);
                         }}
                     />
 
@@ -319,9 +372,9 @@ export function TaskDialog({
                                 shape="chip"
                                 name={`${heading}-direction`}
                                 value={direction}
-                                chosen={edit.direction === direction}
+                                chosen={chosen.direction === direction}
                                 onChoose={() => {
-                                    setEdit({ ...edit, direction });
+                                    apply({ direction });
                                 }}
                             >
                                 {translate(direction === 'Owed' ? 'tasks.iOwe' : 'tasks.iAwait')}
@@ -340,9 +393,9 @@ export function TaskDialog({
                                     shape="chip"
                                     name={`${heading}-day`}
                                     value={day ?? ''}
-                                    chosen={edit.dueOn === day}
+                                    chosen={chosen.dueOn === day}
                                     onChoose={() => {
-                                        setEdit({ ...edit, dueOn: day });
+                                        apply({ dueOn: day });
                                     }}
                                 >
                                     {wordDayChoice(day, today, locale, translate)}
@@ -403,7 +456,7 @@ export function TaskDialog({
                                           }
                                 }
                                 onRemove={() => {
-                                    setEdit({ ...edit, anchor: null });
+                                    apply({ anchor: null });
                                 }}
                             />
                         )}
@@ -415,7 +468,7 @@ export function TaskDialog({
                                 label={wordCounterpart(counterpart)}
                                 onOpen={undefined}
                                 onRemove={() => {
-                                    setEdit({ ...edit, counterpart: null });
+                                    apply({ counterpart: null });
                                 }}
                             />
                         )}
@@ -431,11 +484,11 @@ export function TaskDialog({
                     <div className="flex items-center gap-2.25 text-base">
                         <Icon name="notifications_active" className="size-icon-lg shrink-0 text-muted" />
                         <span className="flex-1 text-text-soft">
-                            {task.reminders.length === 0
+                            {task.reminders.length === 0 || chosen.dueOn === null
                                 ? translate('tasks.noReminder')
                                 : wordReminderCount(task.reminders.length, locale, translate)}
                         </span>
-                        {task.dueOn === null ? null : (
+                        {chosen.dueOn === null ? null : (
                             <button
                                 type="button"
                                 aria-label={translate('tasks.changeReminders')}
@@ -489,7 +542,7 @@ export function TaskDialog({
                         aria-disabled={refused === null ? undefined : true}
                         className={`${mannerDrawn.act} disabled:cursor-not-allowed disabled:bg-rail disabled:text-faint disabled:opacity-100 aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
                     >
-                        {translate(saving ? 'tasks.saving' : 'tasks.save')}
+                        {translate(writing === 'save' ? 'tasks.saving' : 'tasks.save')}
                     </button>
                 </div>
             </form>

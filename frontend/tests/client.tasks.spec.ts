@@ -5,10 +5,11 @@
 import { expect, type Page } from '@playwright/test';
 
 import { holdTheDay, openSignedInAsDeveloper, switchDeveloperModeOn, test } from './client.harness';
+import { conversationId } from './fixtures/mail';
 
 // The Tasks space as somebody works it: the four views over the corpus's commitments, a task written down, finished,
-// shown again and deleted, a task's line and day changed in its dialog and still changed after a reload, and a wait
-// written down and drawn with who it waits on. The list reads itself again after a write rather than correcting what
+// shown again and deleted, a task's day, line and link changed in its dialog and still changed after a reload, a wait
+// a reply closed kept waiting, what a task belongs to opened, a proposal dismissed, and a wait written down. The list reads itself again after a write rather than correcting what
 // it holds, and the capacity counts off that same read — so the two agree only where both drew the deployment's answer.
 
 // The corpus deployment states Greenwich as the reader's zone, and the reader sits in it, so the day the due-day field
@@ -76,33 +77,57 @@ test('the four views show the commitments the deployment holds', async ({ page, 
     await expect(titlesIn(page, 'Later')).toContainText('From the Agent');
 });
 
-test("a task's title and day can be changed and stay changed after reload", async ({ page, deployment }) => {
-    await holdTheDay(page, deployment);
-    await openSignedInAsDeveloper(page, '/#/tasks');
+/** Opens a task's dialog from the line its row draws. */
+async function openTask(page: Page, title: string) {
+    await page.getByRole('button', { name: title, exact: true }).click();
+}
 
-    await page.getByRole('button', { name: 'Book the meeting room for the Fabrikam review', exact: true }).click();
+/** Reads the screen again after a reload, which forgets developer mode and the space it stood on. */
+async function reloadTasks(page: Page): Promise<void> {
+    await page.reload();
+    await switchDeveloperModeOn(page);
+    await page.evaluate(`window.location.replace('/#/tasks')`);
+}
+
+test("a task's day applies as it is chosen, its line on Save, and both stay after reload", async ({
+    page,
+    deployment,
+}) => {
+    const today = await holdTheDay(page, deployment);
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    await openSignedInAsDeveloper(page, '/#/tasks');
+    await openTask(page, 'Book the meeting room for the Fabrikam review');
 
     const dialog = page.getByRole('dialog', { name: 'Task' });
 
+    await dialog.getByRole('radio', { name: 'Tomorrow', exact: true }).press('Space');
+
+    // Written as it was pressed, with the dialog still open on the task.
+    await expect.poll(() => deployment.requests('PUT', '/tasks/task-room').length).toBe(1);
+    await expect(dialog).toBeVisible();
+
     await dialog.getByLabel('What is it?').fill('Book the large meeting room for the Fabrikam review');
-    await dialog.getByRole('radio', { name: 'Tomorrow' }).press('Space');
     await dialog.getByRole('button', { name: 'Save' }).click();
 
     await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
     await expect(dialog).toHaveCount(0);
 
-    const revised = deployment.requests('PUT', '/tasks/task-room');
+    const [chosen, saved] = deployment.requests('PUT', '/tasks/task-room');
 
-    expect(revised).toHaveLength(1);
-    expect(revised[0]?.body).toMatchObject({
+    expect(chosen?.body).toMatchObject({
+        title: 'Book the meeting room for the Fabrikam review',
+        dueOn: tomorrow,
+        estimatedMinutes: 10,
+    });
+    expect(saved?.body).toMatchObject({
         title: 'Book the large meeting room for the Fabrikam review',
+        dueOn: tomorrow,
         direction: 'Owed',
         estimatedMinutes: 10,
     });
 
-    await page.reload();
-    await switchDeveloperModeOn(page);
-    await page.evaluate(`window.location.replace('/#/tasks')`);
+    await reloadTasks(page);
     await showView(page, 'Upcoming');
 
     await expect(titlesIn(page, 'Tomorrow')).toHaveText([
@@ -111,28 +136,112 @@ test("a task's title and day can be changed and stay changed after reload", asyn
     ]);
 });
 
+test('a link removed in the dialog goes at once, and the person it is with is what it belongs to after reload', async ({
+    page,
+    deployment,
+}) => {
+    await holdTheDay(page, deployment);
+    await openSignedInAsDeveloper(page, '/#/tasks');
+    await openTask(page, 'Send the 5% CPI cap counter-proposal');
+
+    const dialog = page.getByRole('dialog', { name: 'Task' });
+
+    await dialog.getByRole('button', { name: 'Remove the link to Contract addendum - signatures' }).click();
+
+    await expect(dialog.getByText('Anna Kowalska')).toBeVisible();
+    expect(deployment.requests('PUT', '/tasks/task-tender').map(({ body }) => body)).toMatchObject([
+        { anchor: null, counterpart: { address: 'anna@contoso.example' } },
+    ]);
+
+    await page.keyboard.press('Escape');
+    await reloadTasks(page);
+
+    const tender = titlesIn(page, 'Planned').first();
+
+    await expect(tender).toContainText('Anna Kowalska');
+    await expect(tender).not.toContainText('Contract addendum - signatures');
+});
+
+test('a wait a reply answered cannot be turned round, and keeps waiting from its dialog', async ({
+    page,
+    deployment,
+}) => {
+    await holdTheDay(page, deployment);
+    await openSignedInAsDeveloper(page, '/#/tasks');
+    await showView(page, 'Waiting for');
+    await openTask(page, 'Opinion on the indexation cap from Jacek Wrona');
+
+    const dialog = page.getByRole('dialog', { name: 'Waiting for' });
+
+    await dialog.getByRole('radio', { name: 'I owe this' }).press('Space');
+
+    await expect(
+        dialog.getByText('A reply already answered this task, so which way it runs cannot change.'),
+    ).toBeVisible();
+    await expect(dialog.getByRole('radio', { name: 'I am waiting for this' })).toBeChecked();
+
+    await dialog.getByRole('button', { name: 'Keep waiting' }).click();
+
+    // Still open, on a wait no reply has closed.
+    await expect(dialog.getByRole('button', { name: 'Keep waiting' })).toHaveCount(0);
+    await expect(dialog.getByText('Closes itself when the reply arrives in the thread.')).toBeVisible();
+    expect(deployment.requests('POST', '/tasks/wait-opinion/completion').map(({ body }) => body)).toStrictEqual([
+        { completed: false },
+    ]);
+
+    await page.keyboard.press('Escape');
+
+    await expect(titlesIn(page, 'Follow up today')).toContainText([/^Opinion on the indexation cap/u]);
+    await expect(page.getByRole('region', { name: 'Closed by a reply', exact: true })).toHaveCount(0);
+});
+
+test('what a task belongs to opens from its row', async ({ page, deployment }) => {
+    await holdTheDay(page, deployment);
+    await openSignedInAsDeveloper(page, '/#/tasks');
+
+    await titlesIn(page, 'Planned')
+        .first()
+        .getByRole('button', { name: 'Contract addendum - signatures', exact: true })
+        .click();
+
+    await expect(page).toHaveURL(/#\/mail/u);
+    expect(deployment.requests('GET', `/threads/${conversationId}`)).not.toHaveLength(0);
+});
+
+test('a proposal is dismissed at once', async ({ page, deployment }) => {
+    await holdTheDay(page, deployment);
+    await openSignedInAsDeveloper(page, '/#/tasks');
+    await showView(page, 'Proposed');
+
+    await titlesIn(page, 'Today').first().getByRole('button', { name: 'Dismiss task' }).click();
+
+    await expect(page.getByRole('status').filter({ hasText: 'Dismissed.' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Delete this task?' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Today', exact: true })).toHaveCount(0);
+    expect(deployment.requests('DELETE', '/tasks/task-signatures')).toHaveLength(1);
+});
+
 // The design also draws when the message went (*sent Mon 24.08*); the task record carries no such instant, so the row
-// draws who it waits on, what it belongs to and when to follow up.
-test('a waiting task shows who it waits for and when to follow up', async ({ page, deployment }) => {
+// draws what it waits on and when to follow up.
+test('a waiting task shows what it waits on and when to follow up', async ({ page, deployment }) => {
     await holdTheDay(page, deployment);
     await openSignedInAsDeveloper(page, '/#/tasks');
     await showView(page, 'Waiting for');
 
     const waiting = titlesIn(page, 'Follow up today');
 
-    await expect(waiting).toContainText('Tomasz Bąk');
     await expect(waiting).toContainText('Q4 delivery dates');
     await expect(waiting).toContainText('follow up today');
     await expect(
         waiting.getByRole('checkbox', { name: 'Mark Delivery confirmation from Tomasz Bąk as received' }),
     ).not.toBeChecked();
 
-    await waiting.getByRole('button', { name: 'Delivery confirmation from Tomasz Bąk', exact: true }).click();
+    await openTask(page, 'Delivery confirmation from Tomasz Bąk');
 
     const dialog = page.getByRole('dialog', { name: 'Waiting for' });
 
-    await expect(dialog.getByText('Person', { exact: true })).toBeVisible();
-    await expect(dialog.getByText('Tomasz Bąk')).toBeVisible();
+    await expect(dialog.getByText('Thread', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('Q4 delivery dates')).toBeVisible();
     await expect(dialog.getByRole('radio', { name: 'I am waiting for this' })).toBeChecked();
     await expect(dialog.getByText('Closes itself when the reply arrives in the thread.')).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Mark as received' })).toBeVisible();
@@ -202,7 +311,7 @@ test('moves a task it wrote, finished, and deleted between the groups, and the d
 
     await writing.getByLabel('Task description').fill(written);
     await writing.getByLabel('Due date').fill(today);
-    await writing.getByLabel('Duration (minutes)').fill('30');
+    await writing.getByLabel('Duration (e.g. 30 min)').fill('30 min');
     await writing.getByRole('button', { name: 'Add task' }).click();
 
     await expect(dueToday.getByRole('checkbox', { name: `Mark ${written} as done` })).toBeVisible();

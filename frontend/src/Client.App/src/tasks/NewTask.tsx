@@ -22,6 +22,7 @@ import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useTopLayerSurface } from '../shell/screenLayers';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
+import { readEstimate } from './taskWording';
 
 // Writing a task down, which is the one way this client puts something into the list. What it records is asserted by
 // whoever typed it, which is not a field on this form and never could be: the surface reads the origin off who is
@@ -99,15 +100,13 @@ const contextKinds: Readonly<Record<TaskAnchor['kind'], { readonly glyph: IconNa
 // The minutes typed, as the whole number the record takes, `null` where nothing was typed, or `undefined` where what
 // was typed is not a duration the deployment would take.
 function minutesIn(typed: string): number | null | undefined {
-    if (typed.trim() === '') {
-        return null;
-    }
+    const minutes = readEstimate(typed);
 
-    const minutes = Number(typed);
-
-    return Number.isInteger(minutes) && minutes >= shortestTaskMinutes && minutes <= longestTaskMinutes
+    return minutes === null || minutes === undefined
         ? minutes
-        : undefined;
+        : minutes >= shortestTaskMinutes && minutes <= longestTaskMinutes
+          ? minutes
+          : undefined;
 }
 
 export function NewTask({
@@ -195,6 +194,8 @@ export function NewTask({
             }}
         >
             <form
+                // The form judges the duration itself and says so in its own words, so no browser bubble stands over it.
+                noValidate
                 className="flex flex-col"
                 onSubmit={(submitting) => {
                     // Closed by hand rather than by `method="dialog"`, because Enter in a field submits with no button
@@ -307,11 +308,8 @@ export function NewTask({
 
                         <input
                             id={lengths}
-                            type="number"
-                            inputMode="numeric"
-                            min={shortestTaskMinutes}
-                            max={longestTaskMinutes}
-                            step={5}
+                            type="text"
+                            autoComplete="off"
                             value={draft.minutes}
                             aria-invalid={minutes === undefined ? true : undefined}
                             aria-describedby={minutes === undefined ? bounds : undefined}

@@ -341,7 +341,7 @@ describe('TasksSpace', () => {
         expect(screen.queryByText('Send the invoice')).toBeNull();
     });
 
-    it('turns a proposal down through the erasure, once the question standing behind it is answered', async () => {
+    it('turns a proposal down through the erasure at once, asking nothing first', async () => {
         const { transport, sent } = deployment({
             committed: [],
             proposed: [taskCalled('b', 'Send the invoice', { origin: 'Proposed' })],
@@ -353,13 +353,12 @@ describe('TasksSpace', () => {
         fireEvent.keyDown(await screen.findByRole('listitem'), { key: 'ContextMenu' });
         fireEvent.click(screen.getByRole('menuitem', { name: 'Dismiss task' }));
 
-        expect(screen.getByText('Delete this task?')).toBeDefined();
-
-        fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-
         await waitFor(() => {
             expect(pathsSent(sent(), 'DELETE').some((path) => path.endsWith('/tasks/b'))).toBe(true);
         });
+
+        expect(screen.queryByText('Delete this task?')).toBeNull();
+        expect(screen.getByRole('status').textContent).toBe('Dismissed.');
 
         await waitFor(() => {
             expect(screen.queryByText('Send the invoice')).toBeNull();

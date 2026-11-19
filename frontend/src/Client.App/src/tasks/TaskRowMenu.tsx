@@ -35,6 +35,7 @@ export function TaskRowMenu({
     onSchedule,
     onOpenSource,
     onAskErasure,
+    onDismiss,
     onClose,
 }: {
     readonly task: PersonalTask;
@@ -66,6 +67,9 @@ export function TaskRowMenu({
     /** Raises the question the erasure stands behind, over this one task. */
     readonly onAskErasure: () => void;
 
+    /** Turns a proposal down at once, which asks nothing first: nobody had taken it on. */
+    readonly onDismiss: () => void;
+
     readonly onClose: () => void;
 }) {
     const { translate } = useLocalization();
@@ -83,7 +87,7 @@ export function TaskRowMenu({
     if (task.origin === 'Proposed') {
         const answers: ContextMenuItem[] = [
             ...(onAccept === undefined ? [] : [writing('add_task', translate('tasks.accept'), onAccept)]),
-            { ...writing('close', translate('tasks.declineTask'), onAskErasure), destroys: true },
+            writing('close', translate('tasks.declineTask'), onDismiss),
         ];
 
         return <ContextMenu header={task.title} at={at} items={answers} onClose={onClose} />;
@@ -92,7 +96,7 @@ export function TaskRowMenu({
     const items: ContextMenuItem[] = [];
 
     if (onOpen !== undefined) {
-        items.push({ icon: 'open_in_new', label: translate('tasks.openTask'), choose: onOpen });
+        items.push({ icon: 'open_in_full', label: translate('tasks.openTask'), choose: onOpen });
     }
 
     items.push(

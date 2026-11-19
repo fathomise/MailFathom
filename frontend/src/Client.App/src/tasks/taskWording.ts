@@ -61,6 +61,33 @@ export function wordEstimate(minutes: number, locale: Locale): string {
     return wordLasting({ unit: 'minute', count: minutes }, locale, 'short');
 }
 
+// How long a task takes as somebody types it — *30*, *30 min*, *1 hr*, *1h 30*, *2 hrs* — in either language the
+// client reads in. A bare number is minutes, and a number after hours is the minutes past them.
+const typedLength =
+    /^(?:(\d+)\s*(?:h|hr|hrs|hour|hours|godz|godzina|godziny|godzin)\.?\s*)?(?:(\d+)\s*(?:m|min|mins|minute|minutes|minuta|minuty|minut)?\.?)?$/iu;
+
+/**
+ * How long somebody typed that a task takes, the inverse of {@link wordEstimate}.
+ *
+ * @returns The minutes, `null` where nothing was typed, or `undefined` where what was typed is not a length at all.
+ */
+export function readEstimate(typed: string): number | null | undefined {
+    const text = typed.trim();
+
+    if (text === '') {
+        return null;
+    }
+
+    const read = typedLength.exec(text);
+    const [, hours, minutes] = read ?? [];
+
+    if (read === null || (hours === undefined && minutes === undefined)) {
+        return undefined;
+    }
+
+    return Number(hours ?? 0) * 60 + Number(minutes ?? 0);
+}
+
 /** The person on the other side of a task, by the name they are known by, or by their address where none is held. */
 export function wordCounterpart(counterpart: TaskCounterpart): string {
     return counterpart.displayName ?? counterpart.address;

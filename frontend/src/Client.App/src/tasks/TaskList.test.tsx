@@ -95,6 +95,7 @@ function drawList({
                 onReminders={vi.fn()}
                 onSchedule={vi.fn()}
                 onAskErasure={vi.fn()}
+                onDismiss={vi.fn()}
                 onReadMore={onReadMore}
                 onReadAgain={onReadAgain}
             />

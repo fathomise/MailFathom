@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { en } from '../localization/en';
 import type { MessageKey } from '../localization/en';
-import { wordCounterpart, wordEstimate, wordPlan, wordReply, wordTaskDay } from './taskWording';
+import { readEstimate, wordCounterpart, wordEstimate, wordPlan, wordReply, wordTaskDay } from './taskWording';
 
 // The zone is named on every call, so each spelling is the reader's own day and clock rather than the runner's.
 const warsaw = 'Europe/Warsaw';
@@ -53,5 +53,25 @@ describe('taskWording', () => {
         expect(wordCounterpart({ address: 'ewa@adventure-works.example', displayName: null })).toBe(
             'ewa@adventure-works.example',
         );
+    });
+});
+
+describe('readEstimate', () => {
+    it.each([
+        ['30', 30],
+        ['30 min', 30],
+        ['45m', 45],
+        ['1 hr', 60],
+        ['1h 30', 90],
+        ['1 hr 15 min', 75],
+        ['2 hrs', 120],
+        ['2 godz.', 120],
+        ['', null],
+        ['   ', null],
+        ['soon', undefined],
+        ['30 days', undefined],
+        ['1.5 h', undefined],
+    ])('reads %j as %j', (typed, minutes) => {
+        expect(readEstimate(typed)).toBe(minutes);
     });
 });
