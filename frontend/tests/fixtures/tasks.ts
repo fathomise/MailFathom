@@ -50,7 +50,10 @@ function announcedAt(dueOn: string, reminders: readonly number[]): readonly stri
     });
 }
 
-function task(id: string, title: string, dueOn: string | null, held: Record<string, unknown> = {}) {
+/** What a corpus task holds beyond the line, the day and the defaults every one of them starts from. */
+type Held = Record<string, unknown>;
+
+function task(id: string, title: string, dueOn: string | null, held: Held = {}) {
     return {
         id,
         title,
@@ -71,13 +74,7 @@ function task(id: string, title: string, dueOn: string | null, held: Record<stri
 }
 
 /** A task that announces itself, which is the row drawn with the pill filled and the state a panel is opened onto. */
-function announcing(
-    id: string,
-    title: string,
-    dueOn: string,
-    reminders: readonly number[],
-    held: Record<string, unknown> = {},
-) {
+function announcing(id: string, title: string, dueOn: string, reminders: readonly number[], held: Held = {}) {
     return task(id, title, dueOn, { reminders, remindsAt: announcedAt(dueOn, reminders), ...held });
 }
 

@@ -12890,6 +12890,9 @@ notifications.ts notificationMarkedRead POST /api/client/notifications/{notifica
 notifications.ts everyNotificationMarkedRead POST /api/client/notifications/read
 tasks.ts task GET /api/client/tasks
 tasks.ts announcing GET /api/client/tasks
+tasks.ts thread GET /api/client/tasks
+tasks.ts person GET /api/client/tasks
+tasks.ts planned GET /api/client/tasks
 tasks.ts committedTasks GET /api/client/tasks
 tasks.ts proposedTasks GET /api/client/tasks/proposed
 tasks.ts emptyTaskPage GET /api/client/tasks
