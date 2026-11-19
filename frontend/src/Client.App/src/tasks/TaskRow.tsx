@@ -3,26 +3,29 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useRef, type KeyboardEvent } from 'react';
-import type { PersonalTask } from '@mailfathom/client-backend';
+import type { CalendarEvent, PersonalTask, TaskAnchor } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { useRowPress } from '../contextMenu/rowPress';
 import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
 import { SymbolControl } from '../controls/SymbolControl';
-import { wordCalendarDay, wordDueDay } from '../localization/instants';
+import type { IconName } from '../controls/icons';
+import { calendarDayIn, wordCalendarDay, wordInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { wordReminderCount } from '../reminders/reminderWords';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
+import { wordCounterpart, wordEstimate, wordPlan, wordReply, wordTaskDay } from './taskWording';
 
-// One thing a person owes, as the design draws a task: the box that completes it, the line it is drawn with,
-// the mark saying it came out of mail, the way back to the message it came out of, the day it is due, and the act that
-// puts it in the day.
+const anchorGlyphs: Readonly<Record<TaskAnchor['kind'], IconName>> = { Thread: 'mail', Event: 'event' };
+
+// One commitment, as the design draws a task row: the box that completes it — a round dashed hourglass for one the
+// person waits on, and the *AI* or *Agent* tag in its place on a proposal — the line, then what is set and nothing
+// that is not: what it belongs to and who it is with, where it is planned or how long it takes, a clash with the
+// calendar, the day it is due or followed up on, and the reminder bell. Pressed, it opens the task.
 //
-// **The mark follows the message rather than the proposal.** The design marks what a model wrote; what this client
-// knows is which message a task cites, and that outlives the proposal being taken — which is when somebody is most
-// likely to want to know where a line on their list came from. Whether it is still an offer is said by the act beside
-// it instead.
+// **Where a proposal came from is read off what it cites.** One that cites a message was read out of mail; one that
+// cites none was suggested by the Agent, which is the only other writer of proposals.
 //
 // **It answers a press exactly as every other list in this client does**, through `contextMenu/rowPress.ts` rather
 // than through a gesture of its own, and through `ContextMenu` above it rather than a second menu — the design gives
@@ -35,10 +38,9 @@ import { useWriteRefusal } from '../shell/useWriteRefusal';
 // keyboard adds a fifth row to four and how a screen reader is told which rows are held. Starting the selection where
 // no modifier key is being held is the menu's *Select tasks*, exactly as the design draws it.
 //
-// **Two things the design draws are not drawn here, and each is a record this deployment does not keep.** A task
-// carries no estimate, so the duration beside the day is absent; and it cites a message by identity alone rather than
-// by subject, so the link back is named for what it does instead of for the thread it reaches — the row deliberately
-// carries no subject, because a task list is not a second place somebody's mail is drawn.
+// **Two things the design draws are not drawn here.** *sent Mon 24.08* on a waiting row names when the message went,
+// and the task record carries no such instant; and *Plan* and *Follow up* open the plan dialog and a reply, which are
+// later changes — *Schedule* stands where *Plan* will until then.
 //
 // **What announces a task is drawn where the design draws it**, first in the block at the end of the row, as the pill
 // the design gives it: the bell filled where something is set and outlined where nothing is, and the count beside it
@@ -55,13 +57,17 @@ import { useWriteRefusal } from '../shell/useWriteRefusal';
 export function TaskRow({
     task,
     now,
+    clash = null,
     selected,
     selecting,
     scheduled,
     completed = task.completed,
     onToggleSelected,
     onToggleCompleted,
+    onOpen,
+    onOpenAnchor,
     onAccept,
+    onDismiss,
     onOpenSource,
     onReminders,
     onSchedule,
@@ -72,6 +78,9 @@ export function TaskRow({
 
     /** The reader's own clock, which is what decides whether the day this is due is theirs. */
     readonly now: number;
+
+    /** The calendar event the planned stretch overlaps, or `null` where it clashes with none. */
+    readonly clash?: CalendarEvent | null;
 
     /** Whether this row is one of those picked out. */
     readonly selected: boolean;
@@ -90,8 +99,17 @@ export function TaskRow({
 
     readonly onToggleCompleted: () => void;
 
+    /** Opens the task in its dialog, or `undefined` for a proposal, which is answered rather than opened. */
+    readonly onOpen?: (() => void) | undefined;
+
+    /** Opens what the task belongs to, or `undefined` where that cannot be reached from here. */
+    readonly onOpenAnchor?: (() => void) | undefined;
+
     /** Takes a task mail proposed on, or `undefined` for one the person already owes. */
     readonly onAccept: (() => void) | undefined;
+
+    /** Turns a proposal down, or `undefined` for one the person already owes. */
+    readonly onDismiss?: (() => void) | undefined;
 
     /** Opens the message this task cites, or `undefined` where it cites none. */
     readonly onOpenSource: (() => void) | undefined;
@@ -121,7 +139,22 @@ export function TaskRow({
 
         return why === null ? {} : { held: true, hint: why };
     };
-    const boxLabel = translate(completed ? 'tasks.markNotDoneRow' : 'tasks.markDoneRow', { title: task.title });
+    const proposal = task.origin === 'Proposed';
+    const awaited = task.direction === 'Awaited';
+    const answer = awaited ? task.answer : null;
+    const replied = answer !== null;
+    const today = calendarDayIn(now, timeZone);
+    const followUpCame = awaited && !completed && task.dueOn !== null && task.dueOn <= today;
+    const boxLabel = translate(
+        awaited
+            ? completed
+                ? 'tasks.markStillWaitingRow'
+                : 'tasks.markReceivedRow'
+            : completed
+              ? 'tasks.markNotDoneRow'
+              : 'tasks.markDoneRow',
+        { title: task.title },
+    );
     const boxRefused = writeRefused(boxLabel);
     const remindersLabel = translate(task.reminders.length === 0 ? 'tasks.addReminder' : 'tasks.remindersOnRow', {
         title: task.title,
@@ -156,12 +189,17 @@ export function TaskRow({
         onPress({ x: box.left + box.width / 2, y: box.top + box.height / 2 });
     }
 
+    const plan = task.plan === null ? null : wordPlan(task.plan, locale, now, timeZone, translate);
+    const anchor = task.anchor;
+
     return (
         <li
             ref={onElement}
             tabIndex={-1}
             className={`flex flex-wrap items-center gap-x-3 gap-y-2.5 rounded-lg border p-3 transition ${
-                selected ? 'border-accent-line bg-accent-soft' : 'border-line bg-panel hover:bg-hover'
+                selected
+                    ? 'border-accent-line bg-accent-soft'
+                    : `${clash === null ? 'border-line' : 'border-error'} bg-panel hover:bg-hover`
             } ${completed ? 'opacity-60' : ''}`}
             onKeyDown={pressed}
             onContextMenu={press.onContextMenu}
@@ -180,15 +218,16 @@ export function TaskRow({
                 // row acts only where the press landed on the row itself. Asked of the element the event came from
                 // rather than of a flag a handler set, because the controls are several and a second one added later
                 // would otherwise have to remember to say so.
-                if (event.target instanceof Element && event.target.closest('button, input, a') !== null) {
+                if (event.target instanceof Element && event.target.closest('button, input, a, label') !== null) {
                     return;
                 }
 
-                // A modifier held picks the row out, and so does a plain press while a selection is already held.
-                // A plain press with nothing selected does nothing at all, which is what the design draws: a task has
-                // nowhere to be opened to.
+                // A modifier held picks the row out, and so does a plain press while a selection is already held. A
+                // plain press with nothing selected opens the task, which is what the design's row does.
                 if (event.ctrlKey || event.metaKey || event.shiftKey || selecting) {
                     onToggleSelected();
+                } else {
+                    onOpen?.();
                 }
             }}
         >
@@ -208,33 +247,60 @@ export function TaskRow({
                     </SymbolControl>
                 ) : null}
 
-                {/* Refused rather than disabled while the server is out of reach: a disabled box leaves the keyboard
-                    and says nothing, while this one stays where it is, unchanged by a press, and is named by why. */}
-                <input
-                    type="checkbox"
-                    checked={completed}
-                    aria-label={boxRefused ?? boxLabel}
-                    aria-disabled={boxRefused === null ? undefined : true}
-                    className="mt-0.5 size-5 shrink-0 accent-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
-                    onChange={() => {
-                        if (boxRefused === null) {
-                            onToggleCompleted();
-                        }
-                    }}
-                />
+                {proposal ? (
+                    <span className="mt-0.5 shrink-0 rounded-sm bg-accent px-1.5 py-0.5 text-xs text-on-accent">
+                        {translate(task.sourceMessageId === null ? 'tasks.agentTag' : 'tasks.authored')}
+                    </span>
+                ) : (
+                    // Refused rather than disabled while the server is out of reach: a disabled box leaves the
+                    // keyboard and says nothing, while this one stays where it is, unchanged by a press, and is named
+                    // by why. A waiting task draws the design's round dashed hourglass over the same box.
+                    <label className="relative mt-0.5 flex shrink-0">
+                        <input
+                            type="checkbox"
+                            checked={completed}
+                            aria-label={boxRefused ?? boxLabel}
+                            aria-disabled={boxRefused === null ? undefined : true}
+                            className={`size-5 accent-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-60 ${
+                                awaited ? 'peer absolute inset-0 opacity-0' : ''
+                            }`}
+                            onChange={() => {
+                                if (boxRefused === null) {
+                                    onToggleCompleted();
+                                }
+                            }}
+                        />
+                        {awaited ? (
+                            <span
+                                aria-hidden="true"
+                                className={`flex size-5 items-center justify-center rounded-full peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent ${
+                                    completed
+                                        ? 'border border-accent bg-accent text-on-accent'
+                                        : 'border border-dashed border-warning text-warning'
+                                }`}
+                            >
+                                <Icon name={completed ? 'check' : 'hourglass_top'} className="size-icon-xs" />
+                            </span>
+                        ) : null}
+                    </label>
+                )}
 
                 <div className="flex min-w-0 flex-col gap-1.5">
-                    <div className="flex flex-wrap items-baseline gap-2">
+                    {onOpen === undefined ? (
                         <span className={`text-base text-pretty ${completed ? 'text-muted line-through' : ''}`}>
                             {task.title}
                         </span>
-
-                        {task.sourceMessageId === null ? null : (
-                            <span className="rounded-sm bg-accent-soft px-1.5 py-0.5 text-xs text-accent-deep">
-                                {translate('tasks.fromMail')}
-                            </span>
-                        )}
-                    </div>
+                    ) : (
+                        // The line is the row's own way in from the keyboard, so the dialog a press opens is reached
+                        // without one.
+                        <button
+                            type="button"
+                            className={`text-start text-base text-pretty hover:underline ${completed ? 'text-muted line-through' : ''}`}
+                            onClick={onOpen}
+                        >
+                            {task.title}
+                        </button>
+                    )}
 
                     {onOpenSource === undefined ? null : (
                         <button
@@ -249,8 +315,108 @@ export function TaskRow({
                 </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
-                {onReminders === undefined ? null : (
+            <div className="flex flex-wrap items-center gap-2">
+                {anchor === null ? null : onOpenAnchor === undefined ? (
+                    <span className="flex max-w-full min-w-0 items-center gap-1.25 rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent-deep">
+                        <Icon name={anchorGlyphs[anchor.kind]} className="size-icon-xs shrink-0" />
+                        <span className="truncate">{anchor.label}</span>
+                    </span>
+                ) : (
+                    <button
+                        type="button"
+                        aria-label={translate(anchor.kind === 'Thread' ? 'tasks.openThread' : 'tasks.openEvent')}
+                        className="flex max-w-full min-w-0 items-center gap-1.25 rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent-deep hover:underline"
+                        onClick={onOpenAnchor}
+                    >
+                        <Icon name={anchorGlyphs[anchor.kind]} className="size-icon-xs shrink-0" />
+                        <span className="truncate">{anchor.label}</span>
+                    </button>
+                )}
+
+                {task.counterpart === null ? null : (
+                    <span className="flex max-w-full min-w-0 items-center gap-1.25 rounded-full border border-line px-2 py-0.5 text-xs text-text-soft">
+                        <Icon name="person" className="size-icon-xs shrink-0" />
+                        <span className="truncate">{wordCounterpart(task.counterpart)}</span>
+                    </span>
+                )}
+
+                {proposal ? (
+                    <span className="text-sm whitespace-nowrap text-muted">
+                        {translate(task.sourceMessageId === null ? 'tasks.fromAgent' : 'tasks.fromMail')}
+                    </span>
+                ) : null}
+
+                {clash === null ? null : (
+                    <span className="flex items-center gap-1.25 rounded-full border border-error bg-error-soft px-2 py-0.5 text-xs text-error-text">
+                        <Icon name="warning" className="size-icon-xs shrink-0" />
+                        {translate('tasks.clashesWith', {
+                            title: clash.title,
+                            time: wordInstant(clash.start, locale, 'time', timeZone) ?? '',
+                        })}
+                    </span>
+                )}
+
+                {awaited || task.plan !== null || task.estimatedMinutes === null ? null : (
+                    <span className="text-sm whitespace-nowrap text-faint">
+                        {wordEstimate(task.estimatedMinutes, locale)}
+                    </span>
+                )}
+
+                {awaited || plan === null ? null : (
+                    <span className="flex items-center gap-1.25 rounded-full border border-dashed border-accent bg-panel px-2 py-0.5 text-xs whitespace-nowrap text-text-soft">
+                        <Icon name="schedule" className="size-icon-xs shrink-0 text-accent-deep" />
+                        {plan}
+                    </span>
+                )}
+
+                {dueWording()}
+
+                {onAccept === undefined ? null : (
+                    <Control
+                        label={translate('tasks.accept')}
+                        icon="check"
+                        shape="primary"
+                        {...refusedAs(translate('tasks.accept'))}
+                        onPress={onAccept}
+                    />
+                )}
+
+                {onDismiss === undefined ? null : (
+                    <Control
+                        label={translate('tasks.declineTask')}
+                        icon="close"
+                        shape="symbol"
+                        {...refusedAs(translate('tasks.declineTask'))}
+                        onPress={onDismiss}
+                    />
+                )}
+
+                {proposal ||
+                awaited ||
+                task.dueOn === null ||
+                completed ||
+                onSchedule === undefined ? null : scheduled ? (
+                    <span
+                        ref={chip}
+                        tabIndex={-1}
+                        className="rounded-2xl border border-line bg-rail px-2.5 py-1 text-sm text-muted"
+                    >
+                        {translate('tasks.inTheCalendar')}
+                    </span>
+                ) : (
+                    <Control
+                        label={translate('tasks.schedule')}
+                        icon="calendar_month"
+                        shape="accentPill"
+                        {...refusedAs(translate('tasks.schedule'))}
+                        onPress={() => {
+                            askedFromHere.current = true;
+                            onSchedule();
+                        }}
+                    />
+                )}
+
+                {onReminders === undefined || proposal || replied ? null : (
                     <SymbolControl
                         label={remindersRefused ?? remindersLabel}
                         className={`flex items-center gap-1 rounded-md border px-2.25 py-1 text-xs font-semibold transition hover:border-accent hover:text-accent-deep ${
@@ -271,49 +437,37 @@ export function TaskRow({
                         {task.reminders.length > 1 ? counted.format(task.reminders.length) : null}
                     </SymbolControl>
                 )}
-
-                {task.dueOn === null ? (
-                    <span className="text-base whitespace-nowrap text-text-soft">{translate('tasks.noDay')}</span>
-                ) : (
-                    <time dateTime={task.dueOn} className="text-base whitespace-nowrap text-text-soft">
-                        <span aria-hidden="true">{wordDueDay(task.dueOn, locale, now, timeZone)}</span>
-                        <span className="sr-only">
-                            {translate('tasks.dueOn', { day: wordCalendarDay(task.dueOn, locale) })}
-                        </span>
-                    </time>
-                )}
-
-                {onAccept === undefined ? null : (
-                    <Control
-                        label={translate('tasks.accept')}
-                        icon="check"
-                        shape="primary"
-                        {...refusedAs(translate('tasks.accept'))}
-                        onPress={onAccept}
-                    />
-                )}
-
-                {task.dueOn === null || completed || onSchedule === undefined ? null : scheduled ? (
-                    <span
-                        ref={chip}
-                        tabIndex={-1}
-                        className="rounded-2xl border border-line bg-rail px-2.5 py-1 text-sm text-muted"
-                    >
-                        {translate('tasks.inTheCalendar')}
-                    </span>
-                ) : (
-                    <Control
-                        label={translate('tasks.schedule')}
-                        icon="calendar_month"
-                        shape="accentPill"
-                        {...refusedAs(translate('tasks.schedule'))}
-                        onPress={() => {
-                            askedFromHere.current = true;
-                            onSchedule();
-                        }}
-                    />
-                )}
             </div>
         </li>
     );
+
+    // The day at the end of the row: when it is due, when to follow up on a wait — in the warning colour once that
+    // day has come — or who replied and when, for a wait the reply closed.
+    function dueWording() {
+        if (answer !== null) {
+            return (
+                <span className="text-base whitespace-nowrap text-healthy-text">
+                    {wordReply(answer.arrivedAt, task.counterpart, locale, timeZone, translate)}
+                </span>
+            );
+        }
+
+        if (task.dueOn === null) {
+            return <span className="text-base whitespace-nowrap text-text-soft">{translate('tasks.noDay')}</span>;
+        }
+
+        const day = wordTaskDay(task.dueOn, locale, now, timeZone);
+
+        return (
+            <time
+                dateTime={task.dueOn}
+                className={`text-base whitespace-nowrap ${followUpCame ? 'text-warning' : 'text-text-soft'}`}
+            >
+                <span aria-hidden="true">{awaited ? translate('tasks.followUpOn', { day }) : day}</span>
+                <span className="sr-only">
+                    {translate('tasks.dueOn', { day: wordCalendarDay(task.dueOn, locale) })}
+                </span>
+            </time>
+        );
+    }
 }

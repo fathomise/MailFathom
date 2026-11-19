@@ -850,9 +850,9 @@ export class FakeDeployment {
                 return answering({ deleted, unreadCount: this.unreadNotifications() });
             }
             case 'GET /tasks':
-                return answering({ tasks: this.tasks().committed, nextCursor: null });
+                return answering({ tasks: this.tasksIn(this.tasks().committed, request.query), nextCursor: null });
             case 'GET /tasks/proposed':
-                return answering({ tasks: this.tasks().proposed, nextCursor: null });
+                return answering({ tasks: this.tasksIn(this.tasks().proposed, request.query), nextCursor: null });
             case 'POST /tasks':
                 return answering(this.taskWritten(request.body));
             case 'GET /tasks/today/layout':
@@ -1003,7 +1003,7 @@ export class FakeDeployment {
         return null;
     }
 
-    /** Marking one task done or not done, and erasing it, from whichever half holds it. */
+    /** Revising one task to the whole record stated, marking it done or not done, and erasing it, from whichever half holds it. */
     private taskAnswer({ method, body }: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
         const [space, id = '', part] = segments;
 
@@ -1016,12 +1016,47 @@ export class FakeDeployment {
         const at = half?.findIndex((task) => task['id'] === id) ?? -1;
         const standing = half?.[at];
 
+        if (method === 'PUT' && part === undefined) {
+            if (half === undefined || standing === undefined) {
+                return { status: 404, body: '' };
+            }
+
+            const stated = recordIn(body) ?? {};
+
+            // The deployment refuses to turn round a wait a reply already answered.
+            if (standing['answer'] !== null && stated['direction'] !== standing['direction']) {
+                return { status: 409, body: '' };
+            }
+
+            const dueOn = typeof stated['dueOn'] === 'string' ? stated['dueOn'] : null;
+            const reminders = Array.isArray(stated['reminders']) ? stated['reminders'].map(Number) : [];
+            const revised = {
+                ...standing,
+                title: stated['title'],
+                dueOn,
+                reminders,
+                remindsAt: dueOn === null ? [] : remindsAtOn(dueOn, reminders),
+                direction: stated['direction'] ?? 'Owed',
+                estimatedMinutes: stated['estimatedMinutes'] ?? null,
+                plan: stated['plan'] ?? null,
+                anchor: stated['anchor'] ?? null,
+                counterpart: stated['counterpart'] ?? null,
+            };
+
+            half.splice(at, 1, revised);
+
+            return answering(revised);
+        }
+
         if (method === 'POST' && part === 'completion') {
             if (half === undefined || standing === undefined) {
                 return { status: 404, body: '' };
             }
 
-            const completed = { ...standing, completed: recordIn(body)?.['completed'] === true };
+            const reopened = recordIn(body)?.['completed'] !== true;
+
+            // Reopening a wait a reply closed lets go of the reply, which is what the deployment does.
+            const completed = { ...standing, completed: !reopened, ...(reopened ? { answer: null } : {}) };
 
             half.splice(at, 1, completed);
 
@@ -1151,6 +1186,51 @@ export class FakeDeployment {
         return { ...calendar.calendarEventWritten, ...event };
     }
 
+    /**
+     * One half narrowed by what the request names: the thread or event a task belongs to, the person it is with, and a
+     * window — a task due on a day the window covers, read in the deployment's zone, or planned to start inside it.
+     */
+    private tasksIn(half: readonly Held[], query: URLSearchParams): Held[] {
+        const threadId = query.get('threadId');
+        const eventId = query.get('eventId');
+        const counterpart = query.get('counterpart')?.toLowerCase() ?? null;
+        const from = query.get('from');
+        const until = query.get('until');
+        const addressOf = (task: Held) => {
+            const address = recordIn(task['counterpart'])?.['address'];
+
+            return typeof address === 'string' ? address : '';
+        };
+        const anchored = (task: Held, kind: string, id: string) => {
+            const anchor = recordIn(task['anchor']);
+
+            return anchor?.['kind'] === kind && anchor['id'] === id;
+        };
+        const inWindow = (task: Held) => {
+            if (from === null || until === null) {
+                return true;
+            }
+
+            const opens = Date.parse(from);
+            const closes = Date.parse(until);
+            const startAt = recordIn(task['plan'])?.['startAt'];
+            const planned = typeof startAt === 'string' && Date.parse(startAt) >= opens && Date.parse(startAt) < closes;
+            const dueOn = task['dueOn'];
+            const first = dayIn(this.timeZone.timeZone, new Date(opens));
+            const last = dayIn(this.timeZone.timeZone, new Date(closes - 1));
+
+            return planned || (typeof dueOn === 'string' && dueOn >= first && dueOn <= last);
+        };
+
+        return half.filter(
+            (task) =>
+                (threadId === null || anchored(task, 'Thread', threadId)) &&
+                (eventId === null || anchored(task, 'Event', eventId)) &&
+                (counterpart === null || addressOf(task).toLowerCase() === counterpart) &&
+                inWindow(task),
+        );
+    }
+
     /** The two halves of the task list, stated by the corpus for the day the deployment's own zone is on. */
     private tasks(): TaskLists {
         if (this.taskLists === null) {
@@ -1179,6 +1259,11 @@ export class FakeDeployment {
             title: stated['title'],
             dueOn: stated['dueOn'] ?? null,
             sourceMessageId: stated['sourceMessageId'] ?? null,
+            direction: stated['direction'] ?? 'Owed',
+            estimatedMinutes: stated['estimatedMinutes'] ?? null,
+            plan: stated['plan'] ?? null,
+            anchor: stated['anchor'] ?? null,
+            counterpart: stated['counterpart'] ?? null,
         };
 
         this.tasks().committed.push(task);
@@ -2887,6 +2972,17 @@ function corpusFacts(storedEmailId: string): MessageFacts | null {
     const row = corpusRow(storedEmailId);
 
     return row === null ? null : { folder: row.folder, unread: row.unread, flagged: row.flagged };
+}
+
+/** The instants a task's leads fall at, measured back from nine in the morning on its due day in Greenwich. */
+function remindsAtOn(dueOn: string, reminders: readonly number[]): string[] {
+    return reminders.map((lead) => {
+        const at = new Date(`${dueOn}T09:00:00+00:00`);
+
+        at.setUTCMinutes(at.getUTCMinutes() - lead);
+
+        return at.toISOString().replace('Z', '+00:00');
+    });
 }
 
 /**

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import { conversationId } from './mail';
 import { newsletterId } from './messages';
 
 // The signed-in person's task list, as the two halves the client surface publishes it as: what they committed to
@@ -9,12 +10,13 @@ import { newsletterId } from './messages';
 //
 // `frontend/tests/AGENTS.md` § *The corpus* holds what the whole of it is and what may go in it. What this file adds
 // beside the resting list is the states the Tasks screen has to be looked at in and cannot be reached by scrolling: a
-// list with nothing on it, a task nobody has dated, a task already done, a proposal citing the message it came out of,
-// and a day the deployment would not arrange.
+// list with nothing on it, a task nobody has dated, a task already done, a wait a reply closed, a proposal citing the
+// message it came out of and one citing none, and a day the deployment would not arrange. The resting list itself is
+// the design's sample (`design/data/prototype/tasks.js`), with every address on a reserved `.example` host.
 //
 // **What is due is stated against a day the consumer names rather than against a fixed one**, which is the shape the
-// first rule of that section allows: a list grouped under *Today*, *This week* and *Later* is a list whose grouping is
-// the question, so a corpus fixed to one calendar day would draw every row under the last heading on every day but
+// first rule of that section allows: a list grouped under *Today*, *Tomorrow*, *This week* and *Later* is a list whose
+// grouping is the question, so a corpus fixed to one calendar day would draw every row under the last heading on every day but
 // one. Which day was asked about is the consumer's to decide, exactly as how far into a folder somebody has read is.
 //
 // Nobody here exists. Every name is invented and every host is a reserved one, exactly as it is for the mail.
@@ -69,19 +71,48 @@ function task(id: string, title: string, dueOn: string | null, held: Record<stri
 }
 
 /** A task that announces itself, which is the row drawn with the pill filled and the state a panel is opened onto. */
-function announcing(id: string, title: string, dueOn: string, reminders: readonly number[]) {
-    return task(id, title, dueOn, { reminders, remindsAt: announcedAt(dueOn, reminders) });
+function announcing(
+    id: string,
+    title: string,
+    dueOn: string,
+    reminders: readonly number[],
+    held: Record<string, unknown> = {},
+) {
+    return task(id, title, dueOn, { reminders, remindsAt: announcedAt(dueOn, reminders), ...held });
+}
+
+// The threads and the event the corpus's tasks belong to. One is the conversation the mail corpus holds, so a thread
+// opened from a task lands on mail the corpus can draw; the rest are named by identity alone, which is what an anchor is.
+const contractThread = conversationId;
+const calculationThread = '00000000-0000-4000-8000-0000000000d1';
+const slaThread = '00000000-0000-4000-8000-0000000000d2';
+const deliveryThread = '00000000-0000-4000-8000-0000000000d3';
+const registerThread = '00000000-0000-4000-8000-0000000000d4';
+const ndaThread = '00000000-0000-4000-8000-0000000000d5';
+const opinionThread = '00000000-0000-4000-8000-0000000000d6';
+const rolloutThread = '00000000-0000-4000-8000-0000000000d7';
+const annaCall = '00000000-0000-4000-8000-0000000000e1';
+
+function thread(id: string, label: string) {
+    return { kind: 'Thread', id, label };
+}
+
+function person(address: string, displayName: string) {
+    return { address, displayName };
+}
+
+/** A stretch of the day the corpus plans a task into, at a Greenwich clock time for the reason `announcedAt` gives. */
+function planned(day: string, time: string, minutes: number) {
+    return { startAt: `${day}T${time}:00+00:00`, minutes };
 }
 
 /**
- * What the person committed to themselves, against the day they are reading on.
+ * What the person committed to themselves, against the day they are reading on: the design's own sample, so every
+ * view, group and row shape the Tasks screen draws is reachable without pressing anything.
  *
- * Four rows rather than one, because the four are four different things to draw: work due today, work due later this
- * week, work nobody has dated, and work already done — and the last two cannot be reached from the first by any press.
- *
- * Two of them announce themselves and two do not, which is what the row's own pill is drawn in both states from: one
- * lead draws the filled bell alone and two draw the count beside it, so the three shapes are all reachable without
- * pressing anything.
+ * What is owed runs from two tasks planned into today — one over the corpus's meeting, which is the clash — through a
+ * task due today with nothing planned, one planned tomorrow, three this week and three later, to one nobody dated and
+ * one already done. What is waited on runs from a follow-up due today to one a reply already closed.
  *
  * @param day The reader's own day, as a calendar day.
  * @returns One page of the committed half, which is the whole of it.
@@ -89,21 +120,70 @@ function announcing(id: string, title: string, dueOn: string, reminders: readonl
 export function committedTasks(day: string) {
     return {
         tasks: [
-            announcing('task-tender', 'Answer the Nordwind tender', day, [24 * 60, 0]),
-            announcing('task-return', 'File the quarterly return', dayAfter(day, 3), [0]),
-            task('task-racking', 'Decide what to do about the racking quote', null),
+            announcing('task-tender', 'Send the 5% CPI cap counter-proposal', day, [24 * 60, 0], {
+                estimatedMinutes: 45,
+                plan: planned(day, '11:00', 45),
+                anchor: thread(contractThread, 'Contract addendum - signatures'),
+                counterpart: person('anna@contoso.example', 'Anna Kowalska'),
+            }),
+            task('task-calculation', 'Reply to Marta about the calculation', day, {
+                estimatedMinutes: 20,
+                plan: planned(day, '15:00', 20),
+                anchor: thread(calculationThread, 'CPI calculation 2027'),
+                counterpart: person('marta@contoso.example', 'Marta Nowak'),
+            }),
+            task('task-room', 'Book the meeting room for the Fabrikam review', day, { estimatedMinutes: 10 }),
+            task('task-addendum', 'Review the addendum before the call', dayAfter(day, 1), {
+                estimatedMinutes: 30,
+                plan: planned(dayAfter(day, 1), '09:00', 30),
+                anchor: { kind: 'Event', id: annaCall, label: 'Call with Anna Kowalska' },
+            }),
+            announcing('task-return', 'Answer Adventure Works on weekend SLA', dayAfter(day, 3), [0], {
+                estimatedMinutes: 30,
+                anchor: thread(slaThread, 'Question about weekend SLA'),
+                counterpart: person('ewa@adventure-works.example', 'Ewa Sikora'),
+            }),
+            task('task-delivery', 'Confirm the Fabrikam delivery date', dayAfter(day, 6), {
+                estimatedMinutes: 15,
+                anchor: thread(deliveryThread, 'Q4 delivery dates'),
+            }),
+            task('task-audit', 'Prepare the IT contract list for audit', dayAfter(day, 7), {
+                estimatedMinutes: 120,
+                anchor: thread(registerThread, 'Request for the contract register'),
+            }),
+            task('task-nda', 'Sign the Northwind NDA', dayAfter(day, 16), {
+                estimatedMinutes: 10,
+                anchor: thread(ndaThread, 'Draft NDA - Northwind'),
+            }),
+            task('task-racking', 'Draft the onboarding checklist for Q4 hires', null, { estimatedMinutes: 60 }),
             task('task-invoice', 'Send the August invoice', dayAfter(day, -2), { completed: true }),
+            task('wait-delivery', 'Delivery confirmation from Tomasz Bąk', day, {
+                direction: 'Awaited',
+                anchor: thread(deliveryThread, 'Q4 delivery dates'),
+                counterpart: person('tomasz@fabrikam.example', 'Tomasz Bąk'),
+            }),
+            task('wait-addendum', 'Signed addendum from Anna Kowalska', dayAfter(day, 1), {
+                direction: 'Awaited',
+                anchor: thread(contractThread, 'Contract addendum - signatures'),
+                counterpart: person('anna@contoso.example', 'Anna Kowalska'),
+            }),
+            task('wait-opinion', 'Opinion on the indexation cap from Jacek Wrona', day, {
+                direction: 'Awaited',
+                completed: true,
+                anchor: thread(opinionThread, 'Legal opinion - indexation cap'),
+                counterpart: person('jacek@contoso.example', 'Jacek Wrona'),
+                answer: { messageId: newsletterId, arrivedAt: `${day}T09:12:00+00:00` },
+            }),
         ],
         nextCursor: null,
     };
 }
 
 /**
- * What MailFathom read out of the mail and nobody has answered yet.
+ * What MailFathom read out of the mail, and what the Agent suggested, that nobody has answered yet.
  *
- * It cites the **message** it came out of rather than the thread that message stands in, which is what the row draws
- * the way back from: a proposal a reader cannot check against what was actually written is one they cannot honestly
- * take, and a thread is not what was written.
+ * One read out of mail cites the **message** it came out of rather than the thread that message stands in, which is
+ * what the row draws the way back from; the Agent's cites none, which is how a row tells the two apart.
  *
  * @param day The reader's own day, as a calendar day.
  * @returns One page of the proposed half, which is the whole of it.
@@ -111,9 +191,21 @@ export function committedTasks(day: string) {
 export function proposedTasks(day: string) {
     return {
         tasks: [
-            task('task-signatures', 'Send back the signed addendum', dayAfter(day, 1), {
+            task('task-signatures', 'Send Piotr the rollout risks before the status call', day, {
                 origin: 'Proposed',
                 sourceMessageId: newsletterId,
+                estimatedMinutes: 20,
+                anchor: thread(rolloutThread, 'Re: rollout schedule'),
+            }),
+            task('task-baseline', 'Ask Marta for the 2026 baseline figures', dayAfter(day, 4), {
+                origin: 'Proposed',
+                estimatedMinutes: 10,
+                counterpart: person('marta@contoso.example', 'Marta Nowak'),
+            }),
+            task('task-auditor', "Book the auditor's visit", null, {
+                origin: 'Proposed',
+                sourceMessageId: newsletterId,
+                estimatedMinutes: 15,
             }),
         ],
         nextCursor: null,
@@ -127,15 +219,22 @@ export const emptyTaskPage = { tasks: [], nextCursor: null };
 export const taskWritten = task('task-written', 'Call the warehouse back', null);
 
 /** What marking a task done answers with. */
-export const taskCompleted = task('task-tender', 'Answer the Nordwind tender', '2026-09-21', { completed: true });
+export const taskCompleted = task('task-tender', 'Send the 5% CPI cap counter-proposal', '2026-09-21', {
+    completed: true,
+});
 
 /** What revising a task answers with, which is the record as the deployment now holds it. */
-export const taskRevised = announcing('task-tender', 'Answer the Nordwind tender', '2026-09-21', [24 * 60]);
+export const taskRevised = announcing('task-tender', 'Send the 5% CPI cap counter-proposal', '2026-09-21', [24 * 60]);
 
 /** What taking a proposal on answers with: the same line, held now rather than offered. */
-export const taskAccepted = task('task-signatures', 'Send back the signed addendum', '2026-09-22', {
-    sourceMessageId: newsletterId,
-});
+export const taskAccepted = task(
+    'task-signatures',
+    'Send Piotr the rollout risks before the status call',
+    '2026-09-22',
+    {
+        sourceMessageId: newsletterId,
+    },
+);
 
 /** What erasing a task answers with, for a task the deployment was still holding. */
 export const taskErased = { id: 'task-racking', erased: true };
@@ -156,10 +255,10 @@ export function dayArrangement(day: string) {
     return {
         arranged: true,
         placements: [
-            { taskId: 'task-tender', startAt: `${day}T12:30:00+00:00`, minutes: 45 },
-            { taskId: 'task-signatures', startAt: `${day}T14:00:00+00:00`, minutes: 30 },
+            { taskId: 'task-room', startAt: `${day}T10:00:00+00:00`, minutes: 10 },
+            { taskId: 'task-calculation', startAt: `${day}T16:00:00+00:00`, minutes: 20 },
         ],
-        notToday: ['task-return'],
+        notToday: ['task-audit'],
     };
 }
 

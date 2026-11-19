@@ -952,7 +952,7 @@ test('places the task list against the day a check held rather than the day the 
         'task-return': '2024-03-02',
         'task-invoice': '2024-02-26',
     });
-    expect(dueOn('/tasks/proposed')).toMatchObject({ 'task-signatures': '2024-02-29' });
+    expect(dueOn('/tasks/proposed')).toMatchObject({ 'task-signatures': '2024-02-28', 'task-baseline': '2024-03-03' });
 });
 
 test('places an event it was written in every window it falls in, where an amendment moves it, and nowhere once deleted', () => {
@@ -1036,6 +1036,54 @@ test('lists a task it was written in the committed half, marks it done, and forg
     expect(ask(deployment, 'DELETE', `/tasks/${id}`)).toStrictEqual({ id, erased: true });
     expect(committed().map((task) => task.id)).not.toContain(id);
     expect(ask(deployment, 'POST', `/tasks/${id}/completion`, { completed: false })).toBe(404);
+});
+
+test('holds a revised task as the whole record stated, and refuses to turn round a wait a reply answered', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const committed = () =>
+        (ask(deployment, 'GET', '/tasks?pageSize=50') as { tasks: { id: string; title: string; dueOn: string }[] })
+            .tasks;
+    const record = (held: Record<string, unknown>) => ({
+        title: 'Send the signed counter-proposal',
+        dueOn: '2026-09-30',
+        reminders: [],
+        dueDayOffsetMinutes: 0,
+        sourceMessageId: null,
+        direction: 'Owed',
+        estimatedMinutes: 45,
+        plan: null,
+        anchor: null,
+        counterpart: null,
+        ...held,
+    });
+
+    deployment.holdTheDay(new Date('2026-09-21T12:00:00.000Z'));
+
+    expect(ask(deployment, 'PUT', '/tasks/task-tender', record({}))).toMatchObject({
+        id: 'task-tender',
+        title: 'Send the signed counter-proposal',
+        anchor: null,
+    });
+    expect(committed()).toContainEqual(
+        expect.objectContaining({ id: 'task-tender', title: 'Send the signed counter-proposal', dueOn: '2026-09-30' }),
+    );
+    expect(ask(deployment, 'PUT', '/tasks/wait-opinion', record({ direction: 'Owed' }))).toBe(409);
+    expect(ask(deployment, 'PUT', '/tasks/no-such-task', record({}))).toBe(404);
+});
+
+test('narrows the task list to the thread, the person, and the window a read names', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const ids = (query: string) =>
+        (ask(deployment, 'GET', `/tasks?${query}`) as { tasks: { id: string }[] }).tasks.map(({ id }) => id);
+
+    deployment.holdTheDay(new Date('2026-09-21T12:00:00.000Z'));
+
+    expect(ids('threadId=00000000-0000-4000-8000-0000000000d3')).toStrictEqual(['task-delivery', 'wait-delivery']);
+    expect(ids('counterpart=ANNA%40contoso.example')).toStrictEqual(['task-tender', 'wait-addendum']);
+    expect(ids('from=2026-09-22T00:00:00Z&until=2026-09-23T00:00:00Z')).toStrictEqual([
+        'task-addendum',
+        'wait-addendum',
+    ]);
 });
 
 test('walks the address book in name order across pages, with a person it was written and without one erased', () => {

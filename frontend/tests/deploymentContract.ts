@@ -854,6 +854,50 @@ export const contractCases: readonly ContractCase[] = [
         },
     },
     {
+        title: 'revises a task it was written to the whole record stated, which the list then answers',
+        run: async (deployment) => {
+            const record = {
+                title: 'Written by a contract case',
+                dueOn: caseDay,
+                reminders: [],
+                dueDayOffsetMinutes: null,
+                sourceMessageId: null,
+                direction: 'Owed',
+                estimatedMinutes: 30,
+                plan: null,
+                anchor: null,
+                counterpart: null,
+            };
+            const written = (await deployment.answered('POST', '/tasks', record)) as { id: string };
+            const route = `/tasks/${encodeURIComponent(written.id)}`;
+
+            expect(
+                await deployment.answered('PUT', route, {
+                    ...record,
+                    title: 'Revised by a contract case',
+                    dueOn: null,
+                    direction: 'Awaited',
+                    counterpart: { address: 'nobody@contract.example', displayName: null },
+                }),
+            ).toMatchObject({ id: written.id, title: 'Revised by a contract case', dueOn: null, direction: 'Awaited' });
+
+            const listed = (
+                (await deployment.answered('GET', '/tasks')) as {
+                    tasks: readonly { id: string; title: string; direction: string; estimatedMinutes: number | null }[];
+                }
+            ).tasks.find(({ id }) => id === written.id);
+
+            expect(listed).toMatchObject({
+                title: 'Revised by a contract case',
+                direction: 'Awaited',
+                estimatedMinutes: 30,
+                counterpart: { address: 'nobody@contract.example' },
+            });
+
+            await deployment.answered('DELETE', route);
+        },
+    },
+    {
         title: 'places an event it was written in the window it falls in, where an amendment moves it, and nowhere once deleted',
         run: async (deployment) => {
             const window = async (day: string) =>

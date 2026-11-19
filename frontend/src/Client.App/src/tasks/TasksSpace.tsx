@@ -10,6 +10,7 @@ import {
     recordCalendarEvent,
     eraseTask,
     layOutToday,
+    readMailThread,
     recordTask,
     reviseTask,
     setTaskCompletion,
@@ -22,27 +23,37 @@ import {
     type MailFathomTransport,
     type PersonalTask,
     type PersonalTaskErasure,
+    type TaskAnchor,
 } from '@mailfathom/client-backend';
 import { Confirmation } from '../confirmation/Confirmation';
 import { Control } from '../controls/Control';
 import type { MessageKey } from '../localization/en';
+import { calendarDayIn } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { ReminderPanel } from '../reminders/ReminderPanel';
+import { Departing } from '../shell/Departing';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { DayCapacity } from './DayCapacity';
 import { NewTask, type TaskDraft } from './NewTask';
+import { TaskDialog } from './TaskDialog';
 import { TaskList } from './TaskList';
 import { TaskSelectionBar } from './TaskSelectionBar';
+import { TasksHead } from './TasksHead';
 import { TodayCalendar } from './TodayCalendar';
 import { dayAround, endAfter, startOfDay } from './dayInstants';
 import { reachedTheRowsRead } from './rowsRead';
-import { groupedTasks } from './taskGrouping';
+import { clashOf, openIn, openOwedToday, plannedDay, tasksIn, type TaskView } from './taskViews';
 import { useTasks } from './useTasks';
 import { useTodayCalendar } from './useTodayCalendar';
 
-// The Tasks space as the design composes it: the grouped list down the middle, the day's own calendar and the
-// day's capacity beside it, and the acts that change the list held here rather than in any of them.
+// The Tasks space as the design composes it: the head naming the view and the four views to move between, the view's
+// grouped list down the middle, the day's own calendar and the day's capacity beside it, the task dialog a row opens,
+// and the acts that change the list held here rather than in any of them.
+//
+// **What a task belongs to is opened where it lives.** A thread is read for its first message, which the Mail space
+// opens with the conversation around it; an event is the calendar's, and is opened only where the frame hands over a
+// way to open one.
 //
 // **The sidebar stands beside the list where there is room and under it where there is not.** It is never dropped: a
 // reader on a phone scrolls past the list to it, which is what `frontend/src/AGENTS.md` means by content that a narrow
@@ -148,6 +159,7 @@ export function TasksSpace({
     readsCalendar,
     writesCalendar,
     onOpenMessage,
+    onOpenEvent,
 }: {
     /** Who is asking and where, or `null` where there is nothing to ask with. */
     readonly session: ClientSession | null;
@@ -171,6 +183,9 @@ export function TasksSpace({
      * `undefined` where this credential reads no mail.
      */
     readonly onOpenMessage: ((messageId: string) => void) | undefined;
+
+    /** Opens one calendar event, which is the Calendar space's to draw, or `undefined` where the frame offers none. */
+    readonly onOpenEvent?: ((eventId: string) => void) | undefined;
 }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
@@ -181,6 +196,8 @@ export function TasksSpace({
     // that needs the actual moment reads it in the handler that runs, which is where a clock belongs.
     const [now] = useState(() => Date.now());
 
+    const [view, setView] = useState<TaskView>('today');
+    const [openedId, setOpenedId] = useState<string | null>(null);
     const [selected, setSelected] = useState<readonly string[]>([]);
     const [scheduled, setScheduled] = useState<readonly string[]>([]);
     const [pressedInto, setPressedInto] = useState<ReadonlyMap<string, boolean>>(new Map());
@@ -201,6 +218,7 @@ export function TasksSpace({
     const asked = useRef<HTMLDialogElement | null>(null);
     const asking = useRef<HTMLDialogElement | null>(null);
     const panel = useRef<HTMLDialogElement | null>(null);
+    const opening = useRef<HTMLDialogElement | null>(null);
 
     const reading = useTasks(session, transport);
     const day = useTodayCalendar(readsCalendar ? session : null, transport, now);
@@ -239,14 +257,57 @@ export function TasksSpace({
     // the list holds what each of them is, so a selection cannot outlive a read that no longer names one of them.
     const picked = shown.filter((task) => selected.includes(task.id));
 
-    // What the capacity panel counts: work due today that is still open, read off the same headings the list draws so
-    // that the number under the panel and the rows under *Today* can never disagree.
-    const dueToday =
-        groupedTasks(
-            reading.tasks.filter((task) => !task.completed),
-            now,
-            timeZone,
-        ).find((group) => group.name === 'today')?.tasks.length ?? 0;
+    // The two halves the deployment walks, told apart again by where each came from, and the view's groups over them.
+    const committed = reading.tasks.filter((task) => task.origin !== 'Proposed');
+    const proposals = reading.tasks.filter((task) => task.origin === 'Proposed');
+    const today = calendarDayIn(now, timeZone);
+    const groups = tasksIn(view, committed, proposals, today, timeZone, showDone);
+    const everythingDone =
+        !showDone && groups.length === 0 && tasksIn(view, committed, proposals, today, timeZone, true).length > 0;
+
+    // What the capacity panel counts: what is owed today and still open, read off the same reading the *Today* view
+    // draws, so the number under the panel and the rows in that view can never disagree.
+    const owedToday = openOwedToday(committed, today, timeZone);
+    const dueToday = owedToday.length;
+    const plannedToday = owedToday.filter((task) => plannedDay(task, timeZone) === today);
+    const clashesToday = plannedToday.filter((task) => clashOf(task, day.events) !== null).length;
+
+    // The task open in its dialog, read back out of the list so the dialog draws what the last read says.
+    const opened = openedId === null ? null : (reading.tasks.find((task) => task.id === openedId) ?? null);
+
+    // The dialog is the platform's own, so opening it is an imperative call on an element that has to exist first —
+    // which is the other thing an effect is for. A dialog already open is never opened again: `showModal` on one
+    // throws rather than doing nothing.
+    useEffect(() => {
+        if (openedId !== null && opening.current?.open === false) {
+            opening.current.showModal();
+        }
+    }, [openedId]);
+
+    // How what a task belongs to is opened from here, or `undefined` where this credential cannot reach it.
+    function anchorOpener(anchor: TaskAnchor): (() => void) | undefined {
+        if (anchor.kind === 'Event') {
+            return onOpenEvent === undefined
+                ? undefined
+                : () => {
+                      onOpenEvent(anchor.id);
+                  };
+        }
+
+        return session === null || onOpenMessage === undefined
+            ? undefined
+            : () => {
+                  void readMailThread(session, transport, anchor.id, null).then((answer) => {
+                      const first = answer.outcome === 'read' ? answer.value.messages[0] : undefined;
+
+                      if (first === undefined) {
+                          setSaid({ said: 'tasks.threadUnopened' });
+                      } else {
+                          onOpenMessage(first.email.id);
+                      }
+                  });
+              };
+    }
 
     // What a batch of writes left behind, as one of four sentences rather than as a success and a generic failure:
     // every one went through, some of them did, every one was refused for one reason a person can act on, or every
@@ -529,11 +590,11 @@ export function TasksSpace({
             reminders: [],
             dueDayOffsetMinutes: null,
             sourceMessageId: null,
-            direction: 'Owed',
-            estimatedMinutes: null,
+            direction: draft.direction,
+            estimatedMinutes: draft.estimatedMinutes,
             plan: null,
-            anchor: null,
-            counterpart: null,
+            anchor: draft.anchor,
+            counterpart: draft.counterpart,
         }).then((answer) => {
             void after([wrote(answer)], 'tasks.written');
         });
@@ -596,6 +657,18 @@ export function TasksSpace({
                 </div>
             )}
 
+            <TasksHead
+                view={view}
+                open={openIn(committed, proposals, today, timeZone)}
+                planned={plannedToday.length}
+                clashes={clashesToday}
+                now={now}
+                onView={(chosen) => {
+                    setSelected([]);
+                    setView(chosen);
+                }}
+            />
+
             {said === null ? null : (
                 <p role="status" className="shrink-0 border-b border-line bg-sunken px-4 py-2 text-sm text-muted">
                     {translate(said.said, said.names)}
@@ -611,17 +684,24 @@ export function TasksSpace({
                 }}
             >
                 <TaskList
-                    tasks={shown}
+                    groups={groups}
+                    view={view}
+                    events={day.events}
                     reading={reading.reading}
                     paging={reading.paging}
                     failure={reading.failure}
-                    everythingDone={!showDone && shown.length === 0 && reading.tasks.length > 0}
+                    everythingDone={everythingDone}
                     now={now}
                     selected={selected}
                     scheduled={scheduled}
                     pressedInto={pressedInto}
                     onSelected={setSelected}
                     onToggleCompleted={toggleCompleted}
+                    onOpen={(task) => {
+                        setSaid(null);
+                        setOpenedId(task.id);
+                    }}
+                    anchorOpener={anchorOpener}
                     onAccept={accept}
                     onOpenSource={onOpenMessage}
                     onReminders={(task) => {
@@ -679,6 +759,37 @@ export function TasksSpace({
             ) : null}
 
             <NewTask asked={asking} onSave={record} />
+
+            <Departing value={opened}>
+                {(task) => (
+                    <TaskDialog
+                        key={task.id}
+                        session={session}
+                        transport={transport}
+                        task={task}
+                        asked={opening}
+                        events={day.events}
+                        onWritten={(written) => {
+                            setSaid({ said: written });
+                            void reading.readAgain();
+                        }}
+                        onToggleCompleted={toggleCompleted}
+                        onAskErasure={(erased) => {
+                            askErasure([erased]);
+                        }}
+                        onReminders={(announced) => {
+                            setAnnouncing(announced);
+                            panel.current?.showModal();
+                        }}
+                        onOpenAnchor={(anchor) => {
+                            anchorOpener(anchor)?.();
+                        }}
+                        onLeft={() => {
+                            setOpenedId(null);
+                        }}
+                    />
+                )}
+            </Departing>
 
             {/* One panel for the whole screen rather than one per row, which is what lets the element itself hold
                 whether it is open: the task it is about is what the row that opened it put here. It is mounted from

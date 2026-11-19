@@ -2,9 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { PersonalTask } from '@mailfathom/client-backend';
+import type { CalendarEvent, PersonalTask } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { TaskRow } from './TaskRow';
 
@@ -47,6 +47,9 @@ function drawRow({
     scheduled = false,
     onToggleSelected = vi.fn(),
     onToggleCompleted = vi.fn(),
+    onOpen,
+    onOpenAnchor,
+    clash = null,
     onAccept,
     onOpenSource,
     onReminders,
@@ -61,6 +64,9 @@ function drawRow({
     scheduled?: boolean;
     onToggleSelected?: () => void;
     onToggleCompleted?: () => void;
+    onOpen?: (() => void) | undefined;
+    onOpenAnchor?: (() => void) | undefined;
+    clash?: CalendarEvent | null;
     onAccept?: (() => void) | undefined;
     onOpenSource?: (() => void) | undefined;
     onReminders?: (() => void) | undefined;
@@ -82,6 +88,9 @@ function drawRow({
                     scheduled={scheduled}
                     onToggleSelected={onToggleSelected}
                     onToggleCompleted={onToggleCompleted}
+                    onOpen={onOpen}
+                    onOpenAnchor={onOpenAnchor}
+                    clash={clash}
                     onAccept={onAccept}
                     onOpenSource={onOpenSource}
                     onReminders={onReminders}
@@ -144,12 +153,14 @@ describe('TaskRow', () => {
         expect(screen.getByText('No day')).toBeDefined();
     });
 
-    it('marks a task mail proposed, and offers the way back to the message it came out of', () => {
+    it('tags a proposal read out of mail in place of the box, and offers the way back to the message', () => {
         const onOpenSource = vi.fn();
 
         drawRow({ task: taskOf({ origin: 'Proposed', sourceMessageId: 'message' }), onOpenSource });
 
-        expect(screen.getByText('from mail')).toBeDefined();
+        expect(screen.getByText('AI')).toBeDefined();
+        expect(screen.getByText('From mail')).toBeDefined();
+        expect(screen.queryByRole('checkbox')).toBeNull();
 
         fireEvent.click(screen.getByRole('button', { name: 'Open the message this came from' }));
 
@@ -359,14 +370,86 @@ describe('TaskRow', () => {
         expect(onToggleSelected).toHaveBeenCalledOnce();
     });
 
-    it('does nothing on a plain press with nothing selected, a task having nowhere to be opened to', () => {
+    it('opens the task on a plain press with nothing selected, rather than picking it out', () => {
         const onToggleSelected = vi.fn();
+        const onOpen = vi.fn();
 
-        drawRow({ onToggleSelected });
+        drawRow({ onToggleSelected, onOpen });
 
-        fireEvent.click(screen.getByText('Answer the tender'));
+        fireEvent.click(screen.getByRole('listitem'));
 
+        expect(onOpen).toHaveBeenCalledOnce();
         expect(onToggleSelected).not.toHaveBeenCalled();
+    });
+
+    it('tags a proposal the Agent suggested as the Agent’s', () => {
+        drawRow({ task: taskOf({ origin: 'Proposed' }) });
+
+        expect(screen.getByText('Agent')).toBeDefined();
+        expect(screen.getByText('From the Agent')).toBeDefined();
+    });
+
+    it('draws what a task belongs to, who it is with, and how long it takes while nothing is planned', () => {
+        const onOpenAnchor = vi.fn();
+
+        drawRow({
+            task: taskOf({
+                estimatedMinutes: 45,
+                anchor: { kind: 'Thread', id: '0190f3c2-8a7b-7cde-9f01-23456789abcd', label: 'CPI calculation 2027' },
+                counterpart: { address: 'marta@contoso.example', displayName: 'Marta Nowak' },
+            }),
+            onOpenAnchor,
+        });
+
+        expect(screen.getByText('Marta Nowak')).toBeDefined();
+        expect(screen.getByText('45 min')).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Open the thread' }));
+
+        expect(onOpenAnchor).toHaveBeenCalledOnce();
+    });
+
+    it('draws the planned stretch in place of the estimate, and a clash with the calendar', () => {
+        drawRow({
+            task: taskOf({ estimatedMinutes: 45, plan: { startAt: '2026-09-21T09:00:00+00:00', minutes: 45 } }),
+            clash: {
+                id: 'event',
+                title: 'Rollout status',
+                start: '2026-09-21T09:30:00+00:00',
+                end: '2026-09-21T10:30:00+00:00',
+                isAllDay: false,
+                reminders: [],
+                notes: null,
+                remindsAt: [],
+                origin: 'Asserted',
+                sourceMessage: null,
+                recordedAt: '2026-09-20T07:00:00+00:00',
+                amendedAt: '2026-09-20T07:00:00+00:00',
+            },
+        });
+
+        expect(screen.queryByText('45 min')).toBeNull();
+        expect(screen.getByText(/^Clashes with Rollout status/u)).toBeDefined();
+    });
+
+    it('draws a waiting task with when to follow up and, once a reply closed it, who replied', () => {
+        drawRow({ task: taskOf({ direction: 'Awaited', dueOn: '2026-09-25' }) });
+
+        expect(screen.getByRole('checkbox', { name: 'Mark Answer the tender as received' })).toBeDefined();
+        expect(screen.getByText(/^follow up /u)).toBeDefined();
+
+        cleanup();
+
+        drawRow({
+            task: taskOf({
+                direction: 'Awaited',
+                completed: true,
+                counterpart: { address: 'jacek@contoso.example', displayName: 'Jacek Wrona' },
+                answer: { messageId: 'reply', arrivedAt: '2026-09-21T07:12:00+00:00' },
+            }),
+        });
+
+        expect(screen.getByText(/^Jacek Wrona replied at /u)).toBeDefined();
     });
 
     // A press that landed on one of the row's own controls is that control's act: the box that completes the task

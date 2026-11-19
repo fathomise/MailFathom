@@ -224,12 +224,17 @@ const serverLost: ConnectionStatus = {
     disconnectedNow: () => true,
 };
 
+// Moves to one of the four views, which the head draws as a choice among four.
+function showView(name: RegExp): void {
+    fireEvent.click(screen.getByRole('radio', { name }));
+}
+
 function pathsSent(sent: readonly ClientRequest[], method: string): string[] {
     return sent.filter((request) => request.method === method).map((request) => request.path);
 }
 
 describe('TasksSpace', () => {
-    it('draws both halves of the list as one, marking what came out of mail', async () => {
+    it('draws what is owed under Today and what was proposed under Proposed, marking what came out of mail', async () => {
         const { transport } = deployment({
             proposed: [taskCalled('b', 'Send the invoice', { origin: 'Proposed', sourceMessageId: 'message' })],
         });
@@ -237,8 +242,58 @@ describe('TasksSpace', () => {
         drawSpace(transport);
 
         expect(await screen.findByText('Answer the tender')).toBeDefined();
+        expect(screen.queryByText('Send the invoice')).toBeNull();
+
+        showView(/^Proposed/u);
+
         expect(screen.getByText('Send the invoice')).toBeDefined();
-        expect(screen.getByText('from mail')).toBeDefined();
+        expect(screen.getByText('From mail')).toBeDefined();
+        expect(screen.queryByText('Answer the tender')).toBeNull();
+    });
+
+    it('opens a task from its row and writes a new title through its dialog', async () => {
+        const { transport, sent } = deployment();
+
+        drawSpace(transport);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Answer the tender' }));
+
+        const dialog = screen.getByRole('dialog', { name: 'Task' });
+
+        fireEvent.change(within(dialog).getByLabelText('What is it?'), {
+            target: { value: 'Answer the Nordwind tender' },
+        });
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+        await waitFor(() => {
+            expect(screen.getByRole('status').textContent).toBe('Saved.');
+        });
+
+        const revised = sent().find((request) => request.method === 'PUT');
+
+        expect(revised?.path).toBe('https://mail.example.invalid/api/client/tasks/a');
+        expect(JSON.parse(revised?.body ?? 'null')).toMatchObject({ title: 'Answer the Nordwind tender' });
+    });
+
+    it('heads each view with what it holds and counts what is open in it', async () => {
+        const { transport } = deployment({
+            committed: [
+                taskCalled('a', 'Answer the tender'),
+                taskCalled('w', 'Signed addendum from Anna', { direction: 'Awaited', dueOn: '2099-01-01' }),
+            ],
+        });
+
+        drawSpace(transport);
+
+        await screen.findByText('Answer the tender');
+
+        expect(screen.getByRole('radio', { name: /^Waiting for\s*1$/u })).toBeDefined();
+
+        showView(/^Waiting for/u);
+
+        expect(screen.getByRole('heading', { name: 'Waiting for others' })).toBeDefined();
+        expect(screen.getByText('1 reply you are waiting on')).toBeDefined();
+        expect(screen.getByRole('region', { name: 'Waiting' })).toBeDefined();
     });
 
     it('reads today’s events through the calendar’s own route and draws them beside the list', async () => {
@@ -274,6 +329,7 @@ describe('TasksSpace', () => {
         });
 
         drawSpace(transport);
+        showView(/^Proposed/u);
 
         fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
 
@@ -292,6 +348,7 @@ describe('TasksSpace', () => {
         });
 
         drawSpace(transport);
+        showView(/^Proposed/u);
 
         fireEvent.keyDown(await screen.findByRole('listitem'), { key: 'ContextMenu' });
         fireEvent.click(screen.getByRole('menuitem', { name: 'Dismiss task' }));
@@ -509,6 +566,7 @@ describe('TasksSpace', () => {
         const { transport } = deployment({ committed: [taskCalled('a', 'Answer the tender', { dueOn: null })] });
 
         drawSpace(transport);
+        showView(/^Upcoming/u);
 
         fireEvent.keyDown(await screen.findByRole('listitem'), { key: 'ContextMenu' });
         fireEvent.click(screen.getByRole('menuitem', { name: 'Select tasks' }));
@@ -693,10 +751,10 @@ describe('TasksSpace', () => {
         drawSpace(transport);
 
         fireEvent.click(await screen.findByRole('button', { name: 'New task' }));
-        fireEvent.change(screen.getByLabelText('What has to be done'), {
+        fireEvent.change(screen.getByLabelText('Task description'), {
             target: { value: 'Answer the tender' },
         });
-        fireEvent.click(screen.getByRole('button', { name: 'Write it down' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Add task' }));
 
         await waitFor(() => {
             expect(screen.getByRole('status').textContent).toBe('Written down.');

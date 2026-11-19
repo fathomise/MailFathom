@@ -6,8 +6,8 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { openSpace } from './deployment';
 import { anEventSeededToday, seededDay, tasksUnderEachHeading, theOtherTaskDueToday } from './seed';
 
-// The Tasks space against a real deployment: the sample list the run wrote drawn under the three headings the design
-// draws, the day beside it read out of the same calendar the Calendar space reads, and one task written down, marked
+// The Tasks space against a real deployment: the sample list the run wrote drawn under the headings the design draws
+// in its Today and Upcoming views, the day beside it read out of the same calendar the Calendar space reads, and one task written down, marked
 // done and deleted through the screen.
 //
 // Naming what the run seeded is allowed here for the reason `calendar.spec.ts` gives: this list was stated by
@@ -20,18 +20,27 @@ async function openTheList(page: Page): Promise<void> {
     await expect(rowFor(page, theOtherTaskDueToday.title)).toBeVisible();
 }
 
+/**
+ * Moves to one of the four views the head offers. Chosen from the keyboard, because the radio itself is drawn inside
+ * the label that names it and a pointer lands on the label.
+ */
+async function showView(page: Page, name: string): Promise<void> {
+    await page.getByRole('radio', { name: new RegExp(`^${name}`, 'u') }).press('Space');
+}
+
 /** One row of the list, which is a plain item carrying the task's own controls rather than an option. */
 function rowFor(page: Page, title: string): Locator {
     return page.getByRole('listitem').filter({ hasText: title });
 }
 
-test('draws the list under the three headings, with each task under the day it is due', async ({ page }) => {
+test('draws the list under the headings of its views, with each task under the day it is due', async ({ page }) => {
     await openTheList(page);
 
     // The headings are a rendering decision rather than the deployment's — the surface answers one ordered walk — so
-    // what is asserted is that a task due today, one due inside the week, and one nobody dated each stand under the
-    // heading the design puts them under.
-    for (const [heading, task] of Object.entries(tasksUnderEachHeading)) {
+    // what is asserted is that a task due today, one due inside the week, one due later, and one nobody dated each
+    // stand under the heading the design puts them under.
+    for (const { view, heading, task } of tasksUnderEachHeading) {
+        await showView(page, view);
         await expect(page.getByRole('region', { name: heading, exact: true }).getByText(task.title)).toBeVisible();
     }
 });
@@ -57,13 +66,15 @@ test('writes a task down, marks it done, and deletes it', async ({ page }) => {
 
     await expect(writing).toBeVisible();
 
-    await writing.getByLabel('What has to be done', { exact: true }).fill(written);
-    await writing.getByLabel('Due day', { exact: true }).fill(seededDay(0));
-    await writing.getByRole('button', { name: 'Write it down' }).click();
+    await writing.getByLabel('Task description', { exact: true }).fill(written);
+    await writing.getByLabel('Due date', { exact: true }).fill(seededDay(0));
+    await writing.getByRole('button', { name: 'Add task' }).click();
 
-    // Due today, so it stands under *Today* beside what the run seeded — which is the grouping asserted above, read
+    // Due today and planned into nothing, so it stands under *Due today, not planned* beside what the run seeded — which is the grouping asserted above, read
     // here against a task the deployment has only just been told about.
-    await expect(page.getByRole('region', { name: 'Today', exact: true }).getByText(written)).toBeVisible();
+    await expect(
+        page.getByRole('region', { name: 'Due today, not planned', exact: true }).getByText(written),
+    ).toBeVisible();
 
     // Pressed rather than checked: the screen answers a write by reading the list again rather than by correcting
     // what it holds, and a task marked done leaves the list — so the box `check()` would look back at to confirm its
@@ -82,8 +93,8 @@ test('writes a task down, marks it done, and deletes it', async ({ page }) => {
     await expect(showDone).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByRole('checkbox', { name: `Mark ${written} as not done` })).toBeChecked();
 
-    // Picked out with a modifier held, which is the one gesture that opens the acts over a row: a task has nowhere to
-    // be opened to, so a plain press on one does nothing at all.
+    // Picked out with a modifier held, which is the gesture that opens the acts over a row: a plain press on one opens
+    // the task's own dialog instead.
     await rowFor(page, written).click({ modifiers: ['ControlOrMeta'] });
 
     await page

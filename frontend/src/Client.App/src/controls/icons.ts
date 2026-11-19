@@ -118,6 +118,7 @@ export const iconNames = [
     'left_panel_open',
     'light_mode',
     'link',
+    'link_off',
     'lock',
     'lock_open',
     'logout',

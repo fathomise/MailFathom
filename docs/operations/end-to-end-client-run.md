@@ -109,12 +109,12 @@ of a filled mailbox takes as long as it takes.
 `frontend/tests/end-to-end/` holds them and `frontend/playwright.end-to-end.config.ts` runs them. They cover the path a
 person takes through each of the client's five built spaces: signing in, the mail list, opening a message, the
 conversation it belongs to, a search over the mailbox, and signing out; every act on mail, described below; the calendar
-in each of its four views and an event written, amended and deleted; the task list under its three headings, the day
-beside it, and a task written, marked done and deleted; the address book, somebody opened out of it, and a contact
-written and deleted; and Discover as far as this run can reach it, which the paragraph below says is the screen rather
-than an answer. Everything is asserted by role and by the words a person reads, as the client's unit and browser suites
-are. Its fourth suite is the exception that proves nothing about this one: the desktop suite reaches its WebView over
-the WebDriver protocol, which has no locator for a role and a name at all.
+in each of its four views and an event written, amended and deleted; the task list under the headings of its Today and
+Upcoming views, the day beside it, and a task written, marked done and deleted; the address book, somebody opened out of
+it, and a contact written and deleted; and Discover as far as this run can reach it, which the paragraph below says is
+the screen rather than an answer. Everything is asserted by role and by the words a person reads, as the client's unit
+and browser suites are. Its fourth suite is the exception that proves nothing about this one: the desktop suite reaches
+its WebView over the WebDriver protocol, which has no locator for a role and a name at all.
 
 **Every act a person performs on mail is driven through the screen and proven against the mail server.**
 `mailbox-acts.spec.ts` deletes a message from the trash for good, files one in another folder, flags and unflags one,
@@ -139,9 +139,9 @@ owns them, so a deployment nobody has used holds none of them. `frontend/tests/e
 sample set — three people, five events and five tasks, every name invented and every host a reserved one — and the
 suite's global setup writes it over the client API with the credential the run provisioned, before the first browser
 opens. Every day in it is an offset from the day the run happens on, stated in UTC against the zone the configuration
-pins, so *Today*, *This week* and *Later* are each reachable whichever weekday a run lands on. Each of the three spaces
-also writes one record of its own through its screen and removes it again, which is where the client's own write path
-is held to account and what keeps the files runnable in any order.
+pins, so *Due today, not planned*, *This week*, *Later* and *No day* are each reachable whichever weekday a run lands
+on. Each of the three spaces also writes one record of its own through its screen and removes it again, which is where
+the client's own write path is held to account and what keeps the files runnable in any order.
 
 **The contract set is asked of the deployment as well as of the fake.** `deploymentContract.spec.ts` runs the cases
 `frontend/tests/deploymentContract.ts` states — the same cases the pull-request browser suite asks of the fake deployment

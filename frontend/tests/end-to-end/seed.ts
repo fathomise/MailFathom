@@ -110,10 +110,11 @@ export const anEventSeededToday: SeededEvent = standup;
 /** The one stated as a day rather than as a clock time. */
 export const theDayLongEvent: SeededEvent = officeClosed;
 
-// The sample task list, which reaches each of the three headings the screen draws. *This week* is the six days after
-// today rather than the remainder of a calendar week, and *Later* is everything else including what nobody has dated —
-// so three days out, twenty days out, and no day at all fall under the three headings whichever weekday a run happens
-// on.
+// The sample task list, which reaches a heading of each of the two views that draw owed work by its day. *Today*
+// draws what is due today and nobody planned; *Upcoming* draws what comes after it, where *This week* is the six days
+// after today rather than the remainder of a calendar week, *Later* is everything past that, and *No day* is what
+// nobody dated — so today, three days out, twenty days out, and no day at all fall under four headings whichever
+// weekday a run happens on.
 
 const theLease: SeededTask = { title: 'Send the signed lease back', dayOffset: 0 };
 const theCourier: SeededTask = { title: 'Confirm the courier pickup', dayOffset: 0 };
@@ -124,12 +125,17 @@ const theCoffee: SeededTask = { title: 'Choose a new coffee supplier', dayOffset
 /** The whole sample list, in the order it is written. */
 export const seededTasks: readonly SeededTask[] = [theLease, theCourier, theSummary, theDomain, theCoffee];
 
-/** One task under each of the three headings, which is what makes the grouping assertable. */
-export const tasksUnderEachHeading: Readonly<Record<string, SeededTask>> = {
-    Today: theLease,
-    'This week': theSummary,
-    Later: theCoffee,
-};
+/** One task under a heading of each view, which is what makes the grouping assertable. */
+export const tasksUnderEachHeading: readonly {
+    readonly view: 'Today' | 'Upcoming';
+    readonly heading: string;
+    readonly task: SeededTask;
+}[] = [
+    { view: 'Today', heading: 'Due today, not planned', task: theLease },
+    { view: 'Upcoming', heading: 'This week', task: theSummary },
+    { view: 'Upcoming', heading: 'Later', task: theDomain },
+    { view: 'Upcoming', heading: 'No day', task: theCoffee },
+];
 
 /** The second one due today, which is what a heading holding more than one row is read from. */
 export const theOtherTaskDueToday: SeededTask = theCourier;

@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ClientFailureReason, PersonalTask } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { TaskList } from './TaskList';
+import { tasksIn, type TaskView } from './taskViews';
 
 // The headings a task stands under are read off the day, so the zone is pinned: a list grouped in whatever zone the
 // runner reports would put the same task under a different heading in a different country.
@@ -40,6 +41,8 @@ function taskDue(id: string, title: string, dueOn: string | null): PersonalTask 
 
 function drawList({
     tasks = [],
+    view = 'today',
+    onOpen = vi.fn(),
     reading = false,
     paging = false,
     failure = null,
@@ -51,6 +54,8 @@ function drawList({
     onReadAgain = vi.fn(),
 }: {
     tasks?: readonly PersonalTask[];
+    view?: TaskView;
+    onOpen?: (task: PersonalTask) => void;
     reading?: boolean;
     paging?: boolean;
     failure?: ClientFailureReason | null;
@@ -66,7 +71,14 @@ function drawList({
     render(
         <LocalizationProvider>
             <TaskList
-                tasks={tasks}
+                groups={tasksIn(
+                    view,
+                    tasks.filter(({ origin }) => origin !== 'Proposed'),
+                    tasks.filter(({ origin }) => origin === 'Proposed'),
+                    '2026-09-21',
+                    'Europe/Warsaw',
+                )}
+                view={view}
                 reading={reading}
                 paging={paging}
                 failure={failure}
@@ -76,6 +88,8 @@ function drawList({
                 scheduled={scheduled}
                 onSelected={onSelected}
                 onToggleCompleted={vi.fn()}
+                onOpen={onOpen}
+                anchorOpener={() => undefined}
                 onAccept={vi.fn()}
                 onOpenSource={vi.fn()}
                 onReminders={vi.fn()}
@@ -89,16 +103,54 @@ function drawList({
 }
 
 function headings(): (string | null)[] {
-    return screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    return screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
 }
 
 describe('TaskList', () => {
-    it('groups what is due by when it is due, and draws no heading nothing stands under', () => {
+    it('draws the groups of the view it is shown, and no heading nothing stands under', () => {
+        const tasks = [taskDue('a', 'Answer the tender', '2026-09-21'), taskDue('b', 'Send the invoice', '2026-09-25')];
+
+        drawList({ tasks });
+
+        expect(headings()).toStrictEqual(['Due today, not planned']);
+        expect(screen.queryByText('Send the invoice')).toBeNull();
+    });
+
+    it('draws what is owed after today under the days Upcoming groups it by', () => {
         drawList({
-            tasks: [taskDue('a', 'Answer the tender', '2026-09-21'), taskDue('b', 'Send the invoice', '2026-09-25')],
+            view: 'upcoming',
+            tasks: [taskDue('a', 'Answer the tender', '2026-09-22'), taskDue('b', 'Send the invoice', '2026-09-25')],
         });
 
-        expect(headings()).toStrictEqual(['Today', 'This week']);
+        expect(headings()).toStrictEqual(['Tomorrow', 'This week']);
+    });
+
+    it('says under the group of waits a reply closed that a reply closes them', () => {
+        drawList({
+            view: 'waiting',
+            tasks: [
+                {
+                    ...taskDue('a', 'Opinion from Jacek', '2026-09-21'),
+                    direction: 'Awaited',
+                    completed: true,
+                    answer: { messageId: 'reply', arrivedAt: '2026-09-21T07:12:00+00:00' },
+                },
+            ],
+        });
+
+        expect(headings()).toStrictEqual(['Closed by a reply']);
+        expect(screen.getByText('A waiting task closes itself when the reply arrives.')).toBeDefined();
+    });
+
+    it('opens a task from a press on its row', () => {
+        const onOpen = vi.fn();
+        const task = taskDue('a', 'Answer the tender', '2026-09-21');
+
+        drawList({ tasks: [task], onOpen });
+
+        fireEvent.click(screen.getByRole('listitem'));
+
+        expect(onOpen).toHaveBeenCalledWith(task);
     });
 
     it('draws each heading with how much stands under it', () => {
@@ -109,10 +161,10 @@ describe('TaskList', () => {
         expect(screen.getByText('2')).toBeDefined();
     });
 
-    it('stands a task nobody has dated under the last heading rather than dropping it', () => {
-        drawList({ tasks: [taskDue('a', 'Answer the tender', null)] });
+    it('stands a task nobody has dated under No day rather than dropping it', () => {
+        drawList({ view: 'upcoming', tasks: [taskDue('a', 'Answer the tender', null)] });
 
-        expect(headings()).toStrictEqual(['Later']);
+        expect(headings()).toStrictEqual(['No day']);
         expect(screen.getByText('Answer the tender')).toBeDefined();
     });
 
@@ -146,13 +198,18 @@ describe('TaskList', () => {
     it('does not call a list it could not read an empty one', () => {
         drawList({ failure: 'unavailable' });
 
-        expect(screen.queryByText(/Nothing is on the list\./)).toBeNull();
+        expect(screen.queryByText('Nothing due or planned today')).toBeNull();
     });
 
-    it('says an empty list is empty, and says what would fill it', () => {
-        drawList();
+    it('says an empty view is empty in its own terms, and says what would fill it', () => {
+        drawList({ view: 'waiting' });
 
-        expect(screen.getByText(/Nothing is on the list\./)).toBeDefined();
+        expect(screen.getByText('You are not waiting on anybody')).toBeDefined();
+        expect(
+            screen.getByText(
+                'Send a message with “Remind me if there is no reply”, and it waits here until the reply comes.',
+            ),
+        ).toBeDefined();
     });
 
     // Two empties rather than one: a reader told the list is empty when everything on it is done and hidden would go
@@ -171,7 +228,7 @@ describe('TaskList', () => {
         // Found by the group's own role and name and then by one hop outwards, which is what
         // `messageList/MessageList.test.tsx` does for the same question: the scroller carries no role of its own, and
         // a query for the utility class that makes it one would pass a renamed class and fail a working screen.
-        const scroller = screen.getByRole('region', { name: 'Today' }).parentElement;
+        const scroller = screen.getByRole('region', { name: 'Due today, not planned' }).parentElement;
 
         if (scroller === null) {
             throw new Error('The list draws no scroller around its groups.');
@@ -206,7 +263,13 @@ describe('TaskList', () => {
 
     it('offers reminders on a dated task and none on one nobody dated', () => {
         drawList({
-            tasks: [taskDue('a', 'Answer the tender', '2026-09-21'), taskDue('b', 'File the return', null)],
+            tasks: [
+                taskDue('a', 'Answer the tender', '2026-09-21'),
+                {
+                    ...taskDue('b', 'File the return', null),
+                    plan: { startAt: '2026-09-21T08:00:00+00:00', minutes: 30 },
+                },
+            ],
         });
 
         expect(screen.queryByRole('button', { name: 'Add a reminder to Answer the tender' })).not.toBeNull();
@@ -222,7 +285,7 @@ describe('TaskList', () => {
     });
 
     it('leaves reminders out of the row menu of a task nobody dated', () => {
-        drawList({ tasks: [taskDue('b', 'File the return', null)], onSelected: vi.fn() });
+        drawList({ view: 'upcoming', tasks: [taskDue('b', 'File the return', null)], onSelected: vi.fn() });
 
         fireEvent.keyDown(screen.getByRole('listitem'), { key: 'ContextMenu' });
 

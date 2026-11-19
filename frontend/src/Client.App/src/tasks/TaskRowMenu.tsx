@@ -11,15 +11,14 @@ import { useWriteRefusal } from '../shell/useWriteRefusal';
 // What a task's row offers, which is this list's own items handed to the one menu six lists share: where the menu
 // stands, how it is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s.
 //
-// **An item the client cannot yet perform is left out rather than drawn inert**, which is the rule
-// `messageRows/MessageRowMenu.tsx` states. Two of the design's six are absent on a row that cannot perform them:
-// *reminders* on a task nobody dated, a lead having no day to be measured back from; and *schedule in the calendar*
-// on the same row, for the reason the row's own control is absent there.
+// **The order is the design's**: *Open task*, the completion, putting it in the calendar, *Reminders*, what it belongs
+// to, *Select tasks* and *Delete task* — and a proposal's menu holds *Accept* and *Dismiss task* alone, because a
+// proposal is answered rather than worked on.
 //
-// **One item the design does not draw here is drawn: taking on what mail proposed.** The design answers a proposal in
-// the conversation it came out of, and this screen lists proposals too — so a reader looking at one here would
-// otherwise have to go and find the message to accept it. It carries the word the design puts on that act where it
-// does draw it.
+// **An item the client cannot yet perform is left out rather than drawn inert**, which is the rule
+// `messageRows/MessageRowMenu.tsx` states: *reminders* on a task nobody dated, a lead having no day to be measured
+// back from; *schedule in the calendar* on the same row; what it belongs to where that cannot be reached from here;
+// and *Follow up*, which opens a reply and arrives with the composer's change.
 //
 // **Nothing here performs the erasure.** The question it stands behind outlives the menu — the menu is gone the moment
 // an item is chosen — so what this does is ask the screen to raise it.
@@ -28,7 +27,9 @@ export function TaskRowMenu({
     task,
     at,
     onSelect,
+    onOpen,
     onToggleCompleted,
+    onOpenAnchor,
     onAccept,
     onReminders,
     onSchedule,
@@ -42,7 +43,13 @@ export function TaskRowMenu({
     /** Puts this row into the selection the list holds, which is how a finger reaches one at all. */
     readonly onSelect: () => void;
 
+    /** Opens the task in its dialog, or `undefined` for a proposal. */
+    readonly onOpen?: (() => void) | undefined;
+
     readonly onToggleCompleted: () => void;
+
+    /** Opens what the task belongs to, or `undefined` where that cannot be reached from here. */
+    readonly onOpenAnchor?: (() => void) | undefined;
 
     /** Takes a task mail proposed on, or `undefined` for one the person already owes. */
     readonly onAccept: (() => void) | undefined;
@@ -73,39 +80,51 @@ export function TaskRowMenu({
         choose,
     });
 
-    const items: ContextMenuItem[] = [
-        { icon: 'check_box', label: translate('tasks.selectTasks'), choose: onSelect },
+    if (task.origin === 'Proposed') {
+        const answers: ContextMenuItem[] = [
+            ...(onAccept === undefined ? [] : [writing('add_task', translate('tasks.accept'), onAccept)]),
+            { ...writing('close', translate('tasks.declineTask'), onAskErasure), destroys: true },
+        ];
+
+        return <ContextMenu header={task.title} at={at} items={answers} onClose={onClose} />;
+    }
+
+    const items: ContextMenuItem[] = [];
+
+    if (onOpen !== undefined) {
+        items.push({ icon: 'open_in_new', label: translate('tasks.openTask'), choose: onOpen });
+    }
+
+    items.push(
         writing(
             task.completed ? 'radio_button_unchecked' : 'check_circle',
             translate(task.completed ? 'tasks.markNotDone' : 'tasks.markDone'),
             onToggleCompleted,
         ),
-    ];
+    );
 
-    if (onAccept !== undefined) {
-        items.push(writing('check', translate('tasks.accept'), onAccept));
+    if (task.direction === 'Owed' && task.dueOn !== null && onSchedule !== undefined) {
+        items.push(writing('calendar_month', translate('tasks.scheduleInCalendar'), onSchedule));
     }
 
-    if (onReminders !== undefined) {
+    if (onReminders !== undefined && task.answer === null) {
         items.push(writing('notifications_active', translate('reminders.title'), onReminders));
     }
 
-    if (task.dueOn !== null && onSchedule !== undefined) {
-        items.push(writing('calendar_month', translate('tasks.scheduleInCalendar'), onSchedule));
+    if (task.anchor !== null && onOpenAnchor !== undefined) {
+        items.push({
+            icon: task.anchor.kind === 'Thread' ? 'mail' : 'event',
+            label: translate(task.anchor.kind === 'Thread' ? 'tasks.openThread' : 'tasks.openEvent'),
+            choose: onOpenAnchor,
+        });
     }
 
     if (onOpenSource !== undefined) {
         items.push({ icon: 'open_in_new', label: translate('tasks.openSourceThread'), choose: onOpenSource });
     }
 
-    items.push({
-        ...writing(
-            'delete',
-            translate(task.origin === 'Proposed' ? 'tasks.declineTask' : 'tasks.deleteTask'),
-            onAskErasure,
-        ),
-        destroys: true,
-    });
+    items.push({ icon: 'check_box', label: translate('tasks.selectTasks'), choose: onSelect });
+    items.push({ ...writing('delete', translate('tasks.deleteTask'), onAskErasure), destroys: true });
 
-    return <ContextMenu header={task.title} at={at} items={items} onClose={onClose} />;
+    return <ContextMenu header={task.title} detail={task.anchor?.label} at={at} items={items} onClose={onClose} />;
 }

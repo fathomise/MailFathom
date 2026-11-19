@@ -32,6 +32,8 @@ function menuOver({
     task = taskOf(),
     onSelect = vi.fn(),
     onToggleCompleted = vi.fn(),
+    onOpen,
+    onOpenAnchor,
     onAccept,
     onOpenSource,
     onReminders,
@@ -41,6 +43,8 @@ function menuOver({
     task?: PersonalTask;
     onSelect?: () => void;
     onToggleCompleted?: () => void;
+    onOpen?: (() => void) | undefined;
+    onOpenAnchor?: (() => void) | undefined;
     onAccept?: (() => void) | undefined;
     onOpenSource?: (() => void) | undefined;
     onReminders?: (() => void) | undefined;
@@ -54,6 +58,8 @@ function menuOver({
                 at={{ x: 20, y: 30 }}
                 onSelect={onSelect}
                 onToggleCompleted={onToggleCompleted}
+                onOpen={onOpen}
+                onOpenAnchor={onOpenAnchor}
                 onAccept={onAccept}
                 onOpenSource={onOpenSource}
                 onReminders={onReminders}
@@ -74,20 +80,38 @@ describe('TaskRowMenu', () => {
         menuOver({ onOpenSource: vi.fn(), onReminders: vi.fn() });
 
         expect(drawn()).toStrictEqual([
-            'Select tasks',
             'Mark as done',
-            'Reminders',
             'Schedule in the calendar',
+            'Reminders',
             'Open source thread',
+            'Select tasks',
             'Delete task',
         ]);
     });
 
-    it('offers to take a proposal, and words the erasure as turning it down rather than as deleting it', () => {
+    it('opens the task and what it belongs to from items of their own', () => {
+        const onOpen = vi.fn();
+        const onOpenAnchor = vi.fn();
+
+        menuOver({
+            task: taskOf({
+                anchor: { kind: 'Event', id: '0190f3c2-8a7b-7cde-9f01-23456789abcd', label: 'Call with Anna' },
+            }),
+            onOpen,
+            onOpenAnchor,
+        });
+
+        expect(drawn()[0]).toBe('Open task');
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Open the event' }));
+
+        expect(onOpenAnchor).toHaveBeenCalledOnce();
+    });
+
+    it('offers a proposal nothing but taking it and turning it down', () => {
         menuOver({ task: taskOf({ origin: 'Proposed' }), onAccept: vi.fn() });
 
-        expect(drawn()).toContain('Accept');
-        expect(drawn()).toContain('Dismiss task');
+        expect(drawn()).toStrictEqual(['Accept', 'Dismiss task']);
     });
 
     it('words the completion by what pressing it would do', () => {

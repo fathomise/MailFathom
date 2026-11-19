@@ -3,21 +3,21 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useId, useRef, useState } from 'react';
-import type { ClientFailureReason, PersonalTask } from '@mailfathom/client-backend';
+import type { CalendarEvent, ClientFailureReason, PersonalTask, TaskAnchor } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { onlySelected, withToggled } from '../contextMenu/rowSelection';
+import { Icon } from '../controls/Icon';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
-import { useReadingZone } from '../localization/useReadingZone';
 import { TaskRow } from './TaskRow';
 import { TaskRowMenu } from './TaskRowMenu';
 import { reachedTheRowsRead } from './rowsRead';
-import { groupedTasks, type TaskGroupName } from './taskGrouping';
+import { clashOf, type TaskGroup, type TaskGroupName, type TaskView } from './taskViews';
 import { Departing } from '../shell/Departing';
 
-// The list the design draws down the middle of the Tasks screen: work grouped by when it is due, each heading
-// carrying how much stands under it.
+// The list the design draws down the middle of the Tasks screen: the groups of the view being shown, each heading
+// carrying how much stands under it, and the view's own empty state where nothing does.
 //
 // **A page is asked for from the scroll that reaches the end of what is read**, which is the design's own
 // scrolling rather than a control at the foot. The wait for it is drawn under the rows instead of replacing them,
@@ -30,9 +30,26 @@ import { Departing } from '../shell/Departing';
 // thousands, which is why the mail list was windowed on the day it was written and this is not.
 
 const groupLabels: Readonly<Record<TaskGroupName, MessageKey>> = {
-    today: 'tasks.groupToday',
+    planned: 'tasks.groupPlanned',
+    dueNotPlanned: 'tasks.groupDueNotPlanned',
+    followUp: 'tasks.groupFollowUp',
+    tomorrow: 'tasks.groupTomorrow',
     thisWeek: 'tasks.groupThisWeek',
     later: 'tasks.groupLater',
+    noDay: 'tasks.groupNoDay',
+    followUpToday: 'tasks.groupFollowUpToday',
+    waiting: 'tasks.groupWaiting',
+    closedByReply: 'tasks.groupClosedByReply',
+    received: 'tasks.groupReceived',
+    today: 'tasks.groupToday',
+};
+
+// Each view says why it is empty in its own terms, as the design draws it.
+const viewEmpties: Readonly<Record<TaskView, { readonly title: MessageKey; readonly text: MessageKey }>> = {
+    today: { title: 'tasks.emptyTodayTitle', text: 'tasks.emptyTodayText' },
+    upcoming: { title: 'tasks.emptyUpcomingTitle', text: 'tasks.emptyUpcomingText' },
+    waiting: { title: 'tasks.emptyWaitingTitle', text: 'tasks.emptyWaitingText' },
+    proposed: { title: 'tasks.emptyProposedTitle', text: 'tasks.emptyProposedText' },
 };
 
 // Why the list did not answer, each said as what it is with a next step rather than as a status code. A task the
@@ -49,7 +66,9 @@ const listFailures: Readonly<Record<ClientFailureReason, MessageKey>> = {
 const nothingPressed: ReadonlyMap<string, boolean> = new Map();
 
 export function TaskList({
-    tasks,
+    groups,
+    view,
+    events = [],
     reading,
     paging,
     failure,
@@ -60,6 +79,8 @@ export function TaskList({
     pressedInto = nothingPressed,
     onSelected,
     onToggleCompleted,
+    onOpen,
+    anchorOpener,
     onAccept,
     onOpenSource,
     onReminders,
@@ -68,8 +89,14 @@ export function TaskList({
     onReadMore,
     onReadAgain,
 }: {
-    /** What to draw, which is what the list holds narrowed by whatever the toolbar is filtering out. */
-    readonly tasks: readonly PersonalTask[];
+    /** What to draw: the groups of the view being shown, narrowed by whatever the toolbar is filtering out. */
+    readonly groups: readonly TaskGroup[];
+
+    /** Which view the groups are of, which is what the empty state is worded for. */
+    readonly view: TaskView;
+
+    /** The day's calendar events, which a planned task is read against for a clash. */
+    readonly events?: readonly CalendarEvent[];
 
     /** Whether nothing has answered yet, which is the wait the list says it is in. */
     readonly reading: boolean;
@@ -97,6 +124,13 @@ export function TaskList({
 
     readonly onSelected: (selected: readonly string[]) => void;
     readonly onToggleCompleted: (task: PersonalTask) => void;
+
+    /** Opens one task in its dialog. */
+    readonly onOpen: (task: PersonalTask) => void;
+
+    /** How what a task belongs to is opened, or `undefined` where that thread or event cannot be reached from here. */
+    readonly anchorOpener: (anchor: TaskAnchor) => (() => void) | undefined;
+
     readonly onAccept: (task: PersonalTask) => void;
 
     /**
@@ -121,7 +155,6 @@ export function TaskList({
     readonly onReadAgain: () => void;
 }) {
     const { locale, translate } = useLocalization();
-    const timeZone = useReadingZone();
     const headings = useId();
     const [menu, setMenu] = useState<{ readonly task: PersonalTask; readonly at: MenuPoint } | null>(null);
 
@@ -129,7 +162,6 @@ export function TaskList({
     // menu that left focus on the element it has just taken out of the document is where keyboard use silently stops.
     const rows = useRef(new Map<string, HTMLLIElement>());
 
-    const groups = groupedTasks(tasks, now, timeZone);
     const counted = new Intl.NumberFormat(locale);
 
     function scrolled(element: HTMLDivElement): void {
@@ -140,17 +172,24 @@ export function TaskList({
 
     function acts(task: PersonalTask) {
         const source = task.sourceMessageId;
+        const proposal = task.origin === 'Proposed';
+        const anchor = task.anchor;
 
         return {
             onToggleCompleted: () => {
                 onToggleCompleted(task);
             },
-            onAccept:
-                task.origin === 'Proposed'
-                    ? () => {
-                          onAccept(task);
-                      }
-                    : undefined,
+            onOpen: proposal
+                ? undefined
+                : () => {
+                      onOpen(task);
+                  },
+            onOpenAnchor: anchor === null ? undefined : anchorOpener(anchor),
+            onAccept: proposal
+                ? () => {
+                      onAccept(task);
+                  }
+                : undefined,
             onOpenSource:
                 source === null || onOpenSource === undefined
                     ? undefined
@@ -185,13 +224,16 @@ export function TaskList({
                     aria-labelledby={`${headings}-${group.name}`}
                     className="flex flex-col gap-2.25"
                 >
-                    <div className="flex items-center gap-2.25">
-                        <h2 id={`${headings}-${group.name}`} className="text-xs font-semibold text-muted">
+                    <div className="flex flex-wrap items-center gap-2.25">
+                        <h3 id={`${headings}-${group.name}`} className="text-xs font-semibold text-muted">
                             {translate(groupLabels[group.name])}
-                        </h2>
+                        </h3>
                         <span className="rounded-md border border-line bg-rail px-1.75 text-xs text-muted">
                             {counted.format(group.tasks.length)}
                         </span>
+                        {group.name === 'closedByReply' ? (
+                            <p className="text-sm text-faint">{translate('tasks.closedByReplyNote')}</p>
+                        ) : null}
                     </div>
 
                     <ul className="flex flex-col gap-2">
@@ -200,6 +242,14 @@ export function TaskList({
                                 key={task.id}
                                 task={task}
                                 now={now}
+                                clash={clashOf(task, events)}
+                                onDismiss={
+                                    task.origin === 'Proposed'
+                                        ? () => {
+                                              onAskErasure([task]);
+                                          }
+                                        : undefined
+                                }
                                 selected={selected.includes(task.id)}
                                 selecting={selected.length > 0}
                                 scheduled={scheduled.includes(task.id)}
@@ -248,10 +298,16 @@ export function TaskList({
             {/* Two empties rather than one: a list with nothing in it and a list whose every row is done and being
                 filtered out are different states, and a reader told the first when it is the second would go looking
                 for work the deployment is holding. */}
-            {!reading && failure === null && tasks.length === 0 ? (
-                <p className="text-sm text-muted text-pretty">
-                    {translate(everythingDone ? 'tasks.allDone' : 'tasks.empty')}
-                </p>
+            {!reading && failure === null && groups.length === 0 ? (
+                everythingDone ? (
+                    <p className="text-sm text-muted text-pretty">{translate('tasks.allDone')}</p>
+                ) : (
+                    <div className="flex flex-col items-center gap-2 px-5 py-14 text-center text-muted">
+                        <Icon name="task_alt" className="size-icon-3xl text-faint" />
+                        <p className="text-lg font-semibold text-text">{translate(viewEmpties[view].title)}</p>
+                        <p className="max-w-95 text-base text-pretty">{translate(viewEmpties[view].text)}</p>
+                    </div>
+                )
             ) : null}
 
             <Departing value={menu}>
