@@ -138,37 +138,28 @@ MailFathomDesign.data.home.headsUp = [
     check: "The step at the top proposes a 5% cap.", tid: "contoso", rule: "deadline without a reply" },
 ];
 
-// My day: the few things that matter most today, most urgent first, read off the mail, the calendar and the tasks by
+// My day: the four things that matter most today, most urgent first, read off the mail, the calendar and the tasks by
 // rules. `tone` colours the tile and the time left; `go` is the space a row opens, and `tid` the thread when it is one.
 MailFathomDesign.data.home.myDay = [
   { id: "d-contoso", icon: "schedule", tone: "warn", title: "The Contoso decision is due tomorrow", note: "Anna Kowalska asked twice · the counter-proposal has not gone out", when: "tomorrow", go: "thread", tid: "contoso" },
   { id: "d-bank", icon: "gpp_maybe", tone: "err", title: "An invoice asks to pay a new bank account", note: "Not from fabrikam.com · confirm by phone before anything is paid", when: "before 29.08", go: "thread", tid: "fabrikam1" },
   { id: "d-rollout", icon: "event", tone: "accent", title: "Rollout status with Piotr", note: "Teams · 2 open questions in the thread", when: "15:00", go: "cal" },
   { id: "d-fabrikam", icon: "task_alt", tone: "plain", title: "Confirm the Q4 date to Fabrikam", note: "Tomasz Bąk asked yesterday · due today", when: "16:30", go: "tasks" },
-  // What *More* unfolds, in the same order: twenty rows at the most are ever drawn.
-  { id: "d-invoice", icon: "task_alt", tone: "plain", title: "Approve invoice 08/2026", note: "Finance needs it before the payment run · due today", when: "17:00", go: "tasks" },
-  { id: "d-audit", icon: "schedule", tone: "warn", title: "IT contract register for audit", note: "Jacek Wrona set the date · the addenda are still missing", when: "03.09", go: "thread", tid: "audyt1" },
-  { id: "d-anna", icon: "event", tone: "accent", title: "Call with Anna Kowalska", note: "Teams · the 2027 terms", when: "tomorrow 10:00", go: "cal" },
-  { id: "d-marta", icon: "mail", tone: "plain", title: "Check Marta's September calculation", note: "Marta Nowak sent it this morning · she needs a yes before Friday", when: "Friday", go: "thread", tid: "marta" },
-  { id: "d-plan", icon: "description", tone: "plain", title: "Read the updated rollout plan", note: "rollout_v3.xlsx moves the pilot by one week", when: "before 15:00", go: "thread", tid: "piotr" },
-  { id: "d-payment", icon: "schedule", tone: "warn", title: "Payment of invoice 08/2026", note: "Only after the bank account is confirmed by phone", when: "29.08", go: "thread", tid: "faktura1" },
-  { id: "d-leave", icon: "task_alt", tone: "plain", title: "Approve two leave requests", note: "HR asked on Monday · both are for September", when: "this week", go: "thread", tid: "hr1" },
-  { id: "d-agenda", icon: "task_alt", tone: "plain", title: "Send the agenda for the steering committee", note: "Nobody has sent one yet · the meeting is on Tuesday", when: "Monday", go: "tasks" },
-  { id: "d-pilot", icon: "mail", tone: "plain", title: "Answer Piotr about the pilot group", note: "He asked who joins from controlling", when: "this week", go: "thread", tid: "piotr" },
-  { id: "d-steering", icon: "event", tone: "accent", title: "Steering committee", note: "Room 4.12 · 6 people", when: "01.09", go: "cal" },
-  { id: "d-licence", icon: "schedule", tone: "warn", title: "Adventure Works licence renewal", note: "The offer expires and nobody owns it yet", when: "05.09", go: "thread", tid: "faktura1" },
-  { id: "d-budget", icon: "task_alt", tone: "plain", title: "Review the Q4 budget draft", note: "Marta Nowak wants comments · 12 pages", when: "04.09", go: "tasks" },
-  { id: "d-policy", icon: "description", tone: "plain", title: "Sign the insurance policy annex", note: "The third version arrived last week · legal has cleared it", when: "04.09", go: "tasks" },
-  { id: "d-review", icon: "event", tone: "accent", title: "Quarterly review with Marta", note: "In person · bring the August figures", when: "08.09", go: "cal" },
-  { id: "d-move", icon: "mail", tone: "plain", title: "Confirm your desk for the office move", note: "Facilities need a floor plan choice from every team", when: "10.09", go: "thread", tid: "hr1" },
-  { id: "d-training", icon: "task_alt", tone: "plain", title: "Finish the security training", note: "Assigned to everyone in August · 20 minutes", when: "15.09", go: "tasks" },
 ];
 
 // Now, the widget above My day: where the reader stands and what they have to do, written by the model in a manager's
 // voice. A paragraph is a list of runs, and `b` marks the few words drawn in bold.
-MailFathomDesign.data.home.now = { at: "13:40", note: "Written from today's mail, calendar and tasks", paras: [
-  [{ t: "You are in decent shape today, but " }, { t: "Contoso cannot wait any longer", b: true }, { t: ". Anna has asked twice, and a third request usually arrives in capital letters. The decision is due tomorrow, so send the counter-proposal with the 5% cap before anything else." }],
-  [{ t: "Before the " }, { t: "15:00 rollout call with Piotr", b: true }, { t: ", confirm the Q4 date to Fabrikam, because phase three depends on it. And " }, { t: "do not pay the Fabrikam invoice", b: true }, { t: " until you have phoned Tomasz: the bank account on it is new, and a surprise bank account is never the fun kind of surprise." }],
-  [{ t: "In numbers: " }, { t: "14 new messages", b: true }, { t: " since this morning, of which only " }, { t: "3 need a reply", b: true }, { t: "; 5 are just for reading and 6 are newsletters that will not miss you. " }, { t: "3 people are waiting on you", b: true }, { t: ", " }, { t: "2 tasks are due today", b: true }, { t: ", and of your " }, { t: "2 meetings", b: true }, { t: " one is already behind you. Your list holds 20 things, but only 4 of them are today's job." }],
+MailFathomDesign.data.home.now = { updated: "Updated 6 min ago · 13:34", note: "Written from today's mail, calendar and tasks · 4 sources",
+  // `c` on a run is the source marker drawn after it; a source opens its conversation, or the Mail list without one.
+  sources: [
+    { n: 1, label: "Contract addendum - signatures", tid: "contoso" },
+    { n: 2, label: "Re: rollout schedule", tid: "piotr" },
+    { n: 3, label: "Q4 delivery dates", tid: "fabrikam1" },
+    { n: 4, label: "Today's mail" },
+  ],
+  paras: [
+  [{ t: "You are in decent shape today, but " }, { t: "Contoso cannot wait any longer", b: true }, { t: ". Anna has asked twice", c: 1 }, { t: ", and a third request usually arrives in capital letters. The decision is due tomorrow, so send the counter-proposal with the 5% cap before anything else." }],
+  [{ t: "Before the " }, { t: "15:00 rollout call with Piotr", b: true }, { t: ", confirm the Q4 date to Fabrikam, because phase three depends on it", c: 2 }, { t: ". And " }, { t: "do not pay the Fabrikam invoice", b: true }, { t: " until you have phoned Tomasz: the bank account on it is new", c: 3 }, { t: ", and a surprise bank account is never the fun kind of surprise." }],
+  [{ t: "In numbers: " }, { t: "14 new messages", b: true }, { t: " since this morning, of which only " }, { t: "3 need a reply", b: true }, { t: "; 5 are just for reading and 6 are newsletters that will not miss you", c: 4 }, { t: ". " }, { t: "3 people are waiting on you", b: true }, { t: ", " }, { t: "2 tasks are due today", b: true }, { t: ", and of your " }, { t: "2 meetings", b: true }, { t: " one is already behind you. There is more on your list, but only 4 things are today's job." }],
   [{ t: "Do those four and the rest can honestly wait until tomorrow. Coffee first is allowed." }],
 ] };

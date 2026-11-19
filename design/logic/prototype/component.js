@@ -3769,7 +3769,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        selection stays: a scroll is not letting go of it, and no selection event follows one to open the bar again. */
     closeFloatingSelBar = () => { if (this.state.selBar && !this.state.selBar.answer && !this._passageDocked) this.setState({ selBar: null }); };
     onStartScroll = () => this.closeFloatingSelBar();
-    openWatched = (w) => { this.setState(s2 => ({ watched: (s2.watched || []).map(x => (x.id === w.id && x.state === "changed" ? Object.assign({}, x, { state: "same", note: "opened just now" }) : x)) })); this.run(w.q); };
+    /* A conversation is watched as a question is: it stands on Start under Watching and opens the conversation. */
+    toggleWatchThread = (tid, subject, answer) => {
+      if ((this.state.watched || []).some(w => w.tid === tid)) {
+        this.setState(s2 => ({ watched: (s2.watched || []).filter(w => w.tid !== tid) }));
+        this.notify("“" + subject + "” is no longer on your start screen.", { title: "Stopped watching" });
+        return;
+      }
+      this.setState(s2 => ({ watched: [{ id: "wt-" + tid, tid: tid, q: subject, state: "same", note: "watching from now", answer: answer || "Nothing new in this conversation since you started watching it." }].concat(s2.watched || []) }));
+      this.notify("It stays on Start under Watching and refreshes when new mail arrives in it.", { kind: "success", title: "Watching this conversation" });
+    };
+    openWatched = (w) => { if (w.tid) { this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: w.tid, cameFrom: false }); return; } this.setState(s2 => ({ watched: (s2.watched || []).map(x => (x.id === w.id && x.state === "changed" ? Object.assign({}, x, { state: "same", note: "opened just now" }) : x)) })); this.run(w.q); };
     onAgentScroll = (e) => {
       const el = e.target;
       this.closeFloatingSelBar();
@@ -7667,24 +7677,35 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           "background:linear-gradient(160deg, var(--accent-soft), var(--panel) 62%);box-shadow:0 10px 28px -18px var(--sh-3);padding:" + (isMobile ? "14px 14px 12px" : narrow ? "16px 18px 14px" : "20px 24px 16px"),
         nowDotStyle: "width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)",
         nowLabelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent-d)",
-        nowAt: HOME.now.at,
+        nowUpdated: HOME.now.updated,
+        /* A source marker: a small number after the sentence it backs, which opens the conversation it was read from.
+           Under a finger it stays small so the text keeps its lines: 22 px, below the touch target the rest of Start meets. */
+        nowCiteStyle: "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;margin:0 1px 0 4px;font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent-d);background:var(--accent-soft);border-radius:5px;cursor:pointer;" +
+          (touch ? "min-width:22px;height:22px;padding:0 5px;vertical-align:1px;" : "min-width:17px;height:17px;padding:0 4px;vertical-align:2px;"),
         nowParaStyle: "font-size:" + (isMobile ? 15 : narrow ? 15.5 : 17) + "px;line-height:1.6;color:var(--text2);text-wrap:pretty",
-        nowParas: HOME.now.paras.map(p => ({ runs: p.map(r => ({ t: r.t, style: r.b ? "font-weight:600;color:var(--text)" : "" })) })),
+        nowParas: HOME.now.paras.map(p => ({ runs: p.map(r => {
+          const src = r.c ? HOME.now.sources.find(s => s.n === r.c) : null;
+          return { t: r.t, style: r.b ? "font-weight:600;color:var(--text)" : "", isCite: !!src, n: src ? String(src.n) : "", citeTitle: src ? "Source " + src.n + ": " + src.label : "",
+            open: () => src && (src.tid ? this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: src.tid, cameFrom: false }) : this.goScreen("mail", { mailPane: "list", cameFrom: false })) };
+        }) })),
         nowNote: HOME.now.note,
         myDayCardStyle: "display:flex;flex-direction:column;gap:6px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:" + (isMobile ? "12px 12px 4px" : "14px 14px 6px"),
         myDayRowStyle: "display:flex;align-items:center;gap:12px;min-width:0;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;min-height:" + (touch ? 60 : 54) + "px;padding:9px 6px",
         /* On a phone a row is its title and one line, so the card stays short. */
         myDayNoteStyle: "font-size:12.5px;line-height:1.4;color:var(--muted);" + (isMobile ? "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "text-wrap:pretty"),
-        /* My day opens on the first four; *More* unfolds the rest in the same order, twenty at the most. */
-        myDayHasMore: HOME.myDay.length > 4,
-        myDayOpen: !!st.myDayOpen,
-        myDayToggle: () => this.setState(s2 => ({ myDayOpen: !s2.myDayOpen })),
-        myDayMoreIcon: st.myDayOpen ? "expand_less" : "expand_more",
-        myDayMoreLabel: st.myDayOpen ? "Fewer" : "More · " + (Math.min(HOME.myDay.length, 20) - 4),
-        myDayMoreStyle: "display:flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;font-size:13px;font-weight:600;color:var(--accent-d);min-height:" + (touch ? 48 : 40) + "px",
-        myDay: HOME.myDay.slice(0, st.myDayOpen ? 20 : 4).map(d => {
+        /* My day holds the few things that matter most; the rest is a conversation, so its foot leads to the Agent. */
+        myDayToAgent: () => this.goAgentWith("your day"),
+        myDayAgentStyle: "display:flex;align-items:center;gap:10px;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;padding:10px 8px;min-height:" + (touch ? 52 : 44) + "px",
+        myDay: HOME.myDay.map(d => {
+          const canWatch = d.go === "thread";
+          const watching = canWatch && (st.watched || []).some(w => w.tid === d.tid);
+          const subject = (THREADS.find(x => x.id === d.tid) || {}).subject || d.title;
           const tone = d.tone === "err" ? ["var(--err-text)", "var(--err-soft)"] : d.tone === "warn" ? ["var(--warn-text)", "var(--warn-soft)"] : d.tone === "accent" ? ["var(--accent-d)", "var(--accent-soft)"] : ["var(--muted)", "var(--sub)"];
-          return { icon: d.icon, title: d.title, note: d.note, when: d.when,
+          return { icon: d.icon, title: d.title, note: d.note, when: d.when, canWatch, watching: watching ? "true" : "false",
+            watchTitle: watching ? "Stop watching this conversation" : "Watch this conversation",
+            watch: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.toggleWatchThread(d.tid, subject, d.note); },
+            watchStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;font-family:'Material Symbols Rounded';line-height:1;font-size:19px;font-variation-settings:'wght' 300,'FILL' " + (watching ? 1 : 0) + ";" +
+              (touch ? "width:44px;height:44px;margin-right:-6px;" : "width:30px;height:30px;margin-right:-2px;") + (watching ? "color:var(--accent-d);background:var(--accent-soft)" : "color:var(--faint)"),
             open: () => d.go === "thread" ? this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: d.tid, cameFrom: false }) : this.goScreen(d.go),
             tileStyle: "flex:0 0 34px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:10px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:19px;color:" + tone[0] + ";background:" + tone[1],
             whenStyle: "flex:0 0 auto;font-size:12px;font-weight:600;white-space:nowrap;border-radius:999px;padding:3px 9px;color:" + tone[0] + ";background:" + tone[1] };
@@ -9032,6 +9053,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             ? "width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : a.icon === "report" ? "--err-text" : "--text2") + ");font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1"
             : "display:flex;align-items:center;padding:5px 8px;border-radius:8px;font-size:13px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : a.icon === "report" ? "--err-text" : a.icon === "report_off" ? "--text2" : "--muted") + ")",
         })),
+        /* Watching the open conversation puts it on Start under Watching, as *Watch* on a My day row does. */
+        threadWatching: (st.watched || []).some(w => w.tid === thread.id) ? "true" : "false",
+        threadWatchTitle: (st.watched || []).some(w => w.tid === thread.id) ? "Stop watching this conversation" : "Watch this conversation on Start",
+        threadWatchLabel: singlePane || paneNarrow ? "" : (st.watched || []).some(w => w.tid === thread.id) ? "Watching" : "Watch",
+        threadWatchToggle: () => this.toggleWatchThread(thread.id, thread.subject),
+        threadWatchStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;font-size:13px;white-space:nowrap;border-radius:999px;" +
+          (singlePane || paneNarrow ? "width:" + (touch ? 44 : 34) + "px;height:" + (touch ? 44 : 34) + "px;" : touch ? "min-height:44px;padding:0 14px 0 11px;" : "padding:5px 12px 5px 9px;") +
+          ((st.watched || []).some(w => w.tid === thread.id) ? "color:var(--accent-d);background:var(--accent-soft);border:1px solid var(--accent-line)" : "color:var(--text2);background:transparent;border:1px solid var(--border2)"),
         backToList: () => this.setState({ mailPane: "list", replyDock: null, replyChooser: null }),
         threadListStyle: "position:relative;" + (singlePane
           ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0"
