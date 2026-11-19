@@ -109,7 +109,8 @@ public sealed class MailDerivedTaskProposals
                     // would be mail announcing itself.
                     TaskAnnouncement.Silent,
                     PersonalTaskOrigin.Proposed,
-                    message);
+                    message,
+                    TaskCommitment.Owed);
 
                 await this.store.AddAsync(task, cancellationToken);
 

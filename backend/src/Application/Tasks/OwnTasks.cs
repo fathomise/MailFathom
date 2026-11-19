@@ -180,7 +180,8 @@ public sealed class OwnTasks
             dueOn,
             announcement,
             PersonalTaskOrigin.Asserted,
-            sourceMessage);
+            sourceMessage,
+            TaskCommitment.Owed);
 
         await this.store.AddAsync(task, cancellationToken);
 
@@ -226,7 +227,7 @@ public sealed class OwnTasks
             return null;
         }
 
-        var revision = held.Revise(title, dueOn, announcement);
+        var revision = held.Revise(title, dueOn, announcement, held.Commitment);
 
         if (await this.store.ReviseAsync(revision, cancellationToken) is not PersonalTaskChangeOutcome.Applied)
         {

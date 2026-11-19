@@ -31,7 +31,8 @@ public sealed class PersonalTaskTests
             dueOn,
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Assert
         Assert.Equal(Identifier, task.Id);
@@ -58,7 +59,8 @@ public sealed class PersonalTaskTests
             dueOn: null,
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Proposed,
-            message);
+            message,
+            TaskCommitment.Owed);
 
         // Assert
         Assert.Equal(PersonalTaskOrigin.Proposed, task.Origin);
@@ -77,7 +79,8 @@ public sealed class PersonalTaskTests
             dueOn: null,
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Assert
         Assert.Null(task.DueOn);
@@ -95,7 +98,8 @@ public sealed class PersonalTaskTests
             dueOn: null,
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Assert
         Assert.Equal("Sign the NDA", task.Title);
@@ -116,7 +120,8 @@ public sealed class PersonalTaskTests
             dueOn: null,
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Assert
         Assert.Throws<ArgumentOutOfRangeException>(composing);
@@ -136,7 +141,8 @@ public sealed class PersonalTaskTests
             dueOn: null,
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Assert
         Assert.Throws<ArgumentException>(composing);
@@ -154,7 +160,8 @@ public sealed class PersonalTaskTests
             dueOn: null,
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Assert
         Assert.Throws<ArgumentException>(composing);
@@ -172,7 +179,8 @@ public sealed class PersonalTaskTests
             dueOn: null,
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Assert
         Assert.Throws<ArgumentException>(composing);
@@ -190,7 +198,8 @@ public sealed class PersonalTaskTests
             dueOn: null,
             TaskAnnouncement.Silent,
             (PersonalTaskOrigin)42,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Assert
         Assert.Throws<ArgumentOutOfRangeException>(composing);
@@ -209,7 +218,9 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            isCompleted: true);
+            isCompleted: true,
+            TaskCommitment.Owed,
+            answer: null);
 
         // Assert
         Assert.True(task.IsCompleted);
@@ -231,7 +242,9 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            isCompleted: false);
+            isCompleted: false,
+            TaskCommitment.Owed,
+            answer: null);
 
         // Assert
         Assert.Throws<ArgumentOutOfRangeException>(restoring);
@@ -251,10 +264,12 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Proposed,
             cited,
-            isCompleted: true);
+            isCompleted: true,
+            TaskCommitment.Owed,
+            answer: null);
 
         // Act
-        var revised = proposed.Revise("  Reply to the tender by Friday  ", dueOn: null, TaskAnnouncement.Silent);
+        var revised = proposed.Revise("  Reply to the tender by Friday  ", dueOn: null, TaskAnnouncement.Silent, TaskCommitment.Owed);
 
         // Assert
         Assert.Equal("Reply to the tender by Friday", revised.Title);
@@ -280,10 +295,11 @@ public sealed class PersonalTaskTests
             dueOn: null,
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Act
-        var revising = () => task.Revise(title, dueOn: null, TaskAnnouncement.Silent);
+        var revising = () => task.Revise(title, dueOn: null, TaskAnnouncement.Silent, TaskCommitment.Owed);
 
         // Assert
         Assert.Throws<ArgumentException>(revising);
@@ -301,12 +317,147 @@ public sealed class PersonalTaskTests
             dueOn: null,
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Act
-        var revising = () => task.Revise(new string('x', PersonalTask.MaximumTitleLength + 1), dueOn: null, TaskAnnouncement.Silent);
+        var revising = () => task.Revise(new string('x', PersonalTask.MaximumTitleLength + 1), dueOn: null, TaskAnnouncement.Silent, TaskCommitment.Owed);
 
         // Assert
         Assert.Throws<ArgumentOutOfRangeException>(revising);
     }
+
+    /// <summary>A task a person waits for keeps whom it waits on and the conversation it is about.</summary>
+    [Fact]
+    public void Compose_AnAwaitedTaskWithAThreadAnchor_KeepsWhoAndWhere()
+    {
+        // Arrange
+        Assert.True(EmailAddress.TryCreate("Ada", "ada@example.com", out var address));
+        var anchor = TaskAnchor.Thread(EmailThreadId.Create(Guid.NewGuid()), "Tender reply");
+        var counterpart = new TaskCounterpart(address, "  Ada Lovelace ");
+        var plan = TaskPlan.Create(new DateTimeOffset(2026, 11, 20, 9, 0, 0, TimeSpan.Zero), 30);
+
+        // Act
+        var task = PersonalTask.Compose(
+            Identifier,
+            User,
+            "Hear back about the tender",
+            dueOn: null,
+            TaskAnnouncement.Silent,
+            PersonalTaskOrigin.Asserted,
+            sourceMessage: null,
+            new TaskCommitment(PersonalTaskDirection.Awaited, 15, plan, anchor, counterpart));
+
+        // Assert
+        Assert.Equal(PersonalTaskDirection.Awaited, task.Direction);
+        Assert.Equal(15, task.EstimatedMinutes);
+        Assert.Equal(plan, task.Plan);
+        Assert.Equal(anchor, task.Anchor);
+        Assert.Equal(counterpart, task.Counterpart);
+        Assert.Equal("Ada Lovelace", task.Counterpart?.DisplayName);
+        Assert.Null(task.Answer);
+    }
+
+    /// <summary>An estimate outside what a plan may set aside is refused, composed or restored.</summary>
+    [Theory]
+    [InlineData(4)]
+    [InlineData(721)]
+    public void Compose_AnEstimateOutsideFiveMinutesToTwelveHours_IsRefused(int minutes)
+    {
+        // Act
+        var composing = () => PersonalTask.Compose(
+            Identifier,
+            User,
+            "Sign the NDA",
+            dueOn: null,
+            TaskAnnouncement.Silent,
+            PersonalTaskOrigin.Asserted,
+            sourceMessage: null,
+            TaskCommitment.Owed with { EstimatedMinutes = minutes });
+
+        // Assert
+        Assert.Throws<ArgumentOutOfRangeException>(composing);
+    }
+
+    /// <summary>An edit restates the commitment but leaves the reply that answered the task where it was.</summary>
+    [Fact]
+    public void Revise_AnAnsweredWaitingTask_KeepsTheAnswer()
+    {
+        // Arrange
+        var answer = new TaskAnswer(StoredEmailId.Create(Guid.NewGuid()), new DateTimeOffset(2026, 11, 21, 8, 0, 0, TimeSpan.Zero));
+        var answered = Waiting().Answered(answer);
+
+        // Act
+        var revised = answered.Revise("Hear back by Friday", dueOn: null, TaskAnnouncement.Silent, answered.Commitment with { EstimatedMinutes = 10 });
+
+        // Assert
+        Assert.Equal(answer, revised.Answer);
+        Assert.True(revised.IsCompleted);
+        Assert.Equal(10, revised.EstimatedMinutes);
+        Assert.Equal(PersonalTaskDirection.Awaited, revised.Direction);
+    }
+
+    /// <summary>What a person owes is done by them, and no reply settles it.</summary>
+    [Fact]
+    public void Answered_AnOwedTask_IsRefused()
+    {
+        // Arrange
+        var owed = PersonalTask.Compose(
+            Identifier,
+            User,
+            "Sign the NDA",
+            dueOn: null,
+            TaskAnnouncement.Silent,
+            PersonalTaskOrigin.Asserted,
+            sourceMessage: null,
+            TaskCommitment.Owed);
+
+        // Act
+        var answering = () => owed.Answered(AReply());
+
+        // Assert
+        Assert.Throws<InvalidOperationException>(answering);
+    }
+
+    /// <summary>A reply completes the wait and is cited rather than copied.</summary>
+    [Fact]
+    public void Answered_AnAwaitedTask_CompletesItAndCitesTheReply()
+    {
+        // Arrange
+        var reply = AReply();
+
+        // Act
+        var answered = Waiting().Answered(reply);
+
+        // Assert
+        Assert.True(answered.IsCompleted);
+        Assert.Equal(reply, answered.Answer);
+        Assert.Equal(PersonalTaskDirection.Awaited, answered.Direction);
+    }
+
+    /// <summary>A wait that is already over is not answered a second time.</summary>
+    [Fact]
+    public void Answered_ACompletedAwaitedTask_IsRefused()
+    {
+        // Arrange
+        var answered = Waiting().Answered(AReply());
+
+        // Act
+        var answering = () => answered.Answered(AReply());
+
+        // Assert
+        Assert.Throws<InvalidOperationException>(answering);
+    }
+
+    private static TaskAnswer AReply() => new(StoredEmailId.Create(Guid.NewGuid()), new DateTimeOffset(2026, 11, 21, 8, 0, 0, TimeSpan.Zero));
+
+    private static PersonalTask Waiting() => PersonalTask.Compose(
+        Identifier,
+        User,
+        "Hear back about the tender",
+        dueOn: null,
+        TaskAnnouncement.Silent,
+        PersonalTaskOrigin.Asserted,
+        sourceMessage: null,
+        TaskCommitment.Owed with { Direction = PersonalTaskDirection.Awaited });
 }

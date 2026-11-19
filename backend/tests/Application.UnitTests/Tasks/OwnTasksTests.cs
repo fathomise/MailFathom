@@ -569,7 +569,8 @@ public sealed class OwnTasksTests
             dueOn,
             TaskAnnouncement.Silent,
             origin,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         await store.AddAsync(task, TestContext.Current.CancellationToken);
 

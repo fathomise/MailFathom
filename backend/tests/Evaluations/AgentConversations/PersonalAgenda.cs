@@ -153,7 +153,9 @@ internal static class PersonalAgenda
             TaskAnnouncement.Silent,
             source is null ? PersonalTaskOrigin.Asserted : PersonalTaskOrigin.Proposed,
             source,
-            isCompleted);
+            isCompleted,
+            TaskCommitment.Owed,
+            answer: null);
 
     private static EmailThreadState State(IReadOnlyList<CorpusMessage> exchange, params ThreadStateEntry[] entries) =>
         new(

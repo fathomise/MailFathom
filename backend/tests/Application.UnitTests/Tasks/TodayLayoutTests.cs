@@ -297,7 +297,9 @@ public sealed class TodayLayoutTests
         TaskAnnouncement.Silent,
         PersonalTaskOrigin.Asserted,
         sourceMessage: null,
-        isCompleted);
+        isCompleted,
+        TaskCommitment.Owed,
+        answer: null);
 
     private static CalendarEvent Committed(string title, DateTimeOffset start) => CalendarEvent.Create(
         CalendarEventId.Create(Guid.CreateVersion7()),

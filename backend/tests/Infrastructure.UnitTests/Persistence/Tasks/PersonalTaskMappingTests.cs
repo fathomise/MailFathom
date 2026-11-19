@@ -33,7 +33,8 @@ public sealed class PersonalTaskMappingTests
             DueOn,
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Proposed,
-            message);
+            message,
+            TaskCommitment.Owed);
 
         // Act
         var entity = PersonalTaskMapping.ToEntity(task);
@@ -60,7 +61,8 @@ public sealed class PersonalTaskMappingTests
             dueOn: null,
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Act
         var entity = PersonalTaskMapping.ToEntity(task);
@@ -140,7 +142,8 @@ public sealed class PersonalTaskMappingTests
             DueOn,
             new TaskAnnouncement(warsaw, [Reminder.Create(0), Reminder.Create(24 * 60)]),
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Act
         var entity = PersonalTaskMapping.ToEntity(task);
@@ -168,7 +171,8 @@ public sealed class PersonalTaskMappingTests
             DueOn,
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Act
         var entity = PersonalTaskMapping.ToEntity(task);

@@ -853,5 +853,7 @@ public sealed class ClientTaskEndpointsTests
                 : new TaskAnnouncement(TimeSpan.FromHours(2), [.. reminders.Select(Reminder.Create)]),
             origin,
             StoredEmailId.Create(MessageIdentifier),
-            isCompleted);
+            isCompleted,
+            TaskCommitment.Owed,
+            answer: null);
 }

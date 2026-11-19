@@ -2628,7 +2628,9 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         TaskAnnouncement.Silent,
         PersonalTaskOrigin.Asserted,
         sourceMessage: null,
-        isCompleted: false);
+        isCompleted: false,
+        TaskCommitment.Owed,
+        answer: null);
 
     private static CalendarEvent CalendarEntry(string title, DateTimeOffset start) => CalendarEvent.Create(
         CalendarEventId.Create(Guid.CreateVersion7()),

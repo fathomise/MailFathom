@@ -29,7 +29,9 @@ internal static class PersonalTaskMapping
             ToAnnouncement(entity),
             entity.Origin,
             entity.SourceStoredEmailId is { } message ? StoredEmailId.Create(message) : null,
-            entity.IsCompleted);
+            entity.IsCompleted,
+            TaskCommitment.Owed,
+            answer: null);
     }
 
     /// <summary>Maps one task onto the row it is written as.</summary>

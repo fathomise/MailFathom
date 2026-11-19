@@ -78,7 +78,8 @@ public sealed class PersonalTaskReminderTests
         var moved = task.Revise(
             task.Title,
             new DateOnly(2026, 10, 1),
-            new TaskAnnouncement(Warsaw, task.Reminders));
+            new TaskAnnouncement(Warsaw, task.Reminders),
+            TaskCommitment.Owed);
 
         // Assert
         Assert.Equal(
@@ -97,7 +98,7 @@ public sealed class PersonalTaskReminderTests
         var task = Announcing(60);
 
         // Act
-        var revising = () => task.Revise(task.Title, dueOn: null, new TaskAnnouncement(Warsaw, task.Reminders));
+        var revising = () => task.Revise(task.Title, dueOn: null, new TaskAnnouncement(Warsaw, task.Reminders), TaskCommitment.Owed);
 
         // Assert
         Assert.Equal("announcement", Assert.Throws<ArgumentException>(revising).ParamName);
@@ -111,7 +112,7 @@ public sealed class PersonalTaskReminderTests
         var task = Announcing(60);
 
         // Act
-        var quiet = task.Revise(task.Title, task.DueOn, TaskAnnouncement.Silent);
+        var quiet = task.Revise(task.Title, task.DueOn, TaskAnnouncement.Silent, TaskCommitment.Owed);
 
         // Assert
         Assert.Empty(quiet.Reminders);
@@ -131,7 +132,8 @@ public sealed class PersonalTaskReminderTests
             dueOn: null,
             new TaskAnnouncement(Warsaw, [Reminder.Create(60)]),
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Assert
         Assert.Equal("announcement", Assert.Throws<ArgumentException>(composing).ParamName);
@@ -195,7 +197,8 @@ public sealed class PersonalTaskReminderTests
             DueOn,
             new TaskAnnouncement(offset, [Reminder.Create(60)]),
             PersonalTaskOrigin.Asserted,
-            sourceMessage: null);
+            sourceMessage: null,
+            TaskCommitment.Owed);
 
         // Assert
         Assert.Equal("announcement", Assert.Throws<ArgumentOutOfRangeException>(composing).ParamName);
@@ -257,7 +260,9 @@ public sealed class PersonalTaskReminderTests
         new TaskAnnouncement(offset, [Reminder.Create(60)]),
         PersonalTaskOrigin.Asserted,
         sourceMessage: null,
-        isCompleted: false);
+        isCompleted: false,
+        TaskCommitment.Owed,
+        answer: null);
 
     private static PersonalTask Announcing(int minutesBefore) => Compose([Reminder.Create(minutesBefore)]);
 
@@ -268,5 +273,6 @@ public sealed class PersonalTaskReminderTests
         DueOn,
         reminders.Length == 0 ? TaskAnnouncement.Silent : new TaskAnnouncement(Warsaw, reminders),
         PersonalTaskOrigin.Asserted,
-        sourceMessage: null);
+        sourceMessage: null,
+        TaskCommitment.Owed);
 }

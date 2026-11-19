@@ -61,7 +61,9 @@ public sealed record PersonalTask
         IReadOnlyList<Reminder> reminders,
         PersonalTaskOrigin origin,
         StoredEmailId? sourceMessage,
-        bool isCompleted)
+        bool isCompleted,
+        TaskCommitment commitment,
+        TaskAnswer? answer)
     {
         this.Id = id;
         this.User = user;
@@ -72,6 +74,12 @@ public sealed record PersonalTask
         this.Origin = origin;
         this.SourceMessage = sourceMessage;
         this.IsCompleted = isCompleted;
+        this.Direction = commitment.Direction;
+        this.EstimatedMinutes = commitment.EstimatedMinutes;
+        this.Plan = commitment.Plan;
+        this.Anchor = commitment.Anchor;
+        this.Counterpart = commitment.Counterpart;
+        this.Answer = answer;
     }
 
     /// <summary>Gets what addresses this task.</summary>
@@ -129,6 +137,25 @@ public sealed record PersonalTask
     /// <summary>Gets whether the person has done it.</summary>
     public bool IsCompleted { get; }
 
+    /// <summary>Gets whether the person owes the task or waits for it.</summary>
+    public PersonalTaskDirection Direction { get; }
+
+    /// <summary>Gets how long the task is expected to take, in minutes, and <see langword="null" /> where nobody has said.</summary>
+    public int? EstimatedMinutes { get; }
+
+    /// <summary>Gets the time set aside for the task, and <see langword="null" /> where none is.</summary>
+    /// <remarks>Independent of <see cref="DueOn" />: the day it is owed and the moment it is intended to be done are two statements.</remarks>
+    public TaskPlan? Plan { get; }
+
+    /// <summary>Gets the conversation or event the task is about, and <see langword="null" /> where it is about neither.</summary>
+    public TaskAnchor? Anchor { get; }
+
+    /// <summary>Gets who the task is owed to or who owes it, and <see langword="null" /> where that is nobody in particular.</summary>
+    public TaskCounterpart? Counterpart { get; }
+
+    /// <summary>Gets the reply that answered a task its person was waiting on, and <see langword="null" /> until one did.</summary>
+    public TaskAnswer? Answer { get; }
+
     /// <summary>Composes a task nobody has completed yet.</summary>
     /// <param name="id">What addresses the task.</param>
     /// <param name="user">The person whose list it is on.</param>
@@ -137,10 +164,11 @@ public sealed record PersonalTask
     /// <param name="announcement">What announces it and the offset its due day runs in, or <see cref="TaskAnnouncement.Silent" /> to announce nothing.</param>
     /// <param name="origin">Where the task came from.</param>
     /// <param name="sourceMessage">The message it was read out of, or <see langword="null" /> where it names none.</param>
+    /// <param name="commitment">What the task is as a commitment, or <see cref="TaskCommitment.Owed" /> where nothing more is said.</param>
     /// <returns>A task that stands outstanding.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> or <paramref name="commitment" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is blank, when <paramref name="user" /> names nobody, when <paramref name="id" /> is the struct default, when one lead is stated twice, or when leads are stated against no due day.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="origin" /> is not a declared origin, when <paramref name="title" /> exceeds <see cref="MaximumTitleLength" />, when more than <see cref="Reminder.MaximumCount" /> leads are stated, or when the stated offset is not one a UTC offset can be.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="origin" /> is not a declared origin, when <paramref name="commitment" /> states an undeclared direction or an estimate outside five minutes to twelve hours, when <paramref name="title" /> exceeds <see cref="MaximumTitleLength" />, when more than <see cref="Reminder.MaximumCount" /> leads are stated, or when the stated offset is not one a UTC offset can be.</exception>
     /// <remarks>
     /// The user has to be a named one, because a row written under the unspecified identity would belong to nobody:
     /// unreachable by any read and uncollected by any erasure.
@@ -152,9 +180,10 @@ public sealed record PersonalTask
         DateOnly? dueOn,
         TaskAnnouncement announcement,
         PersonalTaskOrigin origin,
-        StoredEmailId? sourceMessage)
+        StoredEmailId? sourceMessage,
+        TaskCommitment commitment)
     {
-        Validate(id, user, origin);
+        Validate(id, user, origin, commitment);
 
         var announced = Announced(dueOn, announcement);
 
@@ -167,7 +196,9 @@ public sealed record PersonalTask
             announced.Reminders,
             origin,
             sourceMessage,
-            isCompleted: false);
+            isCompleted: false,
+            commitment,
+            answer: null);
     }
 
     /// <summary>Restores a task this deployment already kept, with the origin and completion it was stored under.</summary>
@@ -179,10 +210,12 @@ public sealed record PersonalTask
     /// <param name="origin">Where the task came from.</param>
     /// <param name="sourceMessage">The message it was read out of, or <see langword="null" /> where it names none.</param>
     /// <param name="isCompleted">Whether the person has done it.</param>
+    /// <param name="commitment">What the task is as a commitment, as the row states it.</param>
+    /// <param name="answer">The reply that answered it, or <see langword="null" /> where none did.</param>
     /// <returns>The task as it stands.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> or <paramref name="commitment" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is blank, when <paramref name="user" /> names nobody, when <paramref name="id" /> is the struct default, when one lead is stated twice, or when leads are stated against no due day.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="origin" /> is not a declared origin, when <paramref name="title" /> exceeds <see cref="MaximumTitleLength" />, when more than <see cref="Reminder.MaximumCount" /> leads are stated, or when the stated offset is not one a UTC offset can be.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="origin" /> is not a declared origin, when <paramref name="commitment" /> states an undeclared direction or an estimate outside five minutes to twelve hours, when <paramref name="title" /> exceeds <see cref="MaximumTitleLength" />, when more than <see cref="Reminder.MaximumCount" /> leads are stated, or when the stated offset is not one a UTC offset can be.</exception>
     /// <remarks>
     /// It validates exactly what <see cref="Compose" /> validates rather than trusting the store, because a row read
     /// back is input from outside this process however it got there. The two things it takes that composing does not
@@ -197,9 +230,11 @@ public sealed record PersonalTask
         TaskAnnouncement announcement,
         PersonalTaskOrigin origin,
         StoredEmailId? sourceMessage,
-        bool isCompleted)
+        bool isCompleted,
+        TaskCommitment commitment,
+        TaskAnswer? answer)
     {
-        Validate(id, user, origin);
+        Validate(id, user, origin, commitment);
 
         var announced = Announced(dueOn, announcement);
 
@@ -212,27 +247,32 @@ public sealed record PersonalTask
             announced.Reminders,
             origin,
             sourceMessage,
-            isCompleted);
+            isCompleted,
+            commitment,
+            answer);
     }
 
     /// <summary>States the task as the person has just edited it.</summary>
     /// <param name="title">The line the list is to be drawn with from now on.</param>
     /// <param name="dueOn">The day it is due on, or <see langword="null" /> where the person took the date off it.</param>
     /// <param name="announcement">What announces it afterwards and the offset its due day runs in, or <see cref="TaskAnnouncement.Silent" /> to announce nothing.</param>
+    /// <param name="commitment">What the task is as a commitment from now on.</param>
     /// <returns>The task as it now stands.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> or <paramref name="commitment" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is blank, when one lead is stated twice, or when leads are stated against no due day.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="title" /> exceeds <see cref="MaximumTitleLength" />, when more than <see cref="Reminder.MaximumCount" /> leads are stated, or when the stated offset is not one a UTC offset can be.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="commitment" /> states an undeclared direction or an estimate outside five minutes to twelve hours, when <paramref name="title" /> exceeds <see cref="MaximumTitleLength" />, when more than <see cref="Reminder.MaximumCount" /> leads are stated, or when the stated offset is not one a UTC offset can be.</exception>
     /// <remarks>
-    /// Only the two values an edit is about, because the rest of the record is not the editor's to state: the identity
+    /// Only the values an edit is about, because the rest of the record is not the editor's to state: the identity
     /// and the person are what address the task, the origin moves by accepting a proposal rather than by typing, the
-    /// completion moves by doing the thing, and the citation records where the task came from rather than what it is
-    /// now about. An edit that could rewrite any of those would let a person turn a proposal into a commitment, or
+    /// completion moves by doing the thing, the answer is the reply that arrived rather than anything typed, and the
+    /// citation records where the task came from rather than what it is now about. An edit that could rewrite any of those would let a person turn a proposal into a commitment, or
     /// point one at a message it was never read out of, through the route that renames it.
     /// </remarks>
-    public PersonalTask Revise(string title, DateOnly? dueOn, TaskAnnouncement announcement)
+    public PersonalTask Revise(string title, DateOnly? dueOn, TaskAnnouncement announcement, TaskCommitment commitment)
     {
         var announced = Announced(dueOn, announcement);
+
+        ValidateCommitment(commitment);
 
         return new PersonalTask(
             this.Id,
@@ -243,7 +283,48 @@ public sealed record PersonalTask
             announced.Reminders,
             this.Origin,
             this.SourceMessage,
-            this.IsCompleted);
+            this.IsCompleted,
+            commitment,
+            this.Answer);
+    }
+
+    /// <summary>Gets what the task is as a commitment, in the form <see cref="Revise" /> takes.</summary>
+    public TaskCommitment Commitment => new(this.Direction, this.EstimatedMinutes, this.Plan, this.Anchor, this.Counterpart);
+
+    /// <summary>Completes a task its person was waiting on, citing the reply that answered it.</summary>
+    /// <param name="answer">The reply that arrived.</param>
+    /// <returns>The task as it now stands: completed, and citing <paramref name="answer" />.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="answer" /> is <see langword="null" />.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the task is not one the person waits for, or is already completed.</exception>
+    /// <remarks>
+    /// Only an awaited task is answered: what a person owes is done by them, and no reply to it settles it.
+    /// </remarks>
+    public PersonalTask Answered(TaskAnswer answer)
+    {
+        ArgumentNullException.ThrowIfNull(answer);
+
+        if (this.Direction != PersonalTaskDirection.Awaited)
+        {
+            throw new InvalidOperationException("Only a task the person waits for is answered by a reply.");
+        }
+
+        if (this.IsCompleted)
+        {
+            throw new InvalidOperationException("A completed task is not answered again.");
+        }
+
+        return new PersonalTask(
+            this.Id,
+            this.User,
+            this.Title,
+            this.DueOn,
+            this.DueDayOffset,
+            this.Reminders,
+            this.Origin,
+            this.SourceMessage,
+            isCompleted: true,
+            this.Commitment,
+            answer);
     }
 
     /// <summary>Reports the instant one of this task's reminders falls at.</summary>
@@ -301,7 +382,7 @@ public sealed record PersonalTask
     }
 
     /// <summary>Refuses the identities and the origin that no task can be built from, whether composed or restored.</summary>
-    private static void Validate(PersonalTaskId id, UserId user, PersonalTaskOrigin origin)
+    private static void Validate(PersonalTaskId id, UserId user, PersonalTaskOrigin origin, TaskCommitment commitment)
     {
         if (!id.IsSpecified)
         {
@@ -318,6 +399,28 @@ public sealed record PersonalTask
         if (!Enum.IsDefined(origin))
         {
             throw new ArgumentOutOfRangeException(nameof(origin), origin, "A task carries a declared origin.");
+        }
+
+        ValidateCommitment(commitment);
+    }
+
+    /// <summary>Refuses a direction nobody declared and an estimate outside what a plan may set aside.</summary>
+    private static void ValidateCommitment(TaskCommitment commitment)
+    {
+        ArgumentNullException.ThrowIfNull(commitment);
+
+        if (!Enum.IsDefined(commitment.Direction))
+        {
+            throw new ArgumentOutOfRangeException(nameof(commitment), commitment.Direction, "A task carries a declared direction.");
+        }
+
+        if (commitment.EstimatedMinutes is { } minutes
+            && (minutes < TaskPlan.ShortestMinutes || minutes > TaskPlan.LongestMinutes))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(commitment),
+                minutes,
+                "An estimate is between five minutes and twelve hours.");
         }
     }
 
