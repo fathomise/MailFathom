@@ -2304,6 +2304,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     /* The new-task dialog, empty from Tasks, or starting from what it was opened on: `ctx` carries the anchor, the
        proposed title, the direction and the person. */
+    makeTaskFromThread = (id) => {
+      const th = THREADS.find(t => t.id === id);
+      if (!th) return;
+      this.openNewTaskWith({ anchor: { kind: "thread", label: th.subject, tid: th.id }, title: TASK_FROM_THREAD[th.id] || "", person: ((CONTACTS.find(c => c.name === th.from) || {}).id) || null });
+    };
     openNewTaskWith = (ctx) => { this.remSet("new:task", REM_DEFAULT); this.setState({ newTask: true, newTaskCtx: ctx || null, event: null, taskOpen: null }); };
     tkDueRef = React.createRef();
     tkEstRef = React.createRef();
@@ -5560,6 +5565,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
       const mailAct = {
         reply: () => this.startReply("reply"),
+        add_task: () => this.makeTaskFromThread(this.state.threadId),
         reply_all: () => this.startReply("all"),
         forward: () => this.startReply("fwd"),
         archive: () => this.archiveThreads(),
@@ -8294,7 +8300,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { icon: "reply", label: "Reply", title: "Reply", run: () => this.startReply("reply", [thread.id]) },
           { icon: "forward", label: "Forward", title: "Forward", run: () => this.startReply("fwd", [thread.id]) },
           { icon: "flag", label: flagOn ? "Unflag" : "Flag", title: flagOn ? "Remove flag" : "Flag", run: () => this.toggleFlagThreads([thread.id]) },
-          { icon: "add_task", label: "Make a task", title: "Make a task", run: () => this.openNewTaskWith({ anchor: { kind: "thread", label: thread.subject, tid: thread.id }, title: TASK_FROM_THREAD[thread.id] || "", person: ((CONTACTS.find(c => c.name === thread.from) || {}).id) || null }) },
+          { icon: "add_task", label: "Make a task", title: "Make a task", run: () => this.makeTaskFromThread(thread.id) },
           { icon: "report", label: "Mark spam", title: "Mark spam", run: () => this.toggleSpam([thread.id]) },
           { icon: "more_vert", label: "More actions", title: "More actions", glyph: true, run: (e) => this.openMoreMenu(thread.id, e) },
         /* Two panes under a finger carry these in the toolbar above already, so the header keeps *Ask* alone and
@@ -8374,6 +8380,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { icon: "flag", label: flagOn ? "Remove flag" : "Flag", key: 1 },
           { icon: "mark_email_unread", label: "Unread" },
           { icon: "drive_file_move", label: "Move" },
+          /* Where two panes under a finger leave the head its subject alone, *Make a task* stands here instead. */
+          ...(threadSpam.spam || !(touch && !singlePane) ? [] : [{ icon: "add_task", label: "Make a task" }]),
           ...(threadSpam.spam ? [] : [{ icon: "report", label: "Mark spam" }]),
           /* Where two panes under a finger leave the head its subject alone, or hidden panels leave no head at all,
              *More actions* follows the spam control here instead, so every composition reaches it once. */
