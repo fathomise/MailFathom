@@ -251,6 +251,8 @@ MailFathomDesign.artboards.clientStates = (DCLogic, React) => {
           { label: "An event's tasks, failed", head: "Tasks for this event", text: "The tasks for this event could not be read.", warn: true, action: "Try again" },
           { label: "Calendar - the days' tasks failed", text: "The tasks for these days could not be read.", warn: true, status: true, action: "Read again" },
           { label: "Person - commitments failed, and failed again on a re-read", head: "Commitments", text: "The tasks with this person could not be read.", muted: true },
+          { label: "New task - a length outside what a plan holds", head: "Length", text: "A duration is between 5 and 720 minutes.", warn: true },
+          { label: "After a send - the wait for its reply not written", head: "Warning toast", text: "The message was sent, but the server did not write down the wait for its reply.", warn: true },
         ].map((x) => Object.assign({}, x, {
           hasHead: !!x.head, hasAction: !!x.action, role: x.warn ? "alert" : "status",
           boxStyle: "display:flex;flex-direction:column;gap:8px;box-sizing:border-box;padding:" + (x.status ? "9px 14px" : "13px 15px") + ";" +

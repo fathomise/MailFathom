@@ -106,7 +106,9 @@ MailFathomDesign.tasksLogic = (() => {
       self.setState(s2 => ({ taskAccepted: (s2.taskAccepted || []).concat([p.id]) }));
       self.notify("“" + p.t + "” is in " + (p.on && p.on <= TODAY ? "Today" : "Upcoming") + ".", { kind: "success", title: "Task added" });
     };
-    const dismiss = (p) => self.setState(s2 => ({ hidden: Object.assign({}, s2.hidden || {}, { tasks: ((s2.hidden || {}).tasks || []).concat([p.id]) }) }));
+    /* What a write did is said on the status line of the space it was pressed in: Tasks, or the calendar's. */
+    const said = (text) => (st.screen === "cal" ? { calSaid: text } : { taskSaid: text });
+    const dismiss = (p) => self.setState(s2 => Object.assign({ hidden: Object.assign({}, s2.hidden || {}, { tasks: ((s2.hidden || {}).tasks || []).concat([p.id]) }) }, said("Dismissed.")));
 
     const chip = "display:inline-flex;align-items:center;gap:5px;min-width:0;max-width:100%;white-space:nowrap;border-radius:999px;" +
       (touch ? "font-size:12px;padding:0 10px;min-height:28px;" : "font-size:11px;padding:2px 8px;");
@@ -514,7 +516,7 @@ MailFathomDesign.tasksLogic = (() => {
       planClashShown: !!ppClash,
       planClash: ppClash ? "Clashes with " + ppClash.t + " at " + ppClash.time + ". You can still plan it." : "",
       planRemoveShown: !!(pt && pt.plan),
-      planRemove: () => { if (pt) setOver(pt.id, { plan: null }); self.setState({ taskPlanFor: null }); },
+      planRemove: () => { if (pt) setOver(pt.id, { plan: null }); self.setState(Object.assign({ taskPlanFor: null }, said("Taken out of the calendar."))); },
       planCantSave: pp.time ? "false" : "true",
       planSaveTitle: pp.time ? "Plan" : "Pick an hour first",
       planSaveStyle: "display:flex;align-items:center;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;" + (touch ? "min-height:44px;padding:0 18px;box-sizing:border-box;" : "padding:8px 16px;") + (pp.time ? "" : "opacity:0.45;"),

@@ -953,7 +953,7 @@ Project repository: https://github.com/fathomise/MailFathom
     </div>
     <sc-for list="{{ vthemes }}" as="vt" hint-placeholder-count="1"><div data-theme="{{ vt.theme }}" style="{{ vt.style }}">
       <div style="{{ vt.head }}">The same lines at every composition</div>
-      <sc-for list="{{ commitFails }}" as="x" hint-placeholder-count="8"><div style="width:320px;display:flex;flex-direction:column;gap:7px"><div style="font-size:12px;color:var(--muted)">{{ x.label }}</div>
+      <sc-for list="{{ commitFails }}" as="x" hint-placeholder-count="10"><div style="width:320px;display:flex;flex-direction:column;gap:7px"><div style="font-size:12px;color:var(--muted)">{{ x.label }}</div>
         <div style="{{ x.boxStyle }}">
           <sc-if value="{{ x.hasHead }}" hint-placeholder-val="{{ true }}"><div style="font-size:11px;color:var(--muted);font-weight:600">{{ x.head }}</div></sc-if>
           <div role="{{ x.role }}" style="{{ x.textStyle }}">{{ x.text }}</div>
