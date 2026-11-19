@@ -36,6 +36,21 @@ public sealed class TaskCounterpartTests
         Assert.Throws<ArgumentOutOfRangeException>(creating);
     }
 
+    /// <summary>The address is stored in a bounded column too, so one past it is refused here rather than by the database.</summary>
+    [Fact]
+    public void Constructor_AnAddressPastTheStoredBound_IsRefused()
+    {
+        // Arrange
+        var local = new string('a', TaskCounterpart.MaximumAddressLength - "@example.org".Length + 1);
+        Assert.True(EmailAddress.TryCreate(displayName: null, local + "@example.org", out var address));
+
+        // Act
+        var creating = () => new TaskCounterpart(address, "Anna Example");
+
+        // Assert
+        Assert.Throws<ArgumentOutOfRangeException>(creating);
+    }
+
     /// <summary>The struct default reaches nobody, so a counterpart is never held at it.</summary>
     [Fact]
     public void Constructor_TheDefaultAddress_IsRefused()

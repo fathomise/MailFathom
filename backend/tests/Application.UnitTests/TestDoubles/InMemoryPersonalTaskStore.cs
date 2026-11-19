@@ -91,6 +91,11 @@ internal sealed class InMemoryPersonalTaskStore : IPersonalTaskStore
     {
         ArgumentNullException.ThrowIfNull(revision);
 
+        if (this.tasks.Any(held => held.Id == revision.Id && held.Answer is not null && held.Direction != revision.Direction))
+        {
+            return Task.FromResult(PersonalTaskChangeOutcome.AnsweredWait);
+        }
+
         return Task.FromResult(this.Replace(
             revision.User,
             revision.Id,

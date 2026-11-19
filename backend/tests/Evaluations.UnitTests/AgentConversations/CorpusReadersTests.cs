@@ -8,6 +8,7 @@ using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Mail.Delivery.Authoring;
+using MailFathom.Application.Tasks;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Tasks;
@@ -223,7 +224,7 @@ public sealed class CorpusReadersTests
     public async Task Tasks_TheTasksMailProposed_ReadsTheOnesReadOutOfMail()
     {
         // Act
-        var page = await Readers().Tasks.ReadPageAsync(PersonalTaskOrigin.Proposed, pageSize: 50, cursor: null, TestContext.Current.CancellationToken);
+        var page = await Readers().Tasks.ReadPageAsync(new PersonalTaskQuery(PersonalTaskOrigin.Proposed), pageSize: 50, cursor: null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(

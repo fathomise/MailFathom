@@ -75,7 +75,11 @@ public interface IPersonalTaskStore
     /// <summary>Writes what a person edited about one of their tasks.</summary>
     /// <param name="revision">The task as it is to stand, which is what <see cref="PersonalTask.Revise" /> produced.</param>
     /// <param name="cancellationToken">Cancels the read and the write.</param>
-    /// <returns>What became of the request.</returns>
+    /// <returns>
+    /// What became of the request: <see cref="PersonalTaskChangeOutcome.AnsweredWait" /> where a reply answered the
+    /// task as a wait and the revision states the other direction, which holds even when the reply landed after the
+    /// caller read the task.
+    /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="revision" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// It writes the title, the day, and the commitment — direction, estimate, plan, anchor, and counterpart — and

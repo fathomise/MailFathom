@@ -4,8 +4,11 @@
 
 using System.Globalization;
 using System.Text.Json.Serialization;
+using MailFathom.Application.Calendar;
+using MailFathom.Application.Emails.BrowseThread;
 using MailFathom.Application.Tasks;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Calendar;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Reminders;
 using MailFathom.Domain.Tasks;
@@ -28,6 +31,17 @@ namespace MailFathom.Host.Api;
 /// each is its own paginated route rather than one listing with a filter a client has to know to send. Both walk the
 /// same order, and a cursor is refused in the half it was not issued for, which is what stops a walk of the proposals
 /// continuing into the commitments halfway down a screen.
+/// </para>
+/// <para>
+/// <b>Either half narrows to what one surface draws.</b> A thread's pane reads the tasks anchored to it, an event's the
+/// ones anchored to that, a person's card the ones with them, and a calendar the ones due or planned inside its window.
+/// Every narrowing stated applies at once, and a cursor is refused under any narrowing but the one it was issued for.
+/// </para>
+/// <para>
+/// <b>An anchor names only what the person can already open.</b> A write anchoring a task to a thread they may not read,
+/// or to an event that is not on their calendar, answers <c>404</c> exactly as reading that thread or event would, so a
+/// task is never the way to learn that somebody else's conversation exists. That asks the reading grant of whichever
+/// one the anchor names on top of the task grant, which is the grant that opening it from the task would ask anyway.
 /// </para>
 /// <para>
 /// <b>No route names a user.</b> The person is the one the credential authenticated, resolved exactly as the record,
@@ -100,12 +114,14 @@ internal static class ClientTaskEndpoints
 
     /// <summary>The greatest request body a task write reads before refusing it.</summary>
     /// <remarks>
-    /// A full request is a title bounded at <see cref="PersonalTask.MaximumTitleLength" /> characters, a day, an
-    /// identifier, and a short list of whole numbers, which stands well inside this even where every character of the
-    /// title is several bytes. A body over it was never a task document, and it is answered <c>413</c> before the
-    /// handler is reached, as every other write on this surface is.
+    /// A full request is a title bounded at <see cref="PersonalTask.MaximumTitleLength" /> characters, a day, two
+    /// identifiers, a short list of whole numbers, a plan, an anchor label bounded at
+    /// <see cref="TaskAnchor.MaximumLabelLength" />, and a counterpart's address and name — about a kilobyte of text
+    /// beside the title, which stands inside this even where most characters are several bytes. A body over it was
+    /// never a task document, and it is answered <c>413</c> before the handler is reached, as every other write on this
+    /// surface is.
     /// </remarks>
-    internal const int MaxWriteRequestBytes = 2 * 1024;
+    internal const int MaxWriteRequestBytes = 4 * 1024;
 
     /// <summary>The one form a day travels in on this surface.</summary>
     private const string DayFormat = "yyyy-MM-dd";
@@ -228,28 +244,60 @@ internal static class ClientTaskEndpoints
     /// <summary>Serves one page of what the acting person has committed to, soonest due first.</summary>
     /// <param name="pageSize">How many tasks the page may hold, or <see langword="null" /> for the default; a larger number is served the maximum.</param>
     /// <param name="cursor">The cursor a previous page returned, or <see langword="null" /> for the first page.</param>
+    /// <param name="threadId">The thread the tasks are anchored to, or <see langword="null" /> for any.</param>
+    /// <param name="eventId">The calendar event the tasks are anchored to, or <see langword="null" /> for any.</param>
+    /// <param name="counterpart">The address of the person the tasks are with, or nothing for anybody.</param>
+    /// <param name="from">The instant a window opens, stated together with <paramref name="until" />, which a task due that day in the offset it carries or planned from it falls inside.</param>
+    /// <param name="until">The instant the window closes, at most sixty-two days later, which a plan starting exactly there falls outside.</param>
     /// <param name="tasks">Reads the page, for the person the credential names.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
-    /// <returns><c>200</c> with the page, or <c>400</c> where the cursor is not one this deployment issued for this reading.</returns>
+    /// <returns><c>200</c> with the page, or <c>400</c> where the narrowing is not one this list answers or the cursor is not one this deployment issued for it.</returns>
     internal static Task<Results<Ok<ClientTaskPageResponse>, ProblemHttpResult>> ReadCommittedAsync(
         [FromQuery] int? pageSize,
         [FromQuery] string? cursor,
+        [FromQuery] Guid? threadId,
+        [FromQuery] Guid? eventId,
+        [FromQuery] string? counterpart,
+        [FromQuery] DateTimeOffset? from,
+        [FromQuery] DateTimeOffset? until,
         [FromServices] OwnTasks tasks,
         CancellationToken cancellationToken) =>
-        ReadPageAsync(PersonalTaskOrigin.Asserted, pageSize, cursor, tasks, cancellationToken);
+        ReadPageAsync(
+            PersonalTaskOrigin.Asserted,
+            pageSize,
+            cursor,
+            new ClientTaskNarrowing(threadId, eventId, counterpart, from, until),
+            tasks,
+            cancellationToken);
 
     /// <summary>Serves one page of what mail proposed and the acting person has not accepted, soonest due first.</summary>
     /// <param name="pageSize">How many tasks the page may hold, or <see langword="null" /> for the default; a larger number is served the maximum.</param>
     /// <param name="cursor">The cursor a previous page returned, or <see langword="null" /> for the first page.</param>
+    /// <param name="threadId">The thread the tasks are anchored to, or <see langword="null" /> for any.</param>
+    /// <param name="eventId">The calendar event the tasks are anchored to, or <see langword="null" /> for any.</param>
+    /// <param name="counterpart">The address of the person the tasks are with, or nothing for anybody.</param>
+    /// <param name="from">The instant a window opens, stated together with <paramref name="until" />, which a task due that day in the offset it carries or planned from it falls inside.</param>
+    /// <param name="until">The instant the window closes, at most sixty-two days later, which a plan starting exactly there falls outside.</param>
     /// <param name="tasks">Reads the page, for the person the credential names.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
-    /// <returns><c>200</c> with the page, or <c>400</c> where the cursor is not one this deployment issued for this reading.</returns>
+    /// <returns><c>200</c> with the page, or <c>400</c> where the narrowing is not one this list answers or the cursor is not one this deployment issued for it.</returns>
     internal static Task<Results<Ok<ClientTaskPageResponse>, ProblemHttpResult>> ReadProposedAsync(
         [FromQuery] int? pageSize,
         [FromQuery] string? cursor,
+        [FromQuery] Guid? threadId,
+        [FromQuery] Guid? eventId,
+        [FromQuery] string? counterpart,
+        [FromQuery] DateTimeOffset? from,
+        [FromQuery] DateTimeOffset? until,
         [FromServices] OwnTasks tasks,
         CancellationToken cancellationToken) =>
-        ReadPageAsync(PersonalTaskOrigin.Proposed, pageSize, cursor, tasks, cancellationToken);
+        ReadPageAsync(
+            PersonalTaskOrigin.Proposed,
+            pageSize,
+            cursor,
+            new ClientTaskNarrowing(threadId, eventId, counterpart, from, until),
+            tasks,
+            cancellationToken);
 
     /// <summary>Serves one of the acting person's tasks.</summary>
     /// <param name="taskId">The task to read.</param>
@@ -276,19 +324,25 @@ internal static class ClientTaskEndpoints
     /// <summary>Records a task the acting person has just committed to.</summary>
     /// <param name="request">The task to write.</param>
     /// <param name="tasks">Performs the write, for the person the credential names.</param>
+    /// <param name="threads">Says whether the person may read the thread an anchor names.</param>
+    /// <param name="calendar">Says whether the event an anchor names is on the person's calendar.</param>
     /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
-    /// <returns><c>200</c> with the task as it was written, or <c>400</c> naming what the request has to change.</returns>
+    /// <returns><c>200</c> with the task as it was written, <c>404</c> where its anchor names a thread or event the person cannot open, or <c>400</c> naming what the request has to change.</returns>
     /// <remarks>
     /// What a person types into their own client is something they owe, so what this writes is asserted. A proposal
     /// arrives through the extraction that read the mail rather than through here, which is why no request may state
     /// an origin.
     /// </remarks>
-    internal static async Task<Results<Ok<ClientTaskResponse>, ProblemHttpResult>> RecordAsync(
+    internal static async Task<Results<Ok<ClientTaskResponse>, NotFound, ProblemHttpResult>> RecordAsync(
         [FromBody] ClientTaskRecordRequest? request,
         [FromServices] OwnTasks tasks,
+        [FromServices] MailThreadBrowser threads,
+        [FromServices] OwnCalendar calendar,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(tasks);
+        ArgumentNullException.ThrowIfNull(threads);
+        ArgumentNullException.ThrowIfNull(calendar);
 
         if (request is null)
         {
@@ -310,36 +364,57 @@ internal static class ClientTaskEndpoints
             return NoReminders();
         }
 
+        if (ReadCommitment(request, out var commitment) is { } refusal)
+        {
+            return refusal;
+        }
+
+        if (!await OpensAsync(commitment.Anchor, threads, calendar, cancellationToken))
+        {
+            return TypedResults.NotFound();
+        }
+
         // The all-zero identifier addresses no message and the domain refuses to wrap one, so it is read as a task
         // citing nothing rather than becoming a failed request: a caller that sent it named no message.
         StoredEmailId? cited = request.SourceMessageId is { } message && message != Guid.Empty
             ? StoredEmailId.Create(message)
             : null;
 
-        var written = await tasks.RecordAsync(title, dueOn, announcement, cited, cancellationToken);
+        var written = await tasks.RecordAsync(title, dueOn, announcement, commitment, cited, cancellationToken);
 
         return TypedResults.Ok(ClientTaskResponse.For(written));
     }
 
     /// <summary>Writes what the acting person edited about one of their tasks.</summary>
     /// <param name="taskId">The task to revise.</param>
-    /// <param name="request">The line and the day it is to carry afterwards.</param>
+    /// <param name="request">The line, the day, and the commitment it is to carry afterwards.</param>
     /// <param name="tasks">Performs the write, for the person the credential names.</param>
+    /// <param name="threads">Says whether the person may read the thread an anchor names.</param>
+    /// <param name="calendar">Says whether the event an anchor names is on the person's calendar.</param>
     /// <param name="cancellationToken">Cancels the read and the write.</param>
-    /// <returns><c>200</c> with the task as it now stands, <c>404</c> where this person holds no such task, or <c>400</c> naming what the request has to change.</returns>
+    /// <returns><c>200</c> with the task as it now stands, <c>404</c> where this person holds no such task or its anchor names a thread or event they cannot open, <c>409</c> where a reply has answered it as a wait and the request states it owed, or <c>400</c> naming what the request has to change.</returns>
     /// <remarks>
     /// The whole of what an edit may state rather than the difference from what is held, which is what keeps renaming
     /// a task and taking the date off it one request. What it may not state is where the task came from, whether it is
     /// done, or which message it cites: each of those moves through the act that owns it, so a rename cannot turn a
     /// proposal into a commitment.
+    /// <para>
+    /// The commitment is restated whole for the same reason, so a request that leaves out the plan takes the plan off
+    /// and one that leaves out the direction states the task owed. That is also why a wait a reply has answered refuses
+    /// being stated owed with <c>409</c>: the request is well formed, and what it conflicts with is what the list holds.
+    /// </para>
     /// </remarks>
     internal static async Task<Results<Ok<ClientTaskResponse>, NotFound, ProblemHttpResult>> ReviseAsync(
         [FromRoute] Guid taskId,
         [FromBody] ClientTaskRecordRequest? request,
         [FromServices] OwnTasks tasks,
+        [FromServices] MailThreadBrowser threads,
+        [FromServices] OwnCalendar calendar,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(tasks);
+        ArgumentNullException.ThrowIfNull(threads);
+        ArgumentNullException.ThrowIfNull(calendar);
 
         if (NamedTask(taskId) is not { } identity)
         {
@@ -366,9 +441,26 @@ internal static class ClientTaskEndpoints
             return NoReminders();
         }
 
-        return await tasks.ReviseAsync(identity, title, dueOn, announcement, cancellationToken) is { } revised
-            ? TypedResults.Ok(ClientTaskResponse.For(revised))
-            : TypedResults.NotFound();
+        if (ReadCommitment(request, out var commitment) is { } refusal)
+        {
+            return refusal;
+        }
+
+        if (!await OpensAsync(commitment.Anchor, threads, calendar, cancellationToken))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var revised = await tasks.ReviseAsync(identity, title, dueOn, announcement, commitment, cancellationToken);
+
+        return revised switch
+        {
+            { Task: { } task } => TypedResults.Ok(ClientTaskResponse.For(task)),
+            { Outcome: PersonalTaskChangeOutcome.AnsweredWait } => TypedResults.Problem(
+                "A reply has answered this task as something the person waited for, so it stays that.",
+                statusCode: StatusCodes.Status409Conflict),
+            _ => TypedResults.NotFound(),
+        };
     }
 
     /// <summary>Puts one of the acting person's tasks into the completion state the body states.</summary>
@@ -450,22 +542,31 @@ internal static class ClientTaskEndpoints
         return TypedResults.Ok(new ClientTaskErasureResponse(taskId, erased));
     }
 
-    /// <summary>Serves one bounded page of one half of the list.</summary>
+    /// <summary>Serves one bounded page of one half of the list, narrowed as the request states.</summary>
     /// <remarks>
     /// A blank cursor is read as no cursor, because a client that sent an empty argument asked for the first page
-    /// rather than presented a boundary this deployment did not issue.
+    /// rather than presented a boundary this deployment did not issue. A blank counterpart is read as nobody named, for
+    /// the same reason.
     /// </remarks>
     private static async Task<Results<Ok<ClientTaskPageResponse>, ProblemHttpResult>> ReadPageAsync(
         PersonalTaskOrigin origin,
         int? pageSize,
         string? cursor,
+        ClientTaskNarrowing narrowing,
         OwnTasks tasks,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(tasks);
 
+        if (narrowing.ToQuery(origin) is not { } query)
+        {
+            return Refuse(
+                "A task list is narrowed to a specified thread, event, or address, and to a window that states both "
+                + $"where it opens and where it closes and spans at most {PersonalTaskQuery.LongestWindowDays} days.");
+        }
+
         var page = await tasks.ReadPageAsync(
-            origin,
+            query,
             pageSize,
             string.IsNullOrWhiteSpace(cursor) ? null : cursor,
             cancellationToken);
@@ -567,6 +668,120 @@ internal static class ClientTaskEndpoints
     private static bool IsStatableOffset(int offsetMinutes) => offsetMinutes is >= -12 * 60 and <= 14 * 60;
 
     /// <summary>States that the request carried no task to write.</summary>
+    /// <summary>Reads the commitment a request states, or names what it has to change.</summary>
+    /// <returns><see langword="null" /> where the commitment was read; otherwise the refusal to answer with.</returns>
+    /// <remarks>
+    /// Asked here rather than caught out of the domain, for the reason the title and the day are: every part of a
+    /// commitment is something a person chose, and a refusal names the rule it broke rather than the value they sent.
+    /// A direction is read by its name alone, so a number or another casing is refused rather than guessed at.
+    /// </remarks>
+    private static ProblemHttpResult? ReadCommitment(ClientTaskRecordRequest request, out TaskCommitment commitment)
+    {
+        commitment = TaskCommitment.Owed;
+
+        var direction = PersonalTaskDirection.Owed;
+
+        if (request.Direction is { } stated && !TryReadName(stated, out direction))
+        {
+            return Refuse("A task's direction is Owed or Awaited, or left out for Owed.");
+        }
+
+        if (request.EstimatedMinutes is { } estimate && !IsStatableMinutes(estimate))
+        {
+            return Refuse(
+                $"An estimate is whole minutes between {TaskPlan.ShortestMinutes} and {TaskPlan.LongestMinutes}.");
+        }
+
+        TaskPlan? plan = null;
+
+        if (request.Plan is { } planned)
+        {
+            if (planned.StartAt == default || !IsStatableMinutes(planned.Minutes))
+            {
+                return Refuse(
+                    "A plan states the instant it starts and lasts whole minutes between "
+                    + $"{TaskPlan.ShortestMinutes} and {TaskPlan.LongestMinutes}.");
+            }
+
+            plan = TaskPlan.Create(planned.StartAt, planned.Minutes);
+        }
+
+        var anchor = request.Anchor is { } anchored ? AnchorOf(anchored) : null;
+
+        if (request.Anchor is not null && anchor is null)
+        {
+            return Refuse(
+                "An anchor names a Thread or an Event by its identifier, with a label of at most "
+                + $"{TaskAnchor.MaximumLabelLength} characters.");
+        }
+
+        var counterpart = request.Counterpart is { } person ? CounterpartOf(person) : null;
+
+        if (request.Counterpart is not null && counterpart is null)
+        {
+            return Refuse(
+                $"A counterpart is a usable address of at most {TaskCounterpart.MaximumAddressLength} characters, with a "
+                + $"name of at most {TaskCounterpart.MaximumDisplayNameLength}.");
+        }
+
+        commitment = new TaskCommitment(direction, request.EstimatedMinutes, plan, anchor, counterpart);
+
+        return null;
+    }
+
+    /// <summary>Reads an anchor a request states, or <see langword="null" /> where it is not one.</summary>
+    private static TaskAnchor? AnchorOf(ClientTaskAnchor anchor)
+    {
+        if (anchor.Id == Guid.Empty
+            || string.IsNullOrWhiteSpace(anchor.Label)
+            || anchor.Label.Trim().Length > TaskAnchor.MaximumLabelLength
+            || !TryReadName<TaskAnchorKind>(anchor.Kind, out var kind))
+        {
+            return null;
+        }
+
+        return kind is TaskAnchorKind.Thread
+            ? TaskAnchor.Thread(EmailThreadId.Create(anchor.Id), anchor.Label)
+            : TaskAnchor.Event(CalendarEventId.Create(anchor.Id), anchor.Label);
+    }
+
+    /// <summary>Reads a counterpart a request states, or <see langword="null" /> where it is not one.</summary>
+    private static TaskCounterpart? CounterpartOf(ClientTaskCounterpart counterpart) =>
+        EmailAddress.TryCreate(displayName: null, counterpart.Address, out var address)
+            && address.Address.Length <= TaskCounterpart.MaximumAddressLength
+            && (counterpart.DisplayName?.Trim().Length ?? 0) <= TaskCounterpart.MaximumDisplayNameLength
+            ? new TaskCounterpart(address, counterpart.DisplayName)
+            : null;
+
+    /// <summary>Reads a declared name of an enumeration exactly as it is written, refusing a number or another casing.</summary>
+    private static bool TryReadName<TEnum>(string? written, out TEnum value)
+        where TEnum : struct, Enum =>
+        Enum.TryParse(written, ignoreCase: false, out value)
+        && string.Equals(value.ToString(), written, StringComparison.Ordinal);
+
+    /// <summary>Reports whether a number of minutes is one an estimate or a plan may last.</summary>
+    private static bool IsStatableMinutes(int minutes) =>
+        minutes is >= TaskPlan.ShortestMinutes and <= TaskPlan.LongestMinutes;
+
+    /// <summary>Reports whether the person can open what an anchor names, which a task without one trivially passes.</summary>
+    /// <remarks>
+    /// The thread is read as a conversation page of one, through the same reading the thread route serves, so a thread
+    /// in no account this person reads answers exactly as one nobody holds.
+    /// </remarks>
+    private static async Task<bool> OpensAsync(
+        TaskAnchor? anchor,
+        MailThreadBrowser threads,
+        OwnCalendar calendar,
+        CancellationToken cancellationToken) => anchor switch
+        {
+            null => true,
+            { ThreadId: { } thread } => await threads.BrowsePageAsync(
+                new BrowseThreadRequest { ThreadId = thread, PageSize = 1 },
+                cancellationToken) is not null,
+            { EventId: { } calendarEvent } => await calendar.FindAsync(calendarEvent, cancellationToken) is not null,
+            _ => false,
+        };
+
     private static ProblemHttpResult NoRecord() => Refuse("The request carries no task.");
 
     /// <summary>States that the request named no usable title.</summary>
@@ -597,6 +812,11 @@ internal static class ClientTaskEndpoints
 /// <param name="Reminders">The leads to announce it at, in minutes before nine in the morning on the due day, or nothing to announce nothing.</param>
 /// <param name="DueDayOffsetMinutes">The whole-minute UTC offset the person's due day runs in, which a request stating any lead carries and one stating none may omit.</param>
 /// <param name="SourceMessageId">The message the task cites, or <see langword="null" /> where it cites none.</param>
+/// <param name="Direction">Whether the person owes it or waits on somebody else for it, as <c>Owed</c> or <c>Awaited</c>, or <see langword="null" /> for <c>Owed</c>.</param>
+/// <param name="EstimatedMinutes">How long the person expects it to take, in whole minutes, or <see langword="null" /> where they have not said.</param>
+/// <param name="Plan">When the person has blocked time to do it, or <see langword="null" /> where they have not.</param>
+/// <param name="Anchor">The thread or event the task is about, or <see langword="null" /> where it is about neither.</param>
+/// <param name="Counterpart">The person on the other side of it, or <see langword="null" /> where there is none.</param>
 /// <remarks>
 /// Bound strictly: a key nothing here binds fails the bind rather than being ignored, so a client that meant to state
 /// an origin or a completion is told that this is not where either of them moves instead of having the request read as
@@ -619,7 +839,96 @@ internal sealed record ClientTaskRecordRequest(
     string? DueOn,
     IReadOnlyList<int>? Reminders,
     int? DueDayOffsetMinutes,
-    Guid? SourceMessageId);
+    Guid? SourceMessageId,
+    string? Direction = null,
+    int? EstimatedMinutes = null,
+    ClientTaskPlan? Plan = null,
+    ClientTaskAnchor? Anchor = null,
+    ClientTaskCounterpart? Counterpart = null);
+
+/// <summary>The time a person has blocked to do a task.</summary>
+/// <param name="StartAt">The instant the block starts.</param>
+/// <param name="Minutes">How long it lasts, in whole minutes.</param>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record ClientTaskPlan(DateTimeOffset StartAt, int Minutes);
+
+/// <summary>The thread or event a task is about.</summary>
+/// <param name="Kind">Which of the two it names, as <c>Thread</c> or <c>Event</c>.</param>
+/// <param name="Id">The identifier of the thread or event.</param>
+/// <param name="Label">The line the anchor is drawn with, such as the thread's subject or the event's title.</param>
+/// <remarks>
+/// The label travels with the identifier because a task is drawn in places that read no mail and no calendar, and a
+/// task whose thread was later erased still has to say what it was about.
+/// </remarks>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record ClientTaskAnchor(string Kind, Guid Id, string Label);
+
+/// <summary>The person on the other side of a task.</summary>
+/// <param name="Address">The address they are reached at.</param>
+/// <param name="DisplayName">The name they are drawn with, or <see langword="null" /> where there is none.</param>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record ClientTaskCounterpart(string Address, string? DisplayName);
+
+/// <summary>The reply that answered a wait.</summary>
+/// <param name="MessageId">The message that answered it.</param>
+/// <param name="ArrivedAt">The instant it arrived.</param>
+internal sealed record ClientTaskAnswer(Guid MessageId, DateTimeOffset ArrivedAt);
+
+/// <summary>The narrowing a list read states in its query string.</summary>
+/// <param name="ThreadId">The thread the tasks are anchored to, or <see langword="null" /> for any.</param>
+/// <param name="EventId">The event the tasks are anchored to, or <see langword="null" /> for any.</param>
+/// <param name="Counterpart">The address of the person the tasks are with, or blank for anybody.</param>
+/// <param name="From">The instant a window opens.</param>
+/// <param name="Until">The instant it closes.</param>
+internal sealed record ClientTaskNarrowing(
+    Guid? ThreadId,
+    Guid? EventId,
+    string? Counterpart,
+    DateTimeOffset? From,
+    DateTimeOffset? Until)
+{
+    /// <summary>Reads the narrowing as a query of one half of the list.</summary>
+    /// <param name="origin">The half of the list being read.</param>
+    /// <returns>The query, or <see langword="null" /> where the narrowing is not one the list answers.</returns>
+    internal PersonalTaskQuery? ToQuery(PersonalTaskOrigin origin)
+    {
+        if (this.ThreadId == Guid.Empty || this.EventId == Guid.Empty)
+        {
+            return null;
+        }
+
+        EmailAddress? person = null;
+
+        if (!string.IsNullOrWhiteSpace(this.Counterpart))
+        {
+            if (!EmailAddress.TryCreate(displayName: null, this.Counterpart, out var address))
+            {
+                return null;
+            }
+
+            person = address;
+        }
+
+        var query = new PersonalTaskQuery(
+            origin,
+            this.ThreadId is { } thread ? EmailThreadId.Create(thread) : null,
+            this.EventId is { } calendarEvent ? CalendarEventId.Create(calendarEvent) : null,
+            person,
+            this.From,
+            this.Until);
+
+        try
+        {
+            query.EnsureAnswerable();
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+
+        return query;
+    }
+}
 
 /// <summary>The completion state a person states for one of their tasks.</summary>
 /// <param name="Completed">Whether the task is to stand completed.</param>
@@ -653,9 +962,15 @@ internal sealed record ClientTaskPageResponse(IReadOnlyList<ClientTaskResponse> 
 /// <param name="Origin">Whether the person committed to it or mail proposed it, as <c>Asserted</c> or <c>Proposed</c>.</param>
 /// <param name="Completed">Whether the person has done it.</param>
 /// <param name="SourceMessageId">The message the task was read out of or was written beside, or <see langword="null" /> where it cites none.</param>
+/// <param name="Direction">Whether the person owes it or waits on somebody else for it, as <c>Owed</c> or <c>Awaited</c>.</param>
+/// <param name="EstimatedMinutes">How long the person expects it to take, in whole minutes, or <see langword="null" /> where they have not said.</param>
+/// <param name="Plan">When the person has blocked time to do it, or <see langword="null" /> where they have not.</param>
+/// <param name="Anchor">The thread or event the task is about, or <see langword="null" /> where it is about neither.</param>
+/// <param name="Counterpart">The person on the other side of it, or <see langword="null" /> where there is none.</param>
+/// <param name="Answer">The reply that answered it, where it is a wait a reply closed; otherwise <see langword="null" />.</param>
 /// <remarks>
-/// It carries what a row draws and stops there: no subject, no body, no address, and no attachment reaches this answer
-/// at any size. The citation is an identity rather than a reading of the message, so a client that draws the link
+/// It carries what a row draws and stops there: no subject, no body, and no attachment reaches this answer at any
+/// size, and the one address is the counterpart the person stated or accepted themselves. The citation is an identity rather than a reading of the message, so a client that draws the link
 /// follows it over the routes that publish reading mail — and one whose message has since been erased finds nothing
 /// there, the task having outlived what it was read out of.
 /// <para>
@@ -674,7 +989,13 @@ internal sealed record ClientTaskResponse(
     IReadOnlyList<DateTimeOffset> RemindsAt,
     string Origin,
     bool Completed,
-    Guid? SourceMessageId)
+    Guid? SourceMessageId,
+    string Direction,
+    int? EstimatedMinutes,
+    ClientTaskPlan? Plan,
+    ClientTaskAnchor? Anchor,
+    ClientTaskCounterpart? Counterpart,
+    ClientTaskAnswer? Answer)
 {
     /// <summary>Describes one task on the wire.</summary>
     /// <param name="task">The task.</param>
@@ -692,7 +1013,20 @@ internal sealed record ClientTaskResponse(
             [.. task.Reminders.Select(task.RemindsAt)],
             task.Origin.ToString(),
             task.IsCompleted,
-            task.SourceMessage?.Value);
+            task.SourceMessage?.Value,
+            task.Direction.ToString(),
+            task.EstimatedMinutes,
+            task.Plan is { } plan ? new ClientTaskPlan(plan.StartAt, plan.Minutes) : null,
+            task.Anchor is { } anchor
+                ? new ClientTaskAnchor(
+                    anchor.Kind.ToString(),
+                    anchor.ThreadId?.Value ?? anchor.EventId!.Value.Value,
+                    anchor.Label)
+                : null,
+            task.Counterpart is { } counterpart
+                ? new ClientTaskCounterpart(counterpart.Address.Address, counterpart.DisplayName)
+                : null,
+            task.Answer is { } answer ? new ClientTaskAnswer(answer.Message.Value, answer.ArrivedAt) : null);
     }
 }
 

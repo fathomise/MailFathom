@@ -11,6 +11,7 @@ using MailFathom.Domain.Emails;
 using MailFathom.Domain.Tasks;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Tasks;
@@ -30,6 +31,8 @@ public sealed class OwnTasksTests
 
     private static readonly DateTimeOffset Stamped = new(2026, 9, 20, 9, 0, 0, TimeSpan.Zero);
 
+    private static readonly EmailThreadId Thread = EmailThreadId.Create(new Guid("0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a92"));
+
     [Fact]
     public async Task ReadPageAsync_APersonWithTasks_AnswersTheirOwnSoonestDueFirstWithTheUndatedLast()
     {
@@ -42,7 +45,7 @@ public sealed class OwnTasksTests
 
         // Act
         var page = await SignedIn(store).ReadPageAsync(
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             null,
             null,
             TestContext.Current.CancellationToken);
@@ -62,7 +65,7 @@ public sealed class OwnTasksTests
 
         // Act
         var page = await SignedIn(store).ReadPageAsync(
-            PersonalTaskOrigin.Proposed,
+            new PersonalTaskQuery(PersonalTaskOrigin.Proposed),
             null,
             null,
             TestContext.Current.CancellationToken);
@@ -85,7 +88,7 @@ public sealed class OwnTasksTests
 
         // Act
         await SignedIn(store).ReadPageAsync(
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             asked,
             null,
             TestContext.Current.CancellationToken);
@@ -105,14 +108,14 @@ public sealed class OwnTasksTests
 
         var tasks = SignedIn(store);
         var first = await tasks.ReadPageAsync(
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             1,
             null,
             TestContext.Current.CancellationToken);
 
         // Act
         var second = await tasks.ReadPageAsync(
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             1,
             first!.NextCursor,
             TestContext.Current.CancellationToken);
@@ -133,14 +136,14 @@ public sealed class OwnTasksTests
 
         var tasks = SignedIn(store);
         var first = await tasks.ReadPageAsync(
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             1,
             null,
             TestContext.Current.CancellationToken);
 
         // Act
         var second = await tasks.ReadPageAsync(
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             1,
             first!.NextCursor,
             TestContext.Current.CancellationToken);
@@ -161,7 +164,7 @@ public sealed class OwnTasksTests
 
         // Act
         var page = await SignedIn(store).ReadPageAsync(
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             10,
             null,
             TestContext.Current.CancellationToken);
@@ -181,14 +184,14 @@ public sealed class OwnTasksTests
 
         var tasks = SignedIn(store);
         var proposed = await tasks.ReadPageAsync(
-            PersonalTaskOrigin.Proposed,
+            new PersonalTaskQuery(PersonalTaskOrigin.Proposed),
             1,
             null,
             TestContext.Current.CancellationToken);
 
         // Act
         var committed = await tasks.ReadPageAsync(
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             1,
             proposed!.NextCursor,
             TestContext.Current.CancellationToken);
@@ -207,14 +210,14 @@ public sealed class OwnTasksTests
         await KeepAsync(store, SomebodyElse, "theirs-too", new DateOnly(2026, 9, 22));
 
         var elsewhere = await Signed(store, SomebodyElse).ReadPageAsync(
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             1,
             null,
             TestContext.Current.CancellationToken);
 
         // Act
         var page = await SignedIn(store).ReadPageAsync(
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             1,
             elsewhere!.NextCursor,
             TestContext.Current.CancellationToken);
@@ -229,7 +232,7 @@ public sealed class OwnTasksTests
     {
         // Act
         var page = await SignedIn(new InMemoryPersonalTaskStore()).ReadPageAsync(
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             10,
             "not-a-cursor-this-deployment-issued",
             TestContext.Current.CancellationToken);
@@ -250,7 +253,7 @@ public sealed class OwnTasksTests
 
         // Act
         var page = await tasks.ReadPageAsync(
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             10,
             null,
             TestContext.Current.CancellationToken);
@@ -272,6 +275,7 @@ public sealed class OwnTasksTests
             "  Answer the tender  ",
             new DateOnly(2026, 9, 21),
             TaskAnnouncement.Silent,
+            TaskCommitment.Owed,
             cited,
             TestContext.Current.CancellationToken);
 
@@ -297,13 +301,15 @@ public sealed class OwnTasksTests
             "draft the reply to the tender",
             dueOn: null,
             TaskAnnouncement.Silent,
+            TaskCommitment.Owed,
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal("draft the reply to the tender", revised!.Title);
-        Assert.Null(revised.DueOn);
-        Assert.Equal(PersonalTaskOrigin.Proposed, revised.Origin);
-        Assert.Equal(revised, Assert.Single(store.Held));
+        Assert.Equal(PersonalTaskChangeOutcome.Applied, revised.Outcome);
+        Assert.Equal("draft the reply to the tender", revised.Task!.Title);
+        Assert.Null(revised.Task.DueOn);
+        Assert.Equal(PersonalTaskOrigin.Proposed, revised.Task.Origin);
+        Assert.Equal(revised.Task, Assert.Single(store.Held));
     }
 
     /// <summary>The answer is the same one an absent task gets, so nothing here reports whose tasks exist.</summary>
@@ -320,11 +326,153 @@ public sealed class OwnTasksTests
             "mine now",
             dueOn: null,
             TaskAnnouncement.Silent,
+            TaskCommitment.Owed,
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Null(revised);
+        Assert.Equal(PersonalTaskRevisionResult.NotFound, revised);
         Assert.Equal("theirs", Assert.Single(store.Held).Title);
+    }
+
+    /// <summary>A wait is recorded with what it waits on and who it waits for, so a reply in that thread can close it.</summary>
+    [Fact]
+    public async Task RecordAsync_AWaitingTaskForAThread_AnswersItWithItsAnchorAndCounterpart()
+    {
+        // Arrange
+        var store = new InMemoryPersonalTaskStore();
+        var commitment = new TaskCommitment(
+            PersonalTaskDirection.Awaited,
+            EstimatedMinutes: 15,
+            Plan: null,
+            TaskAnchor.Thread(Thread, "Tender questions"),
+            Counterpart());
+
+        // Act
+        var written = await SignedIn(store).RecordAsync(
+            "Hear back about the tender",
+            dueOn: null,
+            TaskAnnouncement.Silent,
+            commitment,
+            sourceMessage: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(commitment, written.Commitment);
+        Assert.Equal(commitment, Assert.Single(store.Held).Commitment);
+    }
+
+    /// <summary>A revision writes the commitment it states, so a plan dragged onto the calendar is there when the list is read again.</summary>
+    [Fact]
+    public async Task ReviseAsync_APlan_IsKeptAcrossAReread()
+    {
+        // Arrange
+        var store = new InMemoryPersonalTaskStore();
+        var kept = await KeepAsync(store, User, "draft the reply", new DateOnly(2026, 9, 21));
+        var plan = TaskPlan.Create(new DateTimeOffset(2026, 9, 21, 14, 0, 0, TimeSpan.FromHours(2)), 45);
+        var tasks = SignedIn(store);
+
+        // Act
+        await tasks.ReviseAsync(
+            kept.Id,
+            "draft the reply",
+            new DateOnly(2026, 9, 21),
+            TaskAnnouncement.Silent,
+            TaskCommitment.Owed with { EstimatedMinutes = 45, Plan = plan },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var reread = await tasks.FindAsync(kept.Id, TestContext.Current.CancellationToken);
+
+        Assert.Equal(plan, reread!.Plan);
+        Assert.Equal(45, reread.EstimatedMinutes);
+    }
+
+    /// <summary>The reply closed a wait, so the person turning it into something they owe is refused rather than rewriting what the reply answered.</summary>
+    [Fact]
+    public async Task ReviseAsync_TheDirectionOfAWaitAReplyAnswered_IsRefusedAndWritesNothing()
+    {
+        // Arrange
+        var store = new InMemoryPersonalTaskStore();
+        var waiting = await KeepAsync(store, User, "hear back", dueOn: null, commitment: Awaiting());
+        await store.AnswerAsync(User, waiting.Id, Answer(), TestContext.Current.CancellationToken);
+
+        // Act
+        var revised = await SignedIn(store).ReviseAsync(
+            waiting.Id,
+            "hear back",
+            dueOn: null,
+            TaskAnnouncement.Silent,
+            TaskCommitment.Owed,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(PersonalTaskChangeOutcome.AnsweredWait, revised.Outcome);
+        Assert.Null(revised.Task);
+        Assert.Equal(PersonalTaskDirection.Awaited, Assert.Single(store.Held).Direction);
+    }
+
+    /// <summary>A reply can land between reading the wait and writing the change, and the store refusing it then is the same refusal.</summary>
+    [Fact]
+    public async Task ReviseAsync_AReplyAnsweringTheWaitWhileItsDirectionChanges_IsRefusedWithoutAnnouncingAnything()
+    {
+        // Arrange
+        var waiting = PersonalTask.Compose(
+            PersonalTaskId.Create(Guid.CreateVersion7(Stamped)),
+            User,
+            "hear back",
+            dueOn: null,
+            TaskAnnouncement.Silent,
+            PersonalTaskOrigin.Asserted,
+            sourceMessage: null,
+            Awaiting());
+        var store = Substitute.For<IPersonalTaskStore>();
+        store.FindAsync(User, waiting.Id, Arg.Any<CancellationToken>()).Returns(waiting);
+        store.ReviseAsync(Arg.Any<PersonalTask>(), Arg.Any<CancellationToken>())
+            .Returns(PersonalTaskChangeOutcome.AnsweredWait);
+        var clock = new FakeTimeProvider(Stamped);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+
+        // Act
+        var revised = await Signed(store, User, signals).ReviseAsync(
+            waiting.Id,
+            "hear back",
+            dueOn: null,
+            TaskAnnouncement.Silent,
+            TaskCommitment.Owed,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        Assert.Equal(PersonalTaskChangeOutcome.AnsweredWait, revised.Outcome);
+        Assert.Empty(channel.Published);
+    }
+
+    /// <summary>The whole narrowing is what a cursor was issued for, so a walk of one thread's tasks names no boundary in another's.</summary>
+    [Fact]
+    public async Task ReadPageAsync_ACursorIssuedUnderAnotherNarrowing_IsRefused()
+    {
+        // Arrange
+        var store = new InMemoryPersonalTaskStore();
+        await KeepAsync(store, User, "first", new DateOnly(2026, 9, 21), commitment: Awaiting());
+        await KeepAsync(store, User, "second", new DateOnly(2026, 9, 22), commitment: Awaiting());
+
+        var tasks = SignedIn(store);
+        var narrowed = new PersonalTaskQuery(PersonalTaskOrigin.Asserted, Thread);
+        var first = await tasks.ReadPageAsync(narrowed, 1, null, TestContext.Current.CancellationToken);
+
+        // Act
+        var other = await tasks.ReadPageAsync(
+            narrowed with { Counterpart = Counterpart().Address },
+            1,
+            first!.NextCursor,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(first.NextCursor);
+        Assert.Null(other);
     }
 
     /// <summary>Accepting moves the row that already exists, so a commitment keeps the identity it was proposed under.</summary>
@@ -438,7 +586,7 @@ public sealed class OwnTasksTests
         // Act and assert
         await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(
             () => tasks.ReadPageAsync(
-                PersonalTaskOrigin.Asserted,
+                new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
                 null,
                 null,
                 TestContext.Current.CancellationToken));
@@ -462,6 +610,7 @@ public sealed class OwnTasksTests
                 "keep a list",
                 dueOn: null,
                 TaskAnnouncement.Silent,
+                TaskCommitment.Owed,
                 sourceMessage: null,
                 TestContext.Current.CancellationToken));
 
@@ -485,6 +634,7 @@ public sealed class OwnTasksTests
             "keep a list",
             dueOn: null,
             TaskAnnouncement.Silent,
+            TaskCommitment.Owed,
             sourceMessage: null,
             TestContext.Current.CancellationToken);
 
@@ -507,8 +657,8 @@ public sealed class OwnTasksTests
         // Act
         foreach (var write in new Func<Task>[]
         {
-            () => tasks.RecordAsync("call back", null, TaskAnnouncement.Silent, null, TestContext.Current.CancellationToken),
-            () => tasks.ReviseAsync(proposed.Id, "call back soon", null, TaskAnnouncement.Silent, TestContext.Current.CancellationToken),
+            () => tasks.RecordAsync("call back", null, TaskAnnouncement.Silent, TaskCommitment.Owed, null, TestContext.Current.CancellationToken),
+            () => tasks.ReviseAsync(proposed.Id, "call back soon", null, TaskAnnouncement.Silent, TaskCommitment.Owed, TestContext.Current.CancellationToken),
             () => tasks.AcceptAsync(proposed.Id, TestContext.Current.CancellationToken),
             () => tasks.SetCompletionAsync(proposed.Id, isCompleted: true, TestContext.Current.CancellationToken),
             () => tasks.EraseAsync(proposed.Id, TestContext.Current.CancellationToken),
@@ -537,7 +687,7 @@ public sealed class OwnTasksTests
         var tasks = Signed(store, User, signals);
 
         // Act
-        await tasks.ReviseAsync(theirs.Id, "mine now", null, TaskAnnouncement.Silent, TestContext.Current.CancellationToken);
+        await tasks.ReviseAsync(theirs.Id, "mine now", null, TaskAnnouncement.Silent, TaskCommitment.Owed, TestContext.Current.CancellationToken);
         await tasks.AcceptAsync(theirs.Id, TestContext.Current.CancellationToken);
         await tasks.EraseAsync(theirs.Id, TestContext.Current.CancellationToken);
         clock.Advance(ClientSignals.FoldingWindow);
@@ -555,12 +705,27 @@ public sealed class OwnTasksTests
         new FakeTimeProvider(Stamped),
         signals ?? ClientSignalPublishers.ReachingNobody);
 
+    private static TaskCounterpart Counterpart() =>
+        new(EmailAddress.TryCreate(null, "buyer@example.test", out var address) ? address : default, "The buyer");
+
+    private static TaskCommitment Awaiting() => new(
+        PersonalTaskDirection.Awaited,
+        EstimatedMinutes: null,
+        Plan: null,
+        TaskAnchor.Thread(Thread, "Tender questions"),
+        Counterpart());
+
+    private static TaskAnswer Answer() => new(
+        StoredEmailId.Create(new Guid("0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91")),
+        Stamped + TimeSpan.FromHours(1));
+
     private static async Task<PersonalTask> KeepAsync(
         InMemoryPersonalTaskStore store,
         UserId user,
         string title,
         DateOnly? dueOn,
-        PersonalTaskOrigin origin = PersonalTaskOrigin.Asserted)
+        PersonalTaskOrigin origin = PersonalTaskOrigin.Asserted,
+        TaskCommitment? commitment = null)
     {
         var task = PersonalTask.Compose(
             PersonalTaskId.Create(Guid.CreateVersion7(Stamped + TimeSpan.FromMinutes(store.Held.Count))),
@@ -570,7 +735,7 @@ public sealed class OwnTasksTests
             TaskAnnouncement.Silent,
             origin,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            commitment ?? TaskCommitment.Owed);
 
         await store.AddAsync(task, TestContext.Current.CancellationToken);
 

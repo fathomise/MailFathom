@@ -13,6 +13,7 @@ using MailFathom.Infrastructure.Persistence.Emails.Threads;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace MailFathom.Infrastructure.Persistence.Tasks;
 
@@ -128,29 +129,59 @@ internal sealed class PersistedPersonalTaskStore(
     /// The columns an edit states and the reminder rows behind them, which is the only way this differs from
     /// the two state changes below it: the addressing, the session, and the commit policy are the same, and the
     /// revision supplies the row it is written against rather than being looked up from a second identity.
+    /// <para>
+    /// A reply answering the wait between the caller's read and this write leaves a row whose direction the revision
+    /// would change under an answer, which the database refuses; that refusal is the answer the caller would have had
+    /// if the reply had landed first, so it is reported as that rather than as a failed write.
+    /// </para>
     /// </remarks>
-    public Task<PersonalTaskChangeOutcome> ReviseAsync(PersonalTask revision, CancellationToken cancellationToken)
+    public async Task<PersonalTaskChangeOutcome> ReviseAsync(PersonalTask revision, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(revision);
 
-        return commitPolicy.CommitAsync(
-            (session, token) => StageAsync(
-                session,
-                revision.User,
-                revision.Id,
-                (writeContext, stored) =>
-                {
-                    stored.Title = revision.Title;
-                    stored.DueOn = revision.DueOn;
-                    stored.DueDayOffsetMinutes = revision.DueDayOffset is { } offset
-                        ? (int)offset.TotalMinutes
-                        : null;
-                    PersonalTaskMapping.WriteCommitment(stored, revision.Commitment);
+        try
+        {
+            return await commitPolicy.CommitAsync(
+                (session, token) => StageAsync(
+                    session,
+                    revision.User,
+                    revision.Id,
+                    (writeContext, stored) =>
+                    {
+                        stored.Title = revision.Title;
+                        stored.DueOn = revision.DueOn;
+                        stored.DueDayOffsetMinutes = revision.DueDayOffset is { } offset
+                            ? (int)offset.TotalMinutes
+                            : null;
+                        PersonalTaskMapping.WriteCommitment(stored, revision.Commitment);
 
-                    Reconcile(writeContext, stored, revision);
-                },
-                token),
-            cancellationToken);
+                        Reconcile(writeContext, stored, revision);
+                    },
+                    token),
+                cancellationToken);
+        }
+        catch (Exception failure) when (ViolatesTheAnsweredWait(failure))
+        {
+            return PersonalTaskChangeOutcome.AnsweredWait;
+        }
+    }
+
+    /// <summary>Reports whether a failure is the database refusing an answer on a task that is no longer a completed wait.</summary>
+    internal static bool ViolatesTheAnsweredWait(Exception failure)
+    {
+        for (var current = failure; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException
+                {
+                    SqlState: PostgresErrorCodes.CheckViolation,
+                    ConstraintName: PersistenceConstraintNames.PersonalTaskAnswerClosesAWaitCheckConstraintName,
+                })
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <inheritdoc />

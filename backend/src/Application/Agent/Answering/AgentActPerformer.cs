@@ -189,6 +189,7 @@ public sealed class AgentActPerformer : IAgentActPerformer
             recording.Title.Value,
             recording.DueOn,
             TaskAnnouncement.Silent,
+            TaskCommitment.Owed,
             recording.SourceMessage,
             cancellationToken);
 

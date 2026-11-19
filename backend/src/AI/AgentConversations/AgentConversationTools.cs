@@ -29,6 +29,7 @@ using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.SensitiveContent.Egress;
+using MailFathom.Application.Tasks;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Calendar;
@@ -1418,7 +1419,7 @@ internal sealed partial class AgentConversationTools
 
         foreach (var origin in Enum.GetValues<PersonalTaskOrigin>())
         {
-            read.AddRange((await this.readers.Tasks.ReadPageAsync(origin, MaximumAgendaItems, cursor: null, cancellationToken))?.Tasks ?? []);
+            read.AddRange((await this.readers.Tasks.ReadPageAsync(new PersonalTaskQuery(origin), MaximumAgendaItems, cursor: null, cancellationToken))?.Tasks ?? []);
         }
 
         if (read.Count is 0)

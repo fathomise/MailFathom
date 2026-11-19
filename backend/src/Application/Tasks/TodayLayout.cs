@@ -169,7 +169,7 @@ public sealed class TodayLayout
     {
         var day = DateOnly.FromDateTime(dayStart.DateTime);
         var page = await this.tasks.ReadPageAsync(
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             OwnTasks.MaximumPageSize,
             cursor: null,
             cancellationToken);

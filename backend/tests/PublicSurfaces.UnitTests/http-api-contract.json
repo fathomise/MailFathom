@@ -6783,6 +6783,44 @@
         ],
         "type": "object"
       },
+      "ClientTaskAnchor": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "label"
+        ],
+        "type": "object"
+      },
+      "ClientTaskAnswer": {
+        "properties": {
+          "arrivedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageId",
+          "arrivedAt"
+        ],
+        "type": "object"
+      },
       "ClientTaskCompletionRequest": {
         "additionalProperties": false,
         "properties": {
@@ -6792,6 +6830,25 @@
         },
         "required": [
           "completed"
+        ],
+        "type": "object"
+      },
+      "ClientTaskCounterpart": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "address",
+          "displayName"
         ],
         "type": "object"
       },
@@ -6832,9 +6889,57 @@
         ],
         "type": "object"
       },
+      "ClientTaskPlan": {
+        "additionalProperties": false,
+        "properties": {
+          "minutes": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "startAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "startAt",
+          "minutes"
+        ],
+        "type": "object"
+      },
       "ClientTaskRecordRequest": {
         "additionalProperties": false,
         "properties": {
+          "anchor": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientTaskAnchor"
+              }
+            ]
+          },
+          "counterpart": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientTaskCounterpart"
+              }
+            ]
+          },
+          "direction": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "dueDayOffsetMinutes": {
             "format": "int32",
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -6848,6 +6953,25 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "estimatedMinutes": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ]
+          },
+          "plan": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientTaskPlan"
+              }
             ]
           },
           "reminders": {
@@ -6889,12 +7013,54 @@
       },
       "ClientTaskResponse": {
         "properties": {
+          "anchor": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientTaskAnchor"
+              }
+            ]
+          },
+          "answer": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientTaskAnswer"
+              }
+            ]
+          },
           "completed": {
             "type": "boolean"
+          },
+          "counterpart": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientTaskCounterpart"
+              }
+            ]
+          },
+          "direction": {
+            "type": "string"
           },
           "dueOn": {
             "type": [
               "null",
+              "string"
+            ]
+          },
+          "estimatedMinutes": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
               "string"
             ]
           },
@@ -6904,6 +7070,16 @@
           },
           "origin": {
             "type": "string"
+          },
+          "plan": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientTaskPlan"
+              }
+            ]
           },
           "reminders": {
             "items": {
@@ -6942,7 +7118,13 @@
           "remindsAt",
           "origin",
           "completed",
-          "sourceMessageId"
+          "sourceMessageId",
+          "direction",
+          "estimatedMinutes",
+          "plan",
+          "anchor",
+          "counterpart",
+          "answer"
         ],
         "type": "object"
       },
@@ -26310,6 +26492,45 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "threadId",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "eventId",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "counterpart",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -26360,6 +26581,9 @@
               }
             },
             "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
           }
         },
         "security": [
@@ -26391,6 +26615,45 @@
             "in": "query",
             "name": "cursor",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "threadId",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "eventId",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "counterpart",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "schema": {
+              "format": "date-time",
               "type": "string"
             }
           }

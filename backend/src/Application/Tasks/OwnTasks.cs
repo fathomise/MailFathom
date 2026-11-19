@@ -25,8 +25,9 @@ namespace MailFathom.Application.Tasks;
 /// <para>
 /// The two origins are read apart rather than filtered, because they are two things to somebody looking at a screen:
 /// what they have committed to, and what mail suggested and nobody has agreed to yet. A cursor is issued against the
-/// origin it was read under and refused in the other, which is what stops a walk of the proposals continuing into the
-/// commitments halfway down a screen.
+/// whole narrowing it was read under — the origin, and the thread, event, person, or window a surface asked for — and
+/// refused under any other, which is what stops a walk of the proposals continuing into the commitments halfway down a
+/// screen.
 /// </para>
 /// <para>
 /// The reads are admitted under <see cref="MailFathomPermission.TasksRead" /> and the writes under
@@ -83,13 +84,14 @@ public sealed class OwnTasks
         this.signals = signals;
     }
 
-    /// <summary>Reads one page of the signed-in person's tasks of one origin, soonest due first.</summary>
-    /// <param name="origin">The half of the list to read: what the person owes, or what mail proposed.</param>
+    /// <summary>Reads one page of the signed-in person's tasks, narrowed as the query states, soonest due first.</summary>
+    /// <param name="query">What the list is narrowed to: the half of it to read, and the thread, event, person, or window a surface draws.</param>
     /// <param name="pageSize">How many tasks the page may hold, or <see langword="null" /> for <see cref="DefaultPageSize" />; a larger number is served <see cref="MaximumPageSize" />.</param>
     /// <param name="cursor">The cursor a previous page returned, or <see langword="null" /> for the first page.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The page, or <see langword="null" /> when the cursor is not one this deployment issued for this reading.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="origin" /> is not a declared origin.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="query" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="query" /> is one <see cref="PersonalTaskQuery.EnsureAnswerable" /> refuses.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller acts for no user, or its grant omits <see cref="MailFathomPermission.TasksRead" />.</exception>
     /// <remarks>
     /// Completed tasks are served with the outstanding ones and carry the flag that tells them apart, because which of
@@ -97,20 +99,18 @@ public sealed class OwnTasks
     /// did today, and one filtered here would need a second route to get them back.
     /// </remarks>
     public async Task<PersonalTaskPage?> ReadPageAsync(
-        PersonalTaskOrigin origin,
+        PersonalTaskQuery query,
         int? pageSize,
         string? cursor,
         CancellationToken cancellationToken)
     {
-        if (!Enum.IsDefined(origin))
-        {
-            throw new ArgumentOutOfRangeException(nameof(origin), origin, "A task list is read under a declared origin.");
-        }
+        ArgumentNullException.ThrowIfNull(query);
+        query.EnsureAnswerable();
 
         this.authorization.RequirePermission(MailFathomPermission.TasksRead);
 
         var user = this.authorization.RequireUser();
-        var fingerprint = FingerprintOf(user, origin);
+        var fingerprint = FingerprintOf(user, query);
         PersonalTaskCursor? boundary = null;
 
         if (!string.IsNullOrWhiteSpace(cursor) && !TryReadBoundary(cursor, fingerprint, out boundary))
@@ -119,7 +119,7 @@ public sealed class OwnTasks
         }
 
         var limit = Bounded(pageSize);
-        var tasks = await this.store.ReadAsync(user, new PersonalTaskQuery(origin), boundary, limit, cancellationToken);
+        var tasks = await this.store.ReadAsync(user, query, boundary, limit, cancellationToken);
 
         // The page is short only where the list held nothing more, so the boundary is issued exactly when a full page
         // came back — which is what lets a caller stop on the absent cursor rather than on a length comparison.
@@ -146,10 +146,11 @@ public sealed class OwnTasks
     /// <param name="title">The line the list is drawn with.</param>
     /// <param name="dueOn">The day it is due on, or <see langword="null" /> where they said nothing about when.</param>
     /// <param name="announcement">What announces it and the offset their due day runs in, or <see cref="TaskAnnouncement.Silent" /> to announce nothing.</param>
+    /// <param name="commitment">Whether they owe it or wait on it, and the estimate, plan, anchor, and counterpart that go with it.</param>
     /// <param name="sourceMessage">The message they were looking at, or <see langword="null" /> where the task cites none.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The task as it was written.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> or <paramref name="commitment" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is blank, when one lead is stated twice, or when leads are stated against no due day.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="title" /> exceeds <see cref="PersonalTask.MaximumTitleLength" />, or when more than <see cref="Reminder.MaximumCount" /> leads are stated.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller acts for no user, or its grant omits <see cref="MailFathomPermission.TasksWrite" />.</exception>
@@ -168,6 +169,7 @@ public sealed class OwnTasks
         string title,
         DateOnly? dueOn,
         TaskAnnouncement announcement,
+        TaskCommitment commitment,
         StoredEmailId? sourceMessage,
         CancellationToken cancellationToken)
     {
@@ -181,7 +183,7 @@ public sealed class OwnTasks
             announcement,
             PersonalTaskOrigin.Asserted,
             sourceMessage,
-            TaskCommitment.Owed);
+            commitment);
 
         await this.store.AddAsync(task, cancellationToken);
 
@@ -195,9 +197,14 @@ public sealed class OwnTasks
     /// <param name="title">The line the list is to be drawn with from now on.</param>
     /// <param name="dueOn">The day it is due on, or <see langword="null" /> where they took the date off it.</param>
     /// <param name="announcement">What announces it afterwards and the offset their due day runs in, or <see cref="TaskAnnouncement.Silent" /> to announce nothing.</param>
+    /// <param name="commitment">The commitment as it is to stand from now on, which replaces the one the task held.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
-    /// <returns>The task as it now stands, or <see langword="null" /> when this person holds none under that identity.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> is <see langword="null" />.</exception>
+    /// <returns>
+    /// The task as it now stands; <see cref="PersonalTaskRevisionResult.NotFound" /> when this person holds none under
+    /// that identity; or <see cref="PersonalTaskRevisionResult.AnsweredWait" /> when a reply answered it as a wait and
+    /// the edit states the other direction.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> or <paramref name="commitment" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is blank, when one lead is stated twice, or when leads are stated against no due day.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="title" /> exceeds <see cref="PersonalTask.MaximumTitleLength" />, or when more than <see cref="Reminder.MaximumCount" /> leads are stated.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller acts for no user, or its grant omits <see cref="MailFathomPermission.TasksWrite" />.</exception>
@@ -210,33 +217,51 @@ public sealed class OwnTasks
     /// reminder off a task stated with none rather than a field left out — and what makes taking the date off one
     /// take its reminders with it, since a lead measured back from no due day is refused.
     /// </para>
+    /// <para>
+    /// The commitment is part of the edit for the same reason: a plan taken off a task, or an anchor removed, is stated
+    /// as absent rather than left out. The one thing an edit cannot change is the direction of a wait a reply has
+    /// answered, because the answer belongs to the wait it closed — and a reply arriving after the read and before the
+    /// write is refused by the store in the same words.
+    /// </para>
     /// </remarks>
-    public async Task<PersonalTask?> ReviseAsync(
+    public async Task<PersonalTaskRevisionResult> ReviseAsync(
         PersonalTaskId task,
         string title,
         DateOnly? dueOn,
         TaskAnnouncement announcement,
+        TaskCommitment commitment,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(commitment);
+
         this.authorization.RequirePermission(MailFathomPermission.TasksWrite);
 
         var held = await this.store.FindAsync(this.authorization.RequireUser(), task, cancellationToken);
 
         if (held is null)
         {
-            return null;
+            return PersonalTaskRevisionResult.NotFound;
         }
 
-        var revision = held.Revise(title, dueOn, announcement, held.Commitment);
-
-        if (await this.store.ReviseAsync(revision, cancellationToken) is not PersonalTaskChangeOutcome.Applied)
+        if (held.Answer is not null && commitment.Direction != held.Direction)
         {
-            return null;
+            return PersonalTaskRevisionResult.AnsweredWait;
+        }
+
+        var revision = held.Revise(title, dueOn, announcement, commitment);
+
+        var outcome = await this.store.ReviseAsync(revision, cancellationToken);
+
+        if (outcome is not PersonalTaskChangeOutcome.Applied)
+        {
+            return outcome is PersonalTaskChangeOutcome.AnsweredWait
+                ? PersonalTaskRevisionResult.AnsweredWait
+                : PersonalTaskRevisionResult.NotFound;
         }
 
         this.signals.Publish(ClientSignal.TasksChanged(revision.User));
 
-        return revision;
+        return PersonalTaskRevisionResult.Revised(revision);
     }
 
     /// <summary>Turns one of the signed-in person's proposals into a task they owe.</summary>
@@ -308,13 +333,20 @@ public sealed class OwnTasks
 
     /// <summary>Reduces the reading's own narrowing to the fingerprint its cursors carry.</summary>
     /// <remarks>
-    /// The user and the origin, because those are the two things this reading narrows by. The user comes off the
-    /// credential, so a cursor presented by somebody it was not issued to is refused; the origin is the route, so one
-    /// issued for the proposals names no boundary in the commitments.
+    /// The user and every narrowing the query states, because a boundary is a position in one narrowed list and names
+    /// nothing in another. The user comes off the credential, so a cursor presented by somebody it was not issued to is
+    /// refused; the origin is the route, so one issued for the proposals names no boundary in the commitments; and a
+    /// walk of one thread, event, person, or window does not continue into another's. The window keeps the offset it
+    /// opens in, since that offset decides which due days it reaches.
     /// </remarks>
-    private static string FingerprintOf(UserId user, PersonalTaskOrigin origin) => PageFilterFingerprint.Of(
+    private static string FingerprintOf(UserId user, PersonalTaskQuery query) => PageFilterFingerprint.Of(
         user.Value.ToString("N", CultureInfo.InvariantCulture),
-        origin.ToString());
+        query.Origin?.ToString(),
+        query.Thread?.Value.ToString("N", CultureInfo.InvariantCulture),
+        query.Event?.Value.ToString("N", CultureInfo.InvariantCulture),
+        query.Counterpart?.NormalizedAddress,
+        query.From?.ToString("O", CultureInfo.InvariantCulture),
+        query.Until?.ToString("O", CultureInfo.InvariantCulture));
 
     /// <summary>Writes the boundary one page ended on as the opaque string a caller presents to continue the walk.</summary>
     /// <remarks>

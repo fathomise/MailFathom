@@ -3,11 +3,21 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Globalization;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Calendar;
+using MailFathom.Application.Emails.BrowseThread;
+using MailFathom.Application.Emails.Enrichment;
+using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Summaries;
+using MailFathom.Application.Emails.Threads;
+using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Tasks;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Calendar;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Reminders;
 using MailFathom.Domain.Tasks;
 using MailFathom.Host.Api;
@@ -38,6 +48,8 @@ public sealed class ClientTaskEndpointsTests
 
     private static readonly Guid MessageIdentifier = new("0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90");
 
+    private static readonly Guid ThreadIdentifier = new("0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a92");
+
     [Fact]
     public async Task ReadCommittedAsync_APageOfTasks_DescribesEachRowAndTheBoundaryTheNextPageContinuesFrom()
     {
@@ -55,6 +67,11 @@ public sealed class ClientTaskEndpointsTests
         var result = await ClientTaskEndpoints.ReadCommittedAsync(
             pageSize: 1,
             cursor: null,
+            threadId: null,
+            eventId: null,
+            counterpart: null,
+            from: null,
+            until: null,
             SignedIn(store),
             TestContext.Current.CancellationToken);
 
@@ -89,6 +106,11 @@ public sealed class ClientTaskEndpointsTests
         var result = await ClientTaskEndpoints.ReadProposedAsync(
             pageSize: null,
             cursor: null,
+            threadId: null,
+            eventId: null,
+            counterpart: null,
+            from: null,
+            until: null,
             SignedIn(store),
             TestContext.Current.CancellationToken);
 
@@ -107,6 +129,11 @@ public sealed class ClientTaskEndpointsTests
         var result = await ClientTaskEndpoints.ReadCommittedAsync(
             pageSize: null,
             cursor: "not-a-cursor-this-deployment-issued",
+            threadId: null,
+            eventId: null,
+            counterpart: null,
+            from: null,
+            until: null,
             SignedIn(Substitute.For<IPersonalTaskStore>()),
             TestContext.Current.CancellationToken);
 
@@ -130,11 +157,290 @@ public sealed class ClientTaskEndpointsTests
         var result = await ClientTaskEndpoints.ReadCommittedAsync(
             pageSize: null,
             cursor: "  ",
+            threadId: null,
+            eventId: null,
+            counterpart: null,
+            from: null,
+            until: null,
             SignedIn(store),
             TestContext.Current.CancellationToken);
 
         // Assert
         Assert.IsType<Ok<ClientTaskPageResponse>>(result.Result);
+    }
+
+    /// <summary>A wait is written with everything that says what it waits on, and the answer describes it back in the same words.</summary>
+    [Fact]
+    public async Task RecordAsync_AWaitingTaskAnchoredToAThreadThePersonReads_DescribesItsWholeCommitment()
+    {
+        // Arrange
+        var store = Substitute.For<IPersonalTaskStore>();
+        var startAt = new DateTimeOffset(2026, 9, 21, 14, 0, 0, TimeSpan.FromHours(2));
+
+        // Act
+        var result = await ClientTaskEndpoints.RecordAsync(
+            new ClientTaskRecordRequest(
+                "Hear back about the tender",
+                "2026-09-21",
+                Reminders: null,
+                DueDayOffsetMinutes: null,
+                SourceMessageId: null,
+                Direction: "Awaited",
+                EstimatedMinutes: 30,
+                Plan: new ClientTaskPlan(startAt, 30),
+                Anchor: new ClientTaskAnchor("Thread", ThreadIdentifier, "Tender questions"),
+                Counterpart: new ClientTaskCounterpart("Buyer@Example.test", "The buyer")),
+            SignedIn(store),
+            Threads(readable: true),
+            Calendar(holding: null),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var written = Assert.IsType<Ok<ClientTaskResponse>>(result.Result).Value!;
+
+        Assert.Equal("Awaited", written.Direction);
+        Assert.Equal(30, written.EstimatedMinutes);
+        Assert.Equal(new ClientTaskPlan(startAt, 30), written.Plan);
+        Assert.Equal(new ClientTaskAnchor("Thread", ThreadIdentifier, "Tender questions"), written.Anchor);
+        Assert.Equal(new ClientTaskCounterpart("Buyer@Example.test", "The buyer"), written.Counterpart);
+        Assert.Null(written.Answer);
+
+        await store.Received(1).AddAsync(
+            Arg.Is<PersonalTask>(task => task != null
+                && task.Direction == PersonalTaskDirection.Awaited
+                && task.Anchor!.ThreadId == EmailThreadId.Create(ThreadIdentifier)),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A thread this person may not read answers as one that does not exist, so an anchor reports nothing about anybody else's mail.</summary>
+    [Fact]
+    public async Task RecordAsync_AnAnchorToAThreadOfAnotherUser_IsNotFound()
+    {
+        // Arrange
+        var store = Substitute.For<IPersonalTaskStore>();
+
+        // Act
+        var result = await ClientTaskEndpoints.RecordAsync(
+            Anchored(new ClientTaskAnchor("Thread", ThreadIdentifier, "Their thread")),
+            SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NotFound>(result.Result);
+        await store.DidNotReceiveWithAnyArgs().AddAsync(default!, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>An event is anchored only where it is on this person's own calendar.</summary>
+    [Fact]
+    public async Task RecordAsync_AnAnchorToAnEventNotOnTheirCalendar_IsNotFound()
+    {
+        // Arrange
+        var store = Substitute.For<IPersonalTaskStore>();
+
+        // Act
+        var result = await ClientTaskEndpoints.RecordAsync(
+            Anchored(new ClientTaskAnchor("Event", ThreadIdentifier, "Their meeting")),
+            SignedIn(store),
+            Threads(readable: true),
+            Calendar(holding: null),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NotFound>(result.Result);
+        await store.DidNotReceiveWithAnyArgs().AddAsync(default!, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>A block on a calendar shorter than five minutes is not one anybody could work in, so it is refused naming the bounds.</summary>
+    [Fact]
+    public async Task RecordAsync_APlanOfFourMinutes_IsRefused()
+    {
+        // Act
+        var result = await ClientTaskEndpoints.RecordAsync(
+            new ClientTaskRecordRequest(
+                "Answer the tender",
+                DueOn: null,
+                Reminders: null,
+                DueDayOffsetMinutes: null,
+                SourceMessageId: null,
+                Plan: new ClientTaskPlan(DayStart, 4)),
+            SignedIn(Substitute.For<IPersonalTaskStore>()),
+            Threads(readable: false),
+            Calendar(holding: null),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+        Assert.Contains("720", refusal.ProblemDetails.Detail, StringComparison.Ordinal);
+    }
+
+    /// <summary>Only the two directions are names a task takes, so a number or a different casing is refused rather than guessed at.</summary>
+    [Theory]
+    [InlineData("awaited")]
+    [InlineData("1")]
+    [InlineData("Delegated")]
+    public async Task RecordAsync_ADirectionNoTaskTakes_IsRefused(string direction)
+    {
+        // Act
+        var result = await ClientTaskEndpoints.RecordAsync(
+            new ClientTaskRecordRequest(
+                "Answer the tender",
+                DueOn: null,
+                Reminders: null,
+                DueDayOffsetMinutes: null,
+                SourceMessageId: null,
+                Direction: direction),
+            SignedIn(Substitute.For<IPersonalTaskStore>()),
+            Threads(readable: false),
+            Calendar(holding: null),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+        Assert.DoesNotContain(direction, refusal.ProblemDetails.Detail, StringComparison.Ordinal);
+    }
+
+    /// <summary>The reply closed this wait, so turning it into something owed is a conflict with what the list holds rather than a malformed request.</summary>
+    [Fact]
+    public async Task ReviseAsync_TheDirectionOfAWaitAReplyAnswered_IsAConflict()
+    {
+        // Arrange
+        var store = Substitute.For<IPersonalTaskStore>();
+        store.FindAsync(User, PersonalTaskId.Create(TaskIdentifier), Arg.Any<CancellationToken>())
+            .Returns(Answered());
+
+        // Act
+        var result = await ClientTaskEndpoints.ReviseAsync(
+            TaskIdentifier,
+            new ClientTaskRecordRequest("Hear back", DueOn: null, Reminders: null, DueDayOffsetMinutes: null, SourceMessageId: null, Direction: "Owed"),
+            SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status409Conflict, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+        await store.DidNotReceiveWithAnyArgs().ReviseAsync(default!, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>The reply that closed a wait travels with it, so a screen can say when the answer came and open it.</summary>
+    [Fact]
+    public async Task FindAsync_AWaitAReplyAnswered_DescribesTheAnswer()
+    {
+        // Arrange
+        var store = Substitute.For<IPersonalTaskStore>();
+        store.FindAsync(User, PersonalTaskId.Create(TaskIdentifier), Arg.Any<CancellationToken>())
+            .Returns(Answered());
+
+        // Act
+        var result = await ClientTaskEndpoints.FindAsync(
+            TaskIdentifier,
+            SignedIn(store),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            new ClientTaskAnswer(MessageIdentifier, Stamped),
+            Assert.IsType<Ok<ClientTaskResponse>>(result.Result).Value!.Answer);
+    }
+
+    /// <summary>A thread's own pane draws the tasks anchored to it, so the narrowing reaches the store rather than being applied to a page.</summary>
+    [Fact]
+    public async Task ReadCommittedAsync_FilteredByThread_ReadsOnlyThatThreadsTasks()
+    {
+        // Arrange
+        var store = Substitute.For<IPersonalTaskStore>();
+        store.ReadAsync(
+                User,
+                new PersonalTaskQuery(PersonalTaskOrigin.Asserted, EmailThreadId.Create(ThreadIdentifier)),
+                null,
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => [Kept(dueOn: null)]);
+
+        // Act
+        var result = await ClientTaskEndpoints.ReadCommittedAsync(
+            pageSize: null,
+            cursor: null,
+            threadId: ThreadIdentifier,
+            eventId: null,
+            counterpart: null,
+            from: null,
+            until: null,
+            SignedIn(store),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(TaskIdentifier, Assert.Single(Assert.IsType<Ok<ClientTaskPageResponse>>(result.Result).Value!.Tasks).Id);
+    }
+
+    /// <summary>A window is stated by where it opens and where it closes, and half of one names no span to read.</summary>
+    [Fact]
+    public async Task ReadCommittedAsync_AWindowWithOneBound_IsRefused()
+    {
+        // Arrange
+        var store = Substitute.For<IPersonalTaskStore>();
+
+        // Act
+        var result = await ClientTaskEndpoints.ReadCommittedAsync(
+            pageSize: null,
+            cursor: null,
+            threadId: null,
+            eventId: null,
+            counterpart: null,
+            from: DayStart,
+            until: null,
+            SignedIn(store),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+        await store.DidNotReceiveWithAnyArgs().ReadAsync(default, default!, default, default, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>Two months of a calendar is the most one read asks for, which keeps the answer bounded however long the list grows.</summary>
+    [Fact]
+    public async Task ReadCommittedAsync_AWindowLongerThanSixtyTwoDays_IsRefused()
+    {
+        // Act
+        var result = await ClientTaskEndpoints.ReadCommittedAsync(
+            pageSize: null,
+            cursor: null,
+            threadId: null,
+            eventId: null,
+            counterpart: null,
+            from: DayStart,
+            until: DayStart.AddDays(PersonalTaskQuery.LongestWindowDays).AddMinutes(1),
+            SignedIn(Substitute.For<IPersonalTaskStore>()),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+    }
+
+    /// <summary>A person is narrowed to by their address, so a value that is not one is refused rather than matching nobody.</summary>
+    [Fact]
+    public async Task ReadProposedAsync_ACounterpartThatIsNoAddress_IsRefused()
+    {
+        // Act
+        var result = await ClientTaskEndpoints.ReadProposedAsync(
+            pageSize: null,
+            cursor: null,
+            threadId: null,
+            eventId: null,
+            counterpart: "not an address",
+            from: null,
+            until: null,
+            SignedIn(Substitute.For<IPersonalTaskStore>()),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
     }
 
     [Fact]
@@ -183,6 +489,8 @@ public sealed class ClientTaskEndpointsTests
         var result = await ClientTaskEndpoints.RecordAsync(
             new ClientTaskRecordRequest("Answer the tender", "2026-09-21", Reminders: null, DueDayOffsetMinutes: null, MessageIdentifier),
             SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -192,6 +500,9 @@ public sealed class ClientTaskEndpointsTests
         Assert.Equal("2026-09-21", written.DueOn);
         Assert.Equal("Asserted", written.Origin);
         Assert.Equal(MessageIdentifier, written.SourceMessageId);
+        Assert.Equal("Owed", written.Direction);
+        Assert.Null(written.Plan);
+        Assert.Null(written.Anchor);
 
         await store.Received(1).AddAsync(
             Arg.Is<PersonalTask>(task => task != null && task.User == User && task.Title == "Answer the tender"),
@@ -209,6 +520,8 @@ public sealed class ClientTaskEndpointsTests
         var result = await ClientTaskEndpoints.RecordAsync(
             new ClientTaskRecordRequest("Answer the tender", DueOn: null, Reminders: null, DueDayOffsetMinutes: null, SourceMessageId: null),
             SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -233,6 +546,8 @@ public sealed class ClientTaskEndpointsTests
         var result = await ClientTaskEndpoints.RecordAsync(
             new ClientTaskRecordRequest(title, dueOn, Reminders: null, DueDayOffsetMinutes: null, SourceMessageId: null),
             SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -258,6 +573,8 @@ public sealed class ClientTaskEndpointsTests
                 DueDayOffsetMinutes: null,
                 SourceMessageId: null),
             SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -278,6 +595,8 @@ public sealed class ClientTaskEndpointsTests
         var result = await ClientTaskEndpoints.RecordAsync(
             request: null,
             SignedIn(Substitute.For<IPersonalTaskStore>()),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -301,6 +620,8 @@ public sealed class ClientTaskEndpointsTests
             TaskIdentifier,
             new ClientTaskRecordRequest("Answer the tender today", "2026-09-22", Reminders: null, DueDayOffsetMinutes: null, SourceMessageId: null),
             SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -325,6 +646,8 @@ public sealed class ClientTaskEndpointsTests
             TaskIdentifier,
             new ClientTaskRecordRequest("Answer the tender today", DueOn: null, Reminders: null, DueDayOffsetMinutes: null, SourceMessageId: null),
             SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -341,6 +664,8 @@ public sealed class ClientTaskEndpointsTests
             Guid.Empty,
             new ClientTaskRecordRequest("Answer the tender today", DueOn: null, Reminders: null, DueDayOffsetMinutes: null, SourceMessageId: null),
             SignedIn(Substitute.For<IPersonalTaskStore>()),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -658,6 +983,102 @@ public sealed class ClientTaskEndpointsTests
             SensitiveContentEgressGuards.Inactive());
     }
 
+    private static ClientTaskRecordRequest Anchored(ClientTaskAnchor anchor) => new(
+        "Answer the tender",
+        DueOn: null,
+        Reminders: null,
+        DueDayOffsetMinutes: null,
+        SourceMessageId: null,
+        Anchor: anchor);
+
+    private static PersonalTask Answered() => PersonalTask.Restore(
+        PersonalTaskId.Create(TaskIdentifier),
+        User,
+        "Hear back",
+        dueOn: null,
+        TaskAnnouncement.Silent,
+        PersonalTaskOrigin.Asserted,
+        sourceMessage: null,
+        isCompleted: true,
+        new TaskCommitment(PersonalTaskDirection.Awaited, null, null, null, null),
+        new TaskAnswer(StoredEmailId.Create(MessageIdentifier), Stamped));
+
+    /// <summary>Builds the conversation reader over the real scope resolution, holding the anchored thread for this person or for nobody.</summary>
+    private static MailThreadBrowser Threads(bool readable)
+    {
+        var folders = StubMailFolderParticipation.Nothing;
+
+        var catalog = Substitute.For<ICallerMailAccountCatalog>();
+        catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(MailAccountId.Create("work"))]);
+
+        var readTelemetry = Substitute.For<IMailboxReadTelemetry>();
+        readTelemetry.BeginRead(Arg.Any<MailboxReadOperation>(), Arg.Any<CancellationToken>())
+            .Returns(Substitute.For<IMailboxReadScope>());
+
+        var threadReader = Substitute.For<IEmailThreadReader>();
+        threadReader
+            .ReadEmailsAsync(EmailThreadId.Create(ThreadIdentifier), Arg.Any<MailboxScope>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<ThreadedEmailSummary>>(readable
+                ?
+                [
+                    new ThreadedEmailSummary
+                    {
+                        StoredEmailId = StoredEmailId.Create(MessageIdentifier),
+                        AccountId = MailAccountId.Create("work"),
+                        Folder = new StoredEmailFolder(
+                            MailFolderId.Create(new Guid("83ecb521-bf32-7f67-8287-e8b923809bb3")),
+                            "INBOX",
+                            MailFolderAlias.Create("INBOX")),
+                    },
+                ]
+                : []));
+
+        var summaries = Substitute.For<IStoredEmailSummaryReader>();
+        summaries.ReadSummariesAsync(Arg.Any<IReadOnlyList<StoredEmailId>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyDictionary<StoredEmailId, EmailSummary>>(new Dictionary<StoredEmailId, EmailSummary>()));
+
+        var previews = Substitute.For<IStoredEmailPreviewReader>();
+        previews.ReadPreviewsAsync(Arg.Any<IReadOnlyList<StoredEmailId>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyDictionary<StoredEmailId, string>>(new Dictionary<StoredEmailId, string>()));
+
+        var enrichments = Substitute.For<IStoredEmailEnrichmentReader>();
+        enrichments.ReadEnrichmentsAsync(Arg.Any<IReadOnlyList<StoredEmailId>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyDictionary<StoredEmailId, EmailEnrichment>>(new Dictionary<StoredEmailId, EmailEnrichment>()));
+
+        return new MailThreadBrowser(
+            threadReader,
+            StubMailCategories.OfferingNothing,
+            summaries,
+            previews,
+            enrichments,
+            new MailboxScopeResolver(
+                catalog,
+                folders,
+                StubDeploymentMailFolders.Of(folders),
+                StubMailFolderMappings.ResolvingNothing),
+            SensitiveContentEgressGuards.Inactive(),
+            readTelemetry,
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));
+    }
+
+    /// <summary>Builds the calendar reader over a store holding the given event for this person, or none.</summary>
+    private static OwnCalendar Calendar(CalendarEvent? holding)
+    {
+        var authorization = AccessAuthorizations.ForUserGranted(User, MailFathomPermission.CalendarRead);
+        var calendar = Substitute.For<ICalendarEventStore>();
+        calendar.ReadAsync(User, Arg.Any<CalendarEventId>(), Arg.Any<CancellationToken>()).Returns(holding);
+
+        var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
+        var clock = new FakeTimeProvider(Stamped);
+
+        return new OwnCalendar(
+            authorization,
+            calendar,
+            new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), clock),
+            clock,
+            ClientSignalPublishers.ReachingNobody);
+    }
+
     private static OwnTasks SignedIn(IPersonalTaskStore store) => new(
         AccessAuthorizations.ForUserGranted(User, MailFathomPermission.TasksRead, MailFathomPermission.TasksWrite),
         store,
@@ -683,6 +1104,8 @@ public sealed class ClientTaskEndpointsTests
                 DueDayOffsetMinutes: 120,
                 SourceMessageId: null),
             SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -713,6 +1136,8 @@ public sealed class ClientTaskEndpointsTests
                 DueDayOffsetMinutes: 120,
                 SourceMessageId: null),
             SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -749,6 +1174,8 @@ public sealed class ClientTaskEndpointsTests
                 dueDayOffsetMinutes,
                 SourceMessageId: null),
             SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -774,6 +1201,8 @@ public sealed class ClientTaskEndpointsTests
                 DueDayOffsetMinutes: 120,
                 SourceMessageId: null),
             SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -799,6 +1228,8 @@ public sealed class ClientTaskEndpointsTests
                 DueDayOffsetMinutes: 120,
                 SourceMessageId: null),
             SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -832,6 +1263,8 @@ public sealed class ClientTaskEndpointsTests
                 DueDayOffsetMinutes: 120,
                 SourceMessageId: null),
             SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
             TestContext.Current.CancellationToken);
 
         // Assert
