@@ -89,6 +89,7 @@ function deployment({
     refuses = [],
     leavesUnanswered = [],
     holdsTaskWrites = false,
+    heldElsewhere = [],
 }: {
     committed?: readonly unknown[];
     proposed?: readonly unknown[];
@@ -105,6 +106,9 @@ function deployment({
 
     /** Whether a task's revision waits until it is let through, which is how a second press is caught in flight. */
     holdsTaskWrites?: boolean;
+
+    /** Tasks this deployment holds that no page of the list answers, read only by their identity. */
+    heldElsewhere?: readonly unknown[];
 } = {}): {
     readonly transport: MailFathomTransport;
     readonly sent: () => readonly ClientRequest[];
@@ -160,6 +164,16 @@ function deployment({
                 answer = refuses.some((task) => path.includes(`/tasks/${task}`))
                     ? { status: 403, headers: {}, body: '' }
                     : { ...answered, body: JSON.stringify(taskCalled('a', 'Answer the tender')) };
+            } else if (/\/tasks\/(?!proposed)[^/?]+$/u.test(path)) {
+                const id = decodeURIComponent(path.slice(path.lastIndexOf('/') + 1));
+                const found = [...committed, ...proposed, ...heldElsewhere].find(
+                    (task) => (task as { readonly id: string }).id === id,
+                );
+
+                answer =
+                    found === undefined
+                        ? { status: 404, headers: {}, body: '' }
+                        : { ...answered, body: JSON.stringify(found) };
             } else if (path.includes('/tasks/proposed')) {
                 served += 1;
                 answer = { ...answered, body: JSON.stringify({ tasks: served > 1 ? [] : proposed, nextCursor: null }) };
@@ -180,6 +194,7 @@ function drawSpace(
         readsMail = true,
         onOpenMessage = vi.fn(),
         lostServer = false,
+        taskAsked = null,
     }: {
         asksDeployment?: boolean;
         readsCalendar?: boolean;
@@ -188,6 +203,9 @@ function drawSpace(
 
         /** Whether the connection status says the server is out of reach, which refuses every write before use. */
         lostServer?: boolean;
+
+        /** A task another screen asked to be opened. */
+        taskAsked?: { readonly taskId: string } | null;
     } = {},
 ): void {
     render(
@@ -199,6 +217,7 @@ function drawSpace(
                     asksDeployment={asksDeployment}
                     readsCalendar={readsCalendar}
                     onOpenMessage={readsMail ? onOpenMessage : undefined}
+                    taskAsked={taskAsked}
                 />
             </ConnectionStatusContext>
         </LocalizationProvider>,
@@ -325,6 +344,26 @@ describe('TasksSpace', () => {
 
         expect(revised?.path).toBe('https://mail.example.invalid/api/client/tasks/a');
         expect(JSON.parse(revised?.body ?? 'null')).toMatchObject({ title: 'Answer the Nordwind tender' });
+    });
+
+    it('opens the task another screen asked for, read by its identity where the list does not hold it', async () => {
+        const { transport, sent } = deployment({ heldElsewhere: [taskCalled('z', 'Renew the warehouse lease')] });
+
+        drawSpace(transport, { taskAsked: { taskId: 'z' } });
+
+        const dialog = await screen.findByRole('dialog', { name: 'Task' });
+
+        expect(within(dialog).getByLabelText('What is it?')).toHaveProperty('value', 'Renew the warehouse lease');
+        expect(pathsSent(sent(), 'GET')).toContain('https://mail.example.invalid/api/client/tasks/z');
+    });
+
+    it('says a task another screen asked for is gone where nobody holds it any longer', async () => {
+        const { transport } = deployment();
+
+        drawSpace(transport, { taskAsked: { taskId: 'gone' } });
+
+        expect(await screen.findByText('That task is no longer on your list.')).toBeDefined();
+        expect(screen.queryByRole('dialog', { name: 'Task' })).toBeNull();
     });
 
     it('heads each view with what it holds and counts what is open in it', async () => {

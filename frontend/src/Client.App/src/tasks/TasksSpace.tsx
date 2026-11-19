@@ -2,13 +2,14 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import {
     acceptTask,
     arrangesDays,
     dueDayOffsetMinutes,
     eraseTask,
     readMailThread,
+    readTask,
     recordTask,
     reviseTask,
     setTaskCompletion,
@@ -163,6 +164,11 @@ function reasonBehind(refused: readonly TaskWrite[]): ClientFailureReason | null
     return only ?? null;
 }
 
+/** A task another screen asked Tasks to open, by its identity; each ask is a new value. */
+export interface TaskOpenAsked {
+    readonly taskId: string;
+}
+
 export function TasksSpace({
     session,
     transport,
@@ -171,6 +177,7 @@ export function TasksSpace({
     onOpenMessage,
     onOpenEvent,
     openLayoutOffer = false,
+    taskAsked = null,
 }: {
     /** Who is asking and where, or `null` where there is nothing to ask with. */
     readonly session: ClientSession | null;
@@ -197,6 +204,9 @@ export function TasksSpace({
 
     /** Whether the screen opens on *Today* with the day being laid out, which is how another screen asks for it. */
     readonly openLayoutOffer?: boolean;
+
+    /** A task another screen asked to be opened — a reminder's — or `null` where none is. */
+    readonly taskAsked?: TaskOpenAsked | null;
 }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
@@ -237,6 +247,7 @@ export function TasksSpace({
     }
 
     const [announcing, setAnnouncing] = useState<PersonalTask | null>(null);
+    const [sought, setSought] = useState<PersonalTask | null>(null);
 
     const asked = useRef<HTMLDialogElement | null>(null);
     const asking = useRef<HTMLDialogElement | null>(null);
@@ -253,6 +264,43 @@ export function TasksSpace({
         },
         [],
     );
+
+    // A task another screen asked for is read and opened once per ask, which is a request going out when the ask
+    // arrives — read even where the list holds it, so the dialog opens on the task as it now stands.
+    const taskSought = useRef(0);
+    const readAskedTask = useEffectEvent((taskId: string) => {
+        if (session === null) {
+            return;
+        }
+
+        const seeking = ++taskSought.current;
+
+        void readTask(session, transport, taskId).then((answer) => {
+            if (seeking !== taskSought.current) {
+                return;
+            }
+
+            if (answer.outcome === 'failed') {
+                setSaid({ said: answer.failure.reason === 'missing' ? 'tasks.taskGone' : 'tasks.taskUnopened' });
+
+                return;
+            }
+
+            setSaid(null);
+            setSought(answer.value);
+            setOpenedId(answer.value.id);
+        });
+    });
+
+    useEffect(() => {
+        if (taskAsked !== null) {
+            readAskedTask(taskAsked.taskId);
+        }
+
+        return () => {
+            taskSought.current += 1;
+        };
+    }, [taskAsked]);
 
     const reading = useTasks(session, transport);
     const day = useTodayCalendar(readsCalendar ? session : null, transport, now);
@@ -322,8 +370,12 @@ export function TasksSpace({
     const eventsToday = day.events.filter((event) => calendarDayIn(Date.parse(event.start), timeZone) === today).length;
 
     // The task open in its dialog, and the one being planned, read back out of the list so each draws the last read
-    // with every plan pressed since.
-    const opened = openedId === null ? null : (listed.find((task) => task.id === openedId) ?? null);
+    // with every plan pressed since. A task another screen asked for may be on no page the list read — done long ago,
+    // or past the walk — so the one read for that ask stands in until the list holds it.
+    const opened =
+        openedId === null
+            ? null
+            : (listed.find((task) => task.id === openedId) ?? (sought?.id === openedId ? sought : null));
     const planningTask = planningId === null ? null : (listed.find((task) => task.id === planningId) ?? null);
 
     // The dialog is the platform's own, so opening it is an imperative call on an element that has to exist first —

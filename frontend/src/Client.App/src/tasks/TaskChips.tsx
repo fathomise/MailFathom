@@ -26,6 +26,7 @@ export function TaskChips({
     tasks,
     onOpen,
     stacked = false,
+    label,
 }: {
     readonly tasks: readonly PersonalTask[];
 
@@ -34,6 +35,9 @@ export function TaskChips({
 
     /** Whether each stands on a line of its own, which the event dialog draws, rather than wrapping as chips. */
     readonly stacked?: boolean;
+
+    /** What the list is called where it stands beside another, as a person's two sides do. */
+    readonly label?: string;
 }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
@@ -69,7 +73,7 @@ export function TaskChips({
     }
 
     return (
-        <ul className={stacked ? 'flex flex-col gap-0.5' : 'flex flex-wrap gap-1.5'}>
+        <ul aria-label={label} className={stacked ? 'flex flex-col gap-0.5' : 'flex flex-wrap gap-1.5'}>
             {shown.map((task) => {
                 const awaited = task.direction === 'Awaited';
 

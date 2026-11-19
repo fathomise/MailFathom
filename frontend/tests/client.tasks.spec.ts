@@ -58,6 +58,7 @@ test('the four views show the commitments the deployment holds', async ({ page, 
     ]);
     await expect(titlesIn(page, 'Later')).toHaveText([
         /^Prepare the IT contract list for audit/u,
+        /^Send Anna the Gdańsk stock count/u,
         /^Sign the Northwind NDA/u,
     ]);
     await expect(titlesIn(page, 'No day')).toHaveText([/^Draft the onboarding checklist for Q4 hires/u]);
@@ -66,7 +67,10 @@ test('the four views show the commitments the deployment holds', async ({ page, 
 
     await expect(page.getByRole('heading', { name: 'Waiting for others' })).toBeVisible();
     await expect(titlesIn(page, 'Follow up today')).toHaveText([/^Delivery confirmation from Tomasz Bąk/u]);
-    await expect(titlesIn(page, 'Waiting')).toHaveText([/^Signed addendum from Anna Kowalska/u]);
+    await expect(titlesIn(page, 'Waiting')).toHaveText([
+        /^Signed addendum from Anna Kowalska/u,
+        /^Racking quote from Anna Marlow/u,
+    ]);
     await expect(titlesIn(page, 'Closed by a reply')).toHaveText([/Jacek Wrona replied at 9:12/u]);
     await expect(page.getByText('A waiting task closes itself when the reply arrives.')).toBeVisible();
 

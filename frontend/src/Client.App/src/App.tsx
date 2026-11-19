@@ -84,7 +84,7 @@ import { usePanelSwipe } from './notifications/usePanelSwipe';
 import { useNotificationCentre } from './notifications/useNotificationCentre';
 import { PeopleSpace } from './people/PeopleSpace';
 import { MailTasksProvider } from './tasks/MailTasks';
-import { TasksSpace } from './tasks/TasksSpace';
+import { TasksSpace, type TaskOpenAsked } from './tasks/TasksSpace';
 import { PendingChangesProvider } from './pendingChanges/PendingChanges';
 import { AiFiltersShownContext } from './preferences/aiFilters';
 import { MessageViewContext } from './preferences/messageView';
@@ -500,9 +500,11 @@ export function App({
 
     // What the calendar and Tasks ask of each other: the calendar's *Plan my day* opens Tasks with the day being laid
     // out, which stands until somebody leaves Tasks again, and an event a task belongs to is opened in the calendar —
-    // every ask a value of its own, so the same event asked for twice is opened twice.
+    // every ask a value of its own, so the same event asked for twice is opened twice. A task a reminder names is
+    // asked of Tasks the same way.
     const [layoutOffered, setLayoutOffered] = useState(false);
     const [eventAsked, setEventAsked] = useState<EventAsked | null>(null);
+    const [taskAsked, setTaskAsked] = useState<TaskOpenAsked | null>(null);
     const [spaceSeen, setSpaceSeen] = useState(space);
 
     if (space !== spaceSeen) {
@@ -881,8 +883,9 @@ export function App({
     );
 
     // Where a notification leads. What each target kind comes to is `notifications/notificationDestination.ts`, which
-    // is where it can be asserted without a frame around it; what this supplies is the two things this client can
-    // actually do about one, because opening a message and reaching a space are the frame's rather than a mapping's.
+    // is where it can be asserted without a frame around it; what this supplies is what this client can actually do
+    // about one, because opening a message, a send, a draft, or a task and reaching a space are the frame's rather
+    // than a mapping's.
     const followNotification = useCallback(
         (target: NotificationTarget): void => {
             followTarget(target, {
@@ -895,6 +898,10 @@ export function App({
                 },
                 goTo: (space) => {
                     window.location.hash = addressOf(space);
+                },
+                openTask: (taskId) => {
+                    setTaskAsked({ taskId });
+                    window.location.hash = addressOf('tasks');
                 },
                 showOutboxEntry: (outgoingEmailId) => {
                     showSend(outgoingEmailId);
@@ -1817,6 +1824,9 @@ export function App({
                                                                                                                             }
                                                                                                                             openLayoutOffer={
                                                                                                                                 layoutOffered
+                                                                                                                            }
+                                                                                                                            taskAsked={
+                                                                                                                                taskAsked
                                                                                                                             }
                                                                                                                             onOpenEvent={
                                                                                                                                 !offeredSpaces.includes(

@@ -16,6 +16,7 @@ import {
     parseTask,
     readOwnTasks,
     readProposedTasks,
+    readTask,
     recordTask,
     reviseTask,
     setTaskCompletion,
@@ -391,6 +392,24 @@ describe('reviseTask', () => {
 
     it('reads a task somebody erased while the screen held it as missing rather than as a deployment that is down', async () => {
         const answer = await reviseTask(session, answering({ status: 404, body: '' }), asserted.id, announced);
+
+        expect(answer).toEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
+    });
+});
+
+describe('readTask', () => {
+    it('reads the one task at the route that names it', async () => {
+        const { transport, requests } = recording({ status: 200, body: JSON.stringify(asserted) });
+
+        const answer = await readTask(session, transport, asserted.id);
+
+        expect(requests[0]?.method).toBe('GET');
+        expect(requests[0]?.path).toBe(`https://mail.example.invalid/api/client/tasks/${asserted.id}`);
+        expect(answer.outcome === 'read' && answer.value.id).toBe(asserted.id);
+    });
+
+    it('reads a task nobody holds any longer as missing rather than as the deployment being down', async () => {
+        const answer = await readTask(session, answering({ status: 404, body: '' }), asserted.id);
 
         expect(answer).toEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
     });

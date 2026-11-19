@@ -111,8 +111,9 @@ function planned(day: string, time: string, minutes: number) {
  * view, group and row shape the Tasks screen draws is reachable without pressing anything.
  *
  * What is owed runs from two tasks planned into today — one over the corpus's meeting, which is the clash — through a
- * task due today with nothing planned, one planned tomorrow, three this week and three later, to one nobody dated and
- * one already done. What is waited on runs from a follow-up due today to one a reply already closed.
+ * task due today with nothing planned, one planned tomorrow, three this week and four later, to one nobody dated and
+ * one already done. What is waited on runs from a follow-up due today to one a reply already closed. One owed and one
+ * waited on are with the address book's first person, each under another of her addresses.
  *
  * @param day The reader's own day, as a calendar day.
  * @returns One page of the committed half, which is the whole of it.
@@ -155,6 +156,11 @@ export function committedTasks(day: string) {
                 estimatedMinutes: 10,
                 anchor: thread(ndaThread, 'Draft NDA - Northwind'),
             }),
+            // Both ways with the address book's first person, each under another of her two addresses.
+            task('task-stock', 'Send Anna the Gdańsk stock count', dayAfter(day, 9), {
+                estimatedMinutes: 20,
+                counterpart: person('anna@nordwind.example', 'Anna Marlow'),
+            }),
             task('task-racking', 'Draft the onboarding checklist for Q4 hires', null, { estimatedMinutes: 60 }),
             task('task-invoice', 'Send the August invoice', dayAfter(day, -2), { completed: true }),
             task('wait-delivery', 'Delivery confirmation from Tomasz Bąk', day, {
@@ -166,6 +172,10 @@ export function committedTasks(day: string) {
                 direction: 'Awaited',
                 anchor: thread(contractThread, 'Contract addendum - signatures'),
                 counterpart: person('anna@contoso.example', 'Anna Kowalska'),
+            }),
+            task('wait-racking', 'Racking quote from Anna Marlow', dayAfter(day, 4), {
+                direction: 'Awaited',
+                counterpart: person('a.marlow@nordwind.example', 'Anna Marlow'),
             }),
             task('wait-opinion', 'Opinion on the indexation cap from Jacek Wrona', day, {
                 direction: 'Awaited',

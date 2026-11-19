@@ -6,14 +6,13 @@ import type { NotificationScreen, NotificationTarget } from '@mailfathom/client-
 import type { Space } from '../routing/spaces';
 
 // Where a notification leads. The deployment says what a notification is *about*, and this says what this client can
-// do about it — which is two things and no more: open the mail it names, or go to a space. It is a function rather
+// do about it: open the mail, the send, the draft, or the task it names, or go to a space. It is a function rather
 // than a branch inside the frame because it is the one place the two vocabularies meet, and because a mapping nothing
 // can call on its own is a mapping nothing can be asserted about either.
 //
-// **A record this client has no screen for is a space rather than nothing.** A reminder names one calendar event or
-// one task, and neither the Calendar screen nor the Tasks screen that would open it has shipped — so following it
-// goes to that space, which is as close to the thing as this client can take somebody. Opening the record itself
-// joins this in the change that draws the screen it opens on.
+// **A reminder opens what it names where this client draws it.** A task reminder opens Tasks with that task's dialog
+// over it. A calendar event's reminder still goes to the Calendar space, as close to the event as this mapping takes
+// somebody.
 //
 // **A target this client cannot open leaves the reader where they were.** A screen no space here answers for is a
 // stage that has not shipped, and a notification about nothing is one that was never a place to go: neither is a
@@ -35,6 +34,9 @@ export interface NotificationDestinations {
      * a draft out of step is carried on.
      */
     readonly openDraft: (draftId: string) => void;
+
+    /** Opens Tasks with one task's dialog over it, which is where a task reminder leads. */
+    readonly openTask: (taskId: string) => void;
 }
 
 // Exhaustive by its own type, so a screen the service adds fails to compile here until somebody has decided where it
@@ -72,7 +74,7 @@ export function followTarget(target: NotificationTarget, client: NotificationDes
     }
 
     if (target.kind === 'PersonalTask') {
-        client.goTo('tasks');
+        client.openTask(target.taskId);
 
         return;
     }

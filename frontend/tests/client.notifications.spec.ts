@@ -4,7 +4,7 @@
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
-import { holdTheClock, messageRegion, openSignedIn, settled, test } from './client.harness';
+import { holdTheClock, messageRegion, openSignedIn, openSignedInAsDeveloper, settled, test } from './client.harness';
 import * as notifications from './fixtures/notifications';
 
 // The notification centre as a person uses it: a notification arriving while they work, opening one to what it is
@@ -159,6 +159,24 @@ test('goes to the space a notification names, and the centre and the bell agree 
     await openCentre(page);
     await showAll(page);
     await expect(row(page, '8 new messages')).not.toContainText('Unread');
+});
+
+test('a task reminder opens that task', async ({ page, deployment }) => {
+    deployment.raiseNotification(notifications.taskReminderNotification);
+    await openSignedInAsDeveloper(page, '/#/mail');
+    await openCentre(page);
+
+    await centre(page)
+        .getByRole('button', { name: /Prepare the IT contract list for audit/u })
+        .first()
+        .click();
+
+    await expect(centre(page)).toBeHidden();
+    await expect(page.getByRole('main', { name: 'Tasks' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Task' }).getByLabel('What is it?')).toHaveValue(
+        'Prepare the IT contract list for audit',
+    );
+    expect(deployment.requests('GET', '/tasks/task-audit')).toHaveLength(1);
 });
 
 test('marks one notification and then the rest read, and the bell holds nothing unread across a reload', async ({

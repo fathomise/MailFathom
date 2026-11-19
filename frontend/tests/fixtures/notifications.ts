@@ -143,6 +143,22 @@ export const arrivingNotification = {
     read: false,
 };
 
+/**
+ * A task's reminder, raised for a check that follows one, leading to the task it names rather than to the Tasks space:
+ * the corpus's contract list due a week out, said with an hour left.
+ */
+export const taskReminderNotification = {
+    id: '00000000-0000-4000-8000-0000000000f8',
+    kind: 'Task',
+    statement: { cause: 'TaskReminderDue', counted: 60, outOf: null },
+    title: 'Prepare the IT contract list for audit',
+    body: 'Request for the contract register',
+    source: 'Tasks',
+    target: { kind: 'PersonalTask', taskId: 'task-audit' },
+    occurredAt: '2026-08-31T09:30:00+00:00',
+    read: false,
+};
+
 /** What a centre with nothing in it answers with, which a panel says something of its own about. */
 export const emptyNotificationPage = { notifications: [], nextCursor: null };
 

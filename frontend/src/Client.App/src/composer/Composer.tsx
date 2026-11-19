@@ -595,6 +595,17 @@ export function Composer({
             adoptTheDraft(answer.value.draft);
             setAuthored(true);
             setComposition((held) => held ?? draftHeld(answer.value));
+
+            // A kept draft of an answer stands in the thread its filed copy stands in, which is where its wait goes.
+            const filed = answer.value.draft.filedEmailId;
+
+            if (filed !== null) {
+                void readMailMessage(session, transport, filed).then((message) => {
+                    if (listening && message.outcome === 'read') {
+                        setAnsweredThread(answeredThreadOf(message.value));
+                    }
+                });
+            }
         });
 
         return () => {

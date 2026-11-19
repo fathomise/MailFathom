@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { followTarget, type NotificationDestinations } from './notificationDestination';
 
 function following(): NotificationDestinations {
-    return { openMail: vi.fn(), goTo: vi.fn(), showOutboxEntry: vi.fn(), openDraft: vi.fn() };
+    return { openMail: vi.fn(), goTo: vi.fn(), showOutboxEntry: vi.fn(), openDraft: vi.fn(), openTask: vi.fn() };
 }
 
 describe('followTarget', () => {
@@ -63,14 +63,13 @@ describe('followTarget', () => {
         expect(client.openMail).not.toHaveBeenCalled();
     });
 
-    // The same answer for the same reason: the Tasks screen that would open one has not shipped either.
-    it('goes to the tasks for a due reminder, which names a task no screen opens yet', () => {
+    it('followTarget opens the task a reminder names', () => {
         const client = following();
 
         followTarget({ kind: 'PersonalTask', taskId: 't-7' }, client);
 
-        expect(client.goTo).toHaveBeenCalledExactlyOnceWith('tasks');
-        expect(client.openMail).not.toHaveBeenCalled();
+        expect(client.openTask).toHaveBeenCalledExactlyOnceWith('t-7');
+        expect(client.goTo).not.toHaveBeenCalled();
     });
 
     it('leaves the reader where they were where the screen has no address in this client yet', () => {

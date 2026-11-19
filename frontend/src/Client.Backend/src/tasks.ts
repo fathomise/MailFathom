@@ -275,6 +275,27 @@ export function readProposedTasks(
     return readHalf(session, transport, proposedTasksRoute, page);
 }
 
+/**
+ * Reads one task by its identity, whichever half holds it, which is how a reminder naming a task not on the page in
+ * front of the reader is opened. A `404` is `missing`: the route names one task, so it is one nobody holds any longer.
+ */
+export function readTask(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    taskId: string,
+): Promise<ClientResult<PersonalTask>> {
+    return spanned(`GET ${tasksRoute}/{taskId}`, async () =>
+        namedTaskOf(
+            await send(transport, {
+                method: 'GET',
+                path: routeFor(session, taskRoute(taskId)),
+                headers: headersFor(session),
+                longestAnswer: longestTaskAnswer,
+            }),
+        ),
+    );
+}
+
 /** Records a task the person has just committed to, which is written as one they asserted. */
 export function recordTask(
     session: ClientSession,
@@ -544,7 +565,7 @@ function taskOf(response: ClientResponse | null): ClientResult<PersonalTask> {
     return task === null ? failed('unreadable', response.status) : read(task);
 }
 
-// The two whose route does name one task, which is what lets a `404` be read as that task being gone: one erased
+// The ones whose route does name one task, which is what lets a `404` be read as that task being gone: one erased
 // while somebody had the list open is let go of, where a deployment that is down is retried.
 function namedTaskOf(response: ClientResponse | null): ClientResult<PersonalTask> {
     return response !== null && response.status === 404 ? failed('missing', response.status) : taskOf(response);

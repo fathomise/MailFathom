@@ -1016,7 +1016,7 @@ test('holds a corpus event where an amendment put it, rather than where the next
     );
 });
 
-test('lists a task it was written in the committed half, marks it done, and forgets it once erased', () => {
+test('lists a task it was written in the committed half, answers it by its identity, marks it done, and forgets it once erased', () => {
     const deployment = new FakeDeployment('0.0.0');
     const committed = () =>
         (ask(deployment, 'GET', '/tasks?pageSize=50') as { tasks: { id: string; completed: boolean }[] }).tasks;
@@ -1030,6 +1030,7 @@ test('lists a task it was written in the committed half, marks it done, and forg
     }) as { id: string };
 
     expect(committed()).toContainEqual(expect.objectContaining({ id, completed: false }));
+    expect(ask(deployment, 'GET', `/tasks/${id}`)).toMatchObject({ id, completed: false });
 
     ask(deployment, 'POST', `/tasks/${id}/completion`, { completed: true });
 
@@ -1037,6 +1038,7 @@ test('lists a task it was written in the committed half, marks it done, and forg
     expect(ask(deployment, 'DELETE', `/tasks/${id}`)).toStrictEqual({ id, erased: true });
     expect(committed().map((task) => task.id)).not.toContain(id);
     expect(ask(deployment, 'POST', `/tasks/${id}/completion`, { completed: false })).toBe(404);
+    expect(ask(deployment, 'GET', `/tasks/${id}`)).toBe(404);
 });
 
 test('holds a revised task as the whole record stated, and refuses to turn round a wait a reply answered', () => {

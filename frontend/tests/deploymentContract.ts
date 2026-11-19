@@ -820,7 +820,7 @@ export const contractCases: readonly ContractCase[] = [
         },
     },
     {
-        title: 'lists a task it was written, answers it done once marked, and forgets it once erased',
+        title: 'lists a task it was written, answers it by its identity, answers it done once marked, and forgets it once erased',
         run: async (deployment) => {
             const listed = async () =>
                 (
@@ -838,6 +838,10 @@ export const contractCases: readonly ContractCase[] = [
 
             expect(written).toMatchObject({ title: 'Written by a contract case', dueOn: caseDay, completed: false });
             expect((await listed()).find(({ id }) => id === written.id)).toMatchObject({ completed: false });
+            expect(await deployment.answered('GET', `/tasks/${encodeURIComponent(written.id)}`)).toMatchObject({
+                id: written.id,
+                completed: false,
+            });
 
             expect(
                 await deployment.answered('POST', `/tasks/${encodeURIComponent(written.id)}/completion`, {

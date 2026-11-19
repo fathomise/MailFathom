@@ -790,6 +790,46 @@ describe('Composer, waiting for a reply', () => {
             );
         });
     });
+    // A draft MailFathom keeps opens on its record rather than on a message, so the thread it answers is the one the
+    // message the drafts folder shows it as stands in.
+    it('writes the wait of a kept answer down in the thread its filed copy stands in', async () => {
+        const record = vi.fn(failingWith({ reason: 'unavailable', status: null }));
+        const threadId = '7c1e2d3f-4a5b-4c6d-8e9f-0a1b2c3d4e5f';
+
+        drawWaiting(
+            record,
+            { kind: 'held', draftId: 'd9' },
+            {
+                held: {
+                    status: 200,
+                    body: heldReading({ serverCopy: 'Filed', divergence: null, filedEmailId: 'message-9' }),
+                },
+                message: {
+                    status: 200,
+                    body: messageBody({
+                        threadId,
+                        headers: {
+                            ...(JSON.parse(messageBody()) as { headers: Record<string, unknown> }).headers,
+                            subject: 'Re: Q4 supplier review',
+                            inReplyTo: 'abc@example.invalid',
+                        },
+                    }),
+                },
+            },
+        );
+
+        await screen.findByRole('button', { name: 'Remove marta@example.invalid from To' });
+        waitUntilTomorrow();
+        confirmSend();
+
+        await waitFor(() => {
+            expect(record).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    anchor: { kind: 'Thread', id: threadId, label: 'Re: Q4 supplier review' },
+                }),
+            );
+        });
+    });
 });
 
 describe('Composer, a message of its own', () => {

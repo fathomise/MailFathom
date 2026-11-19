@@ -743,6 +743,7 @@ export {
     proposedTasksRoute,
     readOwnTasks,
     readProposedTasks,
+    readTask,
     recordTask,
     reviseTask,
     setTaskCompletion,

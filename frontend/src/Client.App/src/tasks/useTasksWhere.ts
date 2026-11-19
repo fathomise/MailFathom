@@ -71,6 +71,25 @@ export async function readEveryPage(
     return { outcome: 'read', value: tasks };
 }
 
+// The walks' answers as one, each task once and in the order the walks first named it, or the first failure.
+function merged(answers: readonly ClientResult<readonly PersonalTask[]>[]): ClientResult<readonly PersonalTask[]> {
+    const tasks = new Map<string, PersonalTask>();
+
+    for (const answer of answers) {
+        if (answer.outcome === 'failed') {
+            return answer;
+        }
+
+        for (const task of answer.value) {
+            if (!tasks.has(task.id)) {
+                tasks.set(task.id, task);
+            }
+        }
+    }
+
+    return { outcome: 'read', value: [...tasks.values()] };
+}
+
 interface HeldWhere {
     readonly session: ClientSession | null;
     readonly asked: string;
@@ -95,13 +114,29 @@ export function useTasksWhere(
     transport: MailFathomTransport,
     filter: TaskFilter,
 ): TasksWhere {
-    // The filter is held by what it says rather than by identity, since a caller states it afresh on every render: a
-    // filter saying something new replaces the one held, and only that is a new question.
-    const asked = JSON.stringify(filter);
-    const [stated, setStated] = useState(filter);
+    return useTasksWhereAny(session, transport, [filter]);
+}
+
+/**
+ * Holds the person's own tasks any of several filters names, each walked and the answers merged, a task named by two
+ * of them held once — a person with several addresses being the one thing read this way.
+ *
+ * @param session Who is asking and where, or `null` where nothing is read.
+ * @param transport How a request reaches the deployment.
+ * @param filters What narrows the list, one walk each.
+ */
+export function useTasksWhereAny(
+    session: ClientSession | null,
+    transport: MailFathomTransport,
+    filters: readonly TaskFilter[],
+): TasksWhere {
+    // The filters are held by what they say rather than by identity, since a caller states them afresh on every
+    // render: filters saying something new replace the ones held, and only that is a new question.
+    const asked = JSON.stringify(filters);
+    const [stated, setStated] = useState(filters);
 
     if (JSON.stringify(stated) !== asked) {
-        setStated(filter);
+        setStated(filters);
     }
 
     const [held, setHeld] = useState<HeldWhere>(() => nothingRead(session, asked));
@@ -113,7 +148,11 @@ export function useTasksWhere(
         }
 
         const asking = ++latest.current;
-        const answer = await readEveryPage((page) => readOwnTasks(session, transport, { ...page, filter: stated }));
+        const answer = merged(
+            await Promise.all(
+                stated.map((filter) => readEveryPage((page) => readOwnTasks(session, transport, { ...page, filter }))),
+            ),
+        );
 
         if (asking !== latest.current) {
             return;

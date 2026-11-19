@@ -12884,6 +12884,7 @@ notifications.ts abandonedChangeNotification GET /api/client/notifications
 notifications.ts draftCopyNotification GET /api/client/notifications
 notifications.ts notificationPage GET /api/client/notifications
 notifications.ts arrivingNotification GET /api/client/notifications
+notifications.ts taskReminderNotification GET /api/client/notifications
 notifications.ts emptyNotificationPage GET /api/client/notifications
 notifications.ts unreadNotificationCount GET /api/client/notifications/unread-count
 notifications.ts notificationMarkedRead POST /api/client/notifications/{notificationId}/read-state

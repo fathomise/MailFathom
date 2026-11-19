@@ -556,11 +556,12 @@ export class FakeDeployment {
     }
 
     /**
-     * Raises the corpus's arriving notification at the head of the centre, which is what a deployment does while nobody
-     * is looking at the screen: nothing is pushed, and the client finds it the next time it asks for the count.
+     * Raises a notification at the head of the centre — the corpus's arriving one unless another is named — which is
+     * what a deployment does while nobody is looking at the screen: nothing is pushed, and the client finds it the next
+     * time it asks for the count.
      */
-    raiseNotification(): void {
-        this.notificationsHeld = [{ ...notifications.arrivingNotification }, ...this.notificationsHeld];
+    raiseNotification(raised: HeldNotification = notifications.arrivingNotification): void {
+        this.notificationsHeld = [{ ...raised }, ...this.notificationsHeld];
     }
 
     /**
@@ -1022,7 +1023,23 @@ export class FakeDeployment {
     }
 
     private taskAnswer(request: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
-        return request.method === 'GET' ? null : this.tasksChanged(this.taskWrite(request, segments));
+        return request.method === 'GET'
+            ? this.taskFound(segments)
+            : this.tasksChanged(this.taskWrite(request, segments));
+    }
+
+    /** One task by its identity, from whichever half holds it, and `404` for one nobody holds. */
+    private taskFound(segments: readonly string[]): FakeAnswer | null {
+        const [space, id] = segments;
+
+        if (space !== 'tasks' || id === undefined || segments.length !== 2) {
+            return null;
+        }
+
+        const lists = this.tasks();
+        const found = [...lists.committed, ...lists.proposed].find((task) => task['id'] === id);
+
+        return found === undefined ? { status: 404, body: '' } : answering(found);
     }
 
     /** Revising one task to the whole record stated, marking it done or not done, and erasing it, from whichever half holds it. */

@@ -25,13 +25,14 @@ import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { ColleagueTime } from './ColleagueTime';
 import { ContactDetails } from './ContactDetails';
 import { OrganizationCard } from './OrganizationCard';
+import { PersonCommitments } from './PersonCommitments';
 import { PersonCorrespondence } from './PersonCorrespondence';
 import { RelationshipReading } from './RelationshipReading';
 import type { ColleagueStructureInForce } from './useColleagueStructure';
 import type { ContactCorrespondenceInForce } from './useContactCorrespondence';
 
 // One person as the design draws them: who they are and how to reach them, the acts that belong to the record
-// itself, and then what MailFathom and the mailbox have to say about them.
+// itself, what the reader and they owe each other, and then what MailFathom and the mailbox have to say about them.
 //
 // **What the record admits is read off its book rather than from a control being pressed.** A contact one of this
 // user's mailboxes collected is theirs to take on or to erase and nobody's to amend, and the page says so on the record
@@ -377,6 +378,12 @@ export function PersonPage({
             <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4 py-3.5 workspace:px-person-gutter workspace:py-4.5">
                 {member ? (
                     <>
+                        <PersonCommitments
+                            addresses={contact.addresses}
+                            preferredAddress={contact.preferredAddress}
+                            displayName={contact.displayName}
+                        />
+
                         {/* The two cards side by side where the page has room, as the design draws them, and one under
                             the other where it has not. */}
                         <div className="flex flex-col gap-3 roomy:flex-row roomy:*:flex-1">
@@ -393,6 +400,12 @@ export function PersonPage({
                 ) : (
                     <>
                         <RelationshipReading lastCorrespondedAt={lastCorrespondedAt} reading={correspondence.reading} />
+
+                        <PersonCommitments
+                            addresses={contact.addresses}
+                            preferredAddress={contact.preferredAddress}
+                            displayName={contact.displayName}
+                        />
 
                         <ContactDetails contact={contact} />
 

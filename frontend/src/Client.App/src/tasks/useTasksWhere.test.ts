@@ -7,7 +7,7 @@ import { createElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import type { ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { SignalledChangesContext, type SignalListener } from '../signals/signalledChanges';
-import { useTasksWhere } from './useTasksWhere';
+import { useTasksWhere, useTasksWhereAny } from './useTasksWhere';
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
@@ -110,5 +110,25 @@ describe('useTasksWhere', () => {
         });
 
         expect(result.current.tasks.map((task) => task.id)).toStrictEqual(['of-the-second']);
+    });
+
+    it('reads each filter of several and holds a task two of them name once', async () => {
+        const transport: MailFathomTransport = (request) =>
+            Promise.resolve(
+                request.path.includes('counterpart=ann%40example.invalid')
+                    ? pageOf('shared', 'first-only')
+                    : pageOf('second-only', 'shared'),
+            );
+
+        const { result } = renderHook(() =>
+            useTasksWhereAny(session, transport, [
+                { counterpart: 'ann@example.invalid' },
+                { counterpart: 'a.n@example.invalid' },
+            ]),
+        );
+
+        await waitFor(() => {
+            expect(result.current.tasks.map((task) => task.id)).toStrictEqual(['shared', 'first-only', 'second-only']);
+        });
     });
 });
