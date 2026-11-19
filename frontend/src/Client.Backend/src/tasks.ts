@@ -298,7 +298,8 @@ export function recordTask(
  * Revises one task to the record the caller states, which is the whole record rather than the part that changed.
  *
  * A `404` here is `missing` for the reason completion's is: the route names one task, so a deployment answering that
- * way is one somebody erased while this screen had it open.
+ * way is one somebody erased while this screen had it open. It can also mean the anchor the record states, when it
+ * moves the task, is one the person cannot open; the two read alike here because both leave nothing written.
  */
 export function reviseTask(
     session: ClientSession,

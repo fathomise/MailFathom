@@ -380,6 +380,15 @@ describe('reviseTask', () => {
         expect(answer.outcome === 'read' && answer.value.reminders).toEqual([]);
     });
 
+    it.each([
+        ['a direction change on an answered wait', 409],
+        ['a body past the bound', 413],
+    ])('reads %s as unavailable rather than as a task that is gone', async (_, status) => {
+        const answer = await reviseTask(session, answering({ status, body: '' }), asserted.id, announced);
+
+        expect(answer).toEqual({ outcome: 'failed', failure: { reason: 'unavailable', status } });
+    });
+
     it('reads a task somebody erased while the screen held it as missing rather than as a deployment that is down', async () => {
         const answer = await reviseTask(session, answering({ status: 404, body: '' }), asserted.id, announced);
 

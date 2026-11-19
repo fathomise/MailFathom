@@ -42,7 +42,18 @@ test('moves a task it wrote, finished, and deleted between the headings, and the
     await expect(capacity).toContainText('2 tasks are due today.');
 
     expect(deployment.requests('POST', '/tasks').map(({ body }) => body)).toStrictEqual([
-        { title: written, dueOn: today, reminders: [], dueDayOffsetMinutes: null, sourceMessageId: null },
+        {
+            title: written,
+            dueOn: today,
+            reminders: [],
+            dueDayOffsetMinutes: null,
+            sourceMessageId: null,
+            direction: 'Owed',
+            estimatedMinutes: null,
+            plan: null,
+            anchor: null,
+            counterpart: null,
+        },
     ]);
 
     // Finished work leaves the list while done tasks are hidden, and stops counting against the day.
