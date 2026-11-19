@@ -4627,11 +4627,11 @@ everything else.
 
 | Route | What it does |
 | --- | --- |
-| `GET /api/client/tasks` | Reads one page of what this person has committed to, soonest due first |
-| `GET /api/client/tasks/proposed` | Reads one page of what mail proposed and nobody has accepted |
+| `GET /api/client/tasks` | Reads one page of what this person has committed to, soonest due first, narrowed to a thread, an event, a person, or a window where the query says so |
+| `GET /api/client/tasks/proposed` | Reads one page of what mail proposed and nobody has accepted, narrowed the same ways |
 | `GET /api/client/tasks/{taskId}` | Reads one of them |
-| `POST /api/client/tasks` | Records a task this person has just committed to |
-| `PUT /api/client/tasks/{taskId}` | Writes the line and the day they edited |
+| `POST /api/client/tasks` | Records a task this person has just committed to, with the commitment it states |
+| `PUT /api/client/tasks/{taskId}` | Writes the line, the day, and the whole commitment they edited |
 | `POST /api/client/tasks/{taskId}/completion` | Puts one task into the completion state the body states |
 | `POST /api/client/tasks/{taskId}/acceptance` | Takes on a proposed task, so it becomes one this person owes |
 | `DELETE /api/client/tasks/{taskId}` | Erases one task, which is also how a proposal is dismissed |
@@ -4642,6 +4642,26 @@ one listing with a filter a client has to know to send. Both walk the same order
 it was not issued for**, which is what stops a walk of the proposals continuing into the commitments halfway down a
 screen. The order is the day ascending with the undated tasks last and the identifier breaking a tie, which is also the
 order a list is drawn in; grouping those days into *today*, *this week*, and the rest is the screen's own work.
+
+**Either half narrows to what one surface draws, and every narrowing stated applies at once.** Each is a query
+parameter of both list routes, and none is required:
+
+| Query parameter | What it narrows to |
+| --- | --- |
+| `threadId` | The tasks anchored to that thread, which is what a conversation draws beside itself |
+| `eventId` | The tasks anchored to that calendar event |
+| `counterpart` | The tasks with that person, matched on the address in its normalized form, so an address written in another case still finds them; this is what a person's card reads |
+| `from` and `until` | The tasks due inside the window **or** planned to start inside it, which is what a calendar reads. Both are ISO 8601 instants and are stated together |
+
+**A window matches a task in either of two ways, because a calendar draws a task twice.** A task is inside it when its
+due day falls on a day the window covers — read in the offset `from` carries, so the day is the one the client's own
+zone says — or when its plan starts inside it, which may be a different day altogether: a task due Thursday and planned
+for Friday is in the window of either. The window is half-open, so a plan starting exactly at `until` is outside it,
+and it spans at most 62 days; a window longer than that, one that closes before it opens, or one stating only one of
+the two instants is answered `400` naming the rule, as are a malformed `counterpart` and an all-zero identifier. **The
+cursor carries a fingerprint of the whole query** — the half of the list, the person, and every narrowing above — so a
+cursor issued for one query is refused with `400` under any other, which is what stops a walk continuing into a
+different list halfway down a screen.
 
 **A page is clamped rather than refused.** A request naming no `pageSize` is served 50, one naming more than 200 is
 served 200, and one naming zero or a negative number is served the default — [the notification routes](#the-notification-routes)'
@@ -4660,18 +4680,28 @@ that filtered them would need a second route to get them back.
 person holds answers `404` exactly as one nobody holds** — so nothing here reports whether such a task exists.
 
 **A row carries what a list draws and stops there**: the identifier, the line, the day, the leads it is announced at,
-the instants those leads fall at, where the task came from, whether it is done, and the message it cites. No subject, no body, no address, and no attachment reaches these answers
-at any size. The citation is an identity rather than a reading of the message, so a client that draws the link follows
+the instants those leads fall at, where the task came from, whether it is done, the message it cites, and the
+commitment. The commitment is `direction` as `Owed` or `Awaited`, `estimatedMinutes`, `plan` as `startAt` and `minutes`,
+`anchor` as its `kind` of `Thread` or `Event`, its `id`, and the `label` it was written with, `counterpart` as an
+`address` and a `displayName`, and `answer` as the `messageId` and `arrivedAt` of the reply that closed a wait. Each is
+`null` where the task states none, and `answer` is `null` for everything but a wait a reply closed. No subject, no body,
+no attachment, and no address but the counterpart the person stated themselves reaches these answers at any size. The citation is an identity rather than a reading of the message, so a client that draws the link follows
 it over [the message route](#the-message-route) under the grant that publishes reading mail — and a task whose message
 has since been erased finds nothing there, because what a person owes does not stop being owed when the mail naming it
 goes.
 
-**A write states the line, the day, and what announces it, and nothing else.**
-`{"title": "...", "dueOn": "2026-09-21", "reminders": [0, 1440], "dueDayOffsetMinutes": 120}` is the whole of what a
-creation and a revision carry, beside the optional `sourceMessageId` a creation may cite; a day is written
-`yyyy-mm-dd` and absent where nobody has said when. A key nothing here binds fails the bind rather than being ignored,
-so a client that tried to state an origin or a completion is told rather than having its request read as a rename that
-dropped the rest.
+**A write states the line, the day, what announces it, and the commitment, and nothing else.**
+`{"title": "...", "dueOn": "2026-09-21", "reminders": [0, 1440], "dueDayOffsetMinutes": 120, "direction": "Awaited", "estimatedMinutes": 30, "plan": {"startAt": "2026-09-22T09:00:00+02:00", "minutes": 30}, "anchor": {"kind": "Thread", "id": "...", "label": "Offer"}, "counterpart": {"address": "ada@example.com", "displayName": "Ada"}}`
+is the whole of what a creation and a revision carry, beside the optional `sourceMessageId` a creation may cite; a day
+is written `yyyy-mm-dd` and absent where nobody has said when, and every part of the commitment is optional. A key
+nothing here binds fails the bind rather than being ignored, so a client that tried to state an origin or a completion
+is told rather than having its request read as a rename that dropped the rest.
+
+**A revision restates the whole commitment, and what it leaves out it takes off.** `PUT` replaces the line, the day, the
+leads, and the commitment together, so a request with no `plan` takes the plan off, one with no `anchor` or `counterpart`
+detaches them, and one with no `direction` states the task `Owed`. A client therefore sends back every part it is not
+changing, exactly as it already does for `reminders`. The plan is separate from the due day and neither moves the
+other; `reminders` are still measured from the due day alone.
 
 **A task is announced from nine in the morning on the day it is due**, which is
 [the reminders](../features/reminders.md) page's rule rather than these routes'. `reminders` states the leads in whole
@@ -4694,7 +4724,19 @@ not `yyyy-mm-dd`, and a set of leads no task may carry — more than sixteen, on
 four weeks, one against a task nobody has dated, or one with no usable `dueDayOffsetMinutes` — are each answered `400`
 naming the bound, and none of them echoes what was sent — a task's title is
 a line a person wrote about their own correspondence, and a problem document is the part of an answer a proxy log
-keeps.
+keeps. The commitment is refused the same way: a `direction` that is not exactly `Owed` or `Awaited` — a number or
+another casing included — an estimate or a plan outside 5 to 720 whole minutes, a plan with no start, an anchor whose
+`kind` is not exactly `Thread` or `Event`, whose `id` is the all-zero identifier, or whose `label` is blank or past 200
+characters, and a counterpart whose address is unusable or past 320 characters or whose name is past 200.
+
+**An anchor names only what the person can already open, and a wait that was answered stays a wait.** A creation or a
+revision anchoring a task to a thread they may not read, or to an event that is not on their calendar, answers `404`
+exactly as reading that thread or event would, so a task is never the way to learn that somebody else's conversation
+exists; it asks the reading grant of whichever one the anchor names, as opening it from the task would. A revision that
+keeps the anchor the task already holds is not asked again, so a task outlives access to what it was about. A revision
+that changes the direction of a wait a reply has already answered is answered `409`: the request is well formed and
+what it conflicts with is what the list holds. Reopening such a wait through [the completion route](#the-task-routes)
+is what clears the answer; nothing else does.
 
 **Dismissing a proposal is the erasure rather than a route of its own.** Declining what mail suggested and deleting
 something a person owes leave the same list behind, so a second path would be two names for one act told apart only by
@@ -4736,11 +4778,14 @@ is meant. A window that closes
 before it opens, or runs longer than 48 hours, is answered `400` naming the rule; a body stating neither instant is
 answered the same way.
 
-**What is arranged is what they owe by that day.** The committed half of the list is read — a proposal nobody accepted
-is not work they owe — narrowed to the tasks due on or before that day and not yet done, soonest due first and at most
-20 of them. An undated task is not part of any particular day and stays where it is. What the day is already spoken
-for is read through the calendar route's own reading, narrowed to the events on the calendar rather than the dates
-mail proposed.
+**What is arranged is what they owe by that day and have not already planned.** The committed half of the list is read —
+a proposal nobody accepted is not work they owe — narrowed to the tasks the person owes (`Owed`, never `Awaited`, which
+is somebody else's move) due on or before that day, not yet done, and not planned to start inside the window, soonest due
+first and at most 20 of them. An undated task is not part of any particular day and stays where it is, and the estimate
+a task carries is passed to the planner as a hint for how long to set aside. What the day is already spoken for is read
+through the calendar route's own reading, narrowed to the events on the calendar rather than the dates mail proposed,
+and a task planned to start inside the window joins them as a block that is as fixed as an event; both together are at
+most 50.
 
 **The answer names tasks and never repeats them.** `placements` carries `taskId`, `startAt`, and `minutes` for each
 task the arrangement placed, earliest first; `notToday` carries the identifiers of the ones that do not realistically

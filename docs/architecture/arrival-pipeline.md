@@ -239,6 +239,15 @@ tombstoned. The received date rather than the read flag is what keeps a backfill
 the reply could not be queued for is not answered later. Everything stored already settled is never answered, which is
 also why nothing a held account files locally and nothing a restore appends ever is.
 
+Settlement also closes the waits the batch answers, beside the automatic reply and for the same messages: a task a person
+marked as awaited, anchored to a conversation, is completed when a message the run settled arrives in that
+conversation from the person it waits on — or, where it names nobody, from anyone but the account's own sender — and
+what arrives as the copy of a send answers nothing.
+[A wait is closed by the reply it waits for](../features/tasks-from-mail.md#a-wait-is-closed-by-the-reply-it-waits-for)
+holds which senders close one and what closing writes. The two follow-ups run one after the other and independently:
+the batch has already committed and a settled message is never read again, so a failure of either is counted, logged,
+and not retried, and it neither stops the pass nor the other follow-up.
+
 ## The sidecar fails closed, and classification fails open
 
 The personal-data analyzer is optional, and a deployment that configures none runs the whole pipeline unchanged.
