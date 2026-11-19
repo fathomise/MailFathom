@@ -2870,13 +2870,6 @@ const choiceLasts: Readonly<Record<string, number>> = {
 };
 
 /** A client renewing its presence or closing it, which the deployment takes and answers nothing to. */
-/** Whether a task's anchor carries a label the deployment refuses: blank, or longer than the 200 characters it keeps. */
-function refusesItsAnchor(body: unknown): boolean {
-    const label = recordIn(recordIn(body)?.['anchor'])?.['label'];
-
-    return label !== undefined && (typeof label !== 'string' || label.trim() === '' || label.trim().length > 200);
-}
-
 function presenceClientAnswer({ method }: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
     const [space, part] = segments;
 
@@ -3116,6 +3109,13 @@ function parsedBody(body: string | null): unknown {
     } catch {
         return body;
     }
+}
+
+/** Whether a task's anchor carries a label the deployment refuses: blank, or longer than the 200 characters it keeps. */
+function refusesItsAnchor(body: unknown): boolean {
+    const label = recordIn(recordIn(body)?.['anchor'])?.['label'];
+
+    return label !== undefined && (typeof label !== 'string' || label.trim() === '' || label.trim().length > 200);
 }
 
 /** What a request body states, where it states an object at all. */

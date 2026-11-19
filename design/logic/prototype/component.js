@@ -7842,7 +7842,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         eventTasks: st.event ? (st.tasksAllFor === "ev:" + st.event.t ? TK.forEvent(st.event.t) : TK.forEvent(st.event.t).slice(0, 4)) : [],
         eventTasksMoreShown: !!(st.event && st.tasksAllFor !== "ev:" + st.event.t && TK.forEvent(st.event.t).length > 4),
         eventTasksMore: st.event ? "+" + Math.max(0, TK.forEvent(st.event.t).length - 4) : "",
-        eventTasksMoreTitle: st.event ? "Show every task (" + Math.max(0, TK.forEvent(st.event.t).length - 4) + " more)" : "",
+        eventTasksMoreTitle: st.event ? "Show every task (+" + Math.max(0, TK.forEvent(st.event.t).length - 4) + " more)" : "",
         eventTasksShowAll: () => st.event && this.setState({ tasksAllFor: "ev:" + st.event.t }),
         eventTasksNone: !!(st.event && !TK.forEvent(st.event.t).length),
         eventAddTask: () => {
@@ -8354,7 +8354,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         threadTasksShown: !!(thread && TK.forThread(thread.id).length),
         threadTasksMoreShown: !!(thread && st.tasksAllFor !== "th:" + thread.id && TK.forThread(thread.id).length > 4),
         threadTasksMore: thread ? "+" + Math.max(0, TK.forThread(thread.id).length - 4) : "",
-        threadTasksMoreTitle: thread ? "Show every task (" + Math.max(0, TK.forThread(thread.id).length - 4) + " more)" : "",
+        threadTasksMoreTitle: thread ? "Show every task (+" + Math.max(0, TK.forThread(thread.id).length - 4) + " more)" : "",
         threadTasksShowAll: () => thread && this.setState({ tasksAllFor: "th:" + thread.id }),
         threadTasksMoreStyle: "display:inline-flex;align-items:center;box-sizing:border-box;border-radius:999px;font-size:12px;color:var(--muted);" + (touch ? "min-height:44px;padding:0 14px;" : "padding:4px 9px;"),
         threadTasksRowStyle: "display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px " + (singlePane ? "27px" : "22px"),

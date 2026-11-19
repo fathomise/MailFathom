@@ -19,6 +19,8 @@ export function SymbolControl({
     expanded,
     popsUp,
     focusable = true,
+    held = false,
+    hint,
     ref,
     onPress,
     children,
@@ -34,6 +36,13 @@ export function SymbolControl({
     /** Whether Tab stops here, which is off for a control inside a composite widget that moves focus by arrow keys. */
     readonly focusable?: boolean;
 
+    /**
+     * Whether it cannot act just now, which keeps it focusable and named — `aria-disabled` rather than `disabled`, as
+     * `Control` holds one — and a press does nothing; `hint` is then what the bubble says about why.
+     */
+    readonly held?: boolean;
+    readonly hint?: string;
+
     /** Hands the button to a caller that has to place the keyboard on it, beside the tip's own hold on it. */
     readonly ref?: (element: HTMLButtonElement | null) => void;
 
@@ -42,7 +51,15 @@ export function SymbolControl({
     /** The symbol itself. */
     readonly children: ReactNode;
 }) {
-    const { anchor, tip } = useTip({ says: label, onPress });
+    const { anchor, tip } = useTip({
+        says: hint ?? label,
+        describes: hint !== undefined,
+        onPress: () => {
+            if (!held) {
+                onPress();
+            }
+        },
+    });
 
     return (
         <>
@@ -57,6 +74,7 @@ export function SymbolControl({
                 aria-pressed={pressed}
                 aria-expanded={expanded}
                 aria-haspopup={popsUp}
+                aria-disabled={held ? true : undefined}
                 tabIndex={focusable ? undefined : -1}
                 className={className}
             >

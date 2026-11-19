@@ -3073,7 +3073,7 @@ export const en = {
     'tasks.chipNoDay': 'no day',
     'tasks.chipDue': 'due {day}',
     'tasks.moreTasks': '+{count}',
-    'tasks.moreTasksNamed': 'Show every task ({count} more)',
+    'tasks.moreTasksNamed': 'Show every task (+{count} more)',
     'tasks.followUpDueOn': 'Follow up {day}',
     'tasks.repliedAt': 'Replied at {time}',
     'tasks.personRepliedAt': '{name} replied at {time}',

@@ -313,8 +313,11 @@ export function TaskDialog({
     }
 
     // A save closes the dialog on what it sent, so a chip pressed while it is out would be written by nobody: the chips
-    // are withdrawn until it answers, and the save control saying *Saving…* is what says why.
+    // are withdrawn until it answers, and the save control saying *Saving…* is what says why. The controls that write
+    // as they are pressed — the plan, and taking away what the task belongs to — are held the house way instead, their
+    // bubble saying the same.
     const saving = writing === 'save';
+    const holds = refused ?? (saving ? translate('tasks.saving') : null);
 
     function apply(change: Partial<TaskChoices>): void {
         if (session === null || refused !== null || saving) {
@@ -487,7 +490,7 @@ export function TaskDialog({
                                 <Control
                                     label={translate(chosen.plan === null ? 'tasks.plan' : 'tasks.move')}
                                     shape="soft"
-                                    {...(refused === null ? {} : { held: true, hint: refused })}
+                                    {...(holds === null ? {} : { held: true, hint: holds })}
                                     onPress={() => {
                                         setSaid(null);
                                         setPlanning(true);
@@ -531,6 +534,7 @@ export function TaskDialog({
                                               });
                                           }
                                 }
+                                held={holds}
                                 onRemove={() => {
                                     apply({ anchor: null });
                                 }}
@@ -543,6 +547,7 @@ export function TaskDialog({
                                 kind={translate('tasks.kindPerson')}
                                 label={wordCounterpart(counterpart)}
                                 onOpen={undefined}
+                                held={holds}
                                 onRemove={() => {
                                     apply({ counterpart: null });
                                 }}
@@ -648,12 +653,16 @@ function ContextRow({
     kind,
     label,
     onOpen,
+    held,
     onRemove,
 }: {
     readonly glyph: IconName;
     readonly kind: string;
     readonly label: string;
     readonly onOpen: (() => void) | undefined;
+
+    /** Why taking it away cannot be pressed just now, or `null` where it can. */
+    readonly held: string | null;
     readonly onRemove: () => void;
 }) {
     const { translate } = useLocalization();
@@ -672,7 +681,8 @@ function ContextRow({
             )}
             <SymbolControl
                 label={translate('tasks.removeLinkTo', { label })}
-                className="flex size-7 items-center justify-center rounded-md text-muted transition hover:bg-hover hover:text-text"
+                className="flex size-7 items-center justify-center rounded-md text-muted transition hover:bg-hover hover:text-text aria-disabled:cursor-default aria-disabled:opacity-60"
+                {...(held === null ? {} : { held: true, hint: held })}
                 onPress={onRemove}
             >
                 <Icon name="link_off" className="size-icon-sm" />

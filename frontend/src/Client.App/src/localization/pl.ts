@@ -3124,7 +3124,7 @@ export const pl: Catalogue = {
     'tasks.chipNoDay': 'bez dnia',
     'tasks.chipDue': 'termin {day}',
     'tasks.moreTasks': '+{count}',
-    'tasks.moreTasksNamed': 'Pokaż wszystkie zadania (jeszcze {count})',
+    'tasks.moreTasksNamed': 'Pokaż wszystkie zadania (jeszcze +{count})',
     'tasks.followUpDueOn': 'Przypomnij się {day}',
     'tasks.repliedAt': 'Odpowiedź o {time}',
     'tasks.personRepliedAt': '{name} odpowiada o {time}',

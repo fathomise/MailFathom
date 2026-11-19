@@ -430,6 +430,30 @@ describe('TaskDialog', () => {
         expect(revisions(sent)).toHaveLength(1);
     });
 
+    // The plan and taking away what the task belongs to write as they are pressed, so they are held rather than withdrawn.
+    it('holds the plan and the remove controls while a save is out, so a press writes nothing', async () => {
+        const { sent, release, written } = drawDialog({ waits: true });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        const move = screen.getByRole('button', { name: 'Move' });
+        const unlink = screen.getByRole('button', { name: 'Remove the link to Contract addendum - signatures' });
+
+        expect(move.getAttribute('aria-disabled')).toBe('true');
+        expect(unlink.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(move);
+        fireEvent.click(unlink);
+
+        release();
+
+        await waitFor(() => {
+            expect(written).toHaveBeenCalledWith('tasks.revised');
+        });
+
+        expect(revisions(sent)).toHaveLength(1);
+    });
+
     it('lets go of a task the deployment no longer holds when nothing about what it belongs to changed', async () => {
         const { written } = drawDialog({ status: 404 });
 
