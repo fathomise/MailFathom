@@ -7722,9 +7722,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         rightNowRowStyle: "display:flex;align-items:center;" + (rightNowSlim ? "flex-wrap:wrap;" : "") + "gap:12px;min-width:0;box-sizing:border-box;border-radius:8px;min-height:" + (touch ? 60 : 52) + "px;padding:7px 6px",
         /* On a phone a row is its title and one line, so the card stays short. */
         rightNowNoteStyle: "font-size:12.5px;line-height:1.4;color:var(--muted);" + (isMobile ? "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "text-wrap:pretty"),
-        /* Right now holds the few things that matter most; the rest is a conversation, so its foot leads to the Agent. */
+        /* Right now holds the few things that matter most; the rest is a conversation, so its foot is one button to the
+           Agent - on every space but the Agent's own. */
         rightNowToAgent: () => this.goAgentWith("your day"),
-        rightNowAgentStyle: "display:flex;align-items:center;gap:10px;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;padding:10px 8px;min-height:" + (touch ? 52 : 44) + "px",
+        rightNowAgentShown: st.screen !== "agent",
+        rightNowAgentFootStyle: "flex:0 0 auto;box-sizing:border-box;border-top:1px solid var(--line);padding:" + (rightNowSlim ? "12px 10px 14px" : "14px 16px 16px"),
+        rightNowAgentBtnStyle: "display:flex;align-items:center;gap:10px;box-sizing:border-box;min-height:" + (touch ? 52 : 48) + "px;padding:0 16px;border-radius:14px;font-size:15px;font-weight:600;color:var(--onaccent);" +
+          "background:linear-gradient(135deg, var(--accent), var(--accent-2));box-shadow:0 10px 24px -12px var(--accent),0 1px 0 var(--inset) inset",
+        rightNowAgentMiniStyle: "flex:0 0 auto;margin-top:auto;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;color:var(--onaccent);background:linear-gradient(135deg, var(--accent), var(--accent-2));font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:21px",
         rightNow: HOME.rightNow.map(g => ({ icon: g.icon, label: g.label, meta: g.meta, n: String(g.n), tip: g.label + ": " + g.meta, aria: g.label + " - " + g.meta + " - open", open: () => this.goScreen(g.go), items: g.items.map(d => {
           const canWatch = d.go === "thread";
           const watching = canWatch && (st.watched || []).some(w => w.tid === d.tid);
@@ -10730,44 +10735,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         { icon: "edit_note", label: "Draft a reply", run: vals.chooseDraftReply },
         { icon: "forum", label: "Ask about this thread", run: vals.chooseAskThread },
       ] : [];
-      /* The Agent's small window at the foot of the Right now panel. It knows what is open - the conversation, the list,
-         the day, the person - says so above its field, and answers in text alone: anything more is the Agent's own space. */
-      const sideCtx = st.screen === "mail" ? (st.threadOpen ? { kind: "thread", icon: "forum", name: "Conversation", label: thread.subject, busy: "the conversation" } : { kind: "mail", icon: "mail", name: "Mail", label: "the message list", busy: "the list" })
-        : st.screen === "tasks" ? { kind: "tasks", icon: "task_alt", name: "Tasks", label: "your task list", busy: "your tasks" }
-        : st.screen === "cal" ? { kind: "cal", icon: "event", name: "Calendar", label: "Thursday, 27 August", busy: "your calendar" }
-        : st.screen === "people" ? ((st.peoplePane || "list") === "detail" && person ? { kind: "person", icon: "person", name: "Person", label: person.name, busy: "what you exchanged" } : { kind: "people", icon: "group", name: "People", label: "the list", busy: "the list" })
-        : { kind: "start", icon: "home", name: "Start", label: "your day", busy: "your day" };
-      const sideSend = () => {
-        const q = (this.state.sideAsk || "").trim();
-        if (!q || this.state.sideBusy) return;
-        const about = sideCtx.name + " · " + sideCtx.label;
-        this.setState(s2 => ({ sideAsk: "", sideBusy: true, sideChat: (s2.sideChat || []).concat([{ who: "you", text: q, ctx: about }]) }));
-        this.timers.push(setTimeout(() => this.setState(s2 => ({ sideBusy: false, sideChat: (s2.sideChat || []).concat([{ who: "agent", text: HOME.sideAgent.answers[sideCtx.kind].replace("{label}", sideCtx.label) }]) })), Math.max(500, (this.props.streamDelay ?? 550) * 1.6)));
-      };
-      Object.assign(vals, {
-        sideAgentShown: rightNowDocked && st.screen !== "agent",
-        sideAgentStyle: "flex:0 0 auto;display:flex;flex-direction:column;gap:9px;box-sizing:border-box;border-top:1px solid var(--line);background:var(--bg);padding:" + (rightNowSlim ? "12px 10px 12px" : "14px 16px 14px"),
-        sideAgentOpen: () => this.goAgentWith(sideCtx.name + " · " + sideCtx.label),
-        sideCtxIcon: sideCtx.icon, sideCtxKind: sideCtx.name, sideCtxLabel: sideCtx.label, sideCtxBusy: sideCtx.busy,
-        sideCtxTitle: "The Agent answers about: " + sideCtx.name + " - " + sideCtx.label,
-        /* The colours are the Agent's own: its context line, the reader's turn on the accent's soft ground, the answer as
-           plain text on the screen's ground, and the field inside the accent border. */
-        sideCtxStyle: "display:flex;align-items:center;gap:8px;min-width:0;box-sizing:border-box;font-size:12.5px;color:var(--accent-d);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:12px;padding:7px 10px",
-        sideChatAny: (st.sideChat || []).length > 0,
-        sideChatRef: this.sideChatRef || (this.sideChatRef = React.createRef()),
-        sideChatStyle: "display:flex;flex-direction:column;gap:8px;min-height:0;max-height:" + (touch ? 200 : 240) + "px;overflow:auto",
-        sideChat: (st.sideChat || []).map(m => ({ text: m.text, ctx: m.ctx || "", hasCtx: m.who === "you" && !!m.ctx,
-          wrapStyle: "display:flex;flex-direction:column;gap:2px;min-width:0;align-items:" + (m.who === "you" ? "flex-end" : "flex-start"),
-          style: "max-width:100%;box-sizing:border-box;font-size:13.5px;line-height:1.5;text-wrap:pretty;overflow-wrap:anywhere;" + (m.who === "you" ? "color:var(--text);background:var(--accent-soft);border-radius:12px;padding:8px 11px" : "color:var(--text)") })),
-        sideBusy: !!st.sideBusy,
-        sideAsk: st.sideAsk || "",
-        sideAskPlaceholder: "Ask about " + (sideCtx.kind === "thread" ? "this conversation" : sideCtx.kind === "person" ? sideCtx.label : sideCtx.label),
-        onSideAsk: (e) => this.setState({ sideAsk: e.target.value }),
-        onSideAskKey: (e) => { if (e.key === "Enter") { e.preventDefault(); sideSend(); } },
-        sideAskSend: sideSend,
-        sideAskRowStyle: "display:flex;align-items:center;gap:6px;box-sizing:border-box;background:var(--panel);border:2px solid var(--accent);border-radius:12px;padding:" + (touch ? "2px 2px 2px 12px" : "4px 4px 4px 12px"),
-        sideAskSendStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--onaccent);background:var(--accent);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:19px;" + (touch ? "width:44px;height:44px" : "width:30px;height:30px"),
-      });
       Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, narrow, startWide, rightNowW, thread, person, fathomCreate, fathomReply, navBottom: vals.navBottom }));
       this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml, sendLaterAsk: this.closeSendLater };
       return vals;

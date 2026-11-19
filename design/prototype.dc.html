@@ -421,13 +421,7 @@ Project repository: https://github.com/fathomise/MailFathom
                   </sc-for>
                 </div>
                 </sc-for>
-                <div style="display:flex;flex-direction:column">
-                  <div role="button" tabIndex="0" onClick="{{ rightNowToAgent }}" style="{{ rightNowAgentStyle }}" style-hover="cursor:pointer;background:var(--accent-soft)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
-                    <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">auto_awesome</span>
-                    <div style="flex:1;min-width:0;font-size:13px;line-height:1.4;color:var(--text2);text-wrap:pretty">There is much more on your plate. <span style="font-weight:600;color:var(--accent-d)">Go to the Agent to talk everything through</span></div>
-                    <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">arrow_forward</span>
-                  </div>
-                </div>
+                <sc-if value="{{ rightNowAgentShown }}" hint-placeholder-val="{{ true }}"><div style="padding:8px 6px 10px"><div role="button" tabIndex="0" onClick="{{ rightNowToAgent }}" style="{{ rightNowAgentBtnStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px">auto_awesome</span><span style="flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Go to the Agent</span><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px">arrow_forward</span></div></div></sc-if>
               </div>
             </sc-if>
 
@@ -583,8 +577,8 @@ Project repository: https://github.com/fathomise/MailFathom
               <span style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)">{{ rg.n }}</span>
             </div>
           </sc-for>
-          <sc-if value="{{ sideAgentShown }}" hint-placeholder-val="{{ true }}">
-            <div role="button" tabIndex="0" aria-label="Ask the Agent about what is open" title="{{ sideCtxTitle }}" onClick="{{ rightNowFold }}" style="{{ rightNowNumStyle }};margin-top:auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:21px;line-height:1;color:var(--accent-d)" style-hover="cursor:pointer;background:var(--accent-soft)">auto_awesome</div>
+          <sc-if value="{{ rightNowAgentShown }}" hint-placeholder-val="{{ true }}">
+            <div role="button" tabIndex="0" aria-label="Go to the Agent" title="Go to the Agent" onClick="{{ rightNowToAgent }}" style="{{ rightNowAgentMiniStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)">auto_awesome</div>
           </sc-if>
         </div>
       </sc-if>
@@ -620,43 +614,10 @@ Project repository: https://github.com/fathomise/MailFathom
                   </sc-for>
                 </div>
                 </sc-for>
-                <div style="display:flex;flex-direction:column">
-                  <div role="button" tabIndex="0" onClick="{{ rightNowToAgent }}" style="{{ rightNowAgentStyle }}" style-hover="cursor:pointer;background:var(--accent-soft)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
-                    <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">auto_awesome</span>
-                    <div style="flex:1;min-width:0;font-size:13px;line-height:1.4;color:var(--text2);text-wrap:pretty">There is much more on your plate. <span style="font-weight:600;color:var(--accent-d)">Go to the Agent to talk everything through</span></div>
-                    <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">arrow_forward</span>
-                  </div>
-                </div>
               </div>
         </div>
-        <sc-if value="{{ sideAgentShown }}" hint-placeholder-val="{{ true }}">
-          <div role="region" aria-label="Agent, about what is open" style="{{ sideAgentStyle }}">
-            <div style="display:flex;align-items:center;gap:8px;min-width:0">
-              <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">auto_awesome</span>
-              <div style="{{ nowLabelStyle }}">Agent</div>
-              <div style="flex:1;min-width:0;font-size:11.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">answers in text</div>
-              <div role="button" tabIndex="0" aria-label="Continue in the Agent" title="Continue in the Agent" onClick="{{ sideAgentOpen }}" style="{{ rightNowFoldStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">open_in_new</div>
-            </div>
-            <div title="{{ sideCtxTitle }}" style="{{ sideCtxStyle }}">
-              <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:17px;color:var(--accent-d)">{{ sideCtxIcon }}</span>
-              <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Context: <span style="font-weight:600">{{ sideCtxKind }}</span> · {{ sideCtxLabel }}</span>
-            </div>
-            <sc-if value="{{ sideChatAny }}" hint-placeholder-val="{{ false }}">
-              <div ref="{{ sideChatRef }}" style="{{ sideChatStyle }}">
-                <sc-for list="{{ sideChat }}" as="sm" hint-placeholder-count="2">
-                  <div style="{{ sm.wrapStyle }}">
-                    <sc-if value="{{ sm.hasCtx }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">{{ sm.ctx }}</div></sc-if>
-                    <div style="{{ sm.style }}">{{ sm.text }}</div>
-                  </div>
-                </sc-for>
-                <sc-if value="{{ sideBusy }}" hint-placeholder-val="{{ false }}"><div role="status" style="font-size:12.5px;color:var(--muted)">Reading {{ sideCtxBusy }}…</div></sc-if>
-              </div>
-            </sc-if>
-            <div style="{{ sideAskRowStyle }}">
-              <input aria-label="{{ sideAskPlaceholder }}" value="{{ sideAsk }}" onChange="{{ onSideAsk }}" onKeyDown="{{ onSideAskKey }}" placeholder="{{ sideAskPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-size:13.5px;color:var(--text);background:transparent;text-overflow:ellipsis" />
-              <div role="button" tabIndex="0" aria-label="Ask" title="Ask" onClick="{{ sideAskSend }}" style="{{ sideAskSendStyle }}" style-hover="cursor:pointer;opacity:0.9">arrow_upward</div>
-            </div>
-          </div>
+        <sc-if value="{{ rightNowAgentShown }}" hint-placeholder-val="{{ true }}">
+          <div style="{{ rightNowAgentFootStyle }}"><div role="button" tabIndex="0" onClick="{{ rightNowToAgent }}" style="{{ rightNowAgentBtnStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px">auto_awesome</span><span style="flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Go to the Agent</span><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px">arrow_forward</span></div></div>
         </sc-if>
       </sc-if>
       </div>
