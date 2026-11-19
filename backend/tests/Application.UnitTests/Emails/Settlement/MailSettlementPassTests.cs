@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Access;
 using MailFathom.Application.AutomaticReplies;
 using MailFathom.Application.Emails.Settlement;
 using MailFathom.Application.Emails.Summaries;
@@ -55,7 +56,8 @@ public sealed class MailSettlementPassTests
         await this.DrainAsync(signals);
 
         // Assert
-        Assert.Equal(new MailSettlementReport(SettledCount: 1, AnnouncedCount: 1, StillSettlingCount: 1), report);
+        Assert.Equal((1, 1, 1), (report.SettledCount, report.AnnouncedCount, report.StillSettlingCount));
+        Assert.Empty(report.FollowUpFailures);
         Assert.Equal([ready.Id], this.store.Settled);
         var signal = Assert.Single(this.channel.Published);
         Assert.Equal(ClientSignalKind.MailArrived, signal.Kind);
@@ -76,7 +78,8 @@ public sealed class MailSettlementPassTests
         await this.DrainAsync(signals);
 
         // Assert
-        Assert.Equal(new MailSettlementReport(SettledCount: 1, AnnouncedCount: 0, StillSettlingCount: 0), report);
+        Assert.Equal((1, 0, 0), (report.SettledCount, report.AnnouncedCount, report.StillSettlingCount));
+        Assert.Empty(report.FollowUpFailures);
         Assert.Single(this.channel.Published);
         Assert.Empty(this.notificationStore.Recorded);
     }
@@ -247,7 +250,7 @@ public sealed class MailSettlementPassTests
         Assert.Equal(inbox.Id, Assert.Single(tasks.Held).Answer?.Message);
     }
 
-    /// <summary>A failed answering is counted and does not stop the waits that settled mail closes.</summary>
+    /// <summary>A failed answering is reported with the type of what failed and does not stop the waits that settled mail closes.</summary>
     [Fact]
     public async Task RunAsync_TheAutomaticReplyFails_StillClosesTheWait()
     {
@@ -266,9 +269,12 @@ public sealed class MailSettlementPassTests
         Assert.Equal(1, report.SettledCount);
         Assert.Equal(inbox.Id, Assert.Single(tasks.Held).Answer?.Message);
         this.telemetry.Received(1).RecordFollowUpFailed(MailSettlementFollowUp.AutomaticReply);
+        Assert.Equal(
+            new MailSettlementFollowUpFailure(MailSettlementFollowUp.AutomaticReply, nameof(InvalidOperationException)),
+            Assert.Single(report.FollowUpFailures));
     }
 
-    /// <summary>A failure closing waits is counted and neither fails the pass nor undoes the settlement it follows.</summary>
+    /// <summary>A failure closing waits is reported with its error code and neither fails the pass nor undoes the settlement it follows.</summary>
     [Fact]
     public async Task RunAsync_ClosingTheWaitsFails_StillSettlesAndReportsTheBatch()
     {
@@ -277,7 +283,7 @@ public sealed class MailSettlementPassTests
         this.store.Holding(inbox);
         var failing = Substitute.For<IStoredEmailSummaryReader>();
         failing.ReadSummariesAsync(Arg.Any<IReadOnlyList<StoredEmailId>>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("The summaries are unavailable."));
+            .ThrowsAsync(PrincipalNotAuthorizedException.NoUser());
         await using var signals = new ClientSignals([this.channel], this.clock);
         var awaited = this.AwaitedRepliesOver(failing, new InMemoryPersonalTaskStore(), signals);
 
@@ -286,9 +292,14 @@ public sealed class MailSettlementPassTests
             .RunAsync(Account, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(new MailSettlementReport(SettledCount: 1, AnnouncedCount: 1, StillSettlingCount: 0), report);
+        Assert.Equal((1, 1, 0), (report.SettledCount, report.AnnouncedCount, report.StillSettlingCount));
         Assert.Equal([inbox.Id], this.store.Settled);
         this.telemetry.Received(1).RecordFollowUpFailed(MailSettlementFollowUp.AwaitedReplies);
+        Assert.Equal(
+            new MailSettlementFollowUpFailure(
+                MailSettlementFollowUp.AwaitedReplies,
+                PrincipalNotAuthorizedException.NoUser().ErrorCode.ToString()),
+            Assert.Single(report.FollowUpFailures));
     }
 
     private static SettlingEmail Email(int number, SpamVerdict? verdict = SpamVerdict.NotSpam) =>

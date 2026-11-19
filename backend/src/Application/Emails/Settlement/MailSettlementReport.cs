@@ -8,4 +8,9 @@ namespace MailFathom.Application.Emails.Settlement;
 /// <param name="SettledCount">The messages this pass settled.</param>
 /// <param name="AnnouncedCount">How many of them the arrival notification was raised for.</param>
 /// <param name="StillSettlingCount">The messages the pass read and left settling.</param>
-public sealed record MailSettlementReport(int SettledCount, int AnnouncedCount, int StillSettlingCount);
+/// <param name="FollowUpFailures">The follow-ups that failed after a batch settled, one entry per batch and follow-up, empty when none did.</param>
+public sealed record MailSettlementReport(
+    int SettledCount,
+    int AnnouncedCount,
+    int StillSettlingCount,
+    IReadOnlyList<MailSettlementFollowUpFailure> FollowUpFailures);

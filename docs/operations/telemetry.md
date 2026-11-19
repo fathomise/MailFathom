@@ -366,7 +366,8 @@ What follows a settled batch can fail without undoing it, and a settled message 
 not retried. `mailfathom.mail.settlement.follow_up_failures` counts the batches where it happened, one per failed
 follow-up, tagged with `mailfathom.mail.settlement.follow_up` as `automatic_reply` or `awaited_replies`: the first is
 an automatic reply a batch was owed and did not get, the second is a wait a person kept that stays open although its
-reply arrived. Both are counts per replica that sum across them, and nothing about a message reaches either.
+reply arrived. Each failure is also logged as a warning naming the account, the follow-up, and the error code or
+exception type, which is what says why. Both are counts per replica that sum across them, and nothing about a message reaches either.
 
 The spam model stage publishes `mailfathom.spam.model_stage.consultations`, one count per message the stage would have
 asked a decision model about, tagged with `mailfathom.spam.model_stage.job` — `decide_verdict` or `name_subcategory` —

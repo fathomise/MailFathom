@@ -10,6 +10,7 @@ using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Tasks;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Failures;
 
 namespace MailFathom.Application.Emails.Settlement;
 
@@ -29,8 +30,8 @@ namespace MailFathom.Application.Emails.Settlement;
 /// <para>
 /// It is also where an automatic reply answers: a message settled here is answered once announced, on the same terms
 /// as the announcement — only by the replica that settled it, and not again if answering it failed. A reply a person
-/// was waiting on is recognised here as well, and closes that wait, on the same terms: a failure in either is counted
-/// and not retried, because the batch is settled and never read again, and it stops neither the other nor the rest of
+/// was waiting on is recognised here as well, and closes that wait, on the same terms: a failure in either is counted and
+/// reported on the pass's report, and not retried, because the batch is settled and never read again, and it stops neither the other nor the rest of
 /// the pass.
 /// </para>
 /// <para>
@@ -104,7 +105,7 @@ public sealed class MailSettlementPass
     /// <summary>Settles what can settle of one account's arrivals and announces what this pass settled.</summary>
     /// <param name="account">The account whose arrivals are settled.</param>
     /// <param name="cancellationToken">Cancels the pass between batches; settled batches stay settled.</param>
-    /// <returns>How many messages this pass settled, how many of them were announced, and how many it left settling.</returns>
+    /// <returns>How many messages this pass settled, how many of them were announced, how many it left settling, and which follow-ups failed.</returns>
     /// <remarks>
     /// A message another run settled first is neither counted nor announced here, so a competing replica settling the
     /// same arrival raises one signal and one notification between them. Each batch is announced as soon as it is
@@ -120,6 +121,7 @@ public sealed class MailSettlementPass
         var settledCount = 0;
         var announcedCount = 0;
         var stillSettlingCount = 0;
+        List<MailSettlementFollowUpFailure> failures = [];
         StoredEmailId? position = null;
 
         for (var batchNumber = 1; batchNumber <= MaxBatchesPerPass; batchNumber++)
@@ -137,14 +139,14 @@ public sealed class MailSettlementPass
 
             StoredEmailId[] answerable = [.. settled.Where(static email => email.IsAnswerable()).Select(static email => email.Id)];
 
-            await this.FollowUpAsync(
+            failures.AddRange(await this.FollowUpAsync(
                 MailSettlementFollowUp.AutomaticReply,
                 () => this.responder.AnswerAsync(account, answerable, cancellationToken),
-                cancellationToken);
-            await this.FollowUpAsync(
+                cancellationToken));
+            failures.AddRange(await this.FollowUpAsync(
                 MailSettlementFollowUp.AwaitedReplies,
                 () => this.awaitedReplies.AnswerAsync(account, answerable, cancellationToken),
-                cancellationToken);
+                cancellationToken));
 
             if (batch.Count < BatchSize)
             {
@@ -154,20 +156,27 @@ public sealed class MailSettlementPass
             position = batch[^1].Id;
         }
 
-        return new MailSettlementReport(settledCount, announcedCount, stillSettlingCount);
+        return new MailSettlementReport(settledCount, announcedCount, stillSettlingCount, failures);
     }
 
-    /// <summary>Runs what follows a settled batch, counting a failure rather than letting it stop the pass or the follow-up beside it.</summary>
+    /// <summary>Runs what follows a settled batch, reporting a failure rather than letting it stop the pass or the follow-up beside it.</summary>
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "The batch is already settled and never read again; a failed follow-up is counted and must neither fail the settlement nor skip the other follow-up.")]
-    private async Task FollowUpAsync(MailSettlementFollowUp followUp, Func<Task> work, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<MailSettlementFollowUpFailure>> FollowUpAsync(
+        MailSettlementFollowUp followUp,
+        Func<Task> work,
+        CancellationToken cancellationToken)
     {
         try
         {
             await work();
+
+            return [];
         }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception failure) when (!cancellationToken.IsCancellationRequested)
         {
             this.telemetry.RecordFollowUpFailed(followUp);
+
+            return [new MailSettlementFollowUpFailure(followUp, (failure as MailFathomException)?.ErrorCode.ToString() ?? failure.GetType().Name)];
         }
     }
 

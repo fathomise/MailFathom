@@ -40,7 +40,13 @@ public sealed class MailSettlementTelemetry : IMailSettlementTelemetry
     public void RecordFollowUpFailed(MailSettlementFollowUp followUp) =>
         this.followUpFailureCount.Add(
             1,
-            new TagList { { FollowUpTagName, followUp == MailSettlementFollowUp.AutomaticReply ? "automatic_reply" : "awaited_replies" } });
+            new TagList { { FollowUpTagName, TagOf(followUp) } });
+
+    private static string TagOf(MailSettlementFollowUp followUp) => followUp switch
+    {
+        MailSettlementFollowUp.AutomaticReply => "automatic_reply",
+        _ => "awaited_replies",
+    };
 
     private static string TagOf(MailSettlement settlement) => settlement switch
     {

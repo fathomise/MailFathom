@@ -1230,6 +1230,11 @@ internal sealed partial class AccountSynchronizationSupervisor
                 .GetRequiredService<MailSettlementPass>()
                 .RunAsync(this.account, cancellationToken);
 
+            foreach (var failure in report.FollowUpFailures)
+            {
+                this.LogSettlementFollowUpFailed(this.account.Value, failure.FollowUp.ToString(), failure.ErrorCode);
+            }
+
             if (report.SettledCount > 0 || report.StillSettlingCount > 0)
             {
                 this.LogArrivedMailSettled(
@@ -2273,6 +2278,11 @@ internal sealed partial class AccountSynchronizationSupervisor
         int settledEmailCount,
         int announcedEmailCount,
         int settlingEmailCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "The {FollowUp} step after settling the arriving mail of account {AccountId} failed with {ErrorCode}; it is not retried for that batch.")]
+    private partial void LogSettlementFollowUpFailed(string accountId, string followUp, string errorCode);
 
     [LoggerMessage(
         Level = LogLevel.Warning,
