@@ -4,6 +4,7 @@
 
 import { useEffect, useRef } from 'react';
 import { chip } from '../controls/chrome';
+import { Icon } from '../controls/Icon';
 import { useTip } from '../controls/useTip';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import { useLocalization } from '../localization/useLocalization';
@@ -85,12 +86,7 @@ export function IntentField({
                 therefore gives its own outline up and the box widens instead — which is also what somebody putting a
                 cursor in it is looking for. */}
             <div className="flex items-center gap-3 rounded-lg border-2 border-accent px-3.25 py-2 transition focus-within:ring-3 focus-within:ring-accent-soft">
-                <span
-                    aria-hidden="true"
-                    className="shrink-0 rounded-sm bg-accent px-1.75 py-0.75 text-xs font-semibold text-on-accent"
-                >
-                    {translate('ai.badge')}
-                </span>
+                <Icon name="auto_awesome" className="size-icon-md shrink-0 text-accent-deep" />
 
                 <input
                     ref={question}

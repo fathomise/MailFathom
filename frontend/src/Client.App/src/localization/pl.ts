@@ -28,7 +28,6 @@ export const pl: Catalogue = {
     'shell.tabMode': 'Tryb zakładek',
     'shell.tabModeTooNarrow': 'dostępne na szerszym ekranie',
     'control.notBuiltYet': '{control} – jeszcze niezbudowane',
-    'ai.badge': 'AI',
     'agent.history': 'Historia',
     'agent.today': 'Dzisiaj',
     'agent.yesterday': 'Wczoraj',
@@ -2855,7 +2854,6 @@ export const pl: Catalogue = {
     'people.writeReadOnly': 'Ten kontakt prowadzi Twoja organizacja, więc nie można go tu zmienić.',
 
     'person.relationship': 'Stan relacji',
-    'person.authored': 'AI',
     'person.relationshipPending': 'MailFathom nie pisze jeszcze odczytu relacji.',
     'person.lastContact': 'Ostatni kontakt',
     'person.neverInTouch': 'Z tą osobą nie wymieniono poczty.',
@@ -2898,7 +2896,6 @@ export const pl: Catalogue = {
     'calendar.failedUnreadable':
         'Serwer odpowiedział czymś, czego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
     'calendar.proposedHeading': 'Wykryte w poczcie',
-    'calendar.authored': 'AI',
     'calendar.proposedExplained': 'Terminy znalezione w wątkach, jeszcze nieobecne w kalendarzu.',
     'calendar.nothingProposed': 'Twoja poczta niczego nie zaproponowała.',
     'calendar.acceptProposal': 'Dodaj',
@@ -3020,7 +3017,6 @@ export const pl: Catalogue = {
     'tasks.dayFailedUnavailable': 'Serwer nie odpowiedział.',
     'tasks.dayFailedUnreadable':
         'Serwer odpowiedział dniem, którego ten klient nie potrafi odczytać. Warto zgłosić to jako usterkę.',
-    'tasks.authored': 'AI',
     'tasks.dayCapacity': 'Pojemność dnia',
     'tasks.capacityTasks.one': 'Na dziś przypada jedno zadanie.',
     'tasks.capacityTasks.few': 'Na dziś przypadają {count} zadania.',

@@ -16,6 +16,7 @@ import { RunStatus } from '../answerCanvas/RunStatus';
 import { useFollowedRun } from '../answerCanvas/useFollowedRun';
 import { useRunStopping } from '../answerCanvas/useRunStopping';
 import { Control } from '../controls/Control';
+import { Icon } from '../controls/Icon';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
@@ -199,9 +200,7 @@ export function DiscoverSpace({
 
                         {handRunOver !== null && answered ? (
                             <div className="flex flex-wrap items-center gap-3 rounded-md border border-accent-line bg-accent-soft px-4 py-3.25">
-                                <span className="rounded-xs bg-accent px-1.75 py-0.75 text-xs font-semibold text-on-accent">
-                                    {translate('ai.badge')}
-                                </span>
+                                <Icon name="auto_awesome" className="size-icon-md shrink-0 text-accent-deep" />
 
                                 <p className="text-md text-pretty text-text-soft">
                                     {translate('discover.handToAgentPrompt')}

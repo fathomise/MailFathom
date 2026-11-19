@@ -29,7 +29,6 @@ export const en = {
     'shell.tabMode': 'Tab mode',
     'shell.tabModeTooNarrow': 'available on a wider screen',
     'control.notBuiltYet': '{control} - not built yet',
-    'ai.badge': 'AI',
     'agent.history': 'History',
     'agent.today': 'Today',
     'agent.yesterday': 'Yesterday',
@@ -2805,7 +2804,6 @@ export const en = {
     'people.writeReadOnly': 'That contact is kept by your organization, so it cannot be changed here.',
 
     'person.relationship': 'Relationship state',
-    'person.authored': 'AI',
     'person.relationshipPending': 'MailFathom does not write a reading of a relationship yet.',
     'person.lastContact': 'Last contact',
     'person.neverInTouch': 'No mail exchanged with this person.',
@@ -2848,7 +2846,6 @@ export const en = {
     'calendar.failedUnreadable':
         'The server answered with something this client could not read. This is worth reporting as a defect.',
     'calendar.proposedHeading': 'Detected in mail',
-    'calendar.authored': 'AI',
     'calendar.proposedExplained': 'Deadlines found in threads, not in the calendar yet.',
     'calendar.nothingProposed': 'Your mail has proposed nothing.',
     'calendar.acceptProposal': 'Add',
@@ -2972,7 +2969,6 @@ export const en = {
     'tasks.dayFailedUnavailable': 'The server did not answer.',
     'tasks.dayFailedUnreadable':
         'The server answered with a day this client could not read. This is worth reporting as a defect.',
-    'tasks.authored': 'AI',
     'tasks.dayCapacity': 'Day capacity',
     'tasks.capacityTasks.one': 'One task is due today.',
     'tasks.capacityTasks.few': '{count} tasks are due today.',

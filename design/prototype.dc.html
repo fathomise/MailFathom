@@ -328,7 +328,7 @@ Project repository: https://github.com/fathomise/MailFathom
 
       <div style="{{ searchWrapStyle }}">
         <div style="{{ searchBoxStyle }}">
-          <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:6px;padding:4px 8px;font-weight:600">AI</div>
+          <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">auto_awesome</span>
           <input value="{{ query }}" onChange="{{ onQuery }}" onKeyDown="{{ onKey }}" placeholder="{{ discoverPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-size:16px;color:var(--text);background:transparent;text-overflow:ellipsis" />
           <div onClick="{{ submit }}" style="{{ askBtnStyle }}" style-hover="opacity:0.88;cursor:pointer">{{ askLabel }}</div>
         </div>
@@ -344,7 +344,7 @@ Project repository: https://github.com/fathomise/MailFathom
               <div style="{{ idleTitleStyle }}">Good morning, Karolina</div>
               <div style="display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;padding:15px 17px">
                 <div style="display:flex;align-items:center;gap:9px">
-                  <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:3px 7px;font-weight:600">AI</span>
+                  <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
                   <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Morning briefing</span>
                   <span style="margin-left:auto;font-size:11px;color:var(--faint)">{{ sample.today }}</span>
                 </div>
@@ -482,7 +482,7 @@ Project repository: https://github.com/fathomise/MailFathom
 
             <sc-if value="{{ actionReady }}" hint-placeholder-val="{{ false }}">
               <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:12px;padding:13px 16px">
-                <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:3px 7px;font-weight:600">AI</span>
+                <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">auto_awesome</span>
                 <span style="font-size:14px;color:var(--text2);text-wrap:pretty">Want to dig deeper, or have something done with this?</span>
                 <div onClick="{{ continueInAgent }}" style="margin-left:auto;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:8px 15px;white-space:nowrap" style-hover="cursor:pointer;opacity:0.9">Hand to the agent</div>
               </div>
@@ -1007,7 +1007,7 @@ Project repository: https://github.com/fathomise/MailFathom
                   <div style="{{ t.aiStyle }}"><span style="{{ t.spamBadgeStyle }}"><sc-if value="{{ t.spamBadgeDanger }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ t.spamGlyphStyle }}">warning</span></sc-if>{{ t.spamBadgeLabel }}</span></div>
                 </sc-if>
                 <sc-if value="{{ t.thirdLineShown }}" hint-placeholder-val="{{ false }}">
-                  <div style="{{ t.aiStyle }}"><sc-if value="{{ t.showAi }}" hint-placeholder-val="{{ false }}"><span style="flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);border:1px solid var(--border2);border-radius:4px;padding:1px 5px">AI</span><span style="flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.ai }}</span></sc-if><sc-if value="{{ t.encNoteShown }}" hint-placeholder-val="{{ false }}"><span style="flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic">{{ t.encNote }}</span></sc-if><sc-if value="{{ t.catsShown }}" hint-placeholder-val="{{ false }}"><span style="{{ t.catsStyle }}"><sc-for list="{{ t.cats }}" as="c" hint-placeholder-count="1"><span data-tip-hover title="{{ c.tip }}" style="{{ c.style }}">{{ c.name }}</span></sc-for><sc-if value="{{ t.catsMoreShown }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="{{ t.catsRest }}" style="{{ t.catsMoreStyle }}">{{ t.catsMore }}</span></sc-if></span></sc-if></div>
+                  <div style="{{ t.aiStyle }}"><sc-if value="{{ t.showAi }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span><span style="flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.ai }}</span></sc-if><sc-if value="{{ t.encNoteShown }}" hint-placeholder-val="{{ false }}"><span style="flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic">{{ t.encNote }}</span></sc-if><sc-if value="{{ t.catsShown }}" hint-placeholder-val="{{ false }}"><span style="{{ t.catsStyle }}"><sc-for list="{{ t.cats }}" as="c" hint-placeholder-count="1"><span data-tip-hover title="{{ c.tip }}" style="{{ c.style }}">{{ c.name }}</span></sc-for><sc-if value="{{ t.catsMoreShown }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="{{ t.catsRest }}" style="{{ t.catsMoreStyle }}">{{ t.catsMore }}</span></sc-if></span></sc-if></div>
                 </sc-if>
               </div>
               </sc-if>
@@ -1214,7 +1214,7 @@ Project repository: https://github.com/fathomise/MailFathom
           <sc-if value="{{ showThreadStateBar }}" hint-placeholder-val="{{ true }}">
           <div style="{{ threadStateStyle }}">
             <sc-if value="{{ mobileStateLine }}" hint-placeholder-val="{{ false }}">
-              <span style="flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);border:1px solid var(--border2);border-radius:4px;padding:2px 6px">AI</span>
+              <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
               <span style="flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ threadAiLine }}</span>
             </sc-if>
             <sc-if value="{{ stateStale }}" hint-placeholder-val="{{ false }}">
@@ -1645,7 +1645,7 @@ Project repository: https://github.com/fathomise/MailFathom
               </sc-if>
               <div style="{{ composeAiBlockStyle }}">
                 <div style="{{ composeAiPromptStyle }}">
-                  <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:3px 7px;font-weight:600">AI</span>
+                  <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">auto_awesome</span>
                   <textarea rows="1" value="{{ composeAiText }}" onChange="{{ onComposeAiText }}" placeholder="{{ composeAiPlaceholder }}" aria-label="What the draft should say" style="{{ growingFieldStyle }}font-size:14px"></textarea>
                   <sc-if value="{{ composeCtxChanged }}" hint-placeholder-val="{{ false }}">
                     <span data-motion="pop" role="img" aria-label="The context changed since you started" title="The context changed since you started" style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--warn-soft);color:var(--warn-text);box-shadow:inset 0 0 0 1px var(--warn);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 600;font-size:15px;line-height:1">priority_high</span>
@@ -2122,7 +2122,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <sc-if value="{{ m.isBot }}" hint-placeholder-val="{{ true }}">
               <div style="{{ m.bubbleStyle }}">
                 <div style="display:flex;align-items:center;gap:7px;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">
-                  <span style="color:var(--accent-d)">AI</span>
+                  <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
                   <sc-if value="{{ m.hasMode }}" hint-placeholder-val="{{ false }}"><span>·</span><span style="{{ m.modeStyle }}"><span aria-hidden="true" style="{{ m.modeIconStyle }}">{{ m.modeIcon }}</span>{{ m.modeText }}</span></sc-if>
                   <span>·</span>
                   <span>{{ m.scope }}</span>
@@ -2602,7 +2602,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-for>
           <div style="display:flex;flex-direction:column;gap:8px;background:var(--accent-soft);border-radius:12px;padding:12px 13px">
             <div style="display:flex;align-items:center;gap:9px">
-              <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:2px 6px">AI</span>
+              <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
               <span style="font-size:11px;color:var(--accent-d);font-family:'Geist',system-ui,sans-serif;font-weight:600">Day capacity</span>
             </div>
             <div style="font-size:13px;line-height:1.5;color:var(--text2);text-wrap:pretty">{{ capacityText }}</div>
@@ -2779,7 +2779,7 @@ Project repository: https://github.com/fathomise/MailFathom
         <div style="display:flex;flex-direction:column;gap:13px;padding:18px">
           <div style="display:flex;flex-direction:column;gap:9px;background:var(--accent-soft);border-radius:12px;padding:12px 13px">
             <div style="display:flex;align-items:center;gap:9px">
-              <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:3px 7px">AI</span>
+              <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">auto_awesome</span>
               <span style="font-size:12px;color:var(--accent-d)">Describe the task - I'll pick up the date and duration</span>
             </div>
             <input ref="{{ tkPromptRef }}" placeholder="e.g. reply to Emma about the SLA by Monday, 30 min" style="{{ promptFieldStyle }}" />
@@ -3107,7 +3107,7 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:10px 24px">
-        <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:3px 7px;font-weight:600">AI</span>
+        <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
         <span style="font-size:14px;color:var(--text);text-wrap:pretty">{{ calBriefing }}</span>
         <span style="font-size:12px;color:var(--accent-d);margin-left:auto" style-hover="cursor:pointer;text-decoration:underline">Plan my day</span>
       </div>
@@ -3228,7 +3228,7 @@ Project repository: https://github.com/fathomise/MailFathom
         <div style="{{ calSideStyle }}">
           <div style="display:flex;align-items:center;gap:9px">
             <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Detected in mail</div>
-            <div style="font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:2px 6px">AI</div>
+            <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
           </div>
           <div style="font-size:12px;color:var(--muted);line-height:1.5;text-wrap:pretty">Deadlines found in threads, not in the calendar yet.</div>
           <sc-for list="{{ calFocus }}" as="f" hint-placeholder-count="2">
@@ -3405,7 +3405,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div style="display:flex;flex-direction:column;gap:9px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;padding:15px 17px">
               <div style="display:flex;align-items:center;gap:9px">
                 <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Relationship state</div>
-                <div style="font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:2px 6px">AI</div>
+                <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
               </div>
               <div style="font-size:15px;line-height:1.55;color:var(--text2);text-wrap:pretty">{{ personNote }}</div>
               <sc-if value="{{ personHasNext }}" hint-placeholder-val="{{ true }}">
@@ -3587,7 +3587,7 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
           </sc-if>
           <div style="display:flex;align-items:center;gap:10px;background:var(--sub);border-radius:8px;padding:11px 13px">
-            <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:2px 6px">AI</span>
+            <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
             <span style="font-size:12px;color:var(--muted);line-height:1.45;text-wrap:pretty">{{ eventNote }}</span>
           </div>
           <div style="display:flex;flex-direction:column;gap:8px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:11px 13px">
@@ -3628,7 +3628,7 @@ Project repository: https://github.com/fathomise/MailFathom
         <div style="display:flex;flex-direction:column;gap:13px;padding:18px">
           <div style="display:flex;flex-direction:column;gap:9px;background:var(--accent-soft);border-radius:12px;padding:12px 13px">
             <div style="display:flex;align-items:center;gap:9px">
-              <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:3px 7px">AI</span>
+              <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">auto_awesome</span>
               <span style="font-size:12px;color:var(--accent-d)">Describe the event in one sentence</span>
             </div>
             <input ref="{{ evPromptRef }}" placeholder="e.g. call with Anna on Friday after 1pm, 45 min, about the addendum" style="{{ promptFieldStyle }}" />
@@ -3665,7 +3665,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </div>
           <span style="font-size:12px;color:var(--muted)">{{ evLengthLabel }}</span>
           <div style="display:flex;align-items:center;gap:10px;background:var(--accent-soft);border-radius:8px;padding:11px 13px">
-            <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:2px 6px">AI</span>
+            <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
             <span style="font-size:12px;color:var(--accent-d);line-height:1.45;text-wrap:pretty">I'll link the event to a thread if the title matches one in your mailbox.</span>
           </div>
           <div style="display:flex;flex-direction:column;gap:9px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:12px 13px">
@@ -3758,7 +3758,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div onClick="{{ ctAddPhone }}" role="button" style="{{ ctSmallBtnStyle }}align-self:flex-start" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:17px;line-height:1">add</span>Add a phone number</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;background:var(--accent-soft);border-radius:8px;padding:11px 13px">
-            <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:2px 6px">AI</span>
+            <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
             <span style="font-size:12px;color:var(--accent-d);line-height:1.45;text-wrap:pretty">Once saved, I'll surface this person's shared threads and documents from your mailbox.</span>
           </div>
           <div style="display:flex;gap:9px;justify-content:flex-end">

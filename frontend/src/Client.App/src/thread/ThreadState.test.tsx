@@ -276,6 +276,9 @@ describe('ThreadState', () => {
 
         const sheet = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
 
+        // The line is the model's reading, so it carries the provenance mark rather than an AI badge.
+        expect(screen.getByRole('img', { name: 'Written by AI' })).toBeDefined();
+        expect(screen.queryByText('AI')).toBeNull();
         expect(sheet.open).toBe(false);
         expect(screen.getByText('What the upper indexation limit is.').closest('dialog')).toBe(sheet);
 

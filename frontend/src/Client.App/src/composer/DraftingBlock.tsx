@@ -184,12 +184,7 @@ export function DraftingBlock({
     return (
         <div className="flex shrink-0 flex-col gap-2.25 border-b border-accent-line bg-accent-soft px-3.75 py-2.75 keyboard-near:py-2">
             <div className="flex items-center gap-2.75 rounded-md border-2 border-accent bg-panel px-2.75 py-2 transition focus-within:ring-3 focus-within:ring-accent-soft keyboard-near:py-0 keyboard-near:pe-0">
-                <span
-                    aria-hidden="true"
-                    className="shrink-0 rounded-sm bg-accent px-1.75 py-0.75 text-xs font-semibold text-on-accent"
-                >
-                    {translate('ai.badge')}
-                </span>
+                <Icon name="auto_awesome" className="size-icon-md shrink-0 text-accent-deep" />
 
                 <GrowingField
                     ref={(element) => {

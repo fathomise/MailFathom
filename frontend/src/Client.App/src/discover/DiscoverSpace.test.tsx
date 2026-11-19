@@ -164,6 +164,8 @@ describe('DiscoverSpace', () => {
         const question = askASuggestion();
 
         fireEvent.click(await screen.findByRole('button', { name: 'Hand to the agent' }));
+        // The offer under the answer is an action, so it carries the glyph alone rather than an AI badge.
+        expect(screen.queryByText('AI')).toBeNull();
         fireEvent.click(screen.getByRole('button', { name: 'Continue with the agent' }));
 
         const handedOver = { scope: { kind: 'discoveryRun', subject: discovery.runStarted.runId }, title: question };

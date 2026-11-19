@@ -118,6 +118,13 @@ describe('DayCapacity', () => {
         expect(document.activeElement).toBe(screen.getByRole('status'));
     });
 
+    it('says the reading was written by AI with the provenance mark rather than an AI badge', () => {
+        drawPanel();
+
+        expect(screen.getByRole('img', { name: 'Written by AI' })).toBeDefined();
+        expect(screen.queryByText('AI')).toBeNull();
+    });
+
     it('counts the day rather than composing a sentence about it', () => {
         drawPanel();
 

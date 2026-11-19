@@ -3,11 +3,13 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import type { MailEnrichmentMark } from '@mailfathom/client-backend';
+import { ModelProvenance } from '../controls/ModelProvenance';
 import { useLocalization } from '../localization/useLocalization';
 import { readingNames } from './messageReadings';
 
-// What MailFathom made of a message, on the row that stands for it. It is the design's own line: a small mark
-// reading `AI` and then one sentence, clipped where it does not fit, in the line the row's height already reserves.
+// What MailFathom made of a message, on the row that stands for it. It is the design's own line: the muted glyph that
+// marks text a model wrote and then one sentence, clipped where it does not fit, in the line the row's height already
+// reserves.
 //
 // **It never displaces the mail.** Who wrote, what about, and when are the two lines above it and are untouched by
 // this; a row with a reading is the same height as a row without one, and a folder of enriched mail shows exactly as
@@ -28,14 +30,9 @@ export function MessageReading({ mark }: { readonly mark: MailEnrichmentMark }) 
 
     return (
         <span className="flex items-center gap-1.5">
-            {/* Hidden from the accessibility tree because the words beside it say the same thing at more length: two
-                statements about the same mark would be read out one after the other. */}
-            <span
-                aria-hidden="true"
-                className="shrink-0 rounded-xs border border-line-strong px-1.25 py-px text-xs leading-3.5 text-muted"
-            >
-                {translate('ai.badge')}
-            </span>
+            {/* Not announced, because the sentence below already says the reading is MailFathom's: two statements
+                about the same mark would be read out one after the other. */}
+            <ModelProvenance announced={false} inRow />
 
             {/* The whole sentence is announced once, aspect and all, and the line that shows it is hidden from the
                 accessibility tree — the alternative is two nodes read one after the other with the punctuation
