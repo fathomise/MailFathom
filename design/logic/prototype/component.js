@@ -7724,12 +7724,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         rightNowNoteStyle: "font-size:12.5px;line-height:1.4;color:var(--muted);" + (isMobile ? "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "text-wrap:pretty"),
         /* The panel's foot holds what Fathom's button offers on this screen, as buttons of their own; the last one opens
            the Agent. Folded, the panel has no room for them, and Fathom's button comes back, standing on the strip. */
-        panelActionsStyle: "flex:0 0 auto;box-sizing:border-box;padding:" + (rightNowSlim ? "8px 8px 10px" : "10px 14px 14px"),
-        /* Drawn as Start's Now widget is: the accent line, the soft accent ground fading into the panel, the dot and
-           the capitals - with the choices as rows inside it, parted by accent hairlines. */
-        panelActionsCardStyle: "display:flex;flex-direction:column;min-width:0;box-sizing:border-box;border:1px solid var(--accent-line);border-radius:16px;" +
-          "background:linear-gradient(160deg, var(--accent-soft), var(--panel) 62%);box-shadow:0 10px 28px -18px var(--sh-3);padding:" + (rightNowSlim ? "14px 6px 6px" : "16px 8px 8px"),
-        panelActionStyle: "display:flex;align-items:center;gap:11px;box-sizing:border-box;min-height:" + (touch ? 48 : 42) + "px;padding:0 8px;border-top:1px solid var(--accent-line);border-radius:10px;font-size:14px;font-weight:600;color:var(--text)",
+        /* The panel's last group, in the form of the three above it - a head with a glyph, a name and what it is for,
+           then rows with a tile - and held at the panel's foot so the actions stay in reach while the rest scrolls. */
+        panelActionsStyle: "flex:0 0 auto;display:flex;flex-direction:column;box-sizing:border-box;border-top:1px solid var(--line);padding:" + (rightNowSlim ? "4px 8px 10px" : "6px 14px 14px"),
+        panelActionsHeadStyle: "display:flex;align-items:center;gap:8px;min-width:0;box-sizing:border-box;padding:0 6px;min-height:" + (touch ? 40 : 34) + "px",
+        panelActionStyle: "display:flex;align-items:center;gap:12px;min-width:0;box-sizing:border-box;border-radius:8px;min-height:" + (touch ? 48 : 44) + "px;padding:5px 6px;font-size:14px;font-weight:600;line-height:1.35;color:var(--text)",
+        panelActionTileStyle: "flex:0 0 34px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:10px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:19px;color:var(--accent-d);background:var(--accent-soft)",
         rightNow: HOME.rightNow.map(g => ({ icon: g.icon, label: g.label, meta: g.meta, n: String(g.n), tip: g.label + ": " + g.meta, aria: g.label + " - " + g.meta + " - open", open: () => this.goScreen(g.go), items: g.items.map(d => {
           const canWatch = d.go === "thread";
           const watching = canWatch && (st.watched || []).some(w => w.tid === d.tid);
