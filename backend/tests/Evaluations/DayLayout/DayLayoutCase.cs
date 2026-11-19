@@ -13,8 +13,9 @@ namespace MailFathom.Evaluations.DayLayout;
 /// An arrangement is a structure — which task sits where, for how long, and which ones were left out — so every case
 /// asks what that structure settles: that every task the turn named is accounted for exactly once, that nothing is
 /// placed over a meeting or over other work, and that a day plainly too full to hold everything says so rather than
-/// pretending otherwise. How long a thing is given is asked about nowhere, because two honest readings of a task
-/// disagree about that and both are right.
+/// pretending otherwise. How long a thing is given is asked about only where a task states an estimate, and then
+/// only that it stays within a factor of two of it (<c>EstimatesRoughlyHeld</c>), and nowhere else, because two honest
+/// readings of a task without one disagree about that and both are right.
 /// </para>
 /// <para>
 /// The days are written here rather than drawn from a corpus, because a day is a list and a calendar rather than mail:

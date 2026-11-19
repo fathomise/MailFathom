@@ -303,6 +303,31 @@ public sealed class MailSettlementPassTests
             Assert.Single(report.FollowUpFailures));
     }
 
+    /// <summary>A follow-up cut short by the pass being cancelled is the cancellation reaching the caller, never a follow-up failure.</summary>
+    [Fact]
+    public async Task RunAsync_CancelledWhileClosingTheWaits_FaultsWithTheCancellationAndRecordsNoFailure()
+    {
+        // Arrange
+        using var cancellation = new CancellationTokenSource();
+        this.store.Holding(Email(1));
+        var interrupted = Substitute.For<IStoredEmailSummaryReader>();
+        interrupted.ReadSummariesAsync(Arg.Any<IReadOnlyList<StoredEmailId>>(), Arg.Any<CancellationToken>())
+            .Returns<Task<IReadOnlyDictionary<StoredEmailId, EmailSummary>>>(_ =>
+            {
+                cancellation.Cancel();
+                throw new OperationCanceledException(cancellation.Token);
+            });
+        await using var signals = new ClientSignals([this.channel], this.clock);
+        var awaited = this.AwaitedRepliesOver(interrupted, new InMemoryPersonalTaskStore(), signals);
+
+        // Act
+        var run = () => this.CreatePass(signals, awaitedReplies: awaited).RunAsync(Account, cancellation.Token);
+
+        // Assert
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(run);
+        this.telemetry.DidNotReceive().RecordFollowUpFailed(Arg.Any<MailSettlementFollowUp>());
+    }
+
     private static SettlingEmail Email(int number, SpamVerdict? verdict = SpamVerdict.NotSpam) =>
         new(
             StoredEmailId.Create(Guid.Parse($"0199a0c0-0000-7000-8000-{number:D12}")),

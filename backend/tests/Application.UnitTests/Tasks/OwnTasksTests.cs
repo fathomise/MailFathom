@@ -420,6 +420,42 @@ public sealed class OwnTasksTests
         Assert.Equal(0, asked);
     }
 
+    /// <summary>Moving the anchor somewhere new is a new reading, so a place the person can open is accepted, and the revision is written and announced.</summary>
+    [Fact]
+    public async Task ReviseAsync_MovingTheAnchorSomewhereThePersonCanOpen_AsksAboutItAndAppliesTheRevision()
+    {
+        // Arrange
+        var store = new InMemoryPersonalTaskStore();
+        var waiting = await KeepAsync(store, User, "hear back", dueOn: null, commitment: Awaiting());
+        var elsewhere = EmailThreadId.Create(new Guid("0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a93"));
+        List<EmailThreadId?> asked = [];
+        var clock = new FakeTimeProvider(Stamped);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+
+        // Act
+        var revised = await Signed(store, User, signals).ReviseAsync(
+            waiting.Id,
+            "hear back",
+            dueOn: null,
+            TaskAnnouncement.Silent,
+            Awaiting() with { Anchor = TaskAnchor.Thread(elsewhere, "Their thread") },
+            (anchor, _) =>
+            {
+                asked.Add(anchor.ThreadId);
+                return Task.FromResult(true);
+            },
+            TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Equal(PersonalTaskChangeOutcome.Applied, revised.Outcome);
+        Assert.Equal([elsewhere], asked);
+        Assert.Equal(elsewhere, Assert.Single(store.Held).Anchor!.ThreadId);
+        Assert.Equal(ClientSignal.TasksChanged(User).Scope, Assert.Single(channel.Published).Scope);
+    }
+
     /// <summary>Moving the anchor somewhere new is a new reading, so a place the person cannot open answers as a task they do not hold.</summary>
     [Fact]
     public async Task ReviseAsync_MovingTheAnchorSomewhereThePersonCannotOpen_IsNotFoundAndWritesNothing()

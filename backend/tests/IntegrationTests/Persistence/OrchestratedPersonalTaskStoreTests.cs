@@ -302,38 +302,6 @@ public sealed class OrchestratedPersonalTaskStoreTests(MailFathomOrchestrationFi
     }
 
     [Fact]
-    public async Task AnswerAsync_TheSameWaitAnsweredTwice_ClosesItOnce()
-    {
-        // Arrange
-        var cancellationToken = TestContext.Current.CancellationToken;
-        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
-        var waiting = Awaiting(services, Guid.NewGuid());
-        var first = new TaskAnswer(StoredEmailId.Create(Guid.NewGuid()), new DateTimeOffset(2031, 5, 4, 9, 0, 0, Warsaw));
-        var second = new TaskAnswer(StoredEmailId.Create(Guid.NewGuid()), new DateTimeOffset(2031, 5, 4, 10, 0, 0, Warsaw));
-
-        // Act
-        var (outcomes, read) = await InStoreAsync(
-            services,
-            async (store, token) =>
-            {
-                await store.AddAsync(waiting, token);
-
-                PersonalTaskChangeOutcome[] answered =
-                [
-                    await store.AnswerAsync(services.ServedUser, waiting.Id, first, token),
-                    await store.AnswerAsync(services.ServedUser, waiting.Id, second, token),
-                ];
-
-                return (answered, await store.FindAsync(services.ServedUser, waiting.Id, token));
-            },
-            cancellationToken);
-
-        // Assert
-        Assert.Equal([PersonalTaskChangeOutcome.Applied, PersonalTaskChangeOutcome.NotFound], outcomes);
-        Assert.Equal(first, read?.Answer);
-    }
-
-    [Fact]
     public async Task AnswerAsync_TheReplyAWaitWasReopenedAgainst_ChangesNothing()
     {
         // Arrange

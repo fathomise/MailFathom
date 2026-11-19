@@ -8,8 +8,8 @@ namespace MailFathom.Application.Emails.Settlement;
 public enum MailSettlementFollowUp
 {
     /// <summary>The automatic reply answering what settled.</summary>
-    AutomaticReply,
+    AutomaticReply = 0,
 
     /// <summary>The closing of the waits that what settled answers.</summary>
-    AwaitedReplies,
+    AwaitedReplies = 1,
 }
