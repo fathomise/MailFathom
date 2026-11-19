@@ -3,8 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 /* TASKS AS COMMITMENTS
-   A task runs one of two ways — something I owe, or something I am waiting for — and lives in a context: a thread, a
-   person, or an event. It has a due day and, separately, a planned time on the calendar. This file holds everything
+   A task runs one of two ways — something I owe, or something I am waiting for — lives in a context, a thread or an
+   event, and is with a person. It has a due day and, separately, a planned time on the calendar. This file holds everything
    the prototype draws about tasks wherever they appear: the Tasks space and its four views, the task dialog, planning
    a time, the commitments a thread, a person and an event carry, and what the calendar draws for them. The component
    spreads `props(self, ctx)` into its render. */
@@ -12,7 +12,9 @@ MailFathomDesign.tasksLogic = (() => {
   const D = MailFathomDesign.data;
   const TODAY = "08-27";
   const SYM = "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;";
-  const ANCHOR_GLYPH = { thread: "mail", person: "person", event: "event" };
+  const ANCHOR_GLYPH = { thread: "mail", event: "event" };
+  /* Who a task is with, by name: what a task anchored to nothing shows in the anchor's place. */
+  const personName = (pid) => ((D.contacts || []).find(c => c.id === pid) || {}).name || "";
   const toMin = (time) => { const m = /^(\d{1,2}):(\d{2})/.exec(time || ""); return m ? +m[1] * 60 + +m[2] : null; };
   const hhmm = (min) => String(Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0");
   const dayLabel = (on) => !on ? "" : on === TODAY ? "today" : on === "08-28" ? "tomorrow" : on.slice(3) + "." + on.slice(0, 2);
@@ -21,6 +23,12 @@ MailFathomDesign.tasksLogic = (() => {
   ];
   const LENGTHS = [15, 30, 45, 60, 90, 120];
   const lenLabel = (m) => m < 60 ? m + " min" : m % 60 ? Math.floor(m / 60) + " h " + (m % 60) + " min" : (m / 60) + (m === 60 ? " hr" : " hrs");
+  /* Every way of asking to lay out today — *Lay out today*, the toolbar's *Lay out the day*, the calendar's *Plan my day*
+     — counts against one allowance: the third ask of a session finds it spent. */
+  const askLayoutFor = (self) => self.setState(s2 => {
+    const n = (s2.layoutAsks || 0) + 1;
+    return n >= 3 ? { layoutAsks: n, layoutSpent: true, layoutOffer: false, taskView: "today" } : { layoutAsks: n, layoutSpent: false, layoutOffer: true, taskView: "today" };
+  });
   const VIEWS = [
     { id: "today", label: "Today" }, { id: "upcoming", label: "Upcoming" }, { id: "waiting", label: "Waiting for" }, { id: "proposed", label: "Proposed" },
   ];
@@ -86,7 +94,6 @@ MailFathomDesign.tasksLogic = (() => {
         if (!(D.threads || []).some(t2 => t2.id === a.tid)) { self.setState({ taskOpen: null, taskSaid: "The thread could not be opened." }); return; }
         self.setState({ taskOpen: null, screen: "mail", threadId: a.tid, mailPane: "thread", threadOpen: true, cameFrom: false });
       }
-      else if (a.kind === "person") self.setState({ taskOpen: null, screen: "people", personId: a.pid, peoplePane: "detail" });
       else {
         const ev = (ctx.calAllDays.find(d => d.d === a.day) || { ev: [] }).ev.map(e => Object.assign({ day: a.day }, e)).find(e => e.t === a.label) || null;
         self.setState({ taskOpen: null, screen: "cal", event: ev, calSaid: ev ? null : "That event is no longer on the calendar." });
@@ -119,7 +126,7 @@ MailFathomDesign.tasksLogic = (() => {
       ].concat(kind === "owe" ? [{ icon: "calendar_add_on", label: t.plan ? "Move in the calendar" : "Plan in the calendar", run: () => openPlan(t.id) }] : [])
         .concat(follow ? [{ icon: "reply", label: "Follow up", run: () => followUp(t) }] : [])
         .concat([{ icon: "notifications_active", label: "Reminders", run: () => self.setState({ remFor: { key: t.id, title: t.t, timed: false, kind: "task", hint: "before 09:00 · " + (t.when || "no day"), src: "Tasks" } }) }])
-        .concat(a ? [{ icon: ANCHOR_GLYPH[a.kind], label: a.kind === "thread" ? "Open the thread" : a.kind === "person" ? "Open " + a.label : "Open the event", run: () => openAnchor(a) }] : [])
+        .concat(a ? [{ icon: ANCHOR_GLYPH[a.kind], label: a.kind === "thread" ? "Open the thread" : "Open the event", run: () => openAnchor(a) }] : [])
         .concat([{ icon: "check_box", label: "Select tasks", run: () => self.selStart("tasks", t.id) },
           { icon: "delete", label: "Delete task", danger: true, run: () => self.askHide("tasks", [t.id], "Delete task?", t.t + " will disappear from your tasks.") }]);
       const dueText = kind === "wait"
@@ -142,7 +149,10 @@ MailFathomDesign.tasksLogic = (() => {
         anchorShown: !!a,
         anchorGlyph: a ? ANCHOR_GLYPH[a.kind] : "",
         anchorLabel: a ? a.label : "",
-        anchorTitle: a ? (a.kind === "thread" ? "Open the thread" : a.kind === "person" ? "Open " + a.label : "Open the event") : "",
+        anchorTitle: a ? (a.kind === "thread" ? "Open the thread" : "Open the event") : "",
+        /* With no anchor, the person it is with stands in the chip's place: a name, not a control. */
+        personShown: !a && !!t.person && !!personName(t.person),
+        personLabel: personName(t.person),
         anchorStyle: chip + "overflow:hidden;text-overflow:ellipsis;color:var(--accent-d);background:var(--accent-soft);",
         openAnchor: (e) => { if (e) e.stopPropagation(); openAnchor(a); },
         estShown: kind !== "wait" && !t.plan && !!t.est,
@@ -179,7 +189,7 @@ MailFathomDesign.tasksLogic = (() => {
           (touch ? "height:44px;padding:0 12px;font-size:12px;" : "height:26px;padding:0 7px;font-size:11px;"),
         remIconStyle: SYM + "font-size:" + (touch ? 20 : 15) + "px",
         openRem: (e) => { if (e) e.stopPropagation(); self.setState({ remFor: { key: t.id, title: t.t, timed: false, kind: "task", hint: "before 09:00 · " + (t.when || "no day"), src: "Tasks" } }); },
-        press: self.pressFor("tasks", t.id, t.t, menu, undefined, a ? a.label : undefined),
+        press: self.pressFor("tasks", t.id, t.t, menu, undefined, a ? a.label : (personName(t.person) || undefined)),
         tap: kind === "proposal" ? () => {} : self.rowTap("tasks", t.id, () => openTask(t.id)),
         draggable: !touch && kind === "owe" && !done,
         dragStart: (e) => { self.dragTaskId = t.id; try { e.dataTransfer.setData("text/plain", t.t); e.dataTransfer.effectAllowed = "move"; } catch (x) { /* a design page only */ } },
@@ -286,10 +296,7 @@ MailFathomDesign.tasksLogic = (() => {
     ].filter(p => { const t = m.find(p.id); return t && !m.done(t) && !(t.plan && t.plan.time === p.time && t.plan.on === TODAY); });
     const dueTodayN = owe.filter(t => !m.done(t) && t.on === TODAY).length;
     const eventsTodayN = (ctx.calAllDays.find(d => d.d === TODAY.slice(3)) || { ev: [] }).ev.filter(e => !e.taskId).length;
-    const askLayout = () => self.setState(s2 => {
-      const n = (s2.layoutAsks || 0) + 1;
-      return n >= 3 ? { layoutAsks: n, layoutSpent: true, layoutOffer: false, taskView: "today" } : { layoutAsks: n, layoutSpent: false, layoutOffer: true, taskView: "today" };
-    });
+    const askLayout = () => askLayoutFor(self);
 
     /* The open task. */
     const ot = st.taskOpen ? m.find(st.taskOpen) : null;
@@ -300,9 +307,6 @@ MailFathomDesign.tasksLogic = (() => {
       { group: "Threads", items: [
         { kind: "thread", label: "Contract addendum - signatures", tid: "contoso" }, { kind: "thread", label: "CPI calculation 2027", tid: "marta" },
         { kind: "thread", label: "Re: rollout schedule", tid: "piotr" }, { kind: "thread", label: "Q4 delivery dates", tid: "fabrikam1" },
-      ] },
-      { group: "People", items: [
-        { kind: "person", label: "Anna Kowalska", pid: "anna" }, { kind: "person", label: "Marta Nowak", pid: "marta" }, { kind: "person", label: "Piotr Zieliński", pid: "piotr" },
       ] },
       { group: "Events", items: [
         { kind: "event", label: "Call with Anna Kowalska", day: "28", time: "13:00" }, { kind: "event", label: "Rollout status with Piotr", day: "27", time: "15:00" },
@@ -408,7 +412,7 @@ MailFathomDesign.tasksLogic = (() => {
       /* A thread or an event is what a task is anchored to; a person is who it is with, the same card, *Belongs to*. */
       newTaskCtxShown: !!(st.newTaskCtx && (st.newTaskCtx.anchor || st.newTaskCtx.withName)),
       newTaskCtxGlyph: st.newTaskCtx && st.newTaskCtx.anchor ? ANCHOR_GLYPH[st.newTaskCtx.anchor.kind] : "person",
-      newTaskCtxKind: st.newTaskCtx && st.newTaskCtx.anchor ? ({ thread: "Belongs to the thread", person: "Belongs to", event: "Belongs to the event" })[st.newTaskCtx.anchor.kind] : "Belongs to",
+      newTaskCtxKind: st.newTaskCtx && st.newTaskCtx.anchor ? ({ thread: "Belongs to the thread", event: "Belongs to the event" })[st.newTaskCtx.anchor.kind] : "Belongs to",
       newTaskCtxLabel: st.newTaskCtx && st.newTaskCtx.anchor ? st.newTaskCtx.anchor.label : (st.newTaskCtx && st.newTaskCtx.withName) || "",
       newTaskCtxClear: () => self.setState(s2 => ({ newTaskCtx: Object.assign({}, s2.newTaskCtx || {}, s2.newTaskCtx && s2.newTaskCtx.anchor ? { anchor: null } : { withName: null, person: null }) })),
       tkTitleDefault: (st.newTaskCtx && st.newTaskCtx.title) || "",
@@ -447,9 +451,14 @@ MailFathomDesign.tasksLogic = (() => {
       taskDlgClashShown: !!otClash,
       taskDlgClash: otClash ? "Clashes with " + otClash.t + " at " + otClash.time + "." : "",
       taskDlgAnchorShown: !!(ot && ot.anchor),
-      taskDlgAnchorNone: !(ot && ot.anchor),
+      taskDlgAnchorNone: !(ot && (ot.anchor || personName(ot.person))),
+      /* A task anchored to nothing shows who it is with as a row of its own: *Person* and the name, with no *Open*. */
+      taskDlgPersonShown: !!(ot && !ot.anchor && personName(ot.person)),
+      taskDlgBelongsSpacer: !!(ot && (ot.anchor || personName(ot.person))),
+      taskDlgPersonLabel: ot ? personName(ot.person) : "",
+      taskDlgPersonRemove: () => ot && setOver(ot.id, { person: null }),
       taskDlgAnchorGlyph: ot && ot.anchor ? ANCHOR_GLYPH[ot.anchor.kind] : "",
-      taskDlgAnchorKind: ot && ot.anchor ? (ot.anchor.kind === "thread" ? "Thread" : ot.anchor.kind === "person" ? "Person" : "Event") : "",
+      taskDlgAnchorKind: ot && ot.anchor ? (ot.anchor.kind === "thread" ? "Thread" : "Event") : "",
       taskDlgAnchorLabel: ot && ot.anchor ? ot.anchor.label : "",
       taskDlgAnchorOpen: () => ot && openAnchor(ot.anchor),
       taskDlgAnchorRemove: () => ot && setOver(ot.id, { anchor: null }),
@@ -559,7 +568,7 @@ MailFathomDesign.tasksLogic = (() => {
         return due.concat(planned);
       },
       proposals: m.proposals.map(p => ({
-        t: p.t, when: p.when || "no day", src: p.from + (p.anchor ? " · " + p.anchor.label : ""), glyph: p.from === "From the Agent" ? "auto_awesome" : "mail",
+        t: p.t, when: p.when || "no day", src: p.from + (p.anchor ? " · " + p.anchor.label : personName(p.person) ? " · " + personName(p.person) : ""), glyph: p.from === "From the Agent" ? "auto_awesome" : "mail",
         add: () => {
           self.setState(s2 => ({ taskAccepted: (s2.taskAccepted || []).concat([p.id]) }));
           self.notify("“" + p.t + "” is in your tasks" + (p.on ? ", due " + p.when : "") + ".", { kind: "success", title: "Task added" });
@@ -567,6 +576,7 @@ MailFathomDesign.tasksLogic = (() => {
         skip: () => self.setState(s2 => ({ hidden: Object.assign({}, s2.hidden || {}, { tasks: ((s2.hidden || {}).tasks || []).concat([p.id]) }) })),
       })),
       openTask, openPlan,
+      askLayout: () => askLayoutFor(self),
     };
   };
 

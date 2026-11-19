@@ -7894,10 +7894,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         calIsDay: st.calView === "Day",
         calIsMonth: st.calView === "Month",
         calIsAgenda: st.calView === "Agenda",
+        /* Wherever the side column stands under the views (a finger, or a narrow window), the body scrolls as one column, so
+           the day takes its own height rather than a share of the column's, which squeezed it to a sliver. */
         calDayWrapStyle: isMobile
           ? "flex:0 0 auto;display:flex;flex-direction:column;padding:6px 14px 16px 14px"
-          : narrow
-          ? "flex:1;min-width:0;overflow:auto;display:flex;flex-direction:column;padding:6px 14px 16px 14px"
+          : touch || narrow
+          ? "flex:0 0 auto;min-width:0;display:flex;flex-direction:column;padding:6px 14px 16px 14px"
           : "flex:1;min-width:0;overflow:auto;display:flex;flex-direction:column;padding:8px 24px 20px 24px",
         calHours: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17].map(h => ({
           label: (h < 10 ? "0" : "") + h + ":00",
@@ -7968,10 +7970,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           style: "display:flex;flex-direction:column;gap:3px;border-radius:12px;padding:11px 13px;border:1px solid " +
             (e.kind === "deadline" ? "var(--hl-line);background:var(--hl);" : "var(--line);background:var(--panel);"),
         })),
+        /* The same as the day: under a finger the agenda takes its own height in the one scrolling column. */
         calAgendaWrapStyle: isMobile
           ? "flex:0 0 auto;display:flex;flex-direction:column;padding:6px 14px 16px 14px"
-          : narrow
-          ? "flex:1;min-width:0;overflow:auto;display:flex;flex-direction:column;padding:6px 14px 16px 14px"
+          : touch || narrow
+          ? "flex:0 0 auto;min-width:0;display:flex;flex-direction:column;padding:6px 14px 16px 14px"
           : "flex:1;min-width:0;overflow:auto;display:flex;flex-direction:column;padding:8px 24px 20px 24px",
         agRowStyle: isMobile
           ? "display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line2);padding:12px 0"
@@ -8065,7 +8068,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         calNoDates: CAL_DATES.every(p => (st.calDone || []).indexOf(p.id) >= 0),
         calProposed: TK.proposals,
         calNoProposals: !TK.proposals.length,
-        calPlanDay: () => this.goScreen("tasks", { taskView: "today", layoutOffer: true }),
+        calPlanDay: () => { this.goScreen("tasks", { taskView: "today" }); TK.askLayout(); },
 
         showPeopleList: !isMobile || st.peoplePane !== "detail",
         showPersonDetail: !isMobile || st.peoplePane === "detail",

@@ -2614,6 +2614,9 @@ Project repository: https://github.com/fathomise/MailFathom
                     <sc-if value="{{ t.anchorShown }}" hint-placeholder-val="{{ true }}">
                       <span onClick="{{ t.openAnchor }}" title="{{ t.anchorTitle }}" data-tip-hover style="{{ t.anchorStyle }}" style-hover="cursor:pointer;text-decoration:underline"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">{{ t.anchorGlyph }}</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;max-width:200px">{{ t.anchorLabel }}</span></span>
                     </sc-if>
+                    <sc-if value="{{ t.personShown }}" hint-placeholder-val="{{ false }}">
+                      <span style="{{ t.anchorStyle }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:14px">person</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;max-width:200px">{{ t.personLabel }}</span></span>
+                    </sc-if>
                     <sc-if value="{{ t.fromLabel }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:var(--muted);white-space:nowrap">{{ t.fromLabel }}</span></sc-if>
                     <sc-if value="{{ t.clashShown }}" hint-placeholder-val="{{ false }}">
                       <span style="{{ t.clashStyle }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">warning</span>{{ t.clashLabel }}</span>
@@ -2979,7 +2982,7 @@ Project repository: https://github.com/fathomise/MailFathom
               <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">link</span>
               <span style="font-size:13px;font-weight:600">Belongs to</span>
               <sc-if value="{{ taskDlgAnchorNone }}" hint-placeholder-val="{{ false }}"><span style="flex:1;font-size:13px;color:var(--muted)">Nothing yet</span></sc-if>
-              <sc-if value="{{ taskDlgAnchorShown }}" hint-placeholder-val="{{ true }}"><span style="flex:1"></span></sc-if>
+              <sc-if value="{{ taskDlgBelongsSpacer }}" hint-placeholder-val="{{ true }}"><span style="flex:1"></span></sc-if>
               <div onClick="{{ taskDlgAnchorToggle }}" style="{{ taskLinkStyle }}" style-hover="cursor:pointer;text-decoration:underline">Change</div>
             </div>
             <sc-if value="{{ taskDlgAnchorShown }}" hint-placeholder-val="{{ true }}">
@@ -2988,6 +2991,13 @@ Project repository: https://github.com/fathomise/MailFathom
                 <span style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0"><span style="font-size:11px;color:var(--muted)">{{ taskDlgAnchorKind }}</span><span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ taskDlgAnchorLabel }}</span></span>
                 <div onClick="{{ taskDlgAnchorOpen }}" style="{{ taskLinkStyle }}" style-hover="cursor:pointer;text-decoration:underline">Open</div>
                 <div onClick="{{ taskDlgAnchorRemove }}" title="Remove the link" style="{{ taskIconBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">link_off</span></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ taskDlgPersonShown }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px">
+                <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">person</span>
+                <span style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0"><span style="font-size:11px;color:var(--muted)">Person</span><span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ taskDlgPersonLabel }}</span></span>
+                <div onClick="{{ taskDlgPersonRemove }}" title="Remove the link" style="{{ taskIconBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px">link_off</span></div>
               </div>
             </sc-if>
             <sc-if value="{{ taskDlgAnchorPickOpen }}" hint-placeholder-val="{{ false }}">
@@ -3535,8 +3545,8 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
               <div style="font-size:11px;color:var(--muted)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1;vertical-align:-2px;margin-right:4px">{{ p.glyph }}</span>{{ p.src }}</div>
               <div style="display:flex;gap:7px">
-                <div onClick="{{ p.add }}" style="font-size:12px;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:6px 12px" style-hover="cursor:pointer;opacity:0.9">Accept</div>
-                <div onClick="{{ p.skip }}" style="font-size:12px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:6px 12px" style-hover="cursor:pointer;background:var(--hover)">Dismiss</div>
+                <div onClick="{{ p.add }}" style="{{ calSideBtnStyle }};color:var(--onaccent);background:var(--accent);border-color:var(--accent)" style-hover="cursor:pointer;opacity:0.9">Accept</div>
+                <div onClick="{{ p.skip }}" style="{{ calSideBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Dismiss</div>
               </div>
             </div>
           </sc-for>

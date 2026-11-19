@@ -4,8 +4,9 @@
 
 /* A task is a commitment. `dir` says which way it runs: "owe" is something I owe, "wait" something I am waiting for
    from somebody else. `on` is the due day (a waiting task's is the day to follow up), `plan` the time it is planned
-   into, separate from the due day. `anchor` is the context it lives in — a thread, a person, or an event — and
-   `person` the person the commitment is with, which is what the person page reads. Today is Thursday 27 August. */
+   into, separate from the due day. `anchor` is the context it lives in — a thread or an event — and `person` the
+   person the commitment is with, which is what the person page reads and what a task with no anchor shows. A person
+   is never an anchor. Today is Thursday 27 August. */
 MailFathomDesign.data.tasks = [
   { id: "t1", t: "Send the 5% CPI cap counter-proposal", dir: "owe", on: "08-27", when: "today", est: "45 min", mins: 45, plan: { on: "08-27", time: "11:00", h: 11 },
     anchor: { kind: "thread", label: "Contract addendum - signatures", tid: "contoso" }, person: "anna", origin: "mail" },
@@ -22,7 +23,7 @@ MailFathomDesign.data.tasks = [
   { id: "t4", t: "Prepare the IT contract list for audit", dir: "owe", on: "09-03", when: "03.09", est: "2 hrs", mins: 120,
     anchor: { kind: "thread", label: "Request for the contract register", tid: "audyt1" }, person: null, origin: "mail" },
   { id: "t6", t: "Close the 2027 budget after the Contoso decision", dir: "owe", on: "09-10", when: "10.09", est: "1 hr", mins: 60,
-    anchor: { kind: "person", label: "Marta Nowak", pid: "marta" }, person: "marta" },
+    anchor: null, person: "marta" },
   { id: "t7", t: "Sign the Northwind NDA", dir: "owe", on: "09-12", when: "12.09", est: "10 min", mins: 10,
     anchor: { kind: "thread", label: "Draft NDA - Northwind", tid: "prawnik2" }, person: "jacek" },
   { id: "t9", t: "Draft the onboarding checklist for Q4 hires", dir: "owe", on: null, when: "", est: "1 hr", mins: 60,
@@ -50,7 +51,7 @@ MailFathomDesign.data.proposedTasks = [
   { id: "p1", t: "Send Piotr the rollout risks before the status call", on: "08-27", when: "today", est: "20 min", mins: 20, from: "From mail",
     anchor: { kind: "thread", label: "Re: rollout schedule", tid: "piotr" }, person: "piotr" },
   { id: "p3", t: "Ask Marta for the 2026 baseline figures", on: "08-31", when: "31.08", est: "10 min", mins: 10, from: "From the Agent",
-    anchor: { kind: "person", label: "Marta Nowak", pid: "marta" }, person: "marta" },
+    anchor: null, person: "marta" },
   { id: "p2", t: "Book the auditor's visit", on: null, when: "", est: "15 min", mins: 15, from: "From mail",
     anchor: { kind: "thread", label: "Request for the contract register", tid: "audyt1" }, person: null },
 ];
