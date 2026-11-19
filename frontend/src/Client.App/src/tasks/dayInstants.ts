@@ -15,20 +15,21 @@
 // of the same thing and a second copy of it is how two of them come to disagree about when a day ends.
 
 /**
- * The instants one local day opens and closes at.
+ * The instants a run of local days opens and closes at, starting with the day being read in.
  *
  * Built by moving the day rather than by adding twenty-four hours, so a day carrying a daylight-saving change still
  * closes at the next midnight rather than an hour either side of it.
  *
  * @param now The instant the reader is reading at.
+ * @param days How many days the run covers, the one being read in included.
  * @returns The two instants, as the wire spells them.
  */
-export function dayAround(now: number): { readonly from: string; readonly until: string } {
+export function dayAround(now: number, days = 1): { readonly from: string; readonly until: string } {
     const at = new Date(now);
 
     return {
         from: new Date(at.getFullYear(), at.getMonth(), at.getDate()).toISOString(),
-        until: new Date(at.getFullYear(), at.getMonth(), at.getDate() + 1).toISOString(),
+        until: new Date(at.getFullYear(), at.getMonth(), at.getDate() + days).toISOString(),
     };
 }
 

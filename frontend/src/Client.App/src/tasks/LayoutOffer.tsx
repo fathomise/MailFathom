@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import {
     layOutToday,
     type CalendarEvent,
@@ -92,12 +92,6 @@ export function LayoutOffer({
     // than falling to the document body.
     const waiting = useRef<HTMLParagraphElement | null>(null);
 
-    function settle(asking: number, answer: ClientResult<DayLayout>): void {
-        if (here.current && asking === asked.current) {
-            setOffer(answer.outcome === 'failed' ? { kind: 'failed' } : { kind: 'answered', layout: answer.value });
-        }
-    }
-
     function arrange(): void {
         if (session === null) {
             return;
@@ -107,7 +101,7 @@ export function LayoutOffer({
 
         setOffer({ kind: 'arranging' });
         void restOfToday(session, transport).then((answer) => {
-            settle(asking, answer);
+            settle(asking, answer, here, asked, setOffer);
         });
     }
 
@@ -120,11 +114,7 @@ export function LayoutOffer({
             const asking = ++asked.current;
 
             void restOfToday(session, transport).then((answer) => {
-                if (here.current && asking === asked.current) {
-                    setOffer(
-                        answer.outcome === 'failed' ? { kind: 'failed' } : { kind: 'answered', layout: answer.value },
-                    );
-                }
+                settle(asking, answer, here, asked, setOffer);
             });
         }
 
@@ -182,7 +172,10 @@ export function LayoutOffer({
     const placed = layout.placements.flatMap((placement) => {
         const task = titles.get(placement.taskId);
 
-        return task === undefined ? [] : [{ task, plan: { startAt: placement.startAt, minutes: placement.minutes } }];
+        // A task done since the offer arrived is left out of it rather than planned.
+        return task === undefined || task.completed
+            ? []
+            : [{ task, plan: { startAt: placement.startAt, minutes: placement.minutes } }];
     });
 
     if (layout.outcome === 'AllowanceSpent') {
@@ -197,13 +190,24 @@ export function LayoutOffer({
         );
     }
 
+    // The list is read a page at a time, so a day laid out around tasks further down it than it has read has nothing
+    // here to draw a placement with — which is not the same as nothing being left.
+    const unread =
+        layout.outcome === 'Arranged' && layout.placements.some((placement) => !titles.has(placement.taskId));
+
     if (layout.outcome === 'NotArranged' || placed.length === 0) {
         return (
             <>
-                <p role="status" className="flex items-start gap-1.75 text-sm text-healthy-text text-pretty">
-                    <Icon name="event_available" className="size-icon-md shrink-0" />
-                    {translate('tasks.nothingLeftToLayOut')}
-                </p>
+                {unread && placed.length === 0 ? (
+                    <p role="status" className="text-sm text-muted text-pretty">
+                        {translate('tasks.placedBeyondTheList')}
+                    </p>
+                ) : (
+                    <p role="status" className="flex items-start gap-1.75 text-sm text-healthy-text text-pretty">
+                        <Icon name="event_available" className="size-icon-md shrink-0" />
+                        {translate('tasks.nothingLeftToLayOut')}
+                    </p>
+                )}
                 <PutDown
                     onPress={() => {
                         setOffer({ kind: 'idle' });
@@ -291,6 +295,19 @@ export function LayoutOffer({
                     : translate('tasks.movedFromClash', { time, title: clash.title })}
             </span>
         );
+    }
+}
+
+// Draws the answer to the arrangement asked for, where the panel still stands and nothing has been asked since.
+function settle(
+    asking: number,
+    answer: ClientResult<DayLayout>,
+    here: RefObject<boolean>,
+    asked: RefObject<number>,
+    setOffer: (offer: Offer) => void,
+): void {
+    if (here.current && asking === asked.current) {
+        setOffer(answer.outcome === 'failed' ? { kind: 'failed' } : { kind: 'answered', layout: answer.value });
     }
 }
 

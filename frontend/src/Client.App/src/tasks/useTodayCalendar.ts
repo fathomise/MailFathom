@@ -61,14 +61,16 @@ function nothingRead(session: ClientSession | null, day: string): HeldDay {
  * @param session Who is asking and where, or `null` where there is nothing to ask with.
  * @param transport How a request reaches the deployment.
  * @param now When the reader is reading, which decides which day is asked for.
+ * @param days How many days from that one are read, which is more than one only where a plan is being chosen.
  * @returns What the day holds, and the way to ask for it again.
  */
 export function useTodayCalendar(
     session: ClientSession | null,
     transport: MailFathomTransport,
     now: number,
+    days = 1,
 ): TodayCalendarInForce {
-    const window = dayAround(now);
+    const window = dayAround(now, days);
     const [held, setHeld] = useState<HeldDay>(() => nothingRead(session, window.from));
 
     // Which read is the current one, for the reason the task list keeps one: an answer on its way when the credential

@@ -10,7 +10,7 @@ import { ChoiceSegment } from '../controls/ChoiceSegment';
 import { Icon } from '../controls/Icon';
 import { SurfaceControl } from '../controls/SurfaceControl';
 import { useTip } from '../controls/useTip';
-import { calendarDayIn, dayFrom, wordInstant, wordInstantRange } from '../localization/instants';
+import { calendarDayIn, wordInstant, wordInstantRange } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { useTopLayerSurface } from '../shell/screenLayers';
@@ -18,7 +18,7 @@ import { endAfter } from './dayInstants';
 import { dayHours, hourOf } from './dayHours';
 import { HourItem } from './HourItem';
 import { clashOf } from './taskViews';
-import { wordDayChoice, wordEstimate, wordPlan, wordTaskDay, workingDaysAfterTomorrow } from './taskWording';
+import { daysOffered, wordDayChoice, wordEstimate, wordPlan, wordTaskDay } from './taskWording';
 
 // Planning one task into a day: four days to choose from, how long it takes, and the chosen day's hours with what the
 // calendar and the other planned tasks already hold in them. An hour is pressed to place the task there, the line under
@@ -33,9 +33,6 @@ import { wordDayChoice, wordEstimate, wordPlan, wordTaskDay, workingDaysAfterTom
 
 // The lengths the design offers, in minutes.
 const lengths = [15, 30, 45, 60, 90, 120];
-
-// How many working days after tomorrow are offered beside *Today* and *Tomorrow*.
-const workingDaysOffered = 2;
 
 export function PlanDialog({
     task,
@@ -79,7 +76,7 @@ export function PlanDialog({
         }
     }, []);
 
-    const offeredDays = [today, dayFrom(today, 1), ...workingDaysAfterTomorrow(today, workingDaysOffered)];
+    const offeredDays = daysOffered(today);
     const days = offeredDays.includes(day) ? offeredDays : [...offeredDays, day];
     const lengthsOffered = lengths.includes(minutes)
         ? lengths

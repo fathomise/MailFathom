@@ -149,6 +149,51 @@ describe('LayoutOffer', () => {
         expect(screen.queryByRole('button', { name: 'Plan these' })).toBeNull();
     });
 
+    // The list is read a page at a time, so a day laid out around tasks it has not read yet is not an empty day.
+    it('says the tasks laid out are further down the list than it has read, rather than that nothing is left', async () => {
+        const { transport } = deployment(200, {
+            arranged: true,
+            placements: [{ taskId: 'task-unread', startAt: '2026-09-24T10:00:00+00:00', minutes: 30 }],
+            notToday: [],
+        });
+
+        drawOffer(transport);
+        fireEvent.click(screen.getByRole('button', { name: 'Lay out today' }));
+
+        expect(
+            await screen.findByText(
+                'The tasks this would plan are further down the list than it has read. Read more of the list, then lay out today again.',
+            ),
+        ).toBeDefined();
+        expect(screen.queryByText('Nothing is left to lay out today.')).toBeNull();
+    });
+
+    it('leaves a task done since the offer arrived out of what "Plan these" plans', async () => {
+        const { transport } = deployment(200, arranged);
+        const planned = vi.fn();
+        const drawn = (tasks: readonly PersonalTask[]) => (
+            <LocalizationProvider>
+                <LayoutOffer
+                    session={session}
+                    transport={transport}
+                    offered
+                    tasks={tasks}
+                    events={[]}
+                    onPlan={planned}
+                />
+            </LocalizationProvider>
+        );
+        const { rerender } = render(drawn([room, reply, audit]));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Lay out today' }));
+        await screen.findByRole('button', { name: 'Plan these' });
+
+        rerender(drawn([{ ...room, completed: true }, reply, audit]));
+        fireEvent.click(screen.getByRole('button', { name: 'Plan these' }));
+
+        expect(planned).toHaveBeenCalledWith([[reply, { startAt: '2026-09-24T16:00:00+00:00', minutes: 20 }]]);
+    });
+
     it('says laying out days is used up, and still offers to ask again', async () => {
         const { transport } = deployment(429, {});
 

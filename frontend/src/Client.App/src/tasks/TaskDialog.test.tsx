@@ -82,12 +82,14 @@ function Opened({
     onWritten,
     onToggleCompleted,
     onReminders,
+    onLeft,
 }: {
     readonly task: PersonalTask;
     readonly transport: MailFathomTransport;
     readonly onWritten: (said: string) => void;
     readonly onToggleCompleted: (task: PersonalTask) => void;
     readonly onReminders: (task: PersonalTask) => void;
+    readonly onLeft: () => void;
 }) {
     const asked = useRef<HTMLDialogElement>(null);
 
@@ -107,7 +109,7 @@ function Opened({
             onAskErasure={vi.fn()}
             onReminders={onReminders}
             onOpenAnchor={undefined}
-            onLeft={vi.fn()}
+            onLeft={onLeft}
         />
     );
 }
@@ -127,6 +129,7 @@ function drawDialog({
     const written = vi.fn();
     const toggled = vi.fn();
     const announcing = vi.fn();
+    const left = vi.fn();
     const drawn = (shown: PersonalTask) => (
         <LocalizationProvider>
             <Opened
@@ -135,6 +138,7 @@ function drawDialog({
                 onWritten={written}
                 onToggleCompleted={toggled}
                 onReminders={announcing}
+                onLeft={left}
             />
         </LocalizationProvider>
     );
@@ -145,6 +149,7 @@ function drawDialog({
         written,
         toggled,
         announcing,
+        left,
         release,
         // What the screen hands the dialog once its list has read the task again.
         readAgain: (shown: PersonalTask) => {
@@ -423,13 +428,15 @@ describe('TaskDialog', () => {
         expect(screen.getByText('Planned')).toBeDefined();
     });
 
+    // The length chosen is also how long the task is now thought to take, which is what the design's plan saves.
     it('plans the task from the plan dialog it opens, as one more choice, and stays open on it', async () => {
-        const { sent } = drawDialog({ task: { ...held, plan: null } });
+        const { sent, left } = drawDialog({ task: { ...held, plan: null } });
 
         fireEvent.click(within(dialog()).getByRole('button', { name: 'Plan' }));
 
         const planning = screen.getByRole('dialog', { name: 'Plan a time' });
 
+        fireEvent.click(within(planning).getByRole('radio', { name: '1 hr' }));
         fireEvent.click(within(planning).getByRole('button', { name: /^2:00 PM/u }));
         fireEvent.click(within(planning).getByRole('button', { name: 'Plan' }));
 
@@ -439,10 +446,11 @@ describe('TaskDialog', () => {
 
         expect(revisions(sent)[0]).toMatchObject({
             title: 'Send the counter-proposal',
-            estimatedMinutes: 45,
-            plan: { minutes: 45 },
+            estimatedMinutes: 60,
+            plan: { minutes: 60 },
         });
         expect(screen.queryByRole('dialog', { name: 'Plan a time' })).toBeNull();
         expect(dialog().open).toBe(true);
+        expect(left).not.toHaveBeenCalled();
     });
 });

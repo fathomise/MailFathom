@@ -34,13 +34,11 @@ function drawBar({
     selected = picked,
     onClear = vi.fn(),
     onComplete = vi.fn(),
-    onSchedule = vi.fn(),
     onAskErasure = vi.fn(),
 }: {
     selected?: readonly PersonalTask[];
     onClear?: () => void;
     onComplete?: () => void;
-    onSchedule?: () => void;
     onAskErasure?: () => void;
 } = {}): void {
     render(
@@ -50,7 +48,6 @@ function drawBar({
                     selected={selected}
                     onClear={onClear}
                     onComplete={onComplete}
-                    onSchedule={onSchedule}
                     onAskErasure={onAskErasure}
                 />
             </WorkspaceProvider>
@@ -71,10 +68,10 @@ describe('TaskSelectionBar', () => {
         expect(screen.getByRole('toolbar', { name: 'Acts over the tasks you picked out' })).toBeDefined();
     });
 
-    it('carries the three acts the design draws, each named to a screen reader', () => {
+    it('carries the two acts the design draws, each named to a screen reader', () => {
         drawBar();
 
-        for (const act of ['Mark as done', 'Schedule in the calendar', 'Delete']) {
+        for (const act of ['Mark as done', 'Delete']) {
             expect(screen.getByRole('button', { name: act })).toBeDefined();
         }
     });
@@ -99,16 +96,6 @@ describe('TaskSelectionBar', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Mark as done' }));
 
         expect(onComplete).toHaveBeenCalledOnce();
-    });
-
-    it('puts everything picked out in the calendar', () => {
-        const onSchedule = vi.fn();
-
-        drawBar({ onSchedule });
-
-        fireEvent.click(screen.getByRole('button', { name: 'Schedule in the calendar' }));
-
-        expect(onSchedule).toHaveBeenCalledOnce();
     });
 
     // The bar raises the question rather than performing the act, which is what the confirmation over several rows is

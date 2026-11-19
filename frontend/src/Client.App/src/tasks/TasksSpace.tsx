@@ -7,14 +7,12 @@ import {
     acceptTask,
     arrangesDays,
     dueDayOffsetMinutes,
-    recordCalendarEvent,
     eraseTask,
     readMailThread,
     recordTask,
     reviseTask,
     setTaskCompletion,
     wentUnanswered,
-    type CalendarEventWrite,
     type ClientFailureReason,
     type ClientResult,
     type ClientSession,
@@ -34,6 +32,7 @@ import { useReadingZone } from '../localization/useReadingZone';
 import { ReminderPanel } from '../reminders/ReminderPanel';
 import { Departing } from '../shell/Departing';
 import { useCoarsePointer, useWideWorkspace } from '../shell/useWideWorkspace';
+import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { DayCapacity } from './DayCapacity';
 import { DayPlan } from './DayPlan';
 import { LayoutOffer, type ProposedPlan } from './LayoutOffer';
@@ -43,12 +42,12 @@ import { TaskDialog } from './TaskDialog';
 import { TaskList } from './TaskList';
 import { TaskSelectionBar } from './TaskSelectionBar';
 import { TasksHead } from './TasksHead';
-import { startOfDay } from './dayInstants';
 import { reachedTheRowsRead } from './rowsRead';
 import { clashOf, openIn, openOwedToday, plannedDay, taskViews, tasksIn, type TaskView } from './taskViews';
-import { wordTaskDay } from './taskWording';
+import { daysOffered, wordTaskDay } from './taskWording';
 import { useTasks } from './useTasks';
 import { useTodayCalendar } from './useTodayCalendar';
+import { usePlanWriter, withPlansPressed, type PlanPress } from './usePlanWriter';
 
 // The Tasks space as the design composes it: the head naming the view and the four views to move between, the view's
 // grouped list down the middle, the day's own calendar and the day's capacity beside it, the task dialog a row opens,
@@ -67,7 +66,7 @@ import { useTodayCalendar } from './useTodayCalendar';
 // capacity panel counts — so a list edited in place would be this client's own opinion of an ordering it does not own.
 // What a write leaves behind instead is one sentence saying what happened.
 //
-// **What the toolbar carries is two acts rather than the five the design draws.** *Find in mail* reaches the Agent
+// **What the toolbar carries is three acts rather than the five the design draws.** *Find in mail* reaches the Agent
 // space, which is still a placeholder; *Export* has no route on this surface, exactly as exporting the address book
 // has none and for the same reason. Each is left out rather than drawn as a control that would do nothing, which is a
 // correction owed to the design rather than a toolbar to fill.
@@ -75,9 +74,10 @@ import { useTodayCalendar } from './useTodayCalendar';
 // **A task is planned into the day rather than written into the calendar.** Its plan is part of the task, so planning
 // one — from its row's *Plan*, by dragging its row onto an hour of the day beside the list, or from the laid-out day's
 // *Plan these* — revises the task with the whole record restated and its plan beside it, and the calendar draws it from
-// there. One write is out per task at a time and the latest plan pressed for it wins. *Lay out today* is an offer the
-// deployment composes, and nothing is planned until somebody accepts it. The selection bar's *schedule in the calendar*
-// is the one act left that writes an event: the day a task is due, with no hours claimed.
+// there. `usePlanWriter` is the one writer of a plan: one write is out per task at a time, the latest plan pressed for
+// it wins, and what was pressed is drawn at once and restated by every other write until the list is read back. *Lay
+// out today* is an offer the deployment composes, and nothing is planned until somebody accepts it. Nothing on this
+// screen writes a calendar event of its own.
 
 // What one write said, worded as what happened rather than as an outcome name.
 interface WriteSaid {
@@ -127,6 +127,14 @@ const failureLabels: Readonly<Record<ClientFailureReason, MessageKey>> = {
     missing: 'failure.missing',
 };
 
+// How many days ahead the calendar is read while a plan is being chosen: every day the plan dialog offers, so a clash
+// is drawn on whichever of them is picked.
+function daysSpanned(today: string): number {
+    const last = daysOffered(today).at(-1) ?? today;
+
+    return Math.round((Date.parse(last) - Date.parse(today)) / 86_400_000) + 1;
+}
+
 // What one write became. A deployment that refused names the reason it gave; a write the screen found nothing to
 // perform names none, which is a different thing from a refusal and must not be worded as one.
 interface TaskWrite {
@@ -144,15 +152,6 @@ function wrote(answer: ClientResult<PersonalTask | PersonalTaskErasure>): TaskWr
     return answer.outcome === 'failed'
         ? { failed: true, reason: answer.failure.reason, unanswered: wentUnanswered(answer.failure) }
         : { failed: false, reason: null, unanswered: false };
-}
-
-// A calendar write refuses in two different ways, and only one of them names something a person can act on: the
-// request itself failed, or the calendar answered and did not take the record — every outcome but `Written` being a
-// row this screen must not draw as scheduled.
-function wroteToTheCalendar(answer: ClientResult<CalendarEventWrite>): TaskWrite {
-    return answer.outcome === 'failed'
-        ? { failed: true, reason: answer.failure.reason, unanswered: wentUnanswered(answer.failure) }
-        : { failed: answer.value.outcome !== 'Written', reason: null, unanswered: false };
 }
 
 // The one reason a whole batch was refused for, or `null` where there is none to give: a batch refused two different
@@ -174,7 +173,6 @@ export function TasksSpace({
     transport,
     asksDeployment,
     readsCalendar,
-    writesCalendar,
     onOpenMessage,
     onOpenEvent,
     openLayoutOffer = false,
@@ -192,9 +190,6 @@ export function TasksSpace({
      * the list is read and drawn only under it.
      */
     readonly readsCalendar: boolean;
-
-    /** Whether this credential may change the calendar, which is what putting a task in it does. */
-    readonly writesCalendar: boolean;
 
     /**
      * Opens the message a task cites, which is the Mail space's to draw and therefore the frame's to perform — or
@@ -230,7 +225,10 @@ export function TasksSpace({
         asked: null,
         answered: false,
     });
-    const [scheduling, setScheduling] = useState(false);
+
+    // Each press of *Lay out the day* draws the offer afresh, already laying the day out; the screen opened to lay it
+    // out has been pressed once.
+    const [layoutsAsked, setLayoutsAsked] = useState(openLayoutOffer ? 1 : 0);
 
     const [announcing, setAnnouncing] = useState<PersonalTask | null>(null);
 
@@ -243,9 +241,6 @@ export function TasksSpace({
     // nothing, so a slow answer cannot take the reader to a thread they have since moved away from.
     const threadAsked = useRef(0);
 
-    // The latest plan pressed for each task whose plan write is still out, which is written once that one answers.
-    const plansOut = useRef(new Map<string, TaskPlan | null>());
-
     useEffect(
         () => () => {
             threadAsked.current += 1;
@@ -255,6 +250,21 @@ export function TasksSpace({
 
     const reading = useTasks(session, transport);
     const day = useTodayCalendar(readsCalendar ? session : null, transport, now);
+    const writer = usePlanWriter(session, transport, timeZone);
+    const writeRefused = useWriteRefusal();
+
+    // What the list holds with every plan still being written laid over it, which is what every part of the screen
+    // draws and every write restates.
+    const listed = withPlansPressed(reading.tasks, writer.pressed);
+    const today = calendarDayIn(now, timeZone);
+
+    // The days a plan is being chosen across, read only while a dialog that chooses one is open.
+    const planningDays = useTodayCalendar(
+        readsCalendar && (openedId !== null || planningId !== null) ? session : null,
+        transport,
+        now,
+        daysSpanned(today),
+    );
 
     // Whether this deployment arranges a day at all, which decides whether the panel offers the act rather than
     // whether the act then works. A request going out is the one thing an effect is for, and the answer is dropped
@@ -284,16 +294,15 @@ export function TasksSpace({
     // What is done is out of the way unless somebody asks for it, which is what the design's own toolbar switch
     // decides. It is a filter over what is held rather than a second read: the surface serves one list and which of it
     // a reader wants to look at is a rendering decision.
-    const shown = showDone ? reading.tasks : reading.tasks.filter((task) => !task.completed);
+    const shown = showDone ? listed : listed.filter((task) => !task.completed);
 
     // The tasks picked out, read back out of the list rather than held as records: the selection holds identities and
     // the list holds what each of them is, so a selection cannot outlive a read that no longer names one of them.
     const picked = shown.filter((task) => selected.includes(task.id));
 
     // The two halves the deployment walks, told apart again by where each came from, and the view's groups over them.
-    const committed = reading.tasks.filter((task) => task.origin !== 'Proposed');
-    const proposals = reading.tasks.filter((task) => task.origin === 'Proposed');
-    const today = calendarDayIn(now, timeZone);
+    const committed = listed.filter((task) => task.origin !== 'Proposed');
+    const proposals = listed.filter((task) => task.origin === 'Proposed');
     const groups = tasksIn(view, committed, proposals, today, timeZone, showDone);
     const everythingDone =
         !showDone && groups.length === 0 && tasksIn(view, committed, proposals, today, timeZone, true).length > 0;
@@ -306,9 +315,10 @@ export function TasksSpace({
     const clashesToday = plannedToday.filter((task) => clashOf(task, day.events) !== null).length;
     const eventsToday = day.events.filter((event) => calendarDayIn(Date.parse(event.start), timeZone) === today).length;
 
-    // The task open in its dialog, and the one being planned, read back out of the list so each draws the last read.
-    const opened = openedId === null ? null : (reading.tasks.find((task) => task.id === openedId) ?? null);
-    const planningTask = planningId === null ? null : (reading.tasks.find((task) => task.id === planningId) ?? null);
+    // The task open in its dialog, and the one being planned, read back out of the list so each draws the last read
+    // with every plan pressed since.
+    const opened = openedId === null ? null : (listed.find((task) => task.id === openedId) ?? null);
+    const planningTask = planningId === null ? null : (listed.find((task) => task.id === planningId) ?? null);
 
     // The dialog is the platform's own, so opening it is an imperative call on an element that has to exist first —
     // which is the other thing an effect is for. A dialog already open is never opened again: `showModal` on one
@@ -500,124 +510,35 @@ export function TasksSpace({
         });
     }
 
-    // Putting tasks in the calendar on the days they are due. A task states a day rather than a time, so what is
-    // written claims no hours — the day-long event the calendar already has a shape for — and a task nobody has dated
-    // has no day to be put on, which is why the control is absent on one and this says so for a selection.
-    function schedule(tasks: readonly PersonalTask[]): void {
-        const dated = tasks.filter((task) => task.dueOn !== null);
-
-        // Refused while one batch is still outstanding, for the reason `arrange` and `apply` refuse: the row's own
-        // act and the selection bar's stay pressable while the calendar is being written, and a second press would
-        // write the same day-long event a second time rather than doing nothing.
-        if (scheduling) {
-            return;
-        }
-
-        if (session === null || dated.length === 0) {
-            setSaid({ said: 'tasks.nothingToSchedule' });
-
-            return;
-        }
-
-        setScheduling(true);
-        setSaid({ said: 'tasks.scheduling' });
-
-        void Promise.all(
-            dated.map((task) => {
-                const start = startOfDay(task.dueOn ?? '');
-
-                return start === null
-                    ? Promise.resolve({ failed: true, reason: null, unanswered: false, id: task.id })
-                    : recordCalendarEvent(session, transport, {
-                          title: task.title,
-                          start,
-                          end: null,
-                          isAllDay: true,
-                          reminders: [],
-                          notes: null,
-                          sourceMessage: task.sourceMessageId,
-                      }).then((answer) => ({ ...wroteToTheCalendar(answer), id: task.id }));
-            }),
-        ).then((answers) => {
-            setScheduling(false);
-            setSelected([]);
-            day.readAgain();
-            void after(answers, 'tasks.scheduled');
-        });
-    }
-
-    // Plans each task named — or takes it out of the calendar — as the whole record with its plan beside it, one write
-    // out per task at a time: a plan pressed while that task's write is out is written once it answers, the latest
-    // winning. What the batch did is said once, when every task named has settled.
-    function plan(
-        plans: readonly (readonly [PersonalTask, TaskPlan | null])[],
-        done: MessageKey,
-        names?: Readonly<Record<string, string>>,
-    ): void {
-        if (session === null) {
-            return;
-        }
-
+    // Plans each task named, or takes it out of the calendar, saying what happened once every plan pressed is written.
+    function plan(plans: readonly PlanPress[], done: MessageKey, names?: Readonly<Record<string, string>>): void {
         setSaid(null);
-
-        const writes = plans.flatMap(([task, planned]) => {
-            const writing = plansOut.current.has(task.id);
-
-            plansOut.current.set(task.id, planned);
-
-            return writing ? [] : [writePlan(session, task, planned)];
-        });
-
-        if (writes.length > 0) {
-            void Promise.all(writes).then((answers) => after(answers, done, names));
-        }
-    }
-
-    function writePlan(asking: ClientSession, task: PersonalTask, planned: TaskPlan | null): Promise<TaskWrite> {
-        return reviseTask(asking, transport, task.id, {
-            title: task.title,
-            dueOn: task.dueOn,
-            reminders: task.reminders,
-            dueDayOffsetMinutes: dueDayOffsetMinutes(task.dueOn, timeZone),
-            sourceMessageId: task.sourceMessageId,
-            direction: task.direction,
-            estimatedMinutes: task.estimatedMinutes,
-            plan: planned,
-            anchor: task.anchor,
-            counterpart: task.counterpart,
-        }).then((answer) => {
-            const latest = plansOut.current.get(task.id);
-
-            if (answer.outcome === 'read' && latest !== undefined && latest !== planned) {
-                return writePlan(asking, task, latest);
-            }
-
-            plansOut.current.delete(task.id);
-
-            return wrote(answer);
-        });
+        writer.plan(plans, (answers) => after(answers.map(wrote), done, names));
     }
 
     // A task dropped on an hour is planned from it for as long as it is thought to take, or half an hour.
     function dropped(taskId: string, startAt: string): void {
-        const task = reading.tasks.find((held) => held.id === taskId);
+        const task = listed.find((held) => held.id === taskId);
 
         if (task !== undefined) {
-            plan([[task, { startAt, minutes: task.estimatedMinutes ?? defaultPlanMinutes }]], 'tasks.plannedAt', {
+            const minutes = task.estimatedMinutes ?? defaultPlanMinutes;
+
+            plan([[task, { plan: { startAt, minutes }, estimatedMinutes: task.estimatedMinutes }]], 'tasks.plannedAt', {
                 title: task.title,
                 time: wordInstant(startAt, locale, 'time', timeZone) ?? '',
             });
         }
     }
 
+    // A plan chosen in the plan dialog is also how long the task is now thought to take, which is the design's.
     function planned(task: PersonalTask, chosen: TaskPlan | null): void {
         if (chosen === null) {
-            plan([[task, null]], 'tasks.unplanned');
+            plan([[task, { plan: null, estimatedMinutes: task.estimatedMinutes }]], 'tasks.unplanned');
 
             return;
         }
 
-        plan([[task, chosen]], 'tasks.plannedOn', {
+        plan([[task, { plan: chosen, estimatedMinutes: chosen.minutes }]], 'tasks.plannedOn', {
             title: task.title,
             day: wordTaskDay(calendarDayIn(Date.parse(chosen.startAt), timeZone), locale, now, timeZone),
             time: wordInstant(chosen.startAt, locale, 'time', timeZone) ?? '',
@@ -625,9 +546,11 @@ export function TasksSpace({
     }
 
     function laidOut(plans: readonly ProposedPlan[]): void {
-        plan(plans, plannedIntoToday[new Intl.PluralRules(locale).select(plans.length)], {
-            count: new Intl.NumberFormat(locale).format(plans.length),
-        });
+        plan(
+            plans.map(([task, placed]) => [task, { plan: placed, estimatedMinutes: task.estimatedMinutes }]),
+            plannedIntoToday[new Intl.PluralRules(locale).select(plans.length)],
+            { count: new Intl.NumberFormat(locale).format(plans.length) },
+        );
     }
 
     // What announces one task, written as the panel answers it: there is no *Save* behind it, exactly as there is none
@@ -701,13 +624,6 @@ export function TasksSpace({
                     onComplete={() => {
                         complete(picked);
                     }}
-                    onSchedule={
-                        writesCalendar
-                            ? () => {
-                                  schedule(picked);
-                              }
-                            : undefined
-                    }
                     onAskErasure={() => {
                         askErasure(picked);
                     }}
@@ -722,6 +638,19 @@ export function TasksSpace({
                             onPress={() => {
                                 setSaid(null);
                                 asking.current?.showModal();
+                            }}
+                        />
+                    ) : null}
+
+                    {readsCalendar && arrangesThisDay ? (
+                        <Control
+                            label={translate('tasks.layOutTheDay')}
+                            icon="event_available"
+                            shape="labelled"
+                            onPress={() => {
+                                setSaid(null);
+                                chooseView('today');
+                                setLayoutsAsked((asked) => asked + 1);
                             }}
                         />
                     ) : null}
@@ -791,7 +720,7 @@ export function TasksSpace({
                         setSaid(null);
                         setPlanningId(task.id);
                     }}
-                    dragsToPlan={readsCalendar && !coarse}
+                    dragsToPlan={readsCalendar && !coarse && writeRefused(translate('tasks.plan')) === null}
                     onAskErasure={askErasure}
                     onDismiss={(dismissed) => {
                         setSaid(null);
@@ -826,12 +755,13 @@ export function TasksSpace({
 
                         <DayCapacity dueToday={dueToday} eventsToday={eventsToday}>
                             <LayoutOffer
+                                key={layoutsAsked}
                                 session={session}
                                 transport={transport}
                                 offered={arrangesThisDay}
-                                tasks={reading.tasks}
+                                tasks={listed}
                                 events={day.events}
-                                startsArranging={openLayoutOffer && asksDeployment}
+                                startsArranging={layoutsAsked > 0 && asksDeployment}
                                 onPlan={laidOut}
                             />
                         </DayCapacity>
@@ -866,6 +796,7 @@ export function TasksSpace({
                         task={task}
                         asked={opening}
                         events={day.events}
+                        planningEvents={planningDays.events}
                         tasks={committed}
                         onWritten={(written) => {
                             setSaid({ said: written });
@@ -894,7 +825,7 @@ export function TasksSpace({
                     <PlanDialog
                         key={task.id}
                         task={task}
-                        events={day.events}
+                        events={planningDays.events}
                         tasks={committed}
                         onPlan={(chosen) => {
                             planned(task, chosen);

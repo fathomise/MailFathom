@@ -107,6 +107,9 @@ interface TaskChoices {
     readonly anchor: TaskAnchor | null;
     readonly counterpart: TaskCounterpart | null;
     readonly plan: TaskPlan | null;
+
+    /** How long the task is thought to take, which planning it for a length also says. */
+    readonly estimatedMinutes: number | null;
 }
 
 // What chips laid over the task, and — beside reminders a chip cleared — the reminders the task held then, so a
@@ -126,6 +129,7 @@ export function TaskDialog({
     task,
     asked,
     events,
+    planningEvents = events,
     tasks = [],
     onWritten,
     onToggleCompleted,
@@ -143,6 +147,9 @@ export function TaskDialog({
 
     /** The calendar events the plan is read against for a clash, which is the day the caller has read. */
     readonly events: readonly CalendarEvent[];
+
+    /** The calendar events across every day the plan dialog offers, or `events` where the caller read no more. */
+    readonly planningEvents?: readonly CalendarEvent[];
 
     /** The other tasks the screen holds, which the plan dialog draws in the hours they are planned into. */
     readonly tasks?: readonly PersonalTask[];
@@ -205,6 +212,7 @@ export function TaskDialog({
         anchor: task.anchor,
         counterpart: task.counterpart,
         plan: task.plan,
+        estimatedMinutes: task.estimatedMinutes,
         ...over,
         reminders:
             over.reminders !== undefined && remindersOver !== undefined && sameLeads(remindersOver, task.reminders)
@@ -247,7 +255,7 @@ export function TaskDialog({
             dueDayOffsetMinutes: dueDayOffsetMinutes(next.dueOn, timeZone),
             sourceMessageId: task.sourceMessageId,
             direction: next.direction,
-            estimatedMinutes: task.estimatedMinutes,
+            estimatedMinutes: next.estimatedMinutes,
             plan: next.plan,
             anchor: next.anchor,
             counterpart: next.counterpart,
@@ -603,10 +611,10 @@ export function TaskDialog({
             {planning ? (
                 <PlanDialog
                     task={{ ...task, ...chosen }}
-                    events={events}
+                    events={planningEvents}
                     tasks={tasks}
                     onPlan={(chosenPlan) => {
-                        apply({ plan: chosenPlan });
+                        apply({ plan: chosenPlan, estimatedMinutes: chosenPlan?.minutes ?? chosen.estimatedMinutes });
                     }}
                     onLeft={() => {
                         setPlanning(false);

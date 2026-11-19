@@ -465,6 +465,20 @@ test('"Plan these" plans each proposed placement and "Not now" plans nothing', a
     await expect(titlesIn(page, 'Planned')).toContainText([/^Book the meeting room for the Fabrikam review/u]);
 });
 
+test('"Lay out the day" in the toolbar brings Today up with the day already laid out', async ({ page, deployment }) => {
+    await holdTheDay(page, deployment);
+    await openSignedInAsDeveloper(page, '/#/tasks');
+
+    await showView(page, 'Upcoming');
+    await page.getByRole('button', { name: 'Lay out the day' }).click();
+
+    await expect(page.getByRole('radio', { name: /^Today/u })).toBeChecked();
+    await expect(page.getByRole('region', { name: 'Day capacity' })).toContainText(
+        'Here is a way to fit the rest of today',
+    );
+    expect(deployment.requests('PUT', '/tasks/task-room')).toHaveLength(0);
+});
+
 test.describe('driven by a finger', () => {
     test.use({ hasTouch: true });
 

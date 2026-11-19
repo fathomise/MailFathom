@@ -88,7 +88,7 @@ function deployment({
     layoutStatus = 200,
     refuses = [],
     leavesUnanswered = [],
-    holdsCalendarWrites = false,
+    holdsTaskWrites = false,
 }: {
     committed?: readonly unknown[];
     proposed?: readonly unknown[];
@@ -103,17 +103,22 @@ function deployment({
     /** Which writes a gateway answers for the server, which says nothing about whether they were handed on. */
     leavesUnanswered?: readonly string[];
 
-    /** Whether a write to the calendar is left outstanding, which is how a second press is caught in flight. */
-    holdsCalendarWrites?: boolean;
+    /** Whether a task's revision waits until it is let through, which is how a second press is caught in flight. */
+    holdsTaskWrites?: boolean;
 } = {}): {
     readonly transport: MailFathomTransport;
     readonly sent: () => readonly ClientRequest[];
+    readonly letThrough: () => void;
 } {
     const sent: ClientRequest[] = [];
+    const held: (() => void)[] = [];
     let served = 0;
 
     return {
         sent: () => sent,
+        letThrough: () => {
+            held.shift()?.();
+        },
         transport: (request) => {
             sent.push(request);
 
@@ -126,29 +131,25 @@ function deployment({
                         ? { ...answered, body: JSON.stringify({ arrangesDays: arranges }) }
                         : { status: layoutStatus, headers: {}, body: JSON.stringify(layout) };
             } else if (path.includes('/calendar')) {
-                if (method === 'POST' && holdsCalendarWrites) {
-                    return new Promise<ClientResponse>(() => undefined);
-                }
+                // The window asked for is what is answered, so a day read and a longer one read differ as they would.
+                const asked = new URL(path).searchParams;
+                const from = Date.parse(asked.get('from') ?? '');
+                const until = Date.parse(asked.get('until') ?? '');
+                const inWindow = events.filter((event) => {
+                    const start = Date.parse((event as { readonly start: string }).start);
 
-                answer =
-                    method === 'POST'
-                        ? {
-                              ...answered,
-                              body: JSON.stringify({
-                                  id: 'written',
-                                  title: 'Answer the tender',
-                                  start: '2026-09-23T22:00:00.000Z',
-                                  end: '2026-09-23T22:00:00.000Z',
-                                  isAllDay: false,
-                                  reminders: [],
-                                  remindsAt: [],
-                                  origin: 'Asserted',
-                                  sourceMessage: null,
-                                  recordedAt: '2026-09-21T07:00:00+00:00',
-                                  amendedAt: '2026-09-21T07:00:00+00:00',
-                              }),
-                          }
-                        : { ...answered, body: JSON.stringify({ events }) };
+                    return start >= from && start < until;
+                });
+
+                answer = { ...answered, body: JSON.stringify({ events: inWindow }) };
+            } else if (method === 'PUT' && holdsTaskWrites) {
+                const answering = { ...answered, body: JSON.stringify(taskCalled('a', 'Answer the tender')) };
+
+                return new Promise<ClientResponse>((resolve) => {
+                    held.push(() => {
+                        resolve(answering);
+                    });
+                });
             } else if (method !== 'GET' && leavesUnanswered.some((task) => path.includes(`/tasks/${task}`))) {
                 answer = { status: 504, headers: {}, body: '' };
             } else if (method === 'DELETE') {
@@ -176,14 +177,12 @@ function drawSpace(
     {
         asksDeployment = true,
         readsCalendar = true,
-        writesCalendar = true,
         readsMail = true,
         onOpenMessage = vi.fn(),
         lostServer = false,
     }: {
         asksDeployment?: boolean;
         readsCalendar?: boolean;
-        writesCalendar?: boolean;
         readsMail?: boolean;
         onOpenMessage?: (id: string) => void;
 
@@ -199,7 +198,6 @@ function drawSpace(
                     transport={transport}
                     asksDeployment={asksDeployment}
                     readsCalendar={readsCalendar}
-                    writesCalendar={writesCalendar}
                     onOpenMessage={readsMail ? onOpenMessage : undefined}
                 />
             </ConnectionStatusContext>
@@ -243,6 +241,44 @@ function firstTaskRow(): Promise<HTMLElement> {
 
         return row;
     });
+}
+
+// One hour of the day beside the list, found by the time it starts at.
+function hourOfTheDay(label: string): HTMLElement {
+    const hour = within(screen.getByRole('complementary')).getByText(label, { exact: true }).closest('li');
+
+    if (hour === null) {
+        throw new Error(`No hour ${label} is drawn.`);
+    }
+
+    return hour;
+}
+
+// Carries a task's row onto one hour of the day, as a pointer that drags it there would.
+function dragOnto(title: string, label: string): void {
+    const row = screen
+        .getAllByText(title)
+        .map((drawn) => drawn.closest('li[draggable="true"]'))
+        .find((found): found is Element => found !== null);
+    const carried = new Map<string, string>();
+    const dataTransfer = {
+        effectAllowed: 'none',
+        get types() {
+            return [...carried.keys()];
+        },
+        setData: (type: string, value: string) => carried.set(type, value),
+        getData: (type: string) => carried.get(type) ?? '',
+    };
+
+    if (row === undefined) {
+        throw new Error(`No row of ${title} can be dragged.`);
+    }
+
+    const hour = hourOfTheDay(label);
+
+    fireEvent.dragStart(row, { dataTransfer });
+    fireEvent.dragOver(hour, { dataTransfer });
+    fireEvent.drop(hour, { dataTransfer });
 }
 
 function pathsSent(sent: readonly ClientRequest[], method: string): string[] {
@@ -477,57 +513,6 @@ describe('TasksSpace', () => {
         );
     });
 
-    // A task states a day rather than a time, so what is written claims no hours and this client invents none.
-    it('puts a task in the calendar on the day it is due, with no hours claimed', async () => {
-        const { transport, sent } = deployment();
-
-        drawSpace(transport);
-
-        fireEvent.keyDown(await firstTaskRow(), { key: 'ContextMenu' });
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Select tasks' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Schedule in the calendar' }));
-
-        await waitFor(() => {
-            expect(screen.getByRole('status').textContent).toBe('Put in the calendar.');
-        });
-
-        const written = sent().find((request) => request.method === 'POST' && request.path.endsWith('/calendar'));
-
-        expect(JSON.parse(written?.body ?? 'null')).toStrictEqual({
-            title: 'Answer the tender',
-            start: '2026-09-23T22:00:00.000Z',
-            end: null,
-            isAllDay: true,
-            reminders: [],
-            notes: null,
-            sourceMessage: null,
-        });
-    });
-
-    // A second press while the first batch is outstanding would write the same day-long event again, and the control
-    // stays pressable for as long as the calendar takes to answer.
-    it('writes the calendar once however many times the act is pressed while it is outstanding', async () => {
-        const { transport, sent } = deployment({ holdsCalendarWrites: true });
-
-        drawSpace(transport);
-
-        fireEvent.keyDown(await firstTaskRow(), { key: 'ContextMenu' });
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Select tasks' }));
-
-        const act = screen.getByRole('button', { name: 'Schedule in the calendar' });
-
-        fireEvent.click(act);
-
-        expect(await screen.findByText('Putting it in the calendar…')).toBeDefined();
-
-        fireEvent.click(act);
-        fireEvent.click(act);
-
-        expect(
-            sent().filter((request) => request.method === 'POST' && request.path.endsWith('/calendar')),
-        ).toHaveLength(1);
-    });
-
     // Which of the four it was decides what somebody does next, so a batch the deployment refused outright says it
     // rather than leaving them with a sentence that fits every failure equally.
     it('names why the deployment refused where it refused the whole of it', async () => {
@@ -582,23 +567,6 @@ describe('TasksSpace', () => {
 
         expect(pathsSent(sent(), 'PUT')).toStrictEqual([]);
         expect(pathsSent(sent(), 'POST')).toStrictEqual([]);
-    });
-
-    it('says there is nothing to put in the calendar where nothing picked out names a day', async () => {
-        const { transport } = deployment({ committed: [taskCalled('a', 'Answer the tender', { dueOn: null })] });
-
-        drawSpace(transport);
-        showView(/^Upcoming/u);
-
-        fireEvent.keyDown(await firstTaskRow(), { key: 'ContextMenu' });
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Select tasks' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Schedule in the calendar' }));
-
-        await waitFor(() => {
-            expect(
-                screen.getByText('Nothing here names a day, so there is nothing to put in the calendar.'),
-            ).toBeDefined();
-        });
     });
 
     // The acceptance the screen exists for: the arrangement is an offer, and a task is planned only by the control that
@@ -666,7 +634,6 @@ describe('TasksSpace', () => {
                         transport={transport}
                         asksDeployment
                         readsCalendar
-                        writesCalendar
                         onOpenMessage={undefined}
                         openLayoutOffer
                     />
@@ -787,8 +754,142 @@ describe('TasksSpace', () => {
         });
 
         expect(JSON.parse(sent().find((request) => request.method === 'PUT')?.body ?? 'null')).toMatchObject({
+            estimatedMinutes: 30,
             plan: { minutes: 30 },
         });
+    });
+
+    // One write of a plan is out per task at a time, and every part of the screen draws the plan pressed rather than
+    // the one last read — so a second drop is written after the first rather than beside it, and is what is said.
+    it('writes a second drop once the first has answered, draws each where it was dropped, and names the later one', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-24T06:00:00Z'));
+
+        const { transport, sent, letThrough } = deployment({ holdsTaskWrites: true });
+
+        drawSpace(transport);
+        await screen.findByText('Answer the tender');
+
+        dragOnto('Answer the tender', '2:00 PM');
+
+        expect(within(hourOfTheDay('2:00 PM')).getByText('Answer the tender')).toBeDefined();
+
+        dragOnto('Answer the tender', '9:00 AM');
+
+        expect(within(hourOfTheDay('9:00 AM')).getByText('Answer the tender')).toBeDefined();
+        expect(pathsSent(sent(), 'PUT')).toHaveLength(1);
+
+        letThrough();
+
+        await waitFor(() => {
+            expect(pathsSent(sent(), 'PUT')).toHaveLength(2);
+        });
+
+        const plans = sent()
+            .filter((request) => request.method === 'PUT')
+            .map((request) => (JSON.parse(request.body ?? 'null') as { readonly plan: unknown }).plan);
+
+        expect(plans).toStrictEqual([
+            { startAt: '2026-09-24T12:00:00.000Z', minutes: 30 },
+            { startAt: '2026-09-24T07:00:00.000Z', minutes: 30 },
+        ]);
+
+        letThrough();
+
+        await waitFor(() => {
+            expect(screen.getByRole('status').textContent).toBe('“Answer the tender” planned at 9:00 AM.');
+        });
+        expect(pathsSent(sent(), 'PUT')).toHaveLength(2);
+    });
+
+    it('opens a task whose plan is being written on the plan just pressed, and restates that plan', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-24T06:00:00Z'));
+
+        const { transport, sent } = deployment({ holdsTaskWrites: true });
+
+        drawSpace(transport);
+        await screen.findByText('Answer the tender');
+
+        dragOnto('Answer the tender', '2:00 PM');
+        fireEvent.click(within(await firstTaskRow()).getByRole('button', { name: 'Answer the tender' }));
+
+        const dialog = screen.getByRole('dialog', { name: 'Task' });
+
+        expect(within(dialog).getByRole('button', { name: 'Move' })).toBeDefined();
+
+        fireEvent.click(within(dialog).getByRole('radio', { name: 'Tomorrow' }));
+
+        const restated = sent().filter((request) => request.method === 'PUT');
+
+        expect(restated).toHaveLength(2);
+        expect(JSON.parse(restated[1]?.body ?? 'null')).toMatchObject({
+            dueOn: '2026-09-25',
+            plan: { startAt: '2026-09-24T12:00:00.000Z', minutes: 30 },
+        });
+    });
+
+    // The plan dialog offers more days than today, so what it is read against for a clash is every day it offers.
+    it('warns of a clash with a meeting on a later day the plan dialog offers', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-24T06:00:00Z'));
+
+        const { transport } = deployment({
+            events: [
+                {
+                    id: 'e',
+                    title: 'Supplier call',
+                    start: '2026-09-25T08:00:00+00:00',
+                    end: '2026-09-25T09:00:00+00:00',
+                    isAllDay: false,
+                    reminders: [],
+                    remindsAt: [],
+                    origin: 'Asserted',
+                    sourceMessage: null,
+                    recordedAt: '2026-09-21T07:00:00+00:00',
+                    amendedAt: '2026-09-21T07:00:00+00:00',
+                },
+            ],
+        });
+
+        drawSpace(transport);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Plan' }));
+
+        const planning = screen.getByRole('dialog', { name: 'Plan a time' });
+
+        fireEvent.click(within(planning).getByRole('radio', { name: 'Tomorrow' }));
+        fireEvent.click(await within(planning).findByRole('button', { name: /^10:00 AM/u }));
+
+        expect(
+            await within(planning).findByText('Clashes with Supplier call at 10:00 AM. You can still plan it.'),
+        ).toBeDefined();
+    });
+
+    it('lays the day out from the toolbar, on Today, from whichever view the list was in', async () => {
+        const { transport, sent } = deployment();
+
+        drawSpace(transport);
+        await screen.findByText('Answer the tender');
+        showView(/^Upcoming/u);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Lay out the day' }));
+
+        await waitFor(() => {
+            expect(pathsSent(sent(), 'POST').some((path) => path.endsWith('/tasks/today/layout'))).toBe(true);
+        });
+        expect(screen.getByRole('radio', { name: /^Today/u, checked: true })).toBeDefined();
+    });
+
+    // A drop is a write, so it is held exactly as the row's *Plan* is while the server is out of reach.
+    it('lets no row be dragged onto the day while writes are refused', async () => {
+        const { transport } = deployment();
+
+        drawSpace(transport, { lostServer: true });
+
+        const row = await firstTaskRow();
+
+        expect(row.getAttribute('draggable')).not.toBe('true');
     });
 
     it('offers no arrangement where the deployment arranges no day', async () => {
@@ -1076,20 +1177,11 @@ describe('TasksSpace', () => {
     it('draws the list alone and asks nothing of the calendar where this credential reads no calendar', async () => {
         const { transport, sent } = deployment();
 
-        drawSpace(transport, { readsCalendar: false, writesCalendar: false, asksDeployment: false });
+        drawSpace(transport, { readsCalendar: false, asksDeployment: false });
 
         expect(await screen.findByText('Answer the tender')).toBeDefined();
         expect(screen.queryByRole('heading', { name: /^Today · /u })).toBeNull();
         expect(sent().some((request) => request.path.includes('/calendar'))).toBe(false);
-    });
-
-    it('offers no way to put a task in the calendar where this credential may not change one', async () => {
-        const { transport } = deployment();
-
-        drawSpace(transport, { writesCalendar: false });
-
-        expect(await screen.findByText('Answer the tender')).toBeDefined();
-        expect(screen.queryByRole('button', { name: 'Schedule' })).toBeNull();
     });
 
     it('cites no message where this credential reads no mail', async () => {

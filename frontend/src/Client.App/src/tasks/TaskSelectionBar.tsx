@@ -10,7 +10,7 @@ import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
 
 // What stands where the toolbar stands while tasks are picked out, which is the design's own bar: how many are
-// selected, the three acts over the whole of them, and the way out.
+// selected, the two acts over the whole of them — *Mark as done* and *Delete*, as the design's bar draws them —, and the way out.
 //
 // It replaces the toolbar rather than standing beside it, for the reason `mailSpace/SelectionBar.tsx` and
 // `contactBook/ContactSelectionBar.tsx` give about theirs: the two answer the same question, and a screen offering
@@ -40,7 +40,6 @@ export function TaskSelectionBar({
     selected,
     onClear,
     onComplete,
-    onSchedule,
     onAskErasure,
 }: {
     /** The tasks picked out, in the order the list draws them. */
@@ -51,9 +50,6 @@ export function TaskSelectionBar({
     /** Marks everything picked out as done, which is the one act here that is not destructive and is not confirmed. */
     readonly onComplete: () => void;
 
-    /** Puts everything picked out in the calendar, or `undefined` where this credential may not change one. */
-    readonly onSchedule: (() => void) | undefined;
-
     /** Raises the question the erasure stands behind, over everything picked out. */
     readonly onAskErasure: () => void;
 }) {
@@ -63,7 +59,6 @@ export function TaskSelectionBar({
 
     // Every act on this bar writes, so while the server is out of reach each says why it cannot act rather than acting.
     const markDone = translate('tasks.markDone');
-    const schedule = translate('tasks.scheduleInCalendar');
     const erase = translate('tasks.deleteTasks');
     const refusedAs = (label: string): { readonly held?: true; readonly hint?: string } => {
         const why = writeRefused(label);
@@ -94,16 +89,6 @@ export function TaskSelectionBar({
             <span aria-hidden="true" className="mx-0.5 w-px self-stretch bg-accent-line" />
 
             <Control label={markDone} icon="check_circle" shape={shape} {...refusedAs(markDone)} onPress={onComplete} />
-
-            {onSchedule === undefined ? null : (
-                <Control
-                    label={schedule}
-                    icon="calendar_month"
-                    shape={shape}
-                    {...refusedAs(schedule)}
-                    onPress={onSchedule}
-                />
-            )}
 
             <Control label={erase} icon="delete" shape={shape} {...refusedAs(erase)} onPress={onAskErasure} />
         </div>

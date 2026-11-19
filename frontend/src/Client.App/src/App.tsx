@@ -464,7 +464,6 @@ export function App({
         offers(deploymentSession, 'writeNotifications');
     const hearsChanges = readsMail && offers(deploymentSession, 'readNotifications');
     const readsCalendar = deploymentSession !== null && offers(deploymentSession, 'readCalendar');
-    const writesCalendar = deploymentSession !== null && offers(deploymentSession, 'writeCalendar');
 
     // The address book is read under a grant of its own and changed under a second, which is what draws the People
     // space at all and what decides whether it is a book somebody may only read. The first is what the space is
@@ -1772,23 +1771,18 @@ export function App({
                                                                                                                         // questions: whether this
                                                                                                                         // credential may ask and may
                                                                                                                         // read the calendar the
-                                                                                                                        // arrangement is laid around
-                                                                                                                        // and write what applying it
-                                                                                                                        // puts there, which is this, and
+                                                                                                                        // arrangement is laid around,
+                                                                                                                        // which is this, and
                                                                                                                         // whether the deployment
                                                                                                                         // arranges one, which the
                                                                                                                         // screen asks the capability
                                                                                                                         // route.
                                                                                                                         asksDeployment={
                                                                                                                             asksMail &&
-                                                                                                                            readsCalendar &&
-                                                                                                                            writesCalendar
+                                                                                                                            readsCalendar
                                                                                                                         }
                                                                                                                         readsCalendar={
                                                                                                                             readsCalendar
-                                                                                                                        }
-                                                                                                                        writesCalendar={
-                                                                                                                            writesCalendar
                                                                                                                         }
                                                                                                                         onOpenMessage={
                                                                                                                             !readsMail

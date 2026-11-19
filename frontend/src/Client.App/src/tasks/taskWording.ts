@@ -133,6 +133,19 @@ export function workingDaysAfterTomorrow(today: string, count: number): readonly
     return later;
 }
 
+// How many working days after tomorrow are offered beside *Today* and *Tomorrow*.
+const workingDaysOffered = 2;
+
+/**
+ * The days a plan is offered on, earliest first, which is also how far ahead the Tasks screen reads the calendar for a clash.
+ *
+ * @param today The reader's own day, as `YYYY-MM-DD`.
+ * @returns *Today*, *Tomorrow*, and the working days after it the dialog offers.
+ */
+export function daysOffered(today: string): readonly string[] {
+    return [today, dayFrom(today, 1), ...workingDaysAfterTomorrow(today, workingDaysOffered)];
+}
+
 /** What a day chip says: *No day*, *Today*, *Tomorrow*, or the weekday with the day and the month. */
 export function wordDayChoice(
     day: string | null,

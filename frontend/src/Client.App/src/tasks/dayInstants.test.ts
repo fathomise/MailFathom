@@ -50,6 +50,15 @@ describe('dayAround', () => {
         expect(day.from).toBe('2026-10-24T22:00:00.000Z');
         expect(day.until).toBe('2026-10-25T23:00:00.000Z');
     });
+
+    it('closes a run of days at the midnight after its last one, across a daylight-saving change', () => {
+        inZone('Europe/Warsaw');
+
+        expect(dayAround(Date.parse('2026-10-23T09:00:00+02:00'), 4)).toStrictEqual({
+            from: '2026-10-22T22:00:00.000Z',
+            until: '2026-10-26T23:00:00.000Z',
+        });
+    });
 });
 
 describe('startOfDay', () => {

@@ -11,15 +11,15 @@ import { useWriteRefusal } from '../shell/useWriteRefusal';
 // What a task's row offers, which is this list's own items handed to the one menu six lists share: where the menu
 // stands, how it is walked, and how it is left are `contextMenu/ContextMenu.tsx`'s.
 //
-// **The order is the design's**: *Open task*, the completion, putting it in the calendar, *Reminders*, what it belongs
-// to, *Select tasks* and *Delete task* — and a proposal's menu holds *Accept* and *Dismiss task* alone, because a
-// proposal is answered rather than worked on.
+// **The order is the design's**: *Open task*, the completion, planning it, *Reminders*, what it belongs to, *Select
+// tasks* and *Delete task* — and a proposal's menu holds *Accept* and *Dismiss task* alone, because a proposal is
+// answered rather than worked on. Planning is offered on an open task the reader owes alone — *Plan in the calendar*,
+// or *Move in the calendar* once it is planned — since a task that is done or waited on holds no hour of theirs.
 //
 // **An item the client cannot yet perform is left out rather than drawn inert**, which is the rule
 // `messageRows/MessageRowMenu.tsx` states: *reminders* on a task nobody dated, a lead having no day to be measured
-// back from; *Plan in the calendar* or *Move in the calendar* on a task that is done or waited on; what it belongs to where that
-// cannot be reached from here;
-// and *Follow up*, which opens a reply and arrives with the composer's change.
+// back from; what it belongs to where that cannot be reached from here; and *Follow up*, which opens a reply and
+// arrives with the composer's change.
 //
 // **Nothing here performs the erasure.** The question it stands behind outlives the menu — the menu is gone the moment
 // an item is chosen — so what this does is ask the screen to raise it.
