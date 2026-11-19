@@ -732,8 +732,11 @@ export {
     acceptTask,
     arrangesDays,
     eraseTask,
+    isTaskDirection,
     isTaskOrigin,
     layOutToday,
+    longestAnchorLabel,
+    longestTaskMinutes,
     longestTaskTitle,
     mostTasksPerPage,
     parseTask,
@@ -743,6 +746,7 @@ export {
     recordTask,
     reviseTask,
     setTaskCompletion,
+    shortestTaskMinutes,
     taskAcceptanceRoute,
     taskCompletionRoute,
     taskRoute,
@@ -757,6 +761,12 @@ export {
     type PersonalTaskOrigin,
     type PersonalTaskPage,
     type PersonalTaskRecord,
+    type TaskAnchor,
+    type TaskAnswer,
+    type TaskCounterpart,
+    type TaskDirection,
+    type TaskFilter,
+    type TaskPlan,
 } from './tasks';
 export { reachDeployment, signIn, type DeploymentGreeting, type SignInOutcome, type SignInRefusal } from './signIn';
 export {

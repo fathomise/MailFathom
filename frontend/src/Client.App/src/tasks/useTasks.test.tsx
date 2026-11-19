@@ -25,6 +25,12 @@ function task(id: string, title: string, dueOn: string | null): unknown {
         origin: 'Asserted',
         completed: false,
         sourceMessageId: null,
+        direction: 'Owed',
+        estimatedMinutes: null,
+        plan: null,
+        anchor: null,
+        counterpart: null,
+        answer: null,
     };
 }
 

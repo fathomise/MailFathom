@@ -490,8 +490,9 @@ export function TasksSpace({
 
     // What announces one task, written as the panel answers it: there is no *Save* behind it, exactly as there is none
     // behind the calendar's, so what the reader saw on leaving it is what the deployment then holds. The route takes
-    // the whole record, so the line, the day and the citation are restated unchanged beside the leads — and the offset
-    // travels with them because this deployment keeps no timezone for anybody.
+    // the whole record, so the line, the day, the citation and the commitment (its direction, estimate, plan, anchor
+    // and counterpart) are restated unchanged beside the leads — and the offset travels with them because this
+    // deployment keeps no timezone for anybody.
     function stateReminders(task: PersonalTask, reminders: readonly number[]): void {
         setAnnouncing({ ...task, reminders });
 
@@ -505,6 +506,11 @@ export function TasksSpace({
             reminders,
             dueDayOffsetMinutes: dueDayOffsetMinutes(task.dueOn, timeZone),
             sourceMessageId: task.sourceMessageId,
+            direction: task.direction,
+            estimatedMinutes: task.estimatedMinutes,
+            plan: task.plan,
+            anchor: task.anchor,
+            counterpart: task.counterpart,
         }).then((answer) => {
             void after([wrote(answer)], 'tasks.remindersWritten');
         });
@@ -523,6 +529,11 @@ export function TasksSpace({
             reminders: [],
             dueDayOffsetMinutes: null,
             sourceMessageId: null,
+            direction: 'Owed',
+            estimatedMinutes: null,
+            plan: null,
+            anchor: null,
+            counterpart: null,
         }).then((answer) => {
             void after([wrote(answer)], 'tasks.written');
         });

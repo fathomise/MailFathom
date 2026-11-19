@@ -62,6 +62,12 @@ function taskCalled(id: string, title: string, held: Record<string, unknown> = {
         origin: 'Asserted',
         completed: false,
         sourceMessageId: null,
+        direction: 'Owed',
+        estimatedMinutes: null,
+        plan: null,
+        anchor: null,
+        counterpart: null,
+        answer: null,
         ...held,
     };
 }
@@ -704,6 +710,11 @@ describe('TasksSpace', () => {
             reminders: [],
             dueDayOffsetMinutes: null,
             sourceMessageId: null,
+            direction: 'Owed',
+            estimatedMinutes: null,
+            plan: null,
+            anchor: null,
+            counterpart: null,
         });
     });
 
@@ -730,7 +741,40 @@ describe('TasksSpace', () => {
             reminders: [24 * 60],
             dueDayOffsetMinutes: 120,
             sourceMessageId: null,
+            direction: 'Owed',
+            estimatedMinutes: null,
+            plan: null,
+            anchor: null,
+            counterpart: null,
         });
+    });
+
+    // The route takes the whole commitment, so a revision that restated none of it would drop a plan the person made
+    // elsewhere — which is what left a task planned into the calendar showing as unplanned after its reminders moved.
+    it('restates the plan, anchor and counterpart a task already holds when its reminders are written', async () => {
+        const commitment = {
+            direction: 'Awaited',
+            estimatedMinutes: 30,
+            plan: { startAt: '2026-09-24T08:00:00+00:00', minutes: 45 },
+            anchor: { kind: 'Thread', id: '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a94', label: 'Tender thread' },
+            counterpart: { address: 'dana@example.invalid', displayName: 'Dana' },
+        };
+        const { transport, sent } = deployment({
+            committed: [taskCalled('a', 'Answer the tender', commitment)],
+        });
+
+        drawSpace(transport);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Add a reminder to Answer the tender' }));
+        fireEvent.click(screen.getByRole('button', { name: '1 day before' }));
+
+        await waitFor(() => {
+            expect(screen.getByRole('status').textContent).toBe('Reminders saved.');
+        });
+
+        const written = sent().find((request) => request.method === 'PUT');
+
+        expect(JSON.parse(written?.body ?? 'null')).toMatchObject(commitment);
     });
 
     it('states a task announcing nothing as an empty set rather than as a field left out', async () => {

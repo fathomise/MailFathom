@@ -29,6 +29,12 @@ function taskDue(id: string, title: string, dueOn: string | null): PersonalTask 
         origin: 'Asserted',
         completed: false,
         sourceMessageId: null,
+        direction: 'Owed',
+        estimatedMinutes: null,
+        plan: null,
+        anchor: null,
+        counterpart: null,
+        answer: null,
     };
 }
 

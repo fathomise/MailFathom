@@ -9,6 +9,9 @@ import {
     arrangesDays,
     eraseTask,
     layOutToday,
+    type PersonalTaskRecord,
+    longestAnchorLabel,
+    longestTaskMinutes,
     longestTaskTitle,
     parseTask,
     readOwnTasks,
@@ -16,6 +19,7 @@ import {
     recordTask,
     reviseTask,
     setTaskCompletion,
+    shortestTaskMinutes,
 } from './tasks';
 import type { ClientRequest, ClientResponse, MailFathomTransport } from './transport';
 
@@ -33,6 +37,12 @@ const asserted = {
     origin: 'Asserted',
     completed: false,
     sourceMessageId: null,
+    direction: 'Owed',
+    estimatedMinutes: null,
+    plan: null,
+    anchor: null,
+    counterpart: null,
+    answer: null,
 };
 
 const proposed = {
@@ -44,14 +54,37 @@ const proposed = {
     origin: 'Proposed',
     completed: false,
     sourceMessageId: '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a92',
+    direction: 'Owed',
+    estimatedMinutes: null,
+    plan: null,
+    anchor: null,
+    counterpart: null,
+    answer: null,
 };
 
-const announced = {
+const waiting = {
+    ...asserted,
+    id: '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a93',
+    title: 'Hear back about the annex',
+    direction: 'Awaited',
+    estimatedMinutes: 15,
+    plan: { startAt: '2026-09-21T08:30:00+00:00', minutes: 30 },
+    anchor: { kind: 'Thread', id: '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a94', label: 'Annex 3' },
+    counterpart: { address: 'dana@example.invalid', displayName: 'Dana' },
+    answer: { messageId: '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a95', arrivedAt: '2026-09-22T10:00:00+00:00' },
+};
+
+const announced: PersonalTaskRecord = {
     title: 'Answer the counter-proposal',
     dueOn: '2026-09-21',
     reminders: [1440, 0],
     dueDayOffsetMinutes: 120,
     sourceMessageId: null,
+    direction: 'Owed',
+    estimatedMinutes: null,
+    plan: null,
+    anchor: null,
+    counterpart: null,
 };
 
 const pageBody = JSON.stringify({ tasks: [asserted], nextCursor: 'page-two' });
@@ -120,6 +153,12 @@ describe('readOwnTasks', () => {
                         origin: 'Asserted',
                         completed: false,
                         sourceMessageId: null,
+                        direction: 'Owed',
+                        estimatedMinutes: null,
+                        plan: null,
+                        anchor: null,
+                        counterpart: null,
+                        answer: null,
                     },
                 ],
                 nextCursor: 'page-two',
@@ -162,6 +201,36 @@ describe('readOwnTasks', () => {
         const answer = await readOwnTasks(session, () => Promise.reject(new Error('no route to host')));
 
         expect(answer).toEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: null } });
+    });
+});
+
+describe('the filter a half is read with', () => {
+    it('sends the filter as query parameters', async () => {
+        const { transport, requests } = recording({ status: 200, body: pageBody });
+
+        await readOwnTasks(session, transport, {
+            filter: {
+                threadId: 'thread/1',
+                eventId: 'event 1',
+                counterpart: 'dana@example.invalid',
+                from: '2026-09-21T00:00:00+02:00',
+                until: '2026-09-22T00:00:00+02:00',
+            },
+        });
+
+        expect(requests[0]?.path).toBe(
+            'https://mail.example.invalid/api/client/tasks?pageSize=50&threadId=thread%2F1&eventId=event%201' +
+                '&counterpart=dana%40example.invalid&from=2026-09-21T00%3A00%3A00%2B02%3A00' +
+                '&until=2026-09-22T00%3A00%3A00%2B02%3A00',
+        );
+    });
+
+    it('sends a window only when both of its ends are stated', async () => {
+        const { transport, requests } = recording({ status: 200, body: pageBody });
+
+        await readProposedTasks(session, transport, { filter: { from: '2026-09-21T00:00:00Z' } });
+
+        expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/tasks/proposed?pageSize=50');
     });
 });
 
@@ -225,6 +294,11 @@ describe('recordTask', () => {
             reminders: [],
             dueDayOffsetMinutes: null,
             sourceMessageId: null,
+            direction: 'Owed',
+            estimatedMinutes: null,
+            plan: null,
+            anchor: null,
+            counterpart: null,
         });
 
         expect(answer).toEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: 400 } });
@@ -237,9 +311,47 @@ describe('recordTask', () => {
             reminders: [],
             dueDayOffsetMinutes: null,
             sourceMessageId: null,
+            direction: 'Owed',
+            estimatedMinutes: null,
+            plan: null,
+            anchor: null,
+            counterpart: null,
         });
 
         expect(answer).toEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: 404 } });
+    });
+});
+
+describe('the commitment a task is written with', () => {
+    const committed = {
+        ...announced,
+        direction: 'Awaited',
+        estimatedMinutes: 15,
+        plan: { startAt: '2026-09-21T08:30:00+00:00', minutes: 30 },
+        anchor: { kind: 'Thread', id: waiting.anchor.id, label: 'Annex 3' },
+        counterpart: { address: 'dana@example.invalid', displayName: null },
+    } as const;
+
+    it('sends the commitment when recording', async () => {
+        const { transport, requests } = recording({ status: 200, body: JSON.stringify(waiting) });
+
+        await recordTask(session, transport, committed);
+
+        expect(JSON.parse(requests[0]?.body ?? 'null')).toMatchObject({
+            direction: 'Awaited',
+            estimatedMinutes: 15,
+            plan: { startAt: '2026-09-21T08:30:00+00:00', minutes: 30 },
+            anchor: { kind: 'Thread', id: waiting.anchor.id, label: 'Annex 3' },
+            counterpart: { address: 'dana@example.invalid', displayName: null },
+        });
+    });
+
+    it('restates the whole commitment when revising', async () => {
+        const { transport, requests } = recording({ status: 200, body: JSON.stringify(waiting) });
+
+        await reviseTask(session, transport, waiting.id, committed);
+
+        expect(requests[0]?.body).toBe(JSON.stringify(committed));
     });
 });
 
@@ -461,6 +573,71 @@ describe('layOutToday', () => {
 });
 
 describe('parseTask', () => {
+    it('reads a waiting task with its anchor, counterpart and answer', () => {
+        expect(parseTask(waiting)).toEqual(waiting);
+    });
+
+    it('reads an event anchor', () => {
+        const anchor = { kind: 'Event', id: waiting.anchor.id, label: 'Review call' };
+
+        expect(parseTask({ ...waiting, anchor })?.anchor).toEqual(anchor);
+    });
+
+    it('reads a task whose commitment fields the deployment left out as an owed one with none stated', () => {
+        const nested = ['estimatedMinutes', 'plan', 'anchor', 'counterpart', 'answer'];
+        const bare = Object.fromEntries(Object.entries(asserted).filter(([name]) => !nested.includes(name)));
+
+        expect(parseTask(bare)).toEqual(asserted);
+    });
+
+    it('refuses a task whose plan is shorter than five minutes as unreadable', async () => {
+        const task = { ...waiting, plan: { startAt: waiting.plan.startAt, minutes: shortestTaskMinutes - 1 } };
+        const answer = await readOwnTasks(
+            session,
+            answering({ status: 200, body: JSON.stringify({ tasks: [task], nextCursor: null }) }),
+        );
+
+        expect(answer).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
+
+    it('refuses an unknown direction', () => {
+        expect(parseTask({ ...waiting, direction: 'Sideways' })).toBeNull();
+    });
+
+    it('refuses an unknown anchor kind', () => {
+        expect(parseTask({ ...waiting, anchor: { ...waiting.anchor, kind: 'Message' } })).toBeNull();
+    });
+
+    it.each([
+        ['an estimate below the shortest task', { ...waiting, estimatedMinutes: shortestTaskMinutes - 1 }],
+        ['an estimate above the longest task', { ...waiting, estimatedMinutes: longestTaskMinutes + 1 }],
+        ['an estimate that is not whole minutes', { ...waiting, estimatedMinutes: 7.5 }],
+        [
+            'a plan longer than the longest task',
+            { ...waiting, plan: { ...waiting.plan, minutes: longestTaskMinutes + 1 } },
+        ],
+        ['a plan beginning at nothing readable', { ...waiting, plan: { ...waiting.plan, startAt: 'soon' } }],
+        ['a plan that is not a record', { ...waiting, plan: 30 }],
+        ['an anchor naming no identity', { ...waiting, anchor: { ...waiting.anchor, id: 'not-a-guid' } }],
+        [
+            'an anchor label past the bound',
+            { ...waiting, anchor: { ...waiting.anchor, label: 'x'.repeat(longestAnchorLabel + 1) } },
+        ],
+        ['a counterpart with no address', { ...waiting, counterpart: { address: '', displayName: null } }],
+        [
+            'a counterpart address past the bound',
+            { ...waiting, counterpart: { address: `${'a'.repeat(320)}@x`, displayName: null } },
+        ],
+        [
+            'a counterpart name past the bound',
+            { ...waiting, counterpart: { address: 'dana@example.invalid', displayName: 'n'.repeat(201) } },
+        ],
+        ['an answer naming no message', { ...waiting, answer: { messageId: 4, arrivedAt: waiting.answer.arrivedAt } }],
+        ['an answer arriving at nothing readable', { ...waiting, answer: { ...waiting.answer, arrivedAt: 'later' } }],
+    ])('refuses %s', (_, value) => {
+        expect(parseTask(value)).toBeNull();
+    });
+
     it('reads a task nobody has said a day for, which announces nothing either', () => {
         expect(parseTask({ ...asserted, dueOn: null, reminders: [], remindsAt: [] })?.dueOn).toBeNull();
     });

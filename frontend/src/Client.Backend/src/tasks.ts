@@ -53,6 +53,42 @@ export function taskAcceptanceRoute(taskId: string): string {
 /** Whether the person committed to a task themselves or mail proposed it to them. */
 export type PersonalTaskOrigin = 'Asserted' | 'Proposed';
 
+/** Whether the person owes it to somebody or waits on somebody for it. */
+export type TaskDirection = 'Owed' | 'Awaited';
+
+/** The stretch of a day a task is planned into, which is a commitment rather than a suggestion. */
+export interface TaskPlan {
+    /** When it begins, as the instant the deployment stated. */
+    readonly startAt: string;
+    readonly minutes: number;
+}
+
+/** What a task is about, named by the label a person knows it by. */
+export type TaskAnchor =
+    | { readonly kind: 'Thread'; readonly id: string; readonly label: string }
+    | { readonly kind: 'Event'; readonly id: string; readonly label: string };
+
+/** The person on the other side of a task. */
+export interface TaskCounterpart {
+    readonly address: string;
+    readonly displayName: string | null;
+}
+
+/** The message that settled an awaited task. */
+export interface TaskAnswer {
+    readonly messageId: string;
+    readonly arrivedAt: string;
+}
+
+/** What narrows a half of the list; a window is stated by both of its ends or by neither. */
+export interface TaskFilter {
+    readonly threadId?: string;
+    readonly eventId?: string;
+    readonly counterpart?: string;
+    readonly from?: string;
+    readonly until?: string;
+}
+
 /** One thing a person owes. */
 export interface PersonalTask {
     readonly id: string;
@@ -72,6 +108,23 @@ export interface PersonalTask {
 
     /** The message it was read out of or written beside, or `null` where it cites none. */
     readonly sourceMessageId: string | null;
+
+    readonly direction: TaskDirection;
+
+    /** How long the person thinks it takes, in whole minutes, or `null` where nobody said. */
+    readonly estimatedMinutes: number | null;
+
+    /** When it is planned into the day, or `null` where it is not. */
+    readonly plan: TaskPlan | null;
+
+    /** The thread or event it is about, or `null` where it is about neither. */
+    readonly anchor: TaskAnchor | null;
+
+    /** The person on the other side of it, or `null` where there is none. */
+    readonly counterpart: TaskCounterpart | null;
+
+    /** The message that answered an awaited task, or `null` while nothing has. */
+    readonly answer: TaskAnswer | null;
 }
 
 /** One bounded page of one half of the list, and where the walk continues. */
@@ -114,6 +167,21 @@ export interface PersonalTaskRecord {
 
     /** The message the task cites, or `null` where it cites none. */
     readonly sourceMessageId: string | null;
+
+    /** Whether the person owes it or waits on it, which a revision restates rather than leaves to be inferred. */
+    readonly direction: TaskDirection;
+
+    /** How long it takes in whole minutes, `shortestTaskMinutes` to `longestTaskMinutes`, or `null` to say nothing. */
+    readonly estimatedMinutes: number | null;
+
+    /** Where it is planned into the day, or `null` for nowhere. */
+    readonly plan: TaskPlan | null;
+
+    /** What it is about, or `null` for neither a thread nor an event. */
+    readonly anchor: TaskAnchor | null;
+
+    /** Who is on the other side of it, or `null` for nobody. */
+    readonly counterpart: TaskCounterpart | null;
 }
 
 /** Where one task is suggested to sit in the day. */
@@ -174,13 +242,26 @@ const longestTaskAnswer = 8 * 1024;
 // a page of the list it arranges.
 const longestLayoutAnswer = 64 * 1024;
 
+/** The shortest a task, an estimate or a plan may be, which the deployment refuses rather than rounds. */
+export const shortestTaskMinutes = 5;
+
+/** The longest a task, an estimate or a plan may be. */
+export const longestTaskMinutes = 720;
+
+/** The longest label an anchor may carry. */
+export const longestAnchorLabel = 200;
+
+const longestCounterpartAddress = 320;
+const longestCounterpartName = 200;
+
 const taskOrigins: readonly PersonalTaskOrigin[] = ['Asserted', 'Proposed'];
+const taskDirections: readonly TaskDirection[] = ['Owed', 'Awaited'];
 
 /** Reads one page of what the person has committed to, soonest due first. */
 export function readOwnTasks(
     session: ClientSession,
     transport: MailFathomTransport,
-    page: { readonly pageSize?: number; readonly cursor?: string | null } = {},
+    page: { readonly pageSize?: number; readonly cursor?: string | null; readonly filter?: TaskFilter } = {},
 ): Promise<ClientResult<PersonalTaskPage>> {
     return readHalf(session, transport, tasksRoute, page);
 }
@@ -189,7 +270,7 @@ export function readOwnTasks(
 export function readProposedTasks(
     session: ClientSession,
     transport: MailFathomTransport,
-    page: { readonly pageSize?: number; readonly cursor?: string | null } = {},
+    page: { readonly pageSize?: number; readonly cursor?: string | null; readonly filter?: TaskFilter } = {},
 ): Promise<ClientResult<PersonalTaskPage>> {
     return readHalf(session, transport, proposedTasksRoute, page);
 }
@@ -384,7 +465,7 @@ function readHalf(
     session: ClientSession,
     transport: MailFathomTransport,
     route: string,
-    page: { readonly pageSize?: number; readonly cursor?: string | null },
+    page: { readonly pageSize?: number; readonly cursor?: string | null; readonly filter?: TaskFilter },
 ): Promise<ClientResult<PersonalTaskPage>> {
     // The window the screen can render rather than whatever the service would serve, and never more than the bound the
     // route enforces — a request past it is served the maximum, which would leave the client refusing an answer larger
@@ -394,7 +475,7 @@ function readHalf(
     return spanned(`GET ${route}`, async () => {
         const response = await send(transport, {
             method: 'GET',
-            path: `${routeFor(session, route)}?${pageArguments(pageSize, page.cursor ?? null)}`,
+            path: `${routeFor(session, route)}?${pageArguments(pageSize, page.cursor ?? null, page.filter ?? {})}`,
             headers: headersFor(session),
             longestAnswer: longestTaskPage,
         });
@@ -415,11 +496,23 @@ function readHalf(
 
 // Written out rather than composed with `URLSearchParams`, which is a browser API and therefore one this package
 // declares nothing of: the wire half of the client knows a route and a status code and nothing about a document.
-function pageArguments(pageSize: number, cursor: string | null): string {
+function pageArguments(pageSize: number, cursor: string | null, filter: TaskFilter): string {
     const asked = [`pageSize=${pageSize.toFixed(0)}`];
 
     if (cursor !== null && cursor !== '') {
         asked.push(`cursor=${encodeURIComponent(cursor)}`);
+    }
+
+    for (const name of ['threadId', 'eventId', 'counterpart'] as const) {
+        const value = filter[name];
+        if (value !== undefined && value !== '') {
+            asked.push(`${name}=${encodeURIComponent(value)}`);
+        }
+    }
+
+    // The deployment refuses a window with one end, so one end alone is left unsent rather than asked and refused.
+    if (filter.from !== undefined && filter.from !== '' && filter.until !== undefined && filter.until !== '') {
+        asked.push(`from=${encodeURIComponent(filter.from)}`, `until=${encodeURIComponent(filter.until)}`);
     }
 
     return asked.join('&');
@@ -575,12 +668,30 @@ export function parseTask(value: unknown): PersonalTask | null {
     const origin = record['origin'];
     const completed = record['completed'];
     const sourceMessageId = record['sourceMessageId'] ?? null;
+    const direction = record['direction'];
+    const estimatedMinutes = record['estimatedMinutes'] ?? null;
+    const plan = parsePlan(record['plan']);
+    const anchor = parseAnchor(record['anchor']);
+    const counterpart = parseCounterpart(record['counterpart']);
+    const answer = parseAnswer(record['answer']);
 
     if (typeof id !== 'string' || typeof title !== 'string' || typeof completed !== 'boolean') {
         return null;
     }
 
-    if (!isTaskOrigin(origin)) {
+    if (!isTaskOrigin(origin) || !isTaskDirection(direction)) {
+        return null;
+    }
+
+    // A nested part is `null` where the deployment stated nothing and `undefined` where it stated something unreadable,
+    // which refuses the whole task rather than drawing one that quietly lost its plan or its anchor.
+    if (
+        (estimatedMinutes !== null && !isTaskMinutes(estimatedMinutes)) ||
+        plan === undefined ||
+        anchor === undefined ||
+        counterpart === undefined ||
+        answer === undefined
+    ) {
         return null;
     }
 
@@ -615,7 +726,109 @@ export function parseTask(value: unknown): PersonalTask | null {
         return null;
     }
 
-    return { id, title, dueOn, reminders, remindsAt, origin, completed, sourceMessageId };
+    return {
+        id,
+        title,
+        dueOn,
+        reminders,
+        remindsAt,
+        origin,
+        completed,
+        sourceMessageId,
+        direction,
+        estimatedMinutes,
+        plan,
+        anchor,
+        counterpart,
+        answer,
+    };
+}
+
+function parsePlan(value: unknown): TaskPlan | null | undefined {
+    if (value === undefined || value === null) {
+        return null;
+    }
+
+    const record = asRecord(value);
+    const startAt = record?.['startAt'];
+    const minutes = record?.['minutes'];
+
+    return isInstant(startAt) && isTaskMinutes(minutes) ? { startAt, minutes } : undefined;
+}
+
+function parseAnchor(value: unknown): TaskAnchor | null | undefined {
+    if (value === undefined || value === null) {
+        return null;
+    }
+
+    const record = asRecord(value);
+    const kind = record?.['kind'];
+    const id = record?.['id'];
+    const label = record?.['label'];
+
+    if ((kind !== 'Thread' && kind !== 'Event') || !isGuid(id) || typeof label !== 'string') {
+        return undefined;
+    }
+
+    return label.length <= longestAnchorLabel ? { kind, id, label } : undefined;
+}
+
+function parseCounterpart(value: unknown): TaskCounterpart | null | undefined {
+    if (value === undefined || value === null) {
+        return null;
+    }
+
+    const record = asRecord(value);
+    const address = record?.['address'];
+    const displayName = record?.['displayName'] ?? null;
+
+    if (typeof address !== 'string' || address === '' || address.length > longestCounterpartAddress) {
+        return undefined;
+    }
+
+    if (displayName !== null && (typeof displayName !== 'string' || displayName.length > longestCounterpartName)) {
+        return undefined;
+    }
+
+    return { address, displayName };
+}
+
+function parseAnswer(value: unknown): TaskAnswer | null | undefined {
+    if (value === undefined || value === null) {
+        return null;
+    }
+
+    const record = asRecord(value);
+    const messageId = record?.['messageId'];
+    const arrivedAt = record?.['arrivedAt'];
+
+    return typeof messageId === 'string' && messageId !== '' && isInstant(arrivedAt)
+        ? { messageId, arrivedAt }
+        : undefined;
+}
+
+/** Whether the value is one of the two directions this surface publishes. */
+export function isTaskDirection(value: unknown): value is TaskDirection {
+    return typeof value === 'string' && taskDirections.includes(value as TaskDirection);
+}
+
+function isTaskMinutes(value: unknown): value is number {
+    return (
+        typeof value === 'number' &&
+        Number.isSafeInteger(value) &&
+        value >= shortestTaskMinutes &&
+        value <= longestTaskMinutes
+    );
+}
+
+function isInstant(value: unknown): value is string {
+    return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+}
+
+const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isGuid(value: unknown): value is string {
+    return typeof value === 'string' && guidPattern.test(value);
 }
 
 /** Whether the value is one of the two origins this surface publishes. */
