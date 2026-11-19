@@ -167,7 +167,8 @@ MailFathomDesign.data.home.myDay = [
 // Now, the widget above My day: where the reader stands and what they have to do, written by the model in a manager's
 // voice. A paragraph is a list of runs, and `b` marks the few words drawn in bold.
 MailFathomDesign.data.home.now = { at: "13:40", note: "Written from today's mail, calendar and tasks", paras: [
-  [{ t: "You are in decent shape today, but " }, { t: "Contoso cannot wait any longer", b: true }, { t: ". Anna has asked twice and the decision is due tomorrow, so send the counter-proposal with the 5% cap before anything else." }],
-  [{ t: "Before the " }, { t: "15:00 rollout call with Piotr", b: true }, { t: ", confirm the Q4 date to Fabrikam, because phase three depends on it. And " }, { t: "do not pay the Fabrikam invoice", b: true }, { t: " until you have phoned Tomasz: the bank account on it is new." }],
-  [{ t: "Everything else can wait until tomorrow." }],
+  [{ t: "You are in decent shape today, but " }, { t: "Contoso cannot wait any longer", b: true }, { t: ". Anna has asked twice, and a third request usually arrives in capital letters. The decision is due tomorrow, so send the counter-proposal with the 5% cap before anything else." }],
+  [{ t: "Before the " }, { t: "15:00 rollout call with Piotr", b: true }, { t: ", confirm the Q4 date to Fabrikam, because phase three depends on it. And " }, { t: "do not pay the Fabrikam invoice", b: true }, { t: " until you have phoned Tomasz: the bank account on it is new, and a surprise bank account is never the fun kind of surprise." }],
+  [{ t: "In numbers: " }, { t: "14 new messages", b: true }, { t: " since this morning, of which only " }, { t: "3 need a reply", b: true }, { t: "; 5 are just for reading and 6 are newsletters that will not miss you. " }, { t: "3 people are waiting on you", b: true }, { t: ", " }, { t: "2 tasks are due today", b: true }, { t: ", and of your " }, { t: "2 meetings", b: true }, { t: " one is already behind you. Your list holds 20 things, but only 4 of them are today's job." }],
+  [{ t: "Do those four and the rest can honestly wait until tomorrow. Coffee first is allowed." }],
 ] };
