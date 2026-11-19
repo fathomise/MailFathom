@@ -1315,6 +1315,35 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.ReportInThePersonsLanguageMetricName).Value);
     }
 
+    /// <summary>
+    /// What the task list says of a wait and of a plan is measured by the tool it is read with and by what the answer
+    /// carries of it: an answer that names the wrong task, or one given without reading the list, fails.
+    /// </summary>
+    [Theory]
+    [InlineData("Agent.Tasks.WhatAmIWaitingOn", true, "You are waiting on Signed pilot agreement back from Fernwick Estates.", true, true)]
+    [InlineData("Agent.Tasks.WhatAmIWaitingOn", true, "You are waiting on the Atlas rollout checklist reply.", false, true)]
+    [InlineData("Agent.Tasks.WhatAmIWaitingOn", false, "You are waiting on Signed pilot agreement back from Fernwick Estates.", true, false)]
+    [InlineData("Agent.Tasks.WhatIsPlanned", true, "You set Wednesday 09:30 aside for Draft the Kestrel Quay floor plan.", true, true)]
+    [InlineData("Agent.Tasks.WhatIsPlanned", true, "Nothing is planned.", false, true)]
+    public async Task RunAsync_ATaskListQuestionAboutAWaitOrAPlan_PassesOnlyWhereItReadsTheListAndNamesTheTask(
+        string scenario,
+        bool readsTheList,
+        string answer,
+        bool carriesEvidence,
+        bool callsTheTool)
+    {
+        // Arrange
+        (string Tool, IDictionary<string, object?> Arguments)[] calls = readsTheList ? [("read_tasks", new Dictionary<string, object?>())] : [];
+        using var model = new ScriptedAgentChatClient(calls, answer);
+
+        // Act
+        var verdict = await this.RunAsync(Named(scenario), model);
+
+        // Assert
+        Assert.Equal(carriesEvidence, verdict.Get<BooleanMetric>(AgentConversationScenario.CarriesEvidenceMetricName).Value);
+        Assert.Equal(callsTheTool, verdict.Get<BooleanMetric>(AgentConversationScenario.CalledTheToolsAskedForMetricName).Value);
+    }
+
     private static AgentConversationScenario Named(string name) =>
         AgentConversationScenario.All.Single(scenario => scenario.Name == name);
 

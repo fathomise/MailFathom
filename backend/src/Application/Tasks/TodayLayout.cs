@@ -130,7 +130,10 @@ public sealed class TodayLayout
             return DayLayoutDerivation.Withholding(DayLayoutWithholding.NotActivated);
         }
 
-        var open = await this.ReadOpenAsync(cancellationToken);
+        var open = await this.ReadOpenAsync(new PersonalTaskQuery(PersonalTaskOrigin.Asserted), cancellationToken);
+        var inWindow = await this.ReadOpenAsync(
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted, From: dayStart, Until: dayEnd),
+            cancellationToken);
         var committed = await this.calendar.ReadWindowAsync(
             dayStart,
             dayEnd,
@@ -149,8 +152,9 @@ public sealed class TodayLayout
         using var actingFor = this.egressGuard.ActingFor(
             await this.egressGuard.ReadPostureAcrossAccountsOfAsync(user, cancellationToken));
 
-        // A block the person already set aside for a task is as fixed as an event, so it joins the commitments.
-        var blocks = open
+        // A block the person already set aside for a task is as fixed as an event, so it joins the commitments. A plan
+        // starting before dayStart is not one: it is a block of another day, whatever hour it runs into.
+        var blocks = inWindow
             .Where(task => IsPlannedWithin(task, dayStart, dayEnd))
             .Select(static task => new DayLayoutCommitment(task.Title, task.Plan!.StartAt, task.Plan.StartAt.AddMinutes(task.Plan.Minutes)));
 
@@ -169,18 +173,16 @@ public sealed class TodayLayout
             cancellationToken);
     }
 
-    /// <summary>Reads what the person has committed to and not done, soonest due first.</summary>
+    /// <summary>Reads the open tasks a query narrows to, soonest due first.</summary>
     /// <remarks>
-    /// One page, because the list is read soonest due first with the undated last: everything due by that day stands
-    /// at the front of it, and a page of the size this reads is far past what a day could hold.
+    /// One page each, and two reads of it: the unwindowed list stands what is due by the day at the front of it, and a
+    /// page of the size this reads is far past what a day could hold; the window read is the store's own answer to
+    /// which tasks are due in the day or planned into it, so a block is found however late or undated the task it
+    /// belongs to sorts in the first list.
     /// </remarks>
-    private async Task<IReadOnlyList<PersonalTask>> ReadOpenAsync(CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<PersonalTask>> ReadOpenAsync(PersonalTaskQuery query, CancellationToken cancellationToken)
     {
-        var page = await this.tasks.ReadPageAsync(
-            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
-            OwnTasks.MaximumPageSize,
-            cursor: null,
-            cancellationToken);
+        var page = await this.tasks.ReadPageAsync(query, OwnTasks.MaximumPageSize, cursor: null, cancellationToken);
 
         return page is null ? [] : [.. page.Tasks.Where(static task => !task.IsCompleted)];
     }

@@ -337,7 +337,7 @@ internal sealed partial class AgentConversationTools
 
         if (this.readers.Authorization.Permits(MailFathomPermission.TasksRead))
         {
-            tools.Add(AIFunctionFactory.Create(this.ReadTasksAsync, "read_tasks", "Reads the person's task list, soonest due first, including what their mail proposed as a task."));
+            tools.Add(AIFunctionFactory.Create(this.ReadTasksAsync, "read_tasks", "Reads the person's task list, soonest due first, including what their mail proposed as a task, whether each task is owed by the person or waited for from somebody else, and when time is planned for it."));
         }
 
         if (this.readers.Authorization.Permits(MailFathomPermission.CalendarWrite))

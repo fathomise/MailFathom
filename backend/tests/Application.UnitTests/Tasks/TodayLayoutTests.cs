@@ -317,6 +317,39 @@ public sealed class TodayLayoutTests
         Assert.Equal(DayStart.AddHours(3).AddMinutes(90), blocks[1].End);
     }
 
+    /// <summary>The soonest-due page is bounded, so a block is read from the window the store answers for rather than found in that page.</summary>
+    [Fact]
+    public async Task SuggestAsync_APlannedTaskAbsentFromTheDuePage_IsStillACommitment()
+    {
+        // Arrange
+        DayLayoutQuestion? asked = null;
+        var planner = PlannerAnswering(question =>
+        {
+            asked = question;
+
+            return DayLayoutDerivation.Settled(new DayLayoutSuggestion([], []));
+        });
+
+        var undatedAndPlanned = Owed(
+            "Sign the lease",
+            dueOn: null,
+            commitment: TaskCommitment.Owed with { Plan = TaskPlan.Create(DayStart.AddHours(5), 60) });
+        var layout = Compose(
+            planner,
+            owed: [Owed("Answer the supplier", Day)],
+            committed: [],
+            inWindow: [undatedAndPlanned]);
+
+        // Act
+        await layout.SuggestAsync(DayStart, DayEnd, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(asked);
+        Assert.Equal("Answer the supplier", Assert.Single(asked.Tasks).Title);
+        var block = Assert.Single(asked.Commitments);
+        Assert.Equal((undatedAndPlanned.Title, DayStart.AddHours(5)), (block.Title, block.Start));
+    }
+
     /// <summary>A task the person waits on is not theirs to do, so no day is arranged around it, however it is dated.</summary>
     [Fact]
     public async Task SuggestAsync_AWaitingTask_IsNotOffered()
@@ -415,9 +448,18 @@ public sealed class TodayLayoutTests
         recordedAt: start,
         amendedAt: start);
 
-    private static IPersonalTaskStore TaskStoreHolding(IReadOnlyList<PersonalTask> owed)
+    private static IPersonalTaskStore TaskStoreHolding(IReadOnlyList<PersonalTask> owed, IReadOnlyList<PersonalTask>? inWindow = null)
     {
         var store = Substitute.For<IPersonalTaskStore>();
+        store
+            .ReadAsync(
+                Person,
+                new PersonalTaskQuery(PersonalTaskOrigin.Asserted, From: DayStart, Until: DayEnd),
+                Arg.Any<PersonalTaskCursor?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => inWindow ?? [.. owed.Where(static task => task.Plan is { } plan && plan.StartAt >= DayStart && plan.StartAt < DayEnd)]);
+
         store
             .ReadAsync(
                 Person,
@@ -436,7 +478,8 @@ public sealed class TodayLayoutTests
         IReadOnlyList<CalendarEvent> committed,
         IPersonalTaskStore? taskStore = null,
         ICalendarEventStore? calendarStore = null,
-        AccessAuthorization? authorization = null)
+        AccessAuthorization? authorization = null,
+        IReadOnlyList<PersonalTask>? inWindow = null)
     {
         var clock = new FakeTimeProvider(DayStart);
         authorization ??= AccessAuthorizations.ForUserGranted(
@@ -444,7 +487,7 @@ public sealed class TodayLayoutTests
             MailFathomPermission.AssistantUse,
             MailFathomPermission.TasksRead,
             MailFathomPermission.CalendarRead);
-        var tasks = taskStore ?? TaskStoreHolding(owed);
+        var tasks = taskStore ?? TaskStoreHolding(owed, inWindow);
         var events = calendarStore ?? Substitute.For<ICalendarEventStore>();
 
         if (calendarStore is null)

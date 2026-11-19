@@ -460,6 +460,27 @@ internal sealed record AgentConversationScenario(
             Calls = ["read_tasks"],
         },
 
+        // Reading which way a task runs and when it is planned: the list names one task the person waits for and one
+        // they have set time aside for, and each is asked about by what it is.
+        new(
+            "Agent.Tasks.WhatAmIWaitingOn",
+            "Which of my tasks am I only waiting on somebody else for?",
+            UserLanguage.English,
+            ["Fernwick Estates"],
+            [.. TaskSubject, "waiting", "pilot", "agreement", "Fernwick"])
+        {
+            Calls = ["read_tasks"],
+        },
+        new(
+            "Agent.Tasks.WhatIsPlanned",
+            "Which of my tasks have I already set time aside for?",
+            UserLanguage.English,
+            ["floor plan"],
+            [.. TaskSubject, "planned", "time", "Kestrel", "Wednesday"])
+        {
+            Calls = ["read_tasks"],
+        },
+
         // Proposing a new message, which is never sent.
         new(
             "Agent.ProposesWithoutSending",
