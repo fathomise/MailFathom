@@ -324,21 +324,21 @@ composer would have nothing to save into.
 
 ## Start — `isStart`
 
-**Start is two things: the day in short, and what is watched.** It stores nothing of its own: *My day* gathers from
+**Start is three things: where the reader stands now, the day in short, and what is watched.** It stores nothing of
+its own: *Now* says it in words, *My day* gathers from
 Mail, Calendar and Tasks the few things that matter most today, *Watching* holds the questions the reader kept, and
 every item opens where it lives. It is the first space, above the hairline with the Agent, because both look across
 everything rather than holding one kind of thing.
 
 **Start has no title bar.** It opens on the field, which sits on `--panel`, ends in a hairline and a soft shadow, and
-stays put while the page scrolls under it. Under it stand the greeting and the date, then *Now* with *My day* under it, and *Watching*:
-side by side from 1020 px (`startBodyStyle`: two columns, two parts to three, so *Watching* takes the wider one) and
-stacked below that, *My day* first. The field and the page share one frame (`framePad`: 28 px each side on two panes,
+stays put while the page scrolls under it. Under it stand the greeting and the date, then *Now* and *My day* side by side from 1020 px (`startBodyStyle`: two columns, three parts to two, *Now* on the
+left and *My day* on the right) with *Watching* across the page under them; below 1020 px the three stack in that order. The field and the page share one frame (`framePad`: 28 px each side on two panes,
 18 on the fold, 14 on a phone). While an answer stands, a bar titled *Start* carries *Continue with the agent* and
 *Back to your day* (`hasRun`).
 
 **Rules read the day, and what the model wrote says so.** *My day* is derived by rules from data the deployment
 already holds — counts, a date in a thread, a question asked and not answered, the calendar. The model writes two
-things: *Now*, the widget above *My day*, and the answer to each watched question, which the reader asked for by pressing
+things: *Now*, the widget beside *My day*, and the answer to each watched question, which the reader asked for by pressing
 *Watch*. Each carries the provenance glyph.
 
 **Ask or find is short, and the Agent is where it goes long.** The field answers in one card with its citations and
@@ -365,14 +365,14 @@ identifier, plan, model or spend, and an evidence entry carries no relevance sco
 |---|---|---|
 | The day | `showIdle` | `st.phase === "idle"` — the state the prototype opens in: *Good afternoon, Karolina*, the date, then *My day* and *Watching* |
 | The catch-up, on Start | `cuCardShown` | a catch-up exists (`st.catchup`) and nothing is being asked — a card across the page under the greeting: an accent-edged `--panel` card with `flight_land` (an absence) or `beach_access` (a Holiday), *While you were away*, a line naming the absence, how many still need the reader and *on one page* (`cuCardSub`), *Open* and *Done with it*. It has no expiry — § *The catch-up* |
-| Now | `nowParas` | always, above *My day* and in its column — **the *Now* widget**: a card on a 16 px radius with an `--accent-line` border, a ground running from `--accent-soft` at its top corner into `--panel`, and a soft shadow. Its head is an accent dot ringed in `--accent-soft`, *NOW* in 12 px accent capitals, and the time it was written at the end (*13:40*). Under it, where the reader stands and what they have to do, in the voice of a manager briefing them: two or three short paragraphs (`HOME.now.paras`) at 15.5 px (15 on a phone) in `--text2`, the few things that matter in semibold `--text`, and nothing else formatted. Its foot, over an accent hairline, is one faint line behind the provenance glyph, *Written from today's mail, calendar and tasks* |
+| Now | `nowParas` | always, first on the page and to the left of *My day* — **the *Now* widget**: a card on a 16 px radius with an `--accent-line` border, a ground running from `--accent-soft` at its top corner into `--panel`, and a soft shadow. Its head is an accent dot ringed in `--accent-soft`, *NOW* in 12 px accent capitals, and the time it was written at the end (*13:40*). Under it, where the reader stands and what they have to do, in the voice of a manager briefing them: two or three short paragraphs (`HOME.now.paras`) at 17 px (15.5 below 1020 px, 15 on a phone) in `--text2`, the few things that matter in semibold `--text`, and nothing else formatted. Its foot, over an accent hairline, is one faint line behind the provenance glyph, *Written from today's mail, calendar and tasks* |
 | My day | `myDay`, `dayCounts` | always — headed *My day · read off your mail, calendar and tasks by rules*, one `--panel` card. First the day's counts as chips (`HOME.dayCounts`: *new messages*, *meetings today*, *due today*, *waiting on you*), each opening what it counts: Mail, Calendar, Tasks, or the Mail list; on a phone four equal tiles in one row, the number over its label, 60 px tall. Under them **the first four rows, most urgent first** (`HOME.myDay`): a 34 px tile with the row's glyph, the title in 14 px semibold, one line saying why it is here, and when as a chip at the row's end. The tile and the chip share a tone — `--warn` for a deadline, `--err` for a security risk, the accent for the next meeting, neutral for a task — and the glyph and the words say the same, so the tone is never the only signal. A row opens its thread, Calendar or Tasks. On a phone the reason is one line, cut with an ellipsis |
 | My day, unfolded | `myDayOpen` | *More · N* at the foot of the card (`myDayHasMore`: there are more than four), with `expand_more` and the number still folded — the next rows slide out under the first four, in the same order and the same form, **twenty rows at the most** however many the day holds; the control turns to *Fewer* with `expand_less` and folds them back. It is 40 px tall, 48 under a finger, and the counts and *Watching* do not move |
-| Watching | `watchedAll` | always, and **never folded**: headed *Watching* with the count, *N answer(s) moved* in the accent when one did (`watchChangedAny`), and *refreshed when new mail matches* beside it off the phone. Every watched question is a `--panel` card in a grid (`watchGridStyle`: as many columns of at least 280 px as fit, one on a phone), the ones whose answer moved first. A card holds the question in 14 px semibold with *Stop watching* (×, 44 px under a finger) at its end, **the answer as it stands** behind the provenance glyph, at most three lines, and a line with a dot saying what happened to it (`w.note`). So what is watched is read on Start without opening anything; pressing a card asks the question again and shows the whole answer |
-| A watched answer moved | `w.isChanged` | the seeded `changed` cards — an accent border, an accent edge and dot, and a bold accent line naming what arrived; opening one settles it to *opened just now* |
-| A watched refresh paused | `w.isPaused` | the seeded `paused` card — the answer as it last stood and a warning line naming when the refresh resumes, because the allowance is spent |
-| Watching stopped | `w.stop` | × on a card — the card goes and the toast says the question no longer refreshes |
-| Nothing watched | `noWatched` | every card stopped — a dashed hint under the head: ask above, then press *Watch* on the answer, and the question stays here and refreshes when new mail matches it |
+| Watching | `watchedAll` | always, **across the page under *Now* and *My day*, and never folded**: headed *Watching* with the count, *N answer(s) moved* in the accent when one did (`watchChangedAny`), and *refreshed when new mail matches* beside it off the phone. Every watched question is a row of one `--panel` list (`watchListStyle`), the ones whose answer moved first, rows parted by hairlines. A row holds the question in 15 px semibold, under it **the answer as it stands**, in full, at 14 px behind the provenance glyph, and at the row's end what happened to it with a dot (`w.note`) and *Stop watching* (×, 44 px under a finger). On a phone the question and the answer take the row's width beside ×, and what happened stands under them. So what is watched is read on Start without opening anything; pressing a row asks the question again and shows the whole answer |
+| A watched answer moved | `w.isChanged` | the seeded `changed` rows — an accent edge at the row's start, an accent dot, and a bold accent line naming what arrived; opening one settles it to *opened just now* |
+| A watched refresh paused | `w.isPaused` | the seeded `paused` row — the answer as it last stood and a warning line naming when the refresh resumes, because the allowance is spent |
+| Watching stopped | `w.stop` | × on a row — the row goes and the toast says the question no longer refreshes |
+| Nothing watched | `noWatched` | every row stopped, so the list is not drawn — a dashed hint under the head: ask above, then press *Watch* on the answer, and the question stays here and refreshes when new mail matches it |
 
 ### The catch-up
 

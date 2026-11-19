@@ -379,18 +379,18 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </sc-if>
 
-            <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
-              <div role="region" aria-label="Now" style="{{ nowCardStyle }}">
-                <div style="display:flex;align-items:center;gap:8px;min-width:0">
-                  <span aria-hidden="true" style="{{ nowDotStyle }}"></span>
-                  <div style="{{ nowLabelStyle }}">Now</div>
-                  <span style="margin-left:auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap">{{ nowAt }}</span>
-                </div>
-                <sc-for list="{{ nowParas }}" as="sp" hint-placeholder-count="3">
-                  <div style="{{ nowParaStyle }}"><sc-for list="{{ sp.runs }}" as="sr" hint-placeholder-count="3"><span style="{{ sr.style }}">{{ sr.t }}</span></sc-for></div>
-                </sc-for>
-                <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--accent-line);padding-top:10px;margin-top:2px"><span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>{{ nowNote }}</div>
+            <div role="region" aria-label="Now" style="{{ nowCardStyle }}">
+              <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                <span aria-hidden="true" style="{{ nowDotStyle }}"></span>
+                <div style="{{ nowLabelStyle }}">Now</div>
+                <span style="margin-left:auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap">{{ nowAt }}</span>
               </div>
+              <sc-for list="{{ nowParas }}" as="sp" hint-placeholder-count="3">
+                <div style="{{ nowParaStyle }}"><sc-for list="{{ sp.runs }}" as="sr" hint-placeholder-count="3"><span style="{{ sr.style }}">{{ sr.t }}</span></sc-for></div>
+              </sc-for>
+              <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--accent-line);padding-top:10px;margin-top:2px"><span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>{{ nowNote }}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
               <div style="{{ startHeadStyle }}"><div style="{{ startHeadTitleStyle }}">My day</div><div style="{{ startHeadNoteStyle }}">read off your mail, calendar and tasks by rules</div></div>
               <div style="{{ myDayCardStyle }}">
                 <div style="{{ dayCountsStyle }}">
@@ -416,7 +416,7 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </div>
 
-            <div role="region" aria-label="Watching" style="display:flex;flex-direction:column;gap:10px;min-width:0">
+            <div role="region" aria-label="Watching" style="display:flex;flex-direction:column;gap:10px;min-width:0;{{ startSpanStyle }}">
               <div style="{{ startHeadStyle }}">
                 <div style="{{ startHeadTitleStyle }}">Watching</div>
                 <span style="{{ watchCountStyle }}">{{ watchCount }}</span>
@@ -426,18 +426,20 @@ Project repository: https://github.com/fathomise/MailFathom
               <sc-if value="{{ noWatched }}" hint-placeholder-val="{{ false }}">
                 <div style="{{ watchEmptyStyle }}">Ask something above, then press <span style="font-weight:600;color:var(--text2)">Watch</span> on the answer: the question stays here and refreshes when new mail matches it.</div>
               </sc-if>
-              <div style="{{ watchGridStyle }}">
-                <sc-for list="{{ watchedAll }}" as="w" hint-placeholder-count="4">
-                  <div role="button" tabIndex="0" onClick="{{ w.open }}" style="{{ w.rowStyle }}" style-hover="border-color:var(--accent);cursor:pointer" style-focus="outline:2px solid var(--accent);outline-offset:2px">
-                    <div style="display:flex;align-items:flex-start;gap:6px;min-width:0">
-                      <div style="{{ watchQStyle }}">{{ w.q }}</div>
+              <sc-if value="{{ hasWatched }}" hint-placeholder-val="{{ true }}">
+                <div style="{{ watchListStyle }}">
+                  <sc-for list="{{ watchedAll }}" as="w" hint-placeholder-count="4">
+                    <div role="button" tabIndex="0" onClick="{{ w.open }}" style="{{ w.rowStyle }}" style-hover="background:var(--hover);cursor:pointer" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
+                      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+                        <div style="{{ watchQStyle }}">{{ w.q }}</div>
+                        <div style="display:flex;align-items:flex-start;gap:7px;min-width:0"><span title="Written by AI" data-tip-hover style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted);margin-top:3px">auto_awesome</span><div style="{{ watchAnswerStyle }}">{{ w.answer }}</div></div>
+                      </div>
+                      <span style="{{ w.stateStyle }}"><span style="{{ w.dotStyle }}"></span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ w.note }}</span></span>
                       <div role="button" tabIndex="0" aria-label="{{ w.stopAria }}" title="Stop watching" onClick="{{ w.stop }}" style="{{ watchStopStyle }}" style-hover="cursor:pointer;background:var(--rail);color:var(--text)">close</div>
                     </div>
-                    <div style="display:flex;align-items:flex-start;gap:7px;min-width:0"><span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted);margin-top:2px">auto_awesome</span><div style="{{ watchAnswerStyle }}">{{ w.answer }}</div></div>
-                    <span style="{{ w.stateStyle }}"><span style="{{ w.dotStyle }}"></span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ w.note }}</span></span>
-                  </div>
-                </sc-for>
-              </div>
+                  </sc-for>
+                </div>
+              </sc-if>
             </div>
           </div>
         </div>

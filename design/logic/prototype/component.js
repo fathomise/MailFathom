@@ -7653,22 +7653,22 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         searchWrapStyle: "flex:0 0 auto;position:relative;z-index:1;overflow:hidden;scrollbar-gutter:stable;background:var(--panel);border-bottom:1px solid var(--line);" + (st.phase === "idle" ? "box-shadow:0 6px 14px -12px var(--sh-3);" : ""),
         searchInnerStyle: "display:flex;flex-direction:column;box-sizing:border-box;" + (isMobile ? "gap:10px;" + framePad(12, 12) : "gap:12px;" + framePad(16, 16)),
         idleStyle: "flex:1;display:flex;flex-direction:column;overflow:auto;scrollbar-gutter:stable;min-height:0",
-        /* Start is two things side by side: the day in short, and what is watched. One column below 1020 px. */
+        /* Now and My day stand side by side, and what is watched runs across the page under them. One column below 1020 px. */
         startBodyStyle: "box-sizing:border-box;" + (isMobile || narrow
           ? "display:flex;flex-direction:column;gap:22px;" + framePad(isMobile ? 16 : 24, isMobile ? 96 : 32)
-          : "display:grid;grid-template-columns:minmax(340px, 2fr) minmax(0, 3fr);gap:22px 28px;align-items:start;max-width:1480px;" + framePad(26, 40)),
+          : "display:grid;grid-template-columns:minmax(0, 3fr) minmax(360px, 2fr);gap:26px 28px;align-items:start;max-width:1480px;" + framePad(26, 40)),
         startSpanStyle: isMobile || narrow ? "" : "grid-column:1 / -1;",
         startHeadStyle: "display:flex;align-items:center;gap:9px;min-width:0;min-height:24px",
         startHeadTitleStyle: "font-size:16px;font-weight:600;letter-spacing:-0.01em;color:var(--text);white-space:nowrap",
         startHeadNoteStyle: "flex:1;min-width:0;font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
         /* Now: the widget above My day. Where the reader stands and what they have to do, written by the model the way
            a manager would say it, with the few things that matter in bold. */
-        nowCardStyle: "display:flex;flex-direction:column;gap:10px;min-width:0;box-sizing:border-box;margin-bottom:12px;border:1px solid var(--accent-line);border-radius:16px;" +
-          "background:linear-gradient(160deg, var(--accent-soft), var(--panel) 62%);box-shadow:0 10px 28px -18px var(--sh-3);padding:" + (isMobile ? "14px 14px 12px" : "16px 18px 14px"),
+        nowCardStyle: "display:flex;flex-direction:column;gap:" + (isMobile || narrow ? 10 : 14) + "px;min-width:0;box-sizing:border-box;border:1px solid var(--accent-line);border-radius:16px;" +
+          "background:linear-gradient(160deg, var(--accent-soft), var(--panel) 62%);box-shadow:0 10px 28px -18px var(--sh-3);padding:" + (isMobile ? "14px 14px 12px" : narrow ? "16px 18px 14px" : "20px 24px 16px"),
         nowDotStyle: "width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)",
         nowLabelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent-d)",
         nowAt: HOME.now.at,
-        nowParaStyle: "font-size:" + (isMobile ? 15 : 15.5) + "px;line-height:1.6;color:var(--text2);text-wrap:pretty",
+        nowParaStyle: "font-size:" + (isMobile ? 15 : narrow ? 15.5 : 17) + "px;line-height:1.6;color:var(--text2);text-wrap:pretty",
         nowParas: HOME.now.paras.map(p => ({ runs: p.map(r => ({ t: r.t, style: r.b ? "font-weight:600;color:var(--text)" : "" })) })),
         nowNote: HOME.now.note,
         myDayCardStyle: "display:flex;flex-direction:column;gap:6px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:" + (isMobile ? "12px 12px 4px" : "14px 14px 6px"),
@@ -7689,8 +7689,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             tileStyle: "flex:0 0 34px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:10px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:19px;color:" + tone[0] + ";background:" + tone[1],
             whenStyle: "flex:0 0 auto;font-size:12px;font-weight:600;white-space:nowrap;border-radius:999px;padding:3px 9px;color:" + tone[0] + ";background:" + tone[1] };
         }),
-        watchGridStyle: "display:grid;gap:12px;min-width:0;grid-template-columns:" + (isMobile ? "minmax(0,1fr)" : "repeat(auto-fill,minmax(280px,1fr))"),
-        watchAnswerStyle: "flex:1;min-width:0;font-size:13px;line-height:1.45;color:var(--text2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty",
+        /* Watching is one list across the page: a row per question with its answer in full, what happened to it at the
+           row's end, and the ones that moved first. */
+        watchListStyle: "display:flex;flex-direction:column;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden",
+        watchAnswerStyle: "flex:1;min-width:0;font-size:14px;line-height:1.5;color:var(--text2);text-wrap:pretty",
         idleTitleStyle: isMobile
           ? "font-size:24px;font-weight:600;letter-spacing:-0.015em;text-wrap:pretty"
           : "font-size:28px;font-weight:600;letter-spacing:-0.015em",
@@ -8023,9 +8025,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         watchNextOff: watchAt >= watchPages - 1 ? "true" : undefined,
         watchPrevStyle: stepNav(watchAt > 0),
         watchNextStyle: stepNav(watchAt < watchPages - 1),
-        watchQStyle: "flex:1;min-width:0;font-size:14px;font-weight:600;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty",
+        watchQStyle: "min-width:0;font-size:15px;font-weight:600;line-height:1.4;color:var(--text);text-wrap:pretty",
         watchStopStyle: "display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:8px;color:var(--faint);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;" +
-          (touch ? "width:44px;height:44px;margin:-10px -8px 0 0;" : "width:28px;height:28px;margin:-4px -4px 0 0;"),
+          (touch ? "width:44px;height:44px;" + (isMobile ? "margin:-8px 0 0 0;" : "") : "width:30px;height:30px;"),
         watchEmptyStyle: "font-size:13px;line-height:1.45;color:var(--muted);border:1px dashed var(--border2);border-radius:11px;padding:10px 13px;text-wrap:pretty",
         noWatched: !(st.watched || []).length,
         /* Every watched question stands on Start, the ones whose answer moved first. */
@@ -8040,8 +8042,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           stopAria: "Stop watching: " + w.q,
           isChanged: w.state === "changed", isPaused: w.state === "paused", isFailed: w.state === "failed",
           /* A card whose answer moved carries the accent edge, so it is found before it is read. */
-          rowStyle: "min-width:0;display:flex;flex-direction:column;gap:8px;box-sizing:border-box;background:var(--panel);border:1px solid " + (w.state === "changed" ? "var(--accent-line)" : "var(--line)") + ";border-radius:12px;padding:" + (touch ? "12px 12px 11px 14px" : "10px 10px 9px 13px") + (w.state === "changed" ? ";box-shadow:inset 3px 0 0 var(--accent)" : ""),
-          stateStyle: "display:flex;align-items:center;gap:6px;min-width:0;font-size:12px;line-height:1.4;" + (w.state === "changed" ? "color:var(--accent-d);font-weight:600;"
+          rowStyle: "min-width:0;display:flex;box-sizing:border-box;border-bottom:1px solid var(--line2);" + (isMobile ? "flex-wrap:wrap;align-items:flex-start;gap:8px 10px;padding:14px 8px 14px 16px" : "align-items:center;gap:18px;padding:15px 12px 15px 20px") + (w.state === "changed" ? ";box-shadow:inset 3px 0 0 var(--accent)" : ""),
+          stateStyle: "display:flex;align-items:center;gap:6px;min-width:0;font-size:12.5px;line-height:1.4;" + (isMobile ? "order:3;flex:1 1 100%;" : "flex:0 0 auto;max-width:42%;justify-content:flex-end;") + (w.state === "changed" ? "color:var(--accent-d);font-weight:600;"
             : w.state === "paused" || w.state === "failed" ? "color:var(--warn-text);" : "color:var(--muted);"),
           dotStyle: "width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:" + (w.state === "changed" ? "var(--accent)" : w.state === "paused" || w.state === "failed" ? "var(--warn)" : "var(--border2)"),
         })),
