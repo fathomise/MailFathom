@@ -569,6 +569,10 @@ Project repository: https://github.com/fathomise/MailFathom
 
   <sc-if value="{{ rightNowDocked }}" hint-placeholder-val="{{ true }}">
     <div style="{{ rightNowPanelStyle }}">
+      <sc-if value="{{ rightNowOpen }}" hint-placeholder-val="{{ true }}">
+        <div role="separator" aria-orientation="vertical" aria-label="Resize Right now" onPointerDown="{{ rightNowResize }}" onDoubleClick="{{ rightNowResetSize }}" style="{{ boundaryStyle }}" style-hover="{{ boundaryListHover }}" title="Drag to widen Right now, up to twice its width (double-click to reset)" data-tip-hover=""><div aria-hidden="true" style="{{ boundaryReachStyle }}"></div><div aria-hidden="true" style="{{ boundaryGripStyle }}"><div style="{{ boundaryPillStyle }}"></div></div></div>
+      </sc-if>
+      <div style="{{ rightNowColStyle }}">
       <sc-if value="{{ rightNowFolded }}" hint-placeholder-val="{{ false }}">
         <div role="region" aria-label="Right now" style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 5px">
           <div role="button" tabIndex="0" aria-expanded="false" aria-label="Show Right now" title="Show Right now" onClick="{{ rightNowFold }}" style="{{ rightNowFoldStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">right_panel_open</div>
@@ -634,9 +638,8 @@ Project repository: https://github.com/fathomise/MailFathom
               <div role="button" tabIndex="0" aria-label="Continue in the Agent" title="Continue in the Agent" onClick="{{ sideAgentOpen }}" style="{{ rightNowFoldStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">open_in_new</div>
             </div>
             <div title="{{ sideCtxTitle }}" style="{{ sideCtxStyle }}">
-              <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--accent-d)">{{ sideCtxIcon }}</span>
-              <span style="flex:0 0 auto;font-weight:600;color:var(--text)">{{ sideCtxKind }}</span>
-              <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ sideCtxLabel }}</span>
+              <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:17px;color:var(--accent-d)">{{ sideCtxIcon }}</span>
+              <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Context: <span style="font-weight:600">{{ sideCtxKind }}</span> · {{ sideCtxLabel }}</span>
             </div>
             <sc-if value="{{ sideChatAny }}" hint-placeholder-val="{{ false }}">
               <div ref="{{ sideChatRef }}" style="{{ sideChatStyle }}">
@@ -656,6 +659,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </div>
         </sc-if>
       </sc-if>
+      </div>
     </div>
   </sc-if>
 

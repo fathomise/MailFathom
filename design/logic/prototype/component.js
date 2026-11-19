@@ -5465,8 +5465,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
          strip of its numbers when the reader folds it - or, until they choose, where a space has little room to give. */
       const rightNowDocked = !isMobile && !narrow;
       const rightNowFolded = rightNowDocked && (st.rightNowFolded != null ? !!st.rightNowFolded : st.screen !== "start" && compact);
-      const rightNowW = !rightNowDocked ? "0px" : rightNowFolded ? "56px" : st.screen === "start" ? "clamp(360px, 29%, 460px)" : "300px";
-      const rightNowSlim = rightNowDocked && st.screen !== "start";
+      /* Its edge is a handle: dragged, the panel widens to twice its own width at the most, and never past 60% of the
+         window; a double click puts it back. */
+      const rightNowBase = st.screen === "start" ? Math.max(360, Math.min(460, Math.round(w * 0.29))) : 300;
+      const rightNowPx = Math.round(Math.min(rightNowBase * Math.max(1, Math.min(2, st.rightNowScale || 1)), Math.max(rightNowBase, w * 0.6)));
+      this._rightNowPx = rightNowPx; this._rightNowBase = rightNowBase;
+      const rightNowW = !rightNowDocked ? "0px" : rightNowFolded ? "56px" : rightNowPx + "px";
+      const rightNowSlim = rightNowDocked && rightNowPx < 360;
       const watchPer = isMobile ? 1 : (narrow || compact) ? 2 : startWide ? 4 : 3;
       const watchList = st.watched || [];
       const watchPages = Math.max(1, Math.ceil(watchList.length / watchPer));
@@ -7676,7 +7681,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         rightNowFold: () => this.setState({ rightNowFolded: !rightNowFolded }),
         rightNowFoldStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px;" + (touch ? "width:44px;height:44px" : "width:30px;height:30px;margin:-5px -2px -5px 0"),
         rightNowNumStyle: "flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-sizing:border-box;width:44px;min-height:" + (touch ? 56 : 52) + "px;border-radius:10px",
-        rightNowPanelStyle: "order:1;flex:0 0 auto;width:" + rightNowW + ";box-sizing:border-box;display:flex;flex-direction:column;min-height:0;overflow:hidden;background:var(--panel);border-left:1px solid var(--line)",
+        rightNowPanelStyle: "order:1;flex:0 0 auto;width:" + rightNowW + ";box-sizing:border-box;display:flex;min-height:0;background:var(--panel)" + (rightNowFolded ? ";border-left:1px solid var(--line)" : ""),
+        rightNowColStyle: "flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden",
+        /* The panel is on the right, so a drag to the left widens it: the width is the start width less the travel. */
+        rightNowResize: (e) => { const from = this._rightNowPx, base = this._rightNowBase; this.beginPaneDrag(e, from, (v) => this.setState({ rightNowScale: Math.max(1, Math.min(2, (2 * from - v) / base)) })); },
+        rightNowResetSize: () => this.setState({ rightNowScale: 1 }),
+        rightNowWide: (st.rightNowScale || 1) > 1 ? "true" : "false",
         rightNowScrollStyle: "flex:1;min-height:0;overflow:auto;box-sizing:border-box;padding:" + (rightNowSlim ? "20px 8px 20px" : "22px 14px 22px"),
         rightNowDockedCardStyle: "display:flex;flex-direction:column;gap:8px;box-sizing:border-box;min-width:0",
         startBodyStyle: "box-sizing:border-box;display:flex;flex-direction:column;" + (isMobile || narrow
@@ -7691,7 +7701,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         nowCardStyle: "display:flex;flex-direction:column;gap:" + (isMobile || narrow ? 10 : 14) + "px;min-width:0;box-sizing:border-box;border:1px solid var(--accent-line);border-radius:16px;" +
           "background:linear-gradient(160deg, var(--accent-soft), var(--panel) 62%);box-shadow:0 10px 28px -18px var(--sh-3);padding:" + (isMobile ? "14px 14px 12px" : narrow ? "16px 18px 14px" : "20px 24px 16px"),
         nowDotStyle: "width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)",
-        nowLabelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent-d)",
+        nowLabelStyle: "white-space:nowrap;font-family:'Geist',system-ui,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent-d)",
         nowUpdated: HOME.now.updated,
         /* A source marker: a small number after the sentence it backs, which opens the conversation it was read from.
            Under a finger it stays small so the text keeps its lines: 22 px, below the touch target the rest of Start meets. */
@@ -7707,7 +7717,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* Right now: the panel beside Now and Watching. What matters most at this moment from the mail, the tasks and the calendar,
            a group each, read off by rules. */
         rightNowCardStyle: "display:flex;flex-direction:column;gap:8px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 28px -18px var(--sh-3);padding:" + (isMobile ? "14px 8px 4px" : "18px 12px 6px"),
-        rightNowAt: HOME.rightNowAt,
+        rightNowAt: rightNowSlim ? HOME.rightNowAt.split(" · ")[0] : HOME.rightNowAt,
         rightNowGroupStyle: "display:flex;align-items:center;gap:8px;min-width:0;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;padding:0 6px;min-height:" + (touch ? 44 : 34) + "px",
         rightNowRowStyle: "display:flex;align-items:center;" + (rightNowSlim ? "flex-wrap:wrap;" : "") + "gap:12px;min-width:0;box-sizing:border-box;border-radius:8px;min-height:" + (touch ? 60 : 52) + "px;padding:7px 6px",
         /* On a phone a row is its title and one line, so the card stays short. */
@@ -10740,21 +10750,23 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         sideAgentOpen: () => this.goAgentWith(sideCtx.name + " · " + sideCtx.label),
         sideCtxIcon: sideCtx.icon, sideCtxKind: sideCtx.name, sideCtxLabel: sideCtx.label, sideCtxBusy: sideCtx.busy,
         sideCtxTitle: "The Agent answers about: " + sideCtx.name + " - " + sideCtx.label,
-        sideCtxStyle: "display:flex;align-items:center;gap:6px;min-width:0;box-sizing:border-box;font-size:12px;color:var(--text2);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:8px;padding:5px 9px",
+        /* The colours are the Agent's own: its context line, the reader's turn on the accent's soft ground, the answer as
+           plain text on the screen's ground, and the field inside the accent border. */
+        sideCtxStyle: "display:flex;align-items:center;gap:8px;min-width:0;box-sizing:border-box;font-size:12.5px;color:var(--accent-d);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:12px;padding:7px 10px",
         sideChatAny: (st.sideChat || []).length > 0,
         sideChatRef: this.sideChatRef || (this.sideChatRef = React.createRef()),
         sideChatStyle: "display:flex;flex-direction:column;gap:8px;min-height:0;max-height:" + (touch ? 200 : 240) + "px;overflow:auto",
         sideChat: (st.sideChat || []).map(m => ({ text: m.text, ctx: m.ctx || "", hasCtx: m.who === "you" && !!m.ctx,
           wrapStyle: "display:flex;flex-direction:column;gap:2px;min-width:0;align-items:" + (m.who === "you" ? "flex-end" : "flex-start"),
-          style: "max-width:100%;box-sizing:border-box;font-size:13.5px;line-height:1.5;text-wrap:pretty;overflow-wrap:anywhere;" + (m.who === "you" ? "color:var(--text);background:var(--sub);border-radius:12px 12px 4px 12px;padding:6px 10px" : "color:var(--text2)") })),
+          style: "max-width:100%;box-sizing:border-box;font-size:13.5px;line-height:1.5;text-wrap:pretty;overflow-wrap:anywhere;" + (m.who === "you" ? "color:var(--text);background:var(--accent-soft);border-radius:12px;padding:8px 11px" : "color:var(--text)") })),
         sideBusy: !!st.sideBusy,
         sideAsk: st.sideAsk || "",
         sideAskPlaceholder: "Ask about " + (sideCtx.kind === "thread" ? "this conversation" : sideCtx.kind === "person" ? sideCtx.label : sideCtx.label),
         onSideAsk: (e) => this.setState({ sideAsk: e.target.value }),
         onSideAskKey: (e) => { if (e.key === "Enter") { e.preventDefault(); sideSend(); } },
         sideAskSend: sideSend,
-        sideAskRowStyle: "display:flex;align-items:center;gap:6px;box-sizing:border-box;background:var(--panel);border:1px solid var(--border2);border-radius:12px;padding:" + (touch ? "2px 2px 2px 12px" : "4px 4px 4px 12px"),
-        sideAskSendStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:9px;color:var(--onaccent);background:var(--accent);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:19px;" + (touch ? "width:44px;height:44px" : "width:30px;height:30px"),
+        sideAskRowStyle: "display:flex;align-items:center;gap:6px;box-sizing:border-box;background:var(--panel);border:2px solid var(--accent);border-radius:12px;padding:" + (touch ? "2px 2px 2px 12px" : "4px 4px 4px 12px"),
+        sideAskSendStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--onaccent);background:var(--accent);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:19px;" + (touch ? "width:44px;height:44px" : "width:30px;height:30px"),
       });
       Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, narrow, startWide, rightNowW, thread, person, fathomCreate, fathomReply, navBottom: vals.navBottom }));
       this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml, sendLaterAsk: this.closeSendLater };
