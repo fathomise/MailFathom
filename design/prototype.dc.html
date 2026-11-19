@@ -391,20 +391,26 @@ Project repository: https://github.com/fathomise/MailFathom
               <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--accent-line);padding-top:10px;margin-top:2px"><span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>{{ nowNote }}</div>
             </div>
             <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
-              <div style="{{ startHeadStyle }}"><div style="{{ startHeadTitleStyle }}">My day</div><div style="{{ startHeadNoteStyle }}">read off your mail, calendar and tasks by rules</div></div>
-              <div style="{{ myDayCardStyle }}">
-                <div style="{{ dayCountsStyle }}">
-                  <sc-for list="{{ dayCounts }}" as="dc" hint-placeholder-count="4">
-                    <div role="button" tabIndex="0" aria-label="{{ dc.aria }}" onClick="{{ dc.open }}" style="{{ dc.style }}" style-hover="cursor:pointer;border-color:var(--accent)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">{{ dc.icon }}</span><span style="font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">{{ dc.n }}</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis">{{ dc.label }}</span></div>
-                  </sc-for>
+              <div role="region" aria-label="Right now" style="{{ rightNowCardStyle }}">
+                <div style="display:flex;align-items:center;gap:8px;min-width:0;padding:0 6px 4px">
+                  <span aria-hidden="true" style="{{ nowDotStyle }}"></span>
+                  <div style="{{ nowLabelStyle }}">Right now</div>
+                  <span style="margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ rightNowAt }}</span>
                 </div>
+                <sc-for list="{{ rightNow }}" as="rg" hint-placeholder-count="3">
                 <div style="display:flex;flex-direction:column">
-                  <sc-for list="{{ myDay }}" as="d" hint-placeholder-count="4">
-                    <div role="button" tabIndex="0" onClick="{{ d.open }}" style="{{ myDayRowStyle }}" style-hover="cursor:pointer;background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
+                  <div role="button" tabIndex="0" aria-label="{{ rg.aria }}" onClick="{{ rg.open }}" style="{{ rightNowGroupStyle }}" style-hover="cursor:pointer;background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
+                    <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:17px;color:var(--muted)">{{ rg.icon }}</span>
+                    <div style="{{ sectionLabelStyle }}">{{ rg.label }}</div>
+                    <div style="flex:1;min-width:0;font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ rg.meta }}</div>
+                    <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:17px;color:var(--faint)">chevron_right</span>
+                  </div>
+                  <sc-for list="{{ rg.items }}" as="d" hint-placeholder-count="2">
+                    <div role="button" tabIndex="0" onClick="{{ d.open }}" style="{{ rightNowRowStyle }}" style-hover="cursor:pointer;background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
                       <span aria-hidden="true" style="{{ d.tileStyle }}">{{ d.icon }}</span>
                       <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
                         <div style="font-size:14px;font-weight:600;line-height:1.35;color:var(--text);text-wrap:pretty">{{ d.title }}</div>
-                        <div style="{{ myDayNoteStyle }}">{{ d.note }}</div>
+                        <div style="{{ rightNowNoteStyle }}">{{ d.note }}</div>
                       </div>
                       <span style="{{ d.whenStyle }}">{{ d.when }}</span>
                       <sc-if value="{{ d.canWatch }}" hint-placeholder-val="{{ true }}">
@@ -412,7 +418,10 @@ Project repository: https://github.com/fathomise/MailFathom
                       </sc-if>
                     </div>
                   </sc-for>
-                  <div role="button" tabIndex="0" onClick="{{ myDayToAgent }}" style="{{ myDayAgentStyle }}" style-hover="cursor:pointer;background:var(--accent-soft)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
+                </div>
+                </sc-for>
+                <div style="display:flex;flex-direction:column">
+                  <div role="button" tabIndex="0" onClick="{{ rightNowToAgent }}" style="{{ rightNowAgentStyle }}" style-hover="cursor:pointer;background:var(--accent-soft)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
                     <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">auto_awesome</span>
                     <div style="flex:1;min-width:0;font-size:13px;line-height:1.4;color:var(--text2);text-wrap:pretty">There is much more on your plate. <span style="font-weight:600;color:var(--accent-d)">Go to the Agent to talk everything through</span></div>
                     <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">arrow_forward</span>

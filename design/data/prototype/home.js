@@ -138,16 +138,25 @@ MailFathomDesign.data.home.headsUp = [
     check: "The step at the top proposes a 5% cap.", tid: "contoso", rule: "deadline without a reply" },
 ];
 
-// My day: the four things that matter most today, most urgent first, read off the mail, the calendar and the tasks by
-// rules. `tone` colours the tile and the time left; `go` is the space a row opens, and `tid` the thread when it is one.
-MailFathomDesign.data.home.myDay = [
-  { id: "d-contoso", icon: "schedule", tone: "warn", title: "The Contoso decision is due tomorrow", note: "Anna Kowalska asked twice · the counter-proposal has not gone out", when: "tomorrow", go: "thread", tid: "contoso" },
-  { id: "d-bank", icon: "gpp_maybe", tone: "err", title: "An invoice asks to pay a new bank account", note: "Not from fabrikam.com · confirm by phone before anything is paid", when: "before 29.08", go: "thread", tid: "fabrikam1" },
-  { id: "d-rollout", icon: "event", tone: "accent", title: "Rollout status with Piotr", note: "Teams · 2 open questions in the thread", when: "15:00", go: "cal" },
-  { id: "d-fabrikam", icon: "task_alt", tone: "plain", title: "Confirm the Q4 date to Fabrikam", note: "Tomasz Bąk asked yesterday · due today", when: "16:30", go: "tasks" },
+// Right now: what matters most at this moment, a group for the mail, one for the tasks and one for the calendar, each
+// read off by rules. `meta` is the group's counts, and `go` the space its head opens. On a row, `tone` colours the tile
+// and the time left; `go` is the space it opens, and `tid` the thread when it is one.
+MailFathomDesign.data.home.rightNowAt = "13:40 · read off by rules";
+MailFathomDesign.data.home.rightNow = [
+  { key: "mail", icon: "mail", label: "Mail", meta: "14 new · 3 waiting on you", go: "mail", items: [
+    { id: "d-contoso", icon: "schedule", tone: "warn", title: "The Contoso decision is due tomorrow", note: "Anna Kowalska asked twice · the counter-proposal has not gone out", when: "tomorrow", go: "thread", tid: "contoso" },
+    { id: "d-bank", icon: "gpp_maybe", tone: "err", title: "An invoice asks to pay a new bank account", note: "Not from fabrikam.com · confirm by phone before anything is paid", when: "before 29.08", go: "thread", tid: "fabrikam1" },
+  ] },
+  { key: "tasks", icon: "task_alt", label: "Tasks", meta: "2 due today", go: "tasks", items: [
+    { id: "d-fabrikam", icon: "task_alt", tone: "plain", title: "Confirm the Q4 date to Fabrikam", note: "Tomasz Bąk asked yesterday · before the call with Piotr", when: "16:30", go: "tasks" },
+    { id: "d-invoice", icon: "task_alt", tone: "plain", title: "Approve invoice 08/2026", note: "Finance needs it before the payment run", when: "17:00", go: "tasks" },
+  ] },
+  { key: "cal", icon: "event", label: "Calendar", meta: "2 meetings today · 1 left", go: "cal", items: [
+    { id: "d-rollout", icon: "event", tone: "accent", title: "Rollout status with Piotr", note: "Teams · 15:00-15:30 · 2 open questions in the thread", when: "in 1 h 20 min", go: "cal" },
+  ] },
 ];
 
-// Now, the widget above My day: where the reader stands and what they have to do, written by the model in a manager's
+// Now, the widget beside Right now: where the reader stands and what they have to do, written by the model in a manager's
 // voice. A paragraph is a list of runs, and `b` marks the few words drawn in bold.
 MailFathomDesign.data.home.now = { updated: "Updated 6 min ago · 13:34", note: "Written from today's mail, calendar and tasks · 4 sources",
   // `c` on a run is the source marker drawn after it; a source opens its conversation, or the Mail list without one.

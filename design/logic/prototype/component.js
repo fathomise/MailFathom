@@ -7663,7 +7663,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         searchWrapStyle: "flex:0 0 auto;position:relative;z-index:1;overflow:hidden;scrollbar-gutter:stable;background:var(--panel);border-bottom:1px solid var(--line);" + (st.phase === "idle" ? "box-shadow:0 6px 14px -12px var(--sh-3);" : ""),
         searchInnerStyle: "display:flex;flex-direction:column;box-sizing:border-box;" + (isMobile ? "gap:10px;" + framePad(12, 12) : "gap:12px;" + framePad(16, 16)),
         idleStyle: "flex:1;display:flex;flex-direction:column;overflow:auto;scrollbar-gutter:stable;min-height:0",
-        /* Now and My day stand side by side, and what is watched runs across the page under them. One column below 1020 px. */
+        /* Now and Right now stand side by side, and what is watched runs across the page under them. One column below 1020 px. */
         startBodyStyle: "box-sizing:border-box;" + (isMobile || narrow
           ? "display:flex;flex-direction:column;gap:22px;" + framePad(isMobile ? 16 : 24, isMobile ? 96 : 32)
           : "display:grid;grid-template-columns:minmax(0, 3fr) minmax(360px, 2fr);gap:26px 28px;align-items:start;max-width:1480px;" + framePad(26, 40)),
@@ -7671,7 +7671,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         startHeadStyle: "display:flex;align-items:center;gap:9px;min-width:0;min-height:24px",
         startHeadTitleStyle: "font-size:16px;font-weight:600;letter-spacing:-0.01em;color:var(--text);white-space:nowrap",
         startHeadNoteStyle: "flex:1;min-width:0;font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
-        /* Now: the widget above My day. Where the reader stands and what they have to do, written by the model the way
+        /* Now: the widget beside Right now. Where the reader stands and what they have to do, written by the model the way
            a manager would say it, with the few things that matter in bold. */
         nowCardStyle: "display:flex;flex-direction:column;gap:" + (isMobile || narrow ? 10 : 14) + "px;min-width:0;box-sizing:border-box;border:1px solid var(--accent-line);border-radius:16px;" +
           "background:linear-gradient(160deg, var(--accent-soft), var(--panel) 62%);box-shadow:0 10px 28px -18px var(--sh-3);padding:" + (isMobile ? "14px 14px 12px" : narrow ? "16px 18px 14px" : "20px 24px 16px"),
@@ -7689,14 +7689,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             open: () => src && (src.tid ? this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: src.tid, cameFrom: false }) : this.goScreen("mail", { mailPane: "list", cameFrom: false })) };
         }) })),
         nowNote: HOME.now.note,
-        myDayCardStyle: "display:flex;flex-direction:column;gap:6px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:" + (isMobile ? "12px 12px 4px" : "14px 14px 6px"),
-        myDayRowStyle: "display:flex;align-items:center;gap:12px;min-width:0;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;min-height:" + (touch ? 60 : 54) + "px;padding:9px 6px",
+        /* Right now: the widget beside Now. What matters most at this moment from the mail, the tasks and the calendar,
+           a group each, read off by rules. */
+        rightNowCardStyle: "display:flex;flex-direction:column;gap:8px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 28px -18px var(--sh-3);padding:" + (isMobile ? "14px 8px 4px" : "18px 12px 6px"),
+        rightNowAt: HOME.rightNowAt,
+        rightNowGroupStyle: "display:flex;align-items:center;gap:8px;min-width:0;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;padding:0 6px;min-height:" + (touch ? 44 : 34) + "px",
+        rightNowRowStyle: "display:flex;align-items:center;gap:12px;min-width:0;box-sizing:border-box;border-radius:8px;min-height:" + (touch ? 60 : 52) + "px;padding:7px 6px",
         /* On a phone a row is its title and one line, so the card stays short. */
-        myDayNoteStyle: "font-size:12.5px;line-height:1.4;color:var(--muted);" + (isMobile ? "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "text-wrap:pretty"),
-        /* My day holds the few things that matter most; the rest is a conversation, so its foot leads to the Agent. */
-        myDayToAgent: () => this.goAgentWith("your day"),
-        myDayAgentStyle: "display:flex;align-items:center;gap:10px;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;padding:10px 8px;min-height:" + (touch ? 52 : 44) + "px",
-        myDay: HOME.myDay.map(d => {
+        rightNowNoteStyle: "font-size:12.5px;line-height:1.4;color:var(--muted);" + (isMobile ? "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "text-wrap:pretty"),
+        /* Right now holds the few things that matter most; the rest is a conversation, so its foot leads to the Agent. */
+        rightNowToAgent: () => this.goAgentWith("your day"),
+        rightNowAgentStyle: "display:flex;align-items:center;gap:10px;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;padding:10px 8px;min-height:" + (touch ? 52 : 44) + "px",
+        rightNow: HOME.rightNow.map(g => ({ icon: g.icon, label: g.label, meta: g.meta, aria: g.label + " - " + g.meta + " - open", open: () => this.goScreen(g.go), items: g.items.map(d => {
           const canWatch = d.go === "thread";
           const watching = canWatch && (st.watched || []).some(w => w.tid === d.tid);
           const subject = (THREADS.find(x => x.id === d.tid) || {}).subject || d.title;
@@ -7709,7 +7713,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             open: () => d.go === "thread" ? this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: d.tid, cameFrom: false }) : this.goScreen(d.go),
             tileStyle: "flex:0 0 34px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:10px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:19px;color:" + tone[0] + ";background:" + tone[1],
             whenStyle: "flex:0 0 auto;font-size:12px;font-weight:600;white-space:nowrap;border-radius:999px;padding:3px 9px;color:" + tone[0] + ";background:" + tone[1] };
-        }),
+        }) })),
         /* Watching is one list across the page: a row per question with its answer in full, what happened to it at the
            row's end, and the ones that moved first. */
         watchListStyle: "display:flex;flex-direction:column;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden",
@@ -9053,7 +9057,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             ? "width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : a.icon === "report" ? "--err-text" : "--text2") + ");font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1"
             : "display:flex;align-items:center;padding:5px 8px;border-radius:8px;font-size:13px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : a.icon === "report" ? "--err-text" : a.icon === "report_off" ? "--text2" : "--muted") + ")",
         })),
-        /* Watching the open conversation puts it on Start under Watching, as *Watch* on a My day row does. */
+        /* Watching the open conversation puts it on Start under Watching, as *Watch* on a Right now row does. */
         threadWatching: (st.watched || []).some(w => w.tid === thread.id) ? "true" : "false",
         threadWatchTitle: (st.watched || []).some(w => w.tid === thread.id) ? "Stop watching this conversation" : "Watch this conversation on Start",
         threadWatchLabel: singlePane || paneNarrow ? "" : (st.watched || []).some(w => w.tid === thread.id) ? "Watching" : "Watch",
