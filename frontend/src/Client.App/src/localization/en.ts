@@ -1014,6 +1014,8 @@ export const en = {
     'compose.from': 'From',
     'compose.to': 'To',
     'compose.recipientOutOfOffice': '{name} is out of office until {day}.',
+    'compose.replyRedirected':
+        'This answer goes to {replyTo}, not to the author, {authors}: the message asked for replies to go there.',
     'compose.cc': 'Cc',
     'compose.bcc': 'Bcc',
     'compose.showCopies': 'Show CC and BCC fields',

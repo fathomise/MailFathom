@@ -1293,7 +1293,9 @@ export class FakeDeployment {
                 spamRow === undefined
                     ? markupOnly
                         ? messages.markupOnlyMessage
-                        : messages.newsletterMessage
+                        : id === messages.redirectedReplyId
+                          ? messages.redirectedReplyMessage
+                          : messages.newsletterMessage
                     : messages.spamMessage(spamRow);
             const flags = this.flags.get(id);
             const marked = this.spamMarked.get(id);

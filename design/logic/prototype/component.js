@@ -1299,7 +1299,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     startReply = (mode, ids) => {
       const id = this.opTargets(ids)[0];
       if (this.refuseSpam(id, mode === "fwd" ? "Spam cannot be forwarded." : "Spam cannot be answered.")) return;
-      const patch = { compose: true, composeDraft: null, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], composeReceipts: {}, composeEncrypt: !!(THREADS.find(t => t.id === id) || {}).encrypted, composeSign: false, composeQuoteDropped: false, composeSendAt: null, sendLaterAsk: null, threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
+      const patch = { compose: true, composeDraft: null, composeMin: false, replyMode: mode, replyThreadId: id, composeToDropped: [], composeCtx: [id], composeCtxBase: [id], composeReceipts: {}, composeEncrypt: !!(THREADS.find(t => t.id === id) || {}).encrypted, composeSign: false, composeQuoteDropped: false, composeSendAt: null, sendLaterAsk: null, threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
       if (this.state.workMode === "tabs") this.openTab("compose", patch);
       else this.setState(patch);
     };
@@ -5516,8 +5516,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const threadParticipants = (msgsFor(replyThread) || []).map(m => m.from).filter((n, i, a) => a.indexOf(n) === i);
       const composeDraft = !rmode && st.composeDraft ? st.composeDraft : null;
       const composeFooter = this.composeFooter(st);
-      const composeToBase = rmode === "fwd" ? [] : rmode === "all" ? threadParticipants : rmode === "reply" ? threadParticipants.slice(-1) : composeDraft ? composeDraft.to.slice() : (st.composeTo || NEW_MESSAGE_TO).slice();
-      const composeTo = composeToBase.concat((st.composeAddTo || []).filter(n => composeToBase.indexOf(n) < 0));
+      /* A reply and a reply to all go where the answered message's Reply-To asks, and say so when that is not its author:
+         nothing authenticates Reply-To, so a genuine From beside a stranger's Reply-To is how a phishing message takes
+         the answer somewhere else. A forward is addressed by whoever forwards it and follows nothing. */
+      const answeredAuthor = replyThread.from || "";
+      const replyToHeader = rmode === "reply" || rmode === "all" ? (HDR_REPLY_TO[replyThread.id] || "") : "";
+      const replyToName = ((replyToHeader.match(/^(.*?)\s*</) || [])[1] || replyToHeader).trim();
+      const replyToMail = (replyToHeader.match(/<([^>]+)>/) || [])[1] || replyToHeader;
+      const replyRedirected = !!replyToHeader && replyToMail.toLowerCase() !== addrOf(answeredAuthor).toLowerCase();
+      const composeToBase = rmode === "fwd" ? [] : rmode === "all" ? (replyRedirected ? [replyToName].concat(threadParticipants.filter(n => n !== answeredAuthor)) : threadParticipants) : rmode === "reply" ? (replyRedirected ? [replyToName] : threadParticipants.slice(-1)) : composeDraft ? composeDraft.to.slice() : (st.composeTo || NEW_MESSAGE_TO).slice();
+      const composeToDropped = st.composeToDropped || [];
+      const composeTo = composeToBase.concat((st.composeAddTo || []).filter(n => composeToBase.indexOf(n) < 0)).filter(n => composeToDropped.indexOf(n) < 0);
       /* What the message is sent with: an answer or a forward of mail a key opened quotes it, so encryption is locked on
          until the quotation is removed. Kept on the instance so the *Sending options* menu reads it as it renders. */
       const prot = protectionOf({
@@ -5547,7 +5556,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return el ? (el.innerText || "").replace(/\u200b/g, "").trim() : "";
       };
       const finishCompose = () => {
-        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeEncrypt: false, composeSign: false, composeQuoteDropped: false, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false, composeFooterOpen: false, fmtMenu: null, fmtPicking: false, fmtOwnColours: [], fmtColour: null, tableCaret: false, pictureSel: null, pasteNotice: null, picturesInMemory: false, cChange: null, selBar: st.selBar && st.selBar.kind === "compose" ? null : st.selBar };
+        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeEncrypt: false, composeSign: false, composeQuoteDropped: false, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], composeToDropped: [], rcptQuery: "", rcptFocus: false, composeFooterOpen: false, fmtMenu: null, fmtPicking: false, fmtOwnColours: [], fmtColour: null, tableCaret: false, pictureSel: null, pasteNotice: null, picturesInMemory: false, cChange: null, selBar: st.selBar && st.selBar.kind === "compose" ? null : st.selBar };
         if ((st.workMode || "classic") === "tabs") this.closeTab("compose");
         this.setState(patch);
       };
@@ -9164,7 +9173,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "position:fixed;inset:0;bottom:" + kb + "px;z-index:90;display:flex;flex-direction:column;background:var(--panel)"
           : "position:fixed;right:26px;bottom:" + kb + "px;width:680px;max-width:calc(100vw - 52px);max-height:calc(" + (low ? "100dvh - 8px" : tall ? "min(86dvh, 760px)" : "86dvh") + " - " + kb + "px);z-index:90;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;box-shadow:0 -1px 0 var(--inset) inset,0 18px 44px var(--sh-3)",
         composeTitle: (st.composeMin ? composeKind + " - collapsed" : composeKind),
-        composeToChips: composeTo.map(reachChip),
+        composeToChips: composeTo.map(n => ({ ...reachChip(n), remove: () => this.setState(s => ({ composeToDropped: (s.composeToDropped || []).concat(n) })) })),
+        // The answer goes to the Reply-To rather than to the author, named both ways, for as long as it is still addressed there.
+        composeRedirectShown: replyRedirected && composeTo.indexOf(replyToName) >= 0,
+        composeRedirectText: "This answer goes to " + replyToHeader + ", not to the author, " + fullAddr(answeredAuthor) + ": the message asked for replies to go there.",
         /* The sending account's footer, under the text and outside it, folded as sent mail folds it: shown on a press,
            never written in. */
         composeFooterShown: composeFooter.length > 0,

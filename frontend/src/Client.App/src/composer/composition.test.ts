@@ -12,6 +12,8 @@ import {
     draftHeld,
     looksLikeAnAddress,
     nothingWrittenYet,
+    replyRedirection,
+    stillRedirected,
     whatWouldBeMissing,
     wireComposition,
 } from './composition';
@@ -194,6 +196,56 @@ describe('answerTo', () => {
         expect(composed.answering).toEqual({ storedEmailId: 'e1', answers: 'everyone' });
         expect(composed.account).toBe('work');
         expect(composed.words).toEqual([]);
+    });
+});
+
+describe('replyRedirection', () => {
+    const author = participant('From', 'ada@example.invalid');
+    const elsewhere = participant('ReplyTo', 'billing@elsewhere.invalid');
+    const redirected = message('Invoice', [author, elsewhere]);
+
+    it.each(['senderOnly', 'everyone'] as const)(
+        'names the Reply-To and the author for a %s answer to a message whose Reply-To is somebody else',
+        (answers) => {
+            expect(replyRedirection(redirected, answers)).toEqual({ replyTo: [elsewhere], authors: [author] });
+        },
+    );
+
+    it('names nothing for a forward, which is addressed by whoever forwards it', () => {
+        expect(replyRedirection(redirected, 'forward')).toBeNull();
+    });
+
+    it('names nothing where the Reply-To is the author, in any letter case', () => {
+        const same = message('Invoice', [author, participant('ReplyTo', 'Ada@EXAMPLE.invalid')]);
+
+        expect(replyRedirection(same, 'senderOnly')).toBeNull();
+    });
+
+    it('names nothing where the message carries no Reply-To', () => {
+        expect(replyRedirection(message('Invoice', [author]), 'everyone')).toBeNull();
+    });
+
+    it('names only the Reply-To addresses that are not the author', () => {
+        const both = message('Invoice', [author, participant('ReplyTo', 'ada@example.invalid'), elsewhere]);
+
+        expect(replyRedirection(both, 'senderOnly')?.replyTo).toEqual([elsewhere]);
+    });
+});
+
+describe('stillRedirected', () => {
+    const elsewhere = participant('ReplyTo', 'billing@elsewhere.invalid');
+    const redirection = { replyTo: [elsewhere], authors: [participant('From', 'ada@example.invalid')] };
+    const composed = answerTo(message('Invoice', [...redirection.authors, elsewhere]), 'senderOnly');
+
+    it('keeps a Reply-To address still among the recipients, wherever it was moved to', () => {
+        expect(stillRedirected(redirection, composed)).toEqual([elsewhere]);
+        expect(stillRedirected(redirection, { ...composed, to: [], bcc: ['Billing@Elsewhere.invalid'] })).toEqual([
+            elsewhere,
+        ]);
+    });
+
+    it('keeps none once every Reply-To address is taken out of the recipients', () => {
+        expect(stillRedirected(redirection, { ...composed, to: ['ada@example.invalid'] })).toEqual([]);
     });
 });
 

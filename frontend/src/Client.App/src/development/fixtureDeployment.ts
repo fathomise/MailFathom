@@ -952,7 +952,11 @@ function messageAnswer(route: string, asked: URLSearchParams): ClientResponse | 
         return answering({ ...body, storedEmailId });
     }
 
-    const message = markupOnly ? messages.markupOnlyMessage : messages.newsletterMessage;
+    const message = markupOnly
+        ? messages.markupOnlyMessage
+        : storedEmailId === messages.redirectedReplyId
+          ? messages.redirectedReplyMessage
+          : messages.newsletterMessage;
 
     return answering({
         ...message,

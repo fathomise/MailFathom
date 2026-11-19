@@ -216,6 +216,51 @@ export function answerTo(
     };
 }
 
+/** Who an answer goes to in place of the author of the message it answers, because that message asked for it. */
+export interface ReplyRedirection {
+    /** The `Reply-To` participants that are not among the authors. */
+    readonly replyTo: readonly MailParticipant[];
+
+    /** The message's `From` participants. */
+    readonly authors: readonly MailParticipant[];
+}
+
+/**
+ * Where an answer is addressed by a `Reply-To` naming somebody other than the author, or `null` where it is not.
+ *
+ * Nothing authenticates `Reply-To` — SPF, DKIM, and DMARC read the envelope and `From` — so a genuine `From` beside a
+ * stranger's `Reply-To` is how a message takes the answer somewhere its author is not. A forward is addressed by
+ * whoever forwards it and follows nothing.
+ *
+ * @param message The message being answered, as the deployment described it.
+ * @param answers Which answer is being written.
+ */
+export function replyRedirection(message: MailMessage, answers: MailDraftAnswer): ReplyRedirection | null {
+    const { participants } = message.headers;
+    const authors = participants.filter((participant) => participant.role === 'From');
+    const replyTo = participants.filter(
+        (participant) =>
+            participant.role === 'ReplyTo' &&
+            !authors.some((author) => sameAddress(author.address, participant.address)),
+    );
+
+    return answers === 'forward' || authors.length === 0 || replyTo.length === 0 ? null : { replyTo, authors };
+}
+
+/**
+ * The `Reply-To` participants of a redirection the composition is still addressed to.
+ *
+ * Removing every one of them from the recipients is the person choosing where the answer goes, which leaves nothing to
+ * warn about.
+ */
+export function stillRedirected(redirection: ReplyRedirection, composition: Composition): readonly MailParticipant[] {
+    const recipients = [...composition.to, ...composition.cc, ...composition.bcc];
+
+    return redirection.replyTo.filter((participant) =>
+        recipients.some((recipient) => sameAddress(recipient, participant.address)),
+    );
+}
+
 /**
  * The draft somebody has just opened, put back into the composer that writes one.
  *

@@ -1037,6 +1037,8 @@ export const pl: Catalogue = {
     'compose.from': 'Od',
     'compose.to': 'Do',
     'compose.recipientOutOfOffice': '{name} jest poza biurem do {day}.',
+    'compose.replyRedirected':
+        'Ta odpowiedź trafi do {replyTo}, a nie do autora, {authors}: wiadomość prosiła o kierowanie odpowiedzi tam.',
     'compose.cc': 'DW',
     'compose.bcc': 'UDW',
     'compose.showCopies': 'Pokaż pola DW i UDW',
