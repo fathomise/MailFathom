@@ -27,14 +27,20 @@ MailFathomDesign.data.tasks = [
     anchor: { kind: "thread", label: "Draft NDA - Northwind", tid: "prawnik2" }, person: "jacek" },
   { id: "t9", t: "Draft the onboarding checklist for Q4 hires", dir: "owe", on: null, when: "", est: "1 hr", mins: 60,
     anchor: null, person: null },
+  /* Two tasks whose context is gone: the thread was removed from the mailbox, and the event from the calendar, so
+     opening what each belongs to says so instead of opening it. */
+  { id: "t11", t: "File the signed copy of the Litware NDA", dir: "owe", on: "09-04", when: "04.09", est: "15 min", mins: 15,
+    anchor: { kind: "thread", label: "Litware NDA - signed copy", tid: "litware-gone" }, person: null },
+  { id: "t12", t: "Send the agenda for the Litware kick-off", dir: "owe", on: "09-07", when: "07.09", est: "20 min", mins: 20,
+    anchor: { kind: "event", label: "Litware kick-off", day: "26", time: "14:00" }, person: null },
 
-  { id: "w2", t: "Delivery confirmation from Tomasz Bąk", dir: "wait", on: "08-27", when: "today", since: "sent Mon 24.08",
+  { id: "w2", t: "Delivery confirmation from Tomasz Bąk", dir: "wait", on: "08-27", when: "today",
     anchor: { kind: "thread", label: "Q4 delivery dates", tid: "fabrikam1" }, person: "tomasz" },
-  { id: "w1", t: "Signed addendum from Anna Kowalska", dir: "wait", on: "08-28", when: "tomorrow", since: "sent Tue 25.08",
+  { id: "w1", t: "Signed addendum from Anna Kowalska", dir: "wait", on: "08-28", when: "tomorrow",
     anchor: { kind: "thread", label: "Contract addendum - signatures", tid: "contoso" }, person: "anna" },
-  { id: "w4", t: "Weekend SLA terms from Ewa Sikora", dir: "wait", on: "09-02", when: "02.09", since: "sent Wed 26.08",
+  { id: "w4", t: "Weekend SLA terms from Ewa Sikora", dir: "wait", on: "09-02", when: "02.09",
     anchor: { kind: "thread", label: "Question about weekend SLA", tid: "klient3" }, person: "ewa" },
-  { id: "w3", t: "Opinion on the indexation cap from Jacek Wrona", dir: "wait", on: "08-27", when: "today", since: "sent Mon 24.08", replied: "Jacek replied at 09:12",
+  { id: "w3", t: "Opinion on the indexation cap from Jacek Wrona", dir: "wait", on: "08-27", when: "today", replied: "Jacek replied at 09:12",
     anchor: { kind: "thread", label: "Legal opinion - indexation cap", tid: "jacek" }, person: "jacek" },
 ];
 
@@ -63,6 +69,3 @@ MailFathomDesign.data.composeFollowUp = [
   { on: "08-31", when: "31.08", label: "Remind me on Monday", hint: "Mon 31.08" },
   { on: "09-03", when: "03.09", label: "Remind me in a week", hint: "Thu 03.09" },
 ];
-
-// How full today is, after the count of open tasks.
-MailFathomDesign.data.taskCapacity = { meetings: "2 meetings", advice: "It fits if you start with the CPI counter-proposal." };

@@ -73,16 +73,24 @@ MailFathomDesign.tasksLogic = (() => {
     const toggleDone = (t) => self.setState(s2 => ({
       taskDone: (s2.taskDone || []).indexOf(t.id) >= 0 ? (s2.taskDone || []).filter(x => x !== t.id) : (s2.taskDone || []).concat([t.id]),
     }));
-    const openTask = (id) => self.setState({ taskOpen: id, taskAnchorPick: false, event: null, notifCenter: false });
+    const openTask = (id) => self.setState({ taskOpen: id, taskAnchorPick: false, taskDlgSaid: null, taskDlgSaving: false, event: null, notifCenter: false });
     const openPlan = (id) => {
       const t = m.find(id);
       self.setState({ taskPlanFor: id, planPick: { on: (t && t.plan && t.plan.on) || (t && t.on && t.on >= TODAY ? t.on : TODAY), time: t && t.plan ? t.plan.time : null, mins: (t && t.mins) || 30 } });
     };
     const openAnchor = (a) => {
       if (!a) return;
-      if (a.kind === "thread") self.setState({ taskOpen: null, screen: "mail", threadId: a.tid, mailPane: "thread", threadOpen: true, cameFrom: false });
+      /* What a task belongs to can be gone since: a thread no longer in the mailbox is said on Tasks' status line, an
+         event no longer on the calendar on the calendar's. */
+      if (a.kind === "thread") {
+        if (!(D.threads || []).some(t2 => t2.id === a.tid)) { self.setState({ taskOpen: null, taskSaid: "The thread could not be opened." }); return; }
+        self.setState({ taskOpen: null, screen: "mail", threadId: a.tid, mailPane: "thread", threadOpen: true, cameFrom: false });
+      }
       else if (a.kind === "person") self.setState({ taskOpen: null, screen: "people", personId: a.pid, peoplePane: "detail" });
-      else self.setState({ taskOpen: null, screen: "cal", event: (ctx.calAllDays.find(d => d.d === a.day) || { ev: [] }).ev.map(e => Object.assign({ day: a.day }, e)).find(e => e.t === a.label) || null });
+      else {
+        const ev = (ctx.calAllDays.find(d => d.d === a.day) || { ev: [] }).ev.map(e => Object.assign({ day: a.day }, e)).find(e => e.t === a.label) || null;
+        self.setState({ taskOpen: null, screen: "cal", event: ev, calSaid: ev ? null : "That event is no longer on the calendar." });
+      }
     };
     const followUp = (t) => {
       if (t.anchor && t.anchor.kind === "thread") { self.setState({ taskOpen: null }); self.startReply("reply", [t.anchor.tid]); }
@@ -151,8 +159,6 @@ MailFathomDesign.tasksLogic = (() => {
         clashStyle: chip + "color:var(--err-text);background:var(--err-soft, var(--hover));border:1px solid var(--err);",
         dueText,
         dueStyle: "font-size:" + (touch ? 13 : 12) + "px;white-space:nowrap;color:" + (kind === "wait" && follow ? "var(--warn)" : repliedNow ? "var(--ok, var(--accent-d))" : "var(--text2)"),
-        sinceShown: kind === "wait" && !repliedNow,
-        since: t.since || "",
         followShown: follow,
         follow: (e) => { if (e) e.stopPropagation(); followUp(t); },
         followStyle: "border-radius:12px;white-space:nowrap;color:var(--onaccent);background:var(--accent);" +
@@ -278,9 +284,12 @@ MailFathomDesign.tasksLogic = (() => {
       { id: "t10", time: "10:00", h: 10, note: "" },
       { id: "t2", time: "16:00", h: 16, note: "moved from 15:00: it clashed with Rollout status with Piotr" },
     ].filter(p => { const t = m.find(p.id); return t && !m.done(t) && !(t.plan && t.plan.time === p.time && t.plan.on === TODAY); });
-    const openTodayOwe = owe.filter(t => !m.done(t) && inToday(t));
-    const meetCount = m.meetingsOn(TODAY).length;
-    const minsToday = openTodayOwe.reduce((a2, t) => a2 + (t.mins || 30), 0);
+    const dueTodayN = owe.filter(t => !m.done(t) && t.on === TODAY).length;
+    const eventsTodayN = (ctx.calAllDays.find(d => d.d === TODAY.slice(3)) || { ev: [] }).ev.filter(e => !e.taskId).length;
+    const askLayout = () => self.setState(s2 => {
+      const n = (s2.layoutAsks || 0) + 1;
+      return n >= 3 ? { layoutAsks: n, layoutSpent: true, layoutOffer: false, taskView: "today" } : { layoutAsks: n, layoutSpent: false, layoutOffer: true, taskView: "today" };
+    });
 
     /* The open task. */
     const ot = st.taskOpen ? m.find(st.taskOpen) : null;
@@ -310,11 +319,15 @@ MailFathomDesign.tasksLogic = (() => {
 
     return {
       taskView: view,
+      /* One line under the head says what the last write or open did: *Saved.*, or why a task or its thread could not be
+         opened. The next change replaces it. */
+      taskSaidShown: !!st.taskSaid,
+      taskSaid: st.taskSaid || "",
       taskViews: VIEWS.map(v => ({
         label: v.label,
         count: counts[v.id] ? String(counts[v.id]) : "",
         hasCount: !!counts[v.id],
-        pick: () => self.setState({ taskView: v.id }),
+        pick: () => self.setState({ taskView: v.id, taskSaid: null }),
         countStyle: "font-family:'Geist',system-ui,sans-serif;font-size:11px;border-radius:8px;padding:0 6px;" +
           (view === v.id ? (touch ? "background:var(--accent-soft);color:var(--accent-d);" : "background:var(--onaccent);color:var(--accent-d);") : "background:var(--rail);color:var(--muted);"),
         style: touch
@@ -342,7 +355,7 @@ MailFathomDesign.tasksLogic = (() => {
       tbTaskLabel: tbFull ? "New task" : "",
       taskActions: [
         { icon: "search", label: "Find in mail", run: () => self.setState({ screen: "agent" }) },
-        { icon: "event_available", label: "Lay out the day", run: () => self.setState({ taskView: "today", layoutOffer: true }) },
+        { icon: "event_available", label: "Lay out the day", run: askLayout },
         { icon: "check_circle", label: showDone ? "Hide done" : "Show done", run: () => self.setState(s2 => ({ showDone: !s2.showDone })) },
         { icon: "download", label: "Export", run: () => {} },
       ].map(a2 => ({ icon: a2.icon, label: tbFull ? a2.label : "", title: a2.label, run: a2.run, style: tbFull ? tbBtn : tbIcon + ";flex:0 0 auto" })),
@@ -364,11 +377,15 @@ MailFathomDesign.tasksLogic = (() => {
       taskDayHint: touch ? "Plan a task from its own Plan." : "Drag a task onto an hour to plan it.",
       /* Where the day stands above the list, only the hours that hold something are drawn. */
       taskDayRows: isMobile || compact ? timeline(TODAY).filter(r => !r.free) : timeline(TODAY),
-      capacityText: "Today you have " + openTodayOwe.length + " tasks (≈ " + lenLabel(minsToday) + ") and " + meetCount + (meetCount === 1 ? " meeting" : " meetings") + ". " + D.taskCapacity.advice,
+      capacityText: (dueTodayN === 1 ? "One task is due today." : dueTodayN + " tasks are due today.") + " " +
+        (eventsTodayN === 1 ? "The calendar already holds one event." : "The calendar already holds " + eventsTodayN + " events."),
       layoutOfferShown: !!st.layoutOffer,
       layoutIdle: !st.layoutOffer,
+      /* The third *Lay out today* of a session finds the deployment's allowance for laying out days spent. */
+      layoutSpentShown: !st.layoutOffer && !!st.layoutSpent,
       layoutRows: layoutPlan.map(p => { const t = m.find(p.id); return { time: p.time + "–" + hhmm(toMin(p.time) + (t.mins || 30)), t: t.t, note: p.note, hasNote: !!p.note }; }),
       layoutNothing: !layoutPlan.length,
+      layoutSomething: !!layoutPlan.length,
       layoutMissed: "Not today: Prepare the IT contract list for audit (2 hrs) — no two free hours are left today, and it is due 03.09.",
       layoutApply: () => {
         layoutPlan.forEach(p => setOver(p.id, { plan: { on: TODAY, time: p.time, h: p.h } }));
@@ -376,7 +393,7 @@ MailFathomDesign.tasksLogic = (() => {
         self.notify(layoutPlan.length + (layoutPlan.length === 1 ? " task" : " tasks") + " planned into today.", { kind: "success", title: "Day laid out" });
       },
       layoutDismiss: () => self.setState({ layoutOffer: false }),
-      autoSchedule: () => self.setState({ layoutOffer: true }),
+      autoSchedule: askLayout,
 
       /* The controls of the task and plan dialogs, at 44 px under a finger. */
       taskLinkStyle: "display:flex;align-items:center;white-space:nowrap;color:var(--accent-d);" + (touch ? "min-height:44px;padding:0 10px;font-size:13px;border-radius:12px;" : "font-size:12px;"),
@@ -388,11 +405,12 @@ MailFathomDesign.tasksLogic = (() => {
 
       /* The new-task dialog, when it was opened on a thread, a person or an event. */
       newTaskHead: st.newTaskCtx && st.newTaskCtx.dir === "wait" ? "New waiting task" : "New task",
-      newTaskCtxShown: !!(st.newTaskCtx && st.newTaskCtx.anchor),
-      newTaskCtxGlyph: st.newTaskCtx && st.newTaskCtx.anchor ? ANCHOR_GLYPH[st.newTaskCtx.anchor.kind] : "",
-      newTaskCtxKind: st.newTaskCtx && st.newTaskCtx.anchor ? ({ thread: "Belongs to the thread", person: "Belongs to", event: "Belongs to the event" })[st.newTaskCtx.anchor.kind] : "",
-      newTaskCtxLabel: st.newTaskCtx && st.newTaskCtx.anchor ? st.newTaskCtx.anchor.label : "",
-      newTaskCtxClear: () => self.setState(s2 => ({ newTaskCtx: Object.assign({}, s2.newTaskCtx || {}, { anchor: null }) })),
+      /* A thread or an event is what a task is anchored to; a person is who it is with, the same card, *Belongs to*. */
+      newTaskCtxShown: !!(st.newTaskCtx && (st.newTaskCtx.anchor || st.newTaskCtx.withName)),
+      newTaskCtxGlyph: st.newTaskCtx && st.newTaskCtx.anchor ? ANCHOR_GLYPH[st.newTaskCtx.anchor.kind] : "person",
+      newTaskCtxKind: st.newTaskCtx && st.newTaskCtx.anchor ? ({ thread: "Belongs to the thread", person: "Belongs to", event: "Belongs to the event" })[st.newTaskCtx.anchor.kind] : "Belongs to",
+      newTaskCtxLabel: st.newTaskCtx && st.newTaskCtx.anchor ? st.newTaskCtx.anchor.label : (st.newTaskCtx && st.newTaskCtx.withName) || "",
+      newTaskCtxClear: () => self.setState(s2 => ({ newTaskCtx: Object.assign({}, s2.newTaskCtx || {}, s2.newTaskCtx && s2.newTaskCtx.anchor ? { anchor: null } : { withName: null, person: null }) })),
       tkTitleDefault: (st.newTaskCtx && st.newTaskCtx.title) || "",
       tkDueDefault: (st.newTaskCtx && st.newTaskCtx.when) || "",
       newTaskDirs: [{ id: "owe", label: "I owe this" }, { id: "wait", label: "I am waiting for this" }].map(d2 => ({
@@ -407,11 +425,19 @@ MailFathomDesign.tasksLogic = (() => {
       taskDlgTitle: ot ? ot.t : "",
       taskDlgHead: otDir === "wait" ? "Waiting for" : "Task",
       taskDlgDirs: [{ id: "owe", label: "I owe this" }, { id: "wait", label: "I am waiting for this" }].map(d2 => ({
-        label: d2.label, pick: () => ot && setOver(ot.id, { dir: d2.id }), style: segBtn(otDir === d2.id) + "flex:1;",
+        label: d2.label,
+        pick: () => {
+          if (!ot || otDir === d2.id) return;
+          /* A reply already closed this waiting task, so the server will not turn it round. */
+          if (m.replied(ot)) { self.setState({ taskDlgSaid: "A reply already answered this task, so which way it runs cannot change." }); return; }
+          setOver(ot.id, { dir: d2.id });
+          self.setState({ taskDlgSaid: null, taskSaid: "Saved." });
+        },
+        style: segBtn(otDir === d2.id) + "flex:1;",
       })),
       taskDlgDueLabel: otDir === "wait" ? "Follow up on" : "Due",
       taskDlgDays: [{ on: null, label: "No day" }].concat(DAY_CHIPS).concat([{ on: "09-02", label: "Wed 02.09" }]).map(c => ({
-        label: c.label, pick: () => ot && setOver(ot.id, { on: c.on, when: dayLabel(c.on) }), style: segBtn(ot && (ot.on || null) === c.on),
+        label: c.label, pick: () => { if (!ot) return; setOver(ot.id, { on: c.on, when: dayLabel(c.on) }); self.setState({ taskDlgSaid: null, taskSaid: "Saved." }); }, style: segBtn(ot && (ot.on || null) === c.on),
       })),
       taskDlgPlanShown: otDir === "owe",
       taskDlgPlanned: !!(ot && ot.plan),
@@ -445,19 +471,26 @@ MailFathomDesign.tasksLogic = (() => {
       taskDlgReopenShown: !!(ot && m.replied(ot)),
       taskDlgReopen: () => ot && self.setState(s2 => ({ taskReopen: (s2.taskReopen || []).concat([ot.id]) })),
       taskDlgRem: otRem ? (otRem === 1 ? "1 reminder" : otRem + " reminders") : "No reminder",
+      /* A reminder is measured back from the due day, so a task with no day offers no *Change*. */
+      taskDlgRemChangeShown: !!(ot && ot.on),
+      taskDlgSaidShown: !!st.taskDlgSaid,
+      taskDlgSaid: st.taskDlgSaid || "",
+      taskDlgSaveLabel: st.taskDlgSaving ? "Saving…" : "Save",
       taskDlgRemOpen: () => ot && self.setState({ remFor: { key: ot.id, title: ot.t, timed: false, kind: "task", hint: "before 09:00 · " + (ot.when || "no day"), src: "Tasks" } }),
       taskDlgDone: !!(ot && m.done(ot)),
       taskDlgDoneLabel: ot && m.done(ot) ? (otDir === "wait" ? "Still waiting" : "Mark as not done") : (otDir === "wait" ? "Mark as received" : "Mark as done"),
       taskDlgToggleDone: () => { if (ot) { toggleDone(ot); self.setState({ taskOpen: null }); } },
       taskDlgDelete: () => { if (ot) { const id = ot.id, t = ot.t; self.setState({ taskOpen: null }); self.askHide("tasks", [id], "Delete task?", t + " will disappear from your tasks."); } },
       taskDlgTitleRef: self.taskDlgTitleRef,
+      /* *Save* reads *Saving…* while the write is out, and the dialog closes on *Saved.* in the status line. */
       taskDlgSave: () => {
-        if (!ot) return;
+        if (!ot || st.taskDlgSaving) return;
         const v = ((self.taskDlgTitleRef.current || {}).value || "").trim();
         if (v && v !== ot.t) setOver(ot.id, { t: v });
-        self.setState({ taskOpen: null, taskAnchorPick: false });
+        self.setState({ taskDlgSaving: true });
+        setTimeout(() => self.setState({ taskOpen: null, taskAnchorPick: false, taskDlgSaving: false, taskDlgSaid: null, taskSaid: "Saved." }), 700);
       },
-      closeTaskDlg: () => self.setState({ taskOpen: null, taskAnchorPick: false }),
+      closeTaskDlg: () => self.setState({ taskOpen: null, taskAnchorPick: false, taskDlgSaid: null, taskDlgSaving: false }),
 
       /* Planning a time. */
       planOpen: !!pt,
@@ -491,7 +524,7 @@ MailFathomDesign.tasksLogic = (() => {
   const commitments = (self, ctx) => {
     const st = ctx.st || self.state;
     const m = model(st, ctx);
-    const openTask = (id) => self.setState({ taskOpen: id, taskAnchorPick: false });
+    const openTask = (id) => self.setState({ taskOpen: id, taskAnchorPick: false, taskDlgSaid: null, taskDlgSaving: false });
     const openPlan = (id) => {
       const t = m.find(id);
       self.setState({ taskPlanFor: id, planPick: { on: (t && t.plan && t.plan.on) || (t && t.on && t.on >= TODAY ? t.on : TODAY), time: t && t.plan ? t.plan.time : null, mins: (t && t.mins) || 30 } });

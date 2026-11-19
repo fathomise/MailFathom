@@ -26,6 +26,11 @@ MailFathomDesign.data.calendarDays = [
   { dow: "SUN", d: "30", today: false, ev: [] },
 ];
 
+// Dates the mail named that are not on the calendar yet, under *Detected in mail*: *Add* puts one on its day.
+MailFathomDesign.data.proposedDates = [
+  { id: "pd1", t: "Fabrikam answer on the Q4 dates", when: "Fri 28.08", day: "28", src: "Q4 delivery dates" },
+  { id: "pd2", t: "Weekend SLA terms due from Adventure Works", when: "Sun 30.08", day: "30", src: "Question about weekend SLA" },
+];
 
 // The sample week as dates, for reading a day out of a typed event.
 MailFathomDesign.data.weekdayDates = { "monday": "24", "tuesday": "25", "wednesday": "26", "thursday": "27", "friday": "28", "saturday": "29", "sunday": "30", "today": "27", "tomorrow": "28", "day after tomorrow": "29" };

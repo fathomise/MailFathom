@@ -12,10 +12,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     composeFormatting: COMPOSE_FMT, composeFormattedDraft: COMPOSE_FORMATTED_DRAFT,
     accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, freshness: FRESHNESS, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, mailAccounts: MAIL_ACCOUNTS,
     home: HOME, savedAnswers: SAVED_ANSWERS, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
-    calendarBriefing: CALENDAR_BRIEFING, eventFromThread: EVENT_FROM_THREAD, taskCapacity: TASK_CAPACITY,
+    calendarBriefing: CALENDAR_BRIEFING, eventFromThread: EVENT_FROM_THREAD,
     starterChips: STARTER_CHIPS, anotherTimeReply: ANOTHER_TIME, agentScheduledEvents: AGENT_SCHEDULED,
     plans: PLANS,
-    calendarDays: CAL_DAYS, weekdayDates: DOW_DAY, tasks: TASKS, taskFromThread: TASK_FROM_THREAD, composeFollowUp: COMPOSE_FOLLOW_UP,
+    calendarDays: CAL_DAYS, proposedDates: CAL_DATES, weekdayDates: DOW_DAY, tasks: TASKS, taskFromThread: TASK_FROM_THREAD, composeFollowUp: COMPOSE_FOLLOW_UP,
     timelineToday: BK_TIMELINE_TODAY, draftContoso: BK_DRAFT_CONTOSO, demoConversationId: DEMO_CONV_ID, demoScript: DEMO_SCRIPT,
     nextDefault: NEXT_DEFAULT, seedConversations: SEED_CONVS, agentReplies: AGENT_REPLIES, agentFallback: AGENT_FALLBACK,
     agentDraftHtml: AGENT_DRAFT_HTML, draftRewrites: DRAFT_REWRITES, rewritePresets: REWRITE_PRESETS,
@@ -71,6 +71,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
                         unavailable (button hidden).
        t_proposed  3.3a proposed task (AI tag, Accept, Dismiss task), “No day” group, status line, partly refused.
        t_states    3.3b empty list, everything done, reading, reading more, failed.
+       t_commit    3.3c tasks not read on a thread, an event, the calendar's days and a person; a task not opened, gone,
+                        or whose context is gone.
        p_none      3.4a “Open somebody to read their page.” (fold and wider); status line on a person's page.
        p_states    3.4b empty address books, reading, failed, conversations reading / failed / none.
      AGENT
@@ -2818,7 +2820,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return;
       }
       /* A task's notification opens that task, over Tasks, rather than the list it is somewhere in. */
-      if (n.go.task) { this.goScreen("tasks", { taskOpen: n.go.task, taskAnchorPick: false }); return; }
+      if (n.go.task) {
+        /* A reminder whose task was deleted since opens Tasks and says so rather than an empty dialog. */
+        const there = TASKS.concat(this.state.extraTasks || []).some(t => t.id === n.go.task && ((this.state.hidden || {}).tasks || []).indexOf(t.id) < 0);
+        this.goScreen("tasks", there ? { taskOpen: n.go.task, taskAnchorPick: false, taskDlgSaid: null, taskSaid: null } : { taskOpen: null, taskSaid: "That task is no longer on your list." });
+        return;
+      }
       if (n.go.thread) this.goScreen("mail", Object.assign(this.leaveOutbox(), { mailPane: "thread", threadOpen: true, threadId: n.go.thread, cameFrom: false, sel: [] }));
       else this.goScreen(n.go.screen, n.go.screen === "mail" ? { mailPane: "list" } : {});
     };
@@ -7831,7 +7838,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         eventNote: st.event && st.event.kind === "deadline"
           ? "Deadline detected in the correspondence - changing the date in the thread updates this entry."
           : "Event linked to a thread; attendees come from the thread.",
-        eventTasks: st.event ? TK.forEvent(st.event.t) : [],
+        /* Four chips, then *+N*, which shows the rest; the person card draws every row. */
+        eventTasks: st.event ? (st.tasksAllFor === "ev:" + st.event.t ? TK.forEvent(st.event.t) : TK.forEvent(st.event.t).slice(0, 4)) : [],
+        eventTasksMoreShown: !!(st.event && st.tasksAllFor !== "ev:" + st.event.t && TK.forEvent(st.event.t).length > 4),
+        eventTasksMore: st.event ? "+" + Math.max(0, TK.forEvent(st.event.t).length - 4) : "",
+        eventTasksMoreTitle: st.event ? "Show every task (" + Math.max(0, TK.forEvent(st.event.t).length - 4) + " more)" : "",
+        eventTasksShowAll: () => st.event && this.setState({ tasksAllFor: "ev:" + st.event.t }),
         eventTasksNone: !!(st.event && !TK.forEvent(st.event.t).length),
         eventAddTask: () => {
           const e = st.event;
@@ -7865,7 +7877,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           (touch ? "box-sizing:border-box;display:flex;align-items:center;min-height:44px;font-size:13px;padding:0 14px" : "font-size:12px;padding:6px 12px"),
         calViews: ["Day", "Week", "Month", "Agenda"].map(v => ({
           label: v,
-          pick: () => this.setState({ calView: v }),
+          pick: () => this.setState({ calView: v, calSaid: null }),
           style: touch
             ? "display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:36px;border-radius:8px;white-space:nowrap;font-size:13px;" +
               (isMobile ? "flex:1;padding:0 4px;" : "padding:0 14px;") +
@@ -7889,7 +7901,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : "flex:1;min-width:0;overflow:auto;display:flex;flex-direction:column;padding:8px 24px 20px 24px",
         calHours: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17].map(h => ({
           label: (h < 10 ? "0" : "") + h + ":00",
-          ev: calToday.ev.filter(e => (e.h || 0) === h).map(e => calTask(e, "day", {
+          ev: calToday.ev.filter(e => (e.h || 0) === h && e.kind !== "due").map(e => calTask(e, "day", {
             t: e.t, time: e.time, src: e.src || "", hasSrc: !!e.src,
             style: evStyle(e.kind) + (isSel("events", calToday.d + "|" + e.time + "|" + e.t) ? "background:var(--accent-soft);border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent);" : ""),
             press: this.pressFor("events", (calToday.d) + "|" + e.time + "|" + e.t, e.t, [
@@ -7902,6 +7914,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             open: this.rowTap("events", calToday.d + "|" + e.time + "|" + e.t, () => this.setState({ event: Object.assign({ day: calToday.d }, e) })),
           })),
         })),
+        /* *Due on this day*: the day's due tasks as a list above the hours, each opening its task. */
+        calDayDueShown: calToday.ev.some(e => e.kind === "due"),
+        calDayDue: calToday.ev.filter(e => e.kind === "due").map(e => calTask(e, "day", { t: e.t, time: e.time, src: "", hasSrc: false, style: "" })),
         calMonthOuterStyle: isMobile
           ? "flex:0 0 auto;display:flex;flex-direction:column"
           : "flex:1;min-width:0;display:flex;flex-direction:column",
@@ -8034,6 +8049,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "flex:0 0 auto;display:flex;flex-direction:column;gap:11px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:14px"
           : "width:312px;flex:0 0 312px;display:flex;flex-direction:column;gap:11px;overflow:auto;background:var(--sub);border-left:1px solid var(--line);padding:16px 18px",
         /* The calendar's side holds the same proposals Tasks › Proposed does: one list, answered from either place. */
+        calSideBtnStyle: "font-size:12px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;" +
+          (touch ? "display:flex;align-items:center;box-sizing:border-box;min-height:44px;padding:0 14px;" : "padding:6px 12px;"),
+        calSaidShown: !!st.calSaid,
+        calSaid: st.calSaid || "",
+        /* *Detected in mail* stands above *Proposed tasks*: dates the mail named that are not on the calendar yet. */
+        calDates: CAL_DATES.filter(p => (st.calDone || []).indexOf(p.id) < 0).map(p => ({
+          t: p.t, when: p.when,
+          add: () => this.setState(s2 => ({
+            calDone: (s2.calDone || []).concat([p.id]),
+            calAdded: (s2.calAdded || []).concat([{ day: p.day, time: "all day", h: 0, t: p.t, kind: "deadline", src: p.src }]),
+          })),
+          skip: () => this.setState(s2 => ({ calDone: (s2.calDone || []).concat([p.id]) })),
+        })),
+        calNoDates: CAL_DATES.every(p => (st.calDone || []).indexOf(p.id) >= 0),
         calProposed: TK.proposals,
         calNoProposals: !TK.proposals.length,
         calPlanDay: () => this.goScreen("tasks", { taskView: "today", layoutOffer: true }),
@@ -8241,7 +8270,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         personOwedNone: !TK.owedBy(person.id).length,
         personOweLabel: "You owe " + person.name.split(" ")[0],
         personOwedLabel: person.name.split(" ")[0] + " owes you",
-        personAddTask: () => this.openNewTaskWith({ anchor: { kind: "person", label: person.name, pid: person.id }, person: person.id }),
+        /* A person is who a task is with, never what it is anchored to: the new task carries the person alone. */
+        personAddTask: () => this.openNewTaskWith({ person: person.id, withName: person.name }),
         personAddTaskStyle: "margin-left:auto;display:flex;align-items:center;gap:6px;border-radius:8px;font-size:12px;color:var(--accent-d);border:1px solid var(--accent-line);background:var(--accent-soft);" +
           (touch ? "min-height:44px;padding:0 12px;" : "padding:5px 10px;"),
         personThreads: person.threads.map(t3 => ({
@@ -8314,11 +8344,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             : "display:flex;align-items:center;padding:5px 8px;border-radius:8px;font-size:13px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : a.icon === "report" ? "--err-text" : a.icon === "report_off" ? "--text2" : "--muted") + ")",
         })),
         /* The commitments the open thread carries, under its address line: each opens its task. */
-        threadTasks: thread ? TK.forThread(thread.id).map(x => Object.assign(x, {
+        threadTasks: thread ? TK.forThread(thread.id).slice(0, st.tasksAllFor === "th:" + thread.id ? undefined : 4).map(x => Object.assign(x, {
           chipStyle: "display:inline-flex;align-items:center;gap:7px;min-width:0;max-width:100%;box-sizing:border-box;border:1px solid var(--line);background:var(--sub);border-radius:999px;font-size:12px;color:var(--text2);" +
             (touch ? "min-height:44px;padding:0 14px;" : "padding:4px 11px;"),
         })) : [],
         threadTasksShown: !!(thread && TK.forThread(thread.id).length),
+        threadTasksMoreShown: !!(thread && st.tasksAllFor !== "th:" + thread.id && TK.forThread(thread.id).length > 4),
+        threadTasksMore: thread ? "+" + Math.max(0, TK.forThread(thread.id).length - 4) : "",
+        threadTasksMoreTitle: thread ? "Show every task (" + Math.max(0, TK.forThread(thread.id).length - 4) + " more)" : "",
+        threadTasksShowAll: () => thread && this.setState({ tasksAllFor: "th:" + thread.id }),
+        threadTasksMoreStyle: "display:inline-flex;align-items:center;box-sizing:border-box;border-radius:999px;font-size:12px;color:var(--muted);" + (touch ? "min-height:44px;padding:0 14px;" : "padding:4px 9px;"),
         threadTasksRowStyle: "display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px " + (singlePane ? "27px" : "22px"),
         backToList: () => this.setState({ mailPane: "list", replyDock: null, replyChooser: null }),
         threadListStyle: "position:relative;" + (singlePane
@@ -9118,10 +9153,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             const who = composeTo[0] || "the recipient";
             const tid = st.replyThreadId;
             const th = THREADS.find(t => t.id === tid);
+            /* Written once the send is queued, anchored to the thread a reply or a forward came from, with one reminder at
+               the start of the follow-up day. */
+            const waitId = "tw" + Date.now();
             this.setState(s2 => ({ composeFollow: null, extraTasks: (s2.extraTasks || []).concat([{
-              id: "tw" + Date.now(), t: "Reply from " + who, dir: "wait", on: follow.on, when: follow.when, since: "sent today",
+              id: waitId, t: "Reply from " + who, dir: "wait", on: follow.on, when: follow.when,
               anchor: th ? { kind: "thread", label: th.subject, tid } : null, person: ((CONTACTS.find(c => c.name === who) || {}).id) || null,
-            }]) }));
+            }]), remMap: Object.assign({}, s2.remMap || {}, { [waitId]: [0] }) }));
           }
           if (at) {
             const tid = this.notify("It leaves " + said.long + ". Until then it waits in the Outbox, where it can still be cancelled.", {

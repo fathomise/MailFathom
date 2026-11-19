@@ -850,7 +850,7 @@ Project repository: https://github.com/fathomise/MailFathom
               <sc-for list="{{ tasksToday }}" as="t" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:11px;padding:11px 14px;border-bottom:1px solid var(--line2)"><span style="width:18px;height:18px;flex:0 0 18px;box-sizing:border-box;border-radius:50%;border:1.5px solid var(--border2)"></span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px">{{ t.t }}</span><span style="font-size:12px;color:var(--muted)">{{ t.meta }}</span></div></div></sc-for>
             </div>
             <div style="{{ f.sidePanel }}">
-              <div style="font-size:11px;color:var(--muted);font-weight:600">Today's capacity</div>
+              <div style="font-size:11px;color:var(--muted);font-weight:600">Day capacity</div>
               <div style="font-size:13px;line-height:1.5;color:var(--text2);text-wrap:pretty">{{ sample.work.capacityLine }}</div>
               <div style="font-size:14px;font-weight:600;padding-top:4px">Here is a way to fit the rest of today</div>
               <div style="display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden"><sc-for list="{{ placements }}" as="p" hint-placeholder-count="4"><div style="display:flex;gap:10px;align-items:baseline;padding:9px 11px;border-bottom:1px solid var(--line2);font-size:13px"><span style="flex:0 0 88px;font-variant-numeric:tabular-nums;color:var(--accent-d)">{{ p.at }}</span><span style="min-width:0;text-wrap:pretty">{{ p.t }}</span></div></sc-for></div>
@@ -866,7 +866,7 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="{{ vt.head }}">Waiting · nothing left · allowance spent · unavailable - the same panel at every composition</div>
       <sc-for list="{{ layoutStates }}" as="x" hint-placeholder-count="4"><div style="width:240px;display:flex;flex-direction:column;gap:7px"><div style="font-size:12px;color:var(--muted)">{{ x.label }}</div>
         <div style="display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px;min-height:190px;box-sizing:border-box">
-          <div style="font-size:11px;color:var(--muted);font-weight:600">Today's capacity</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:600">Day capacity</div>
           <div style="font-size:13px;line-height:1.5;color:var(--text2)">{{ x.cap }}</div>
           <sc-if value="{{ x.spin }}" hint-placeholder-val="{{ false }}"><div role="status" style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted)"><span style="display:inline-block;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--accent-d);animation:mfspin 1.15s linear infinite">progress_activity</span>{{ x.text }}</div></sc-if>
           <sc-if value="{{ x.plain }}" hint-placeholder-val="{{ false }}"><div style="{{ x.textStyle }}"><span style="{{ x.icStyle }}">{{ x.icon }}</span><span style="text-wrap:pretty">{{ x.text }}</span></div></sc-if>
@@ -941,6 +941,24 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="width:240px;display:flex;flex-direction:column;gap:7px"><div style="font-size:12px;color:var(--muted)">Reading</div><div aria-busy="true" style="display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:220px;overflow:hidden"><sc-for list="{{ shimList }}" as="x" hint-placeholder-count="4"><div style="display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--line2)"><div style="{{ x.a }};width:18px;height:18px;flex:0 0 18px"></div><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div style="{{ x.b }}"></div><div style="{{ x.c }}"></div></div></div></sc-for></div></div>
       <div style="width:240px;display:flex;flex-direction:column;gap:7px"><div style="font-size:12px;color:var(--muted)">Reading more</div><div style="display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:220px;overflow:hidden"><sc-for list="{{ tasksToday }}" as="t" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:11px;padding:11px 14px;border-bottom:1px solid var(--line2)"><span style="width:18px;height:18px;flex:0 0 18px;box-sizing:border-box;border-radius:50%;border:1.5px solid var(--border2)"></span><span style="font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.t }}</span></div></sc-for><div role="status" style="display:flex;align-items:center;gap:7px;padding:12px 14px;font-size:13px;color:var(--muted)"><span style="display:inline-block;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--accent-d);animation:mfspin 1.15s linear infinite">progress_activity</span>Reading more of the list…</div></div></div>
       <div style="width:240px;display:flex;flex-direction:column;gap:7px"><div style="font-size:12px;color:var(--muted)">Failed</div><div role="alert" style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:34px 16px;text-align:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:220px;box-sizing:border-box"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:32px;line-height:1;color:var(--err-text)">error</span><div style="font-size:14px;line-height:1.55;color:var(--text2)">The task list could not be read.</div><div style="display:inline-flex;padding:7px 14px;border-radius:8px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--border2)">Try again</div></div></div>
+    </div></sc-for>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ show.t_commit }}" hint-placeholder-val="{{ true }}">
+  <div id="3.3c" style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;flex-direction:column;gap:8px;width:980px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span style="font-size:12px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:6px;padding:3px 8px">3.3c</span><span style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Commitments that could not be read or written</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;color:var(--muted);background:var(--sub);border:1px solid var(--line);border-radius:6px;padding:3px 8px">state="t_commit"</span></div>
+      <div style="font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty">Every surface that reads a person's tasks reads them on its own and says on its own line when it could not, where the tasks would stand, and nothing beside it changes. An empty side is never said while a read is out or after one failed. A task dialog's refusal stands under its reminders and the dialog stays open; a task gone while it was open closes the dialog and the status line says so.</div>
+    </div>
+    <sc-for list="{{ vthemes }}" as="vt" hint-placeholder-count="1"><div data-theme="{{ vt.theme }}" style="{{ vt.style }}">
+      <div style="{{ vt.head }}">The same lines at every composition</div>
+      <sc-for list="{{ commitFails }}" as="x" hint-placeholder-count="8"><div style="width:320px;display:flex;flex-direction:column;gap:7px"><div style="font-size:12px;color:var(--muted)">{{ x.label }}</div>
+        <div style="{{ x.boxStyle }}">
+          <sc-if value="{{ x.hasHead }}" hint-placeholder-val="{{ true }}"><div style="font-size:11px;color:var(--muted);font-weight:600">{{ x.head }}</div></sc-if>
+          <div role="{{ x.role }}" style="{{ x.textStyle }}">{{ x.text }}</div>
+          <sc-if value="{{ x.hasAction }}" hint-placeholder-val="{{ false }}"><div style="align-self:flex-start;font-size:12px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:6px 12px">{{ x.action }}</div></sc-if>
+        </div></div></sc-for>
     </div></sc-for>
   </div>
   </sc-if>
