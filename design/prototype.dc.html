@@ -380,6 +380,12 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
 
             <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+              <div style="{{ startSummaryStyle }}">
+                <sc-for list="{{ startSummary }}" as="sp" hint-placeholder-count="3">
+                  <div style="{{ startSummaryParaStyle }}"><sc-for list="{{ sp.runs }}" as="sr" hint-placeholder-count="3"><span style="{{ sr.style }}">{{ sr.t }}</span></sc-for></div>
+                </sc-for>
+                <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--faint)"><span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>{{ startSummaryNote }}</div>
+              </div>
               <div style="{{ startHeadStyle }}"><div style="{{ startHeadTitleStyle }}">My day</div><div style="{{ startHeadNoteStyle }}">read off your mail, calendar and tasks by rules</div></div>
               <div style="{{ myDayCardStyle }}">
                 <div style="{{ dayCountsStyle }}">

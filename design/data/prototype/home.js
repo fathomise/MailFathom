@@ -146,3 +146,12 @@ MailFathomDesign.data.home.myDay = [
   { id: "d-rollout", icon: "event", tone: "accent", title: "Rollout status with Piotr", note: "Teams · 2 open questions in the thread", when: "15:00", go: "cal" },
   { id: "d-fabrikam", icon: "task_alt", tone: "plain", title: "Confirm the Q4 date to Fabrikam", note: "Tomasz Bąk asked yesterday · due today", when: "16:30", go: "tasks" },
 ];
+
+// The summary above My day: where the reader stands and what they have to do, written by the model in a manager's
+// voice. A paragraph is a list of runs, and `b` marks the few words drawn in bold.
+MailFathomDesign.data.home.summary = [
+  [{ t: "You are in decent shape today, but " }, { t: "Contoso cannot wait any longer", b: true }, { t: ". Anna has asked twice and the decision is due tomorrow, so send the counter-proposal with the 5% cap before anything else." }],
+  [{ t: "Before the " }, { t: "15:00 rollout call with Piotr", b: true }, { t: ", confirm the Q4 date to Fabrikam, because phase three depends on it. And " }, { t: "do not pay the Fabrikam invoice", b: true }, { t: " until you have phoned Tomasz: the bank account on it is new." }],
+  [{ t: "Everything else can wait until tomorrow." }],
+];
+MailFathomDesign.data.home.summaryNote = "Written from today's mail, calendar and tasks";
