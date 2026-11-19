@@ -12856,6 +12856,8 @@ messages.ts newsletterBody GET /api/client/messages/{storedEmailId}/body
 messages.ts markupOnlyBody GET /api/client/messages/{storedEmailId}/body
 messages.ts newsletterMessage GET /api/client/messages/{storedEmailId}
 messages.ts markupOnlyMessage GET /api/client/messages/{storedEmailId}
+messages.ts redirectedReplyMessage GET /api/client/messages/{storedEmailId}
+messages.ts redirectedReplyTo GET /api/client/messages/{storedEmailId}
 messages.ts spamMessage GET /api/client/messages/{storedEmailId}
 messages.ts spamBody GET /api/client/messages/{storedEmailId}/body
 senders.ts notSigned GET /api/client/messages/{storedEmailId}
