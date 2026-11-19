@@ -523,6 +523,9 @@ the passage it rests on.*, shortened to *Quoted from this message alone* on the 
 | The subject on one pane | `threadHeadRowStyle` / `subjectStyle` | `singlePane` — the back button and the three actions share the first row, and the subject takes a row of its own under them at 18 px, two lines before it ends in an ellipsis; scrolled (`thCollapsed`) it folds to one line at 16 px |
 | The head's actions under a finger | `threadActions` | `!singlePane && touch` draws none — the toolbar above carries *Reply*, *Forward*, *Flag*, *Mark spam* and *More actions*, so the head is the subject alone |
 | *More actions* | `threadActions` / `toolbarActions` / `openMoreMenu` | the three-dot `more_vert` control, titled *More actions*, after the spam control in the thread's head — after *Mark spam*, and after *Not spam* on a message marked spam — drawn as its glyph alone at every width, in the size and tone of the glyphs beside it. Where the head draws no actions (two panes under a finger), or is not drawn at all (two panes with the panels hidden), the toolbar carries it instead, after its spam control and as its glyph alone, so every composition reaches it exactly once. A press opens the context menu (`ctxMenuOpen`, `pop`) under the control with its end edge on the control's, headed by the message's subject — or, opened from the toolbar, which holds no subject, by *More actions* — holding one item: *Show source* with the `data_object` glyph. On the phone the menu stands in the middle of the screen as every context menu there does. It closes on a press outside, on `Esc`, and after the choice; the arrow keys walk its items, `Enter` takes one, and closing it puts focus back on the control |
+| *Make a task* | `threadActions` | among the head's actions, before *Mark spam*, with `add_task` where the head draws glyphs: the new-task dialog, belonging to the thread, its title proposed from it (§ *Tasks*, *New task, from a context*) |
+| The thread's tasks | `threadTasksShown` / `threadTasks` | under the address line, one chip per open task that belongs to the thread — a checkbox glyph for one the person owes, `hourglass_top` in `--warn` for one they wait for — with its title and its time or day (*11:00–11:45*, *follow up tomorrow*). Pressed, it opens the task |
+| A row with an open task | `taskMark` | in the message list, an `add_task` glyph in `--accent-d` after the subject of a thread that carries an open task, named *Has an open task*; the thread's chips say which |
 | State bar beside the thread | `showThreadStateBar` | `(!singlePane \|\| !thCollapsed) && !stateCards && !stateBarOff` — `stateCards` is `!isMobile && paneCompact`, a pane narrower than 760 px off the phone |
 | State cards | `showStateCards` | `!singlePane && !stateStale` |
 | State inside the body | `stateInBody` | `stateCards && !stateBarOff && !stateStale` — a pane under 760 px answers the same content at the top of the thread; under 560 px (`paneNarrow`) the cards stand in one column |
@@ -868,6 +871,7 @@ nothing else about it differs.
 | State | Flag | Reveal |
 |---|---|---|
 | Composer open | `composeOpen` | the compose control |
+| Waiting for a reply | `composeFollowOn` / `composeFollow` | *Sending options* › *If nobody replies*: *Remind me tomorrow*, *on Monday* or *in a week* (`composeFollowUp` in `data/prototype/tasks.js`), each a radio that the same press takes off. Chosen, a line above the foot in the send-later line's shape says *If nobody replies by Mon 31.08, this waits in Tasks and reminds you that day.*, with *Change* and *Don't wait*. Sent, the message makes a *Waiting for* task belonging to the thread, which closes itself when the reply arrives |
 | Recipient suggestions | `rcptSuggestShown` / `rcptGroups` | the *To* row's own field (*add a recipient…*) focused, empty or typed in: a `--sub` list under the row, at most 300 px tall, in three groups each under its name — *Colleagues*, *Nordwind contacts* (the organization's book), *Your contacts* — three a group while nothing is typed and six once something is, matching the name or the address. A colleague's row carries the avatar with the presence dot and *Offline · Head of Delivery · out until 04.09*; anybody else's, the address. A row is 40 px, 48 under a finger, and pressing one adds them to *To*. Outside an organization only *Your contacts* stands |
 | Nobody matches | `rcptNoMatch` | something typed that nobody matches: *Nobody in your contacts or your organization matches “…”* |
 | A recipient out of office | `composeOooShown` / `composeOooRows` | a colleague out of office among *To*: under the recipients, one `--warn-soft` line per such colleague with a `--warn` rule, `event_busy` and *Piotr Zieliński is out of office until 04.09.* — the end date and never the automatic reply's text. Reached by choosing Piotr Zieliński from the suggestions |
@@ -987,11 +991,42 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 
 ## Tasks — `isTasks`
 
+A task is a commitment, and runs one of two ways: something the person owes, or something they wait for from
+somebody else (`dir`, *owe* or *wait*). It belongs to a context — a thread, a person, or an event (`anchor`) — and
+carries a due day (`on`) and, separately, a planned time on the calendar (`plan`). Everything below is drawn from one
+model in `logic/prototype/tasks.js`, so the calendar, the reading pane, the composer, the event dialog and the person
+page show the same tasks Tasks does, and an edit made in any of them is the one edit. AI output never changes a
+committed task: it arrives as a proposal, under *Proposed* or as the *Lay out today* offer, and nothing moves until the
+person answers it.
+
 | State | Flag | Reveal |
 |---|---|---|
+| The four views | `taskViews` / `taskViewsRowStyle` / `taskView` | *Today* (the default), *Upcoming*, *Waiting for*, *Proposed*, each with its count, under a head that names the view and one line of what it holds (`taskHeadTitle` / `taskHeadLine`). Four loose buttons with the current one on `--accent` at the desktop; under a finger one segmented control, the calendar's, swiped as well as pressed (`taskSwipe`). On a phone *Waiting for* reads *Waiting* |
+| Today | `taskView === "today"` | *Planned* — the tasks planned into today, in time order; *Due today, not planned*; *Follow up* — the waiting tasks whose follow-up day has come. A group with nothing in it is not drawn |
+| Upcoming | `taskView === "upcoming"` | *Tomorrow*, *This week*, *Later*, *No day*: what the person owes after today, by due day |
+| Waiting for | `taskView === "waiting"` | *Follow up today*, *Waiting*, and *Closed by a reply* — a waiting task the reply arrived for closes itself and stays here, struck through, with what closed it (*Jacek replied at 09:12*) and a muted note under the group name. *Show done* adds *Received*, the ones the person marked themselves |
+| Proposed | `taskView === "proposed"` | the proposals from mail and from the Agent, by day — *Today*, *Later*, *No day*. A proposal has no checkbox: an *AI* or *Agent* tag stands in its place, it names where it came from (*From mail*, *From the Agent*), and it carries *Accept* and a `close` *Dismiss task*. Accepted, it joins *Today* or *Upcoming* by its day |
+| A view with nothing in it | `tasksEmpty` / `tasksEmptyTitle` | each view says why it is empty in its own terms — *Waiting for* says how a waiting task is made (*Remind me if there is no reply* on send) |
+| A row | `taskGroups[].items` | one line at the desktop — the checkbox, the title, then what is set and nothing that is not: the context chip (`anchorShown`, its glyph `mail`, `person` or `event`, pressed to open the thread, the person or the event), the planned time as a dashed chip (`planShown`, pressed to move it), the length when nothing is planned (`estShown`), the due day, *Plan* (`planBtnShown`) when the task has no time, and the reminder bell. Under a finger the title stands on its own line and the rest wraps under it |
+| A waiting row | `kind === "wait"` | a round dashed `hourglass_top` box in `--warn` instead of the checkbox, when the message went (*sent Mon 24.08*), and the follow-up day; on that day the day turns `--warn` and *Follow up* (`followShown`) opens a reply in the thread |
+| A clash | `clashShown` / `clashLabel` | a task planned over a meeting: the row's border turns `--err` and a chip says *Clashes with Rollout status with Piotr 15:00*. The task dialog, the plan dialog and the day beside the list say it too |
+| The day beside the list | `tasksSideShown` / `taskDayRows` | at the desktop, a column of today's hours, 08:00 to 17:00, holding the meetings and the planned tasks, with *Open the calendar*. A row is dragged onto an hour to plan it there (`dragStart` / `drop`; the hour under the drag is outlined, `taskDropAt`), and the line above the hours says so. Under a finger and in a compact window it stands above the list in *Today* only, draws only the hours that hold something, and says *Plan a task from its own Plan* — a finger plans through the dialog |
+| Day capacity | `capacityText` / `layoutIdle` | under the day: how many tasks and meetings today holds, and *Lay out today* |
+| *Lay out today*, the offer | `layoutOfferShown` / `layoutRows` | *Lay out today*, or *Lay out the day* in the toolbar: the panel grows to hold the planned times it proposes, each a dashed row with its time, one with why it moved (*moved from 15:00: it clashed with Rollout status with Piotr*), and what did not fit, named. *Plan these* gives each task its time; *Not now* drops the offer. Nothing is planned until *Plan these* |
+| Nothing left to lay out | `layoutNothing` | every task due today already has a time — reached by *Plan these* and pressing *Lay out today* again |
+| The task dialog | `taskDlgOpen` | a row pressed, a task in the calendar, the event dialog, the person page, a thread's task chip, or the task's notification. The title, editable; *I owe this* / *I am waiting for this*; the due day — *Follow up on* for a waiting task — as day chips; *Planned* with *Plan* or *Move* (`taskDlgPlanShown`, owed tasks only) and the clash under it (`taskDlgClashShown`); *Belongs to* with the context's kind and name, *Open* and `link_off`; the reminders; then *Delete*, *Mark as done* — *Mark as received* when waiting — and *Save* |
+| Choosing what it belongs to | `taskDlgAnchorPickOpen` / `taskDlgAnchorGroups` | *Change* beside *Belongs to*: the recent threads, people and events, in three groups, the current one on `--accent-soft` |
+| Belongs to nothing | `taskDlgAnchorNone` | a task made in Tasks, or one whose link was removed: *Nothing yet*, and *Change* |
+| Waiting, in the dialog | `taskDlgWaitShown` / `taskDlgFollowShown` | *Closes itself when the reply arrives in the thread*, and *Follow up* while it is still waiting |
+| Closed by a reply, in the dialog | `taskDlgReopenShown` | a banner naming the reply that closed it, with *Keep waiting*; the foot's button reads *Still waiting* |
+| Plan a time | `planOpen` | *Plan* on a row, *Plan* or *Move* in the task dialog, or *Move* / *Plan a time* in the calendar: four day chips, *How long* as six lengths, and the chosen day's hours with its meetings and planned tasks. An hour is pressed to place the task there, drawn on `--accent-soft`; the line under the hours says when it is planned. *Plan* is disabled until an hour is chosen, and says why on a tap |
+| A clash while planning | `planClashShown` | the chosen hour overlaps a meeting: *Clashes with … You can still plan it.* in `--err-text` |
+| Taking it out of the calendar | `planRemoveShown` | a task that already has a time: *Take out of the calendar* |
+| New task | `newTaskOpen` | the new-task control, *Make a task* on a thread, *Add a task* on an event or a person. *I owe this* / *I am waiting for this*, the AI line that reads a sentence, the title, the due day, the length and reminders; the head reads *New waiting task* when waiting is chosen |
+| New task, from a context | `newTaskCtxShown` | opened on a thread, an event or a person: a card above the rest names what it belongs to, with `link_off` to make it belong to nothing; the title starts with what the AI proposes from the thread (`taskFromThread` in `data/prototype/tasks.js`), *Prepare for* the event's name, or empty |
+| A task's notification | `go.task` | a task reminder, or the task row in the notification centre, opens Tasks with that task's dialog over it rather than the list |
 | More menu | `moreOpen` | the overflow control |
-| New task | `newTaskOpen` | the new-task control |
-| Context menu | `ctxMenuOpen` | long press, or right-click; the header names the row, and a second line under it (`ctxMenuHasDetail`) says what the row only shows a mouse — the sender on a message, the full instant on a notification, the address on an account, the account, path and count on a folder |
+| Context menu | `ctxMenuOpen` | long press, or right-click; the header names the row, and a second line under it (`ctxMenuHasDetail`) says what the row only shows a mouse — the sender on a message, the full instant on a notification, the address on an account, the account, path and count on a folder, and on a task what it belongs to. A task's menu holds *Open task*, *Mark as done*, *Plan in the calendar* or *Move in the calendar*, *Follow up* when it is due, *Reminders*, the context it belongs to, *Select tasks* and *Delete task*; a proposal's holds *Accept* and *Dismiss task* |
 | Delete confirmation | `confirmDelOpen` | a delete action |
 | Reminder dialog | `remModalOpen` | the reminder control on a task |
 
@@ -999,14 +1034,18 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 
 | State | Flag | Reveal |
 |---|---|---|
-| Week | `calIsWeek` | the default view. Under a finger an event in the week's columns carries no link to its thread (`calWeekLinks`) — its detail does — and *Detected in mail* stands under the week rather than beside it (`calSideStyle`), so the tablet's seven columns fit |
+| Week | `calIsWeek` | the default view. Under a finger an event in the week's columns carries no link to its thread (`calWeekLinks`) — its detail does — and *Proposed tasks* stands under the week rather than beside it (`calSideStyle`), so the tablet's seven columns fit |
+| Tasks in the calendar | `calTask` / `TK.calItems` | in every view, beside the events: a task planned into a day stands at its time as a card with a dashed `--accent` border, *Task · 11:00–11:45* (dashed `--err` when it clashes with a meeting); a task due that day and planned nowhere opens the day on `--accent-soft`, *Due · task*. In the month they are the same two tones as one-line marks, and in the agenda a dashed square and a filled one stand where an event's dot does. Pressed, a task opens the task dialog, not the event dialog; held, its menu has *Open task*, *Mark as done* and *Move* or *Plan a time*. A task marked done stays, faded |
 | The four views | `calViews` / `calViewsRowStyle` | four loose buttons with the current one on `--accent` at the desktop; under a finger one segmented control, 44 px segments, the current one raised on `--panel` |
 | Day | `calIsDay` | the view control |
 | Month | `calIsMonth` | the view control |
 | Agenda | `calIsAgenda` | the view control |
 | A month day's own list | `calMonthDayShown` | `isMobile` — **phone only**, and invisible at every other width |
 | That day is empty | `calMonthDayEmpty` | the selected day has no events |
-| **No proposals left** | `calNoProposals` | every proposed slot has been dealt with — reachable only by clearing them all |
+| Proposed tasks | `calProposed` | beside the week at the desktop, under it under a finger: the same proposals as Tasks › *Proposed*, from mail and from the Agent, each with its day, where it came from, *Accept* and *Dismiss*. Answered in either place, it is gone from both; accepted, it shows on its day as a due task |
+| **No proposals left** | `calNoProposals` | every proposal has been answered — reachable only by answering them all |
+| *Plan my day* | `calPlanDay` | the line under the briefing opens Tasks on *Today* with the *Lay out today* offer standing |
+| Tasks for this event | `eventTasks` / `eventTasksNone` / `eventAddTask` | in the event dialog, under the reminders: the tasks that belong to the event, each opening its task, and *Add a task*, which opens the new-task dialog belonging to the event, due on its day. With none, one line says what *Add a task* does |
 | Event open | `eventOpen` | an event is pressed |
 | Event has a source | `eventHasSrc` | the event carries the mail it came from |
 | Event has a meeting link | `eventHasLink` / `eventLink` | the event carries a link to join it: a `videocam` glyph, *Meeting link* in 12 px `--muted`, and the link's host as an underlined `--accent-d` link under it. Pressed, it goes where every link that leaves MailFathom goes (§ *A link that leaves MailFathom*) — *Fabrikam rollout review* asks, *Rollout status with Piotr* is on a trusted domain and opens at once |
@@ -1025,6 +1064,7 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 | Avatar | `personHasAvatar` / `personNoAvatar` | whether a photo exists for the name — **both states are in the mock data**. The rule holds wherever a person is drawn, not only here: the photo where there is one and the initials otherwise, on a message row, an opened message's head, a People row, a person's page, a row of the organization's structure, a recipient suggestion, and an AI answer's *People* rows and run of participants — in the prototype's Discover answer and in `ai-blocks.dc.html` alike |
 | Collected person | `personCollected` | the person was gathered rather than added; it gates three regions |
 | Next step | `personHasNext` | the person's AI reading proposes one |
+| Commitments | `personOwe` / `personOwed` / `personAddTask` | a card under the relationship reading: *You owe Marta* and *Marta owes you*, each the open tasks with that person, owed and waited for, opening the task; *Add a task* opens the new-task dialog belonging to the person. An empty side says so (`personOweNone` / `personOwedNone`) — Marta owes nothing in the sample |
 | **No documents** | `personNoDocs` | that person's `docs` is empty — Piotr Zieliński under *Colleagues* |
 | New contact | `newContactOpen` | the new-contact control |
 | Edit contact | `personOwn` / `ctEditing` | the *Edit contact* symbol in the header of a person the reader wrote down (never a collected one, a colleague, or the organization's) — the new-contact dialog titled *Edit contact*, opened on the record, saved with *Save changes* |
@@ -1692,8 +1732,8 @@ and *Nothing open* layout. **The one new component is the radio list in *Kind of
 | State | Gate | What it settles |
 |---|---|---|
 | `c_edit` 3.1 | `show.c_edit` | *Edit* turns the open event's dialog into the form in place: same dialog, title *Edit event*, *Cancel* and *Save*. Starts and Ends each take a day and a time, and *All day* hides both times. *Save* stays disabled until something changes and says why when the times conflict. **The new-event form should take the same fields** |
-| `t_layout` 3.2 | `show.t_layout` | *Lay out today* happens inside the capacity panel, which grows to hold the offer. Nothing is written until *Add to calendar*, and what did not fit is named, not only counted. The panel draws waiting, the offer, nothing left and allowance spent. Unavailable hides the button and keeps the capacity line. On a phone the panel sits above the list |
-| `t_proposed` 3.3a | `show.t_proposed` | A proposal has **no checkbox**; the AI tag takes its place. *Accept* is on the row, and the menu has *Accept* and *Dismiss task*. Undated tasks gather under *No day* at the end. The status line sits between the list head and the first group and is replaced by the next change; a partly refused change is a warning line |
+| `t_layout` 3.2 | `show.t_layout` | *Lay out today* happens inside the capacity panel, which grows to hold the offer. Nothing moves until *Plan these*, which gives each task a planned time — the calendar then draws it as planned work, never as an event of its own — and what did not fit is named, not only counted. The panel draws waiting, the offer, nothing left and allowance spent. Unavailable hides the button and keeps the capacity line. On a phone the panel sits above the list |
+| `t_proposed` 3.3a | `show.t_proposed` | A proposal has **no checkbox**; the AI tag takes its place. *Accept* is on the row, and the menu has *Accept* and *Dismiss task*. Undated tasks gather under *No day* at the end. In the prototype proposals have a view of their own, *Proposed* (§ *Tasks*). The status line sits between the list head and the first group and is replaced by the next change; a partly refused change is a warning line |
 | `t_states` 3.3b | `show.t_states` | The two empties point at different things — nothing at all, versus everything done and hidden (naming *Show done*). Loading is the list skeleton; reading more is a spinner line at the foot |
 | `p_none` 3.4a | `show.p_none` | From fold upward the detail pane shows *Nothing open* with one sentence before anyone is picked. A phone shows the list alone. After a change, one status line sits under the name: green when it worked, red when refused |
 | `p_states` 3.4b | `show.p_states` | Each address book says why it is empty in its own terms. Loading and failure look the same for the book (in the list) and for correspondence (in a person's *Conversations*), a colleague's *Organization* card waits and fails as *Conversations* does, and each fails on its own |
@@ -1717,6 +1757,12 @@ clicking a preview.
   that screen is designing something the design has not settled, and it is drawn in `design/` — ahead of
   the client or in the pull request that builds it — rather than invented in the client. The folder column alone has one: `m_folders` in the Client States file draws
   *No account configured*, which is the column's state and not the application's.
+- **Planning a task by dragging it** (§ *Tasks*, *The day beside the list*). A row dragged onto an hour of the day
+  beside the list is planned there, and the hour under the drag is outlined; a preview is pressed rather than dragged,
+  so it reaches the same plan only through *Plan* and the dialog. Under a finger the rows do not drag at all.
+- **A waiting task made by sending** (§ *Composing*, *Waiting for a reply*). The *Waiting for* task a message makes
+  exists only after that message is sent with a day under *If nobody replies*, so the sample's waiting tasks are the
+  only ones a preview opens on.
 - **The on-screen keyboard** (`keyboard`). The artboard's `keyboard` property, a height in pixels and 0 by default,
   draws a stand-in for the system's keyboard over the bottom of the window under a finger, and nothing a press does
   sets it. It is the only way to see the composer standing on a keyboard — § *Height — vertical density* — and at a

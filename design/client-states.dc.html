@@ -835,7 +835,7 @@ Project repository: https://github.com/fathomise/MailFathom
   <div id="3.2" style="display:flex;flex-direction:column;gap:18px">
     <div style="display:flex;flex-direction:column;gap:8px;width:980px">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span style="font-size:12px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:6px;padding:3px 8px">3.2</span><span style="font-size:20px;font-weight:600;letter-spacing:-0.01em">“Lay out today” as an offer</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;color:var(--muted);background:var(--sub);border:1px solid var(--line);border-radius:6px;padding:3px 8px">state="t_layout"</span></div>
-      <div style="font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty">Everything happens inside the capacity panel, which grows to hold the offer; nothing is written to the calendar until “Add to calendar”. What did not fit is named, not only counted. On phone the panel sits above the list; wider, beside it.</div>
+      <div style="font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty">Everything happens inside the capacity panel, which grows to hold the offer; nothing moves until “Plan these”, which gives each task a planned time. What did not fit is named, not only counted. On phone the panel sits above the list; wider, beside it.</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:28px">
       <sc-for list="{{ R.tasks }}" as="row" hint-placeholder-count="1"><div style="display:flex;gap:28px;align-items:flex-start">
@@ -855,7 +855,7 @@ Project repository: https://github.com/fathomise/MailFathom
               <div style="font-size:14px;font-weight:600;padding-top:4px">Here is a way to fit the rest of today</div>
               <div style="display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden"><sc-for list="{{ placements }}" as="p" hint-placeholder-count="4"><div style="display:flex;gap:10px;align-items:baseline;padding:9px 11px;border-bottom:1px solid var(--line2);font-size:13px"><span style="flex:0 0 88px;font-variant-numeric:tabular-nums;color:var(--accent-d)">{{ p.at }}</span><span style="min-width:0;text-wrap:pretty">{{ p.t }}</span></div></sc-for></div>
               <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">{{ sample.work.didNotFit }}</div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap"><div style="{{ f.btnP }}">Add to calendar</div><div style="{{ f.btnS }}">Leave it</div></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap"><div style="{{ f.btnP }}">Plan these</div><div style="{{ f.btnS }}">Not now</div></div>
             </div>
           </div>
         </div>
