@@ -432,7 +432,8 @@ public sealed class TodayLayoutTests
         sourceMessage: null,
         isCompleted,
         commitment ?? TaskCommitment.Owed,
-        answer: null);
+        answer: null,
+        waitingSince: commitment?.Direction is PersonalTaskDirection.Awaited ? DateTimeOffset.UnixEpoch : null);
 
     private static CalendarEvent Committed(string title, DateTimeOffset start) => CalendarEvent.Create(
         CalendarEventId.Create(Guid.CreateVersion7()),

@@ -64,7 +64,7 @@ public sealed class OwnTasks
     /// <summary>Initializes the use case.</summary>
     /// <param name="authorization">Reports the grant the caller holds and the user it acts for.</param>
     /// <param name="store">Holds what a person owes.</param>
-    /// <param name="clock">Stamps the identity a new task is addressed under.</param>
+    /// <param name="clock">Stamps the identity a new task is addressed under, and when a wait begins.</param>
     /// <param name="signals">Announces a durable write to the person's open clients.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public OwnTasks(
@@ -175,15 +175,17 @@ public sealed class OwnTasks
     {
         this.authorization.RequirePermission(MailFathomPermission.TasksWrite);
 
+        var now = this.clock.GetUtcNow();
         var task = PersonalTask.Compose(
-            PersonalTaskId.Create(Guid.CreateVersion7(this.clock.GetUtcNow())),
+            PersonalTaskId.Create(Guid.CreateVersion7(now)),
             this.authorization.RequireUser(),
             title,
             dueOn,
             announcement,
             PersonalTaskOrigin.Asserted,
             sourceMessage,
-            commitment);
+            commitment,
+            now);
 
         await this.store.AddAsync(task, cancellationToken);
 
@@ -264,7 +266,7 @@ public sealed class OwnTasks
             return PersonalTaskRevisionResult.NotFound;
         }
 
-        var revision = held.Revise(title, dueOn, announcement, commitment);
+        var revision = held.Revise(title, dueOn, announcement, commitment, this.clock.GetUtcNow());
 
         var outcome = await this.store.ReviseAsync(revision, cancellationToken);
 

@@ -2,6 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Security.Cryptography;
+using System.Text;
+using MailFathom.Application.AutomaticReplies;
+using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Tasks;
@@ -19,8 +23,9 @@ namespace MailFathom.Application.UnitTests.Tasks;
 
 /// <summary>
 /// Covers what closes a wait: a reply that is somebody else's, in the thread the wait is anchored to, from the person
-/// the wait names where it names one. The user's own messages, their filed copies, and mail threading placed nowhere
-/// answer nothing, and a person is told once however many of their waits one arrival closed.
+/// the wait names where it names one, received after the wait began. The user's own messages, their filed copies,
+/// mail threading placed nowhere, history a resynchronization settles again, and what a machine sent answer nothing,
+/// and a person is told once however many of their waits one arrival closed.
 /// </summary>
 public sealed class AwaitedRepliesTests
 {
@@ -31,6 +36,8 @@ public sealed class AwaitedRepliesTests
     private static readonly UserId User = SyntheticUser.Deployment;
 
     private static readonly DateTimeOffset Now = new(2026, 11, 3, 10, 0, 0, TimeSpan.Zero);
+
+    private static readonly DateTimeOffset WaitingSince = Now.AddHours(-1);
 
     private static readonly Guid ThreadValue = new("0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a92");
 
@@ -43,6 +50,8 @@ public sealed class AwaitedRepliesTests
     private readonly InMemoryStoredEmailSummaries summaries = new();
 
     private readonly RecordingClientSignalChannel channel = new();
+
+    private readonly Dictionary<StoredEmailId, EmailAutomation> automations = [];
 
     /// <summary>The wait ends with the reply that ended it, cited rather than copied, whatever case the address was written in.</summary>
     [Fact]
@@ -202,6 +211,92 @@ public sealed class AwaitedRepliesTests
         Assert.Equal(second, Assert.Single(this.store.Held).Answer?.Message);
     }
 
+    /// <summary>
+    /// A resynchronization settles a thread's history again, and a message the counterpart wrote before the person began
+    /// waiting is not the reply they wait for.
+    /// </summary>
+    [Fact]
+    public async Task AnswerAsync_AReplyReceivedBeforeTheWaitBegan_LeavesItOpen()
+    {
+        // Arrange
+        await this.WaitAsync("buyer@example.test");
+        var history = this.Arrive("buyer@example.test", WaitingSince.AddMinutes(-1));
+
+        // Act
+        await this.AnswerAsync(history);
+
+        // Assert
+        Assert.False(Assert.Single(this.store.Held).IsCompleted);
+        Assert.Empty(this.channel.Published);
+    }
+
+    /// <summary>A message no receiving hop dated says nothing about being new, so it answers nothing.</summary>
+    [Fact]
+    public async Task AnswerAsync_AReplyNoHopDated_LeavesItOpen()
+    {
+        // Arrange
+        await this.WaitAsync("buyer@example.test");
+        var undated = this.Arrive("buyer@example.test", receivedAt: null);
+
+        // Act
+        await this.AnswerAsync(undated);
+
+        // Assert
+        Assert.False(Assert.Single(this.store.Held).IsCompleted);
+    }
+
+    /// <summary>A wait reopened after a reply answered it is answered only by a reply after that one, so settling it again closes nothing.</summary>
+    [Fact]
+    public async Task AnswerAsync_TheReplyAReopenedWaitWasClosedBySettlingAgain_LeavesItOpen()
+    {
+        // Arrange
+        var task = await this.WaitAsync("buyer@example.test");
+        var reply = this.Arrive("buyer@example.test", Now);
+        await this.AnswerAsync(reply);
+        await this.store.SetCompletionAsync(User, task.Id, isCompleted: false, TestContext.Current.CancellationToken);
+
+        // Act
+        await this.AnswerAsync(reply);
+
+        // Assert
+        var reopened = Assert.Single(this.store.Held);
+        Assert.False(reopened.IsCompleted);
+        Assert.Equal(Now, reopened.WaitingSince);
+    }
+
+    /// <summary>An out-of-office notice or a bulk mailing from the person a wait names is a machine speaking, not the reply.</summary>
+    [Theory]
+    [InlineData(EmailAutomation.AutomaticallySubmitted)]
+    [InlineData(EmailAutomation.BulkPrecedence)]
+    public async Task AnswerAsync_WhatAMachineSentFromTheCounterpart_LeavesItOpen(EmailAutomation automation)
+    {
+        // Arrange
+        await this.WaitAsync("buyer@example.test");
+        var automatic = this.Arrive("buyer@example.test", Now, automation: automation);
+
+        // Act
+        await this.AnswerAsync(automatic);
+
+        // Assert
+        Assert.False(Assert.Single(this.store.Held).IsCompleted);
+        Assert.Empty(this.channel.Published);
+    }
+
+    /// <summary>A posting a mailing list distributed is still a person writing, and a thread on a list is answered through it.</summary>
+    [Fact]
+    public async Task AnswerAsync_TheCounterpartRepliesThroughAMailingList_ClosesTheTask()
+    {
+        // Arrange
+        await this.WaitAsync("buyer@example.test");
+        var posting = this.Arrive("buyer@example.test", Now, automation: EmailAutomation.MailingList);
+
+        // Act
+        await this.AnswerAsync(posting);
+
+        // Assert
+        Assert.True(Assert.Single(this.store.Held).IsCompleted);
+    }
+
     private Task AnswerAsync(StoredEmailId arrival, string? ownAddress = OwnAddress) =>
         this.AnswerAsync([arrival], ownAddress);
 
@@ -218,14 +313,53 @@ public sealed class AwaitedRepliesTests
             identities.FindSenderIdentity(Account).Returns(OutgoingSenderIdentity.Create(Account, own));
         }
 
-        await new AwaitedReplies(this.summaries, this.store, identities, signals, this.clock)
+        await new AwaitedReplies(this.summaries, this.ContentNamingEachArrival(), this.EnvelopesStatingTheirAutomation(), this.store, identities, signals)
             .AnswerAsync(Account, arrivals, TestContext.Current.CancellationToken);
 
         this.clock.Advance(ClientSignals.FoldingWindow);
         await signals.DrainAsync();
     }
 
-    private StoredEmailId Arrive(string from, DateTimeOffset receivedAt, bool isFiledSentCopy = false, bool threaded = true)
+    private static StoredEmailContent ContentNaming(StoredEmailId id)
+    {
+        var bytes = Encoding.ASCII.GetBytes(id.Value.ToString());
+
+        return new StoredEmailContent(bytes, bytes.Length, SHA256.HashData(bytes));
+    }
+
+    private IEmailContentStore ContentNamingEachArrival()
+    {
+        var contentStore = Substitute.For<IEmailContentStore>();
+        contentStore
+            .FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())
+            .Returns(call => ContentNaming(call.ArgAt<StoredEmailId>(0)));
+
+        return contentStore;
+    }
+
+    private IArrivedMailEnvelopeReader EnvelopesStatingTheirAutomation()
+    {
+        var envelopes = Substitute.For<IArrivedMailEnvelopeReader>();
+        envelopes
+            .Read(Arg.Any<ReadOnlyMemory<byte>>())
+            .Returns(call => new ArrivedMailEnvelope(
+                ReplyTarget: null,
+                Author: null,
+                this.automations.GetValueOrDefault(
+                    StoredEmailId.Create(Guid.Parse(Encoding.ASCII.GetString(call.ArgAt<ReadOnlyMemory<byte>>(0).Span)))),
+                HasNullReturnPath: false,
+                Subject: null,
+                EmailThreadReferences.Create("<reply@example.test>", inReplyTo: null, references: null)));
+
+        return envelopes;
+    }
+
+    private StoredEmailId Arrive(
+        string from,
+        DateTimeOffset? receivedAt,
+        bool isFiledSentCopy = false,
+        bool threaded = true,
+        EmailAutomation automation = EmailAutomation.None)
     {
         var summary = SyntheticEmailSummaries.Create(
             receivedAt: receivedAt,
@@ -237,6 +371,7 @@ public sealed class AwaitedRepliesTests
         };
 
         this.summaries.With(summary);
+        this.automations[summary.StoredEmailId] = automation;
 
         return summary.StoredEmailId;
     }
@@ -259,7 +394,8 @@ public sealed class AwaitedRepliesTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            new TaskCommitment(PersonalTaskDirection.Awaited, null, null, TaskAnchor.Thread(Thread, "Tender"), named));
+            new TaskCommitment(PersonalTaskDirection.Awaited, null, null, TaskAnchor.Thread(Thread, "Tender"), named),
+            WaitingSince);
 
         await this.store.AddAsync(task, TestContext.Current.CancellationToken);
 

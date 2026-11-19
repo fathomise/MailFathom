@@ -16,6 +16,8 @@ public sealed class PersonalTaskTests
 
     private static readonly PersonalTaskId Identifier = PersonalTaskId.Create(Guid.NewGuid());
 
+    private static readonly DateTimeOffset Began = new(2026, 11, 19, 8, 0, 0, TimeSpan.Zero);
+
     /// <summary>A task a person entered stands outstanding, asserted, and citing nothing.</summary>
     [Fact]
     public void Compose_ATaskAPersonEntered_StandsOutstandingAndAsserted()
@@ -32,7 +34,8 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Equal(Identifier, task.Id);
@@ -60,7 +63,8 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Proposed,
             message,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Equal(PersonalTaskOrigin.Proposed, task.Origin);
@@ -80,7 +84,8 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Null(task.DueOn);
@@ -99,7 +104,8 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Equal("Sign the NDA", task.Title);
@@ -121,7 +127,8 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Throws<ArgumentOutOfRangeException>(composing);
@@ -142,7 +149,8 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Throws<ArgumentException>(composing);
@@ -161,7 +169,8 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Throws<ArgumentException>(composing);
@@ -180,7 +189,8 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Throws<ArgumentException>(composing);
@@ -199,7 +209,8 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             (PersonalTaskOrigin)42,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Throws<ArgumentOutOfRangeException>(composing);
@@ -220,7 +231,8 @@ public sealed class PersonalTaskTests
             sourceMessage: null,
             isCompleted: true,
             TaskCommitment.Owed,
-            answer: null);
+            answer: null,
+            waitingSince: null);
 
         // Assert
         Assert.True(task.IsCompleted);
@@ -244,7 +256,8 @@ public sealed class PersonalTaskTests
             sourceMessage: null,
             isCompleted: false,
             TaskCommitment.Owed,
-            answer: null);
+            answer: null,
+            waitingSince: null);
 
         // Assert
         Assert.Throws<ArgumentOutOfRangeException>(restoring);
@@ -266,10 +279,11 @@ public sealed class PersonalTaskTests
             cited,
             isCompleted: true,
             TaskCommitment.Owed,
-            answer: null);
+            answer: null,
+            waitingSince: null);
 
         // Act
-        var revised = proposed.Revise("  Reply to the tender by Friday  ", dueOn: null, TaskAnnouncement.Silent, TaskCommitment.Owed);
+        var revised = proposed.Revise("  Reply to the tender by Friday  ", dueOn: null, TaskAnnouncement.Silent, TaskCommitment.Owed, DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Equal("Reply to the tender by Friday", revised.Title);
@@ -296,10 +310,11 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Act
-        var revising = () => task.Revise(title, dueOn: null, TaskAnnouncement.Silent, TaskCommitment.Owed);
+        var revising = () => task.Revise(title, dueOn: null, TaskAnnouncement.Silent, TaskCommitment.Owed, DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Throws<ArgumentException>(revising);
@@ -318,10 +333,11 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Act
-        var revising = () => task.Revise(new string('x', PersonalTask.MaximumTitleLength + 1), dueOn: null, TaskAnnouncement.Silent, TaskCommitment.Owed);
+        var revising = () => task.Revise(new string('x', PersonalTask.MaximumTitleLength + 1), dueOn: null, TaskAnnouncement.Silent, TaskCommitment.Owed, DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Throws<ArgumentOutOfRangeException>(revising);
@@ -346,7 +362,8 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            new TaskCommitment(PersonalTaskDirection.Awaited, 15, plan, anchor, counterpart));
+            new TaskCommitment(PersonalTaskDirection.Awaited, 15, plan, anchor, counterpart),
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Equal(PersonalTaskDirection.Awaited, task.Direction);
@@ -373,7 +390,8 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed with { EstimatedMinutes = minutes });
+            TaskCommitment.Owed with { EstimatedMinutes = minutes },
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Throws<ArgumentOutOfRangeException>(composing);
@@ -388,7 +406,7 @@ public sealed class PersonalTaskTests
         var answered = Waiting().Answered(answer);
 
         // Act
-        var revised = answered.Revise("Hear back by Friday", dueOn: null, TaskAnnouncement.Silent, answered.Commitment with { EstimatedMinutes = 10 });
+        var revised = answered.Revise("Hear back by Friday", dueOn: null, TaskAnnouncement.Silent, answered.Commitment with { EstimatedMinutes = 10 }, DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Equal(answer, revised.Answer);
@@ -410,7 +428,8 @@ public sealed class PersonalTaskTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Act
         var answering = () => owed.Answered(AReply());
@@ -500,7 +519,8 @@ public sealed class PersonalTaskTests
             answered.Title,
             dueOn: null,
             TaskAnnouncement.Silent,
-            answered.Commitment with { Direction = PersonalTaskDirection.Owed });
+            answered.Commitment with { Direction = PersonalTaskDirection.Owed },
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Throws<InvalidOperationException>(revising);
@@ -516,7 +536,81 @@ public sealed class PersonalTaskTests
         sourceMessage: null,
         isCompleted,
         commitment,
-        answer);
+        answer,
+        waitingSince: commitment.Direction is PersonalTaskDirection.Awaited ? DateTimeOffset.UnixEpoch : null);
+
+    /// <summary>A wait begins when it is written down, and a task the person owes begins no wait.</summary>
+    [Fact]
+    public void Compose_AWaitAndAnOwedTask_StateWhenTheWaitBeganOnlyForTheWait()
+    {
+        // Act
+        var waiting = Waiting();
+        var owed = Waiting().Revise("Send the tender", dueOn: null, TaskAnnouncement.Silent, TaskCommitment.Owed, Began.AddDays(1));
+
+        // Assert
+        Assert.Equal(Began, waiting.WaitingSince);
+        Assert.Null(owed.WaitingSince);
+    }
+
+    /// <summary>Editing a wait keeps when it began, and an owed task turned into a wait begins waiting at the edit.</summary>
+    [Fact]
+    public void Revise_TheDirection_MovesWhenTheWaitBeganOnlyWhenTheTaskBecomesAWait()
+    {
+        // Arrange
+        var edited = Began.AddDays(1);
+        var awaited = TaskCommitment.Owed with { Direction = PersonalTaskDirection.Awaited };
+        var owed = Waiting().Revise("Send the tender", dueOn: null, TaskAnnouncement.Silent, TaskCommitment.Owed, edited);
+
+        // Act
+        var stillWaiting = Waiting().Revise("Hear back by Friday", dueOn: null, TaskAnnouncement.Silent, awaited, edited);
+        var nowWaiting = owed.Revise("Hear back by Friday", dueOn: null, TaskAnnouncement.Silent, awaited, edited.AddDays(1));
+
+        // Assert
+        Assert.Equal(Began, stillWaiting.WaitingSince);
+        Assert.Equal(edited.AddDays(1), nowWaiting.WaitingSince);
+    }
+
+    /// <summary>A row read back states when a wait began exactly when it is a wait.</summary>
+    [Theory]
+    [InlineData(PersonalTaskDirection.Awaited, false)]
+    [InlineData(PersonalTaskDirection.Owed, true)]
+    public void Restore_WhenTheWaitBeganOnTheWrongDirection_IsRefused(PersonalTaskDirection direction, bool statesWhenItBegan)
+    {
+        // Act
+        var restoring = () => PersonalTask.Restore(
+            Identifier,
+            User,
+            "Hear back about the tender",
+            dueOn: null,
+            TaskAnnouncement.Silent,
+            PersonalTaskOrigin.Asserted,
+            sourceMessage: null,
+            isCompleted: false,
+            TaskCommitment.Owed with { Direction = direction },
+            answer: null,
+            statesWhenItBegan ? Began : null);
+
+        // Assert
+        Assert.Equal("waitingSince", Assert.Throws<ArgumentException>(restoring).ParamName);
+    }
+
+    /// <summary>Only a reply that arrived after the wait began answers it, and only while it is open.</summary>
+    [Theory]
+    [InlineData(-1, false, false)]
+    [InlineData(0, false, false)]
+    [InlineData(1, false, true)]
+    [InlineData(1, true, false)]
+    public void IsAnswerableBy_AReplyArrivingAroundWhenTheWaitBegan_AnswersOnlyAfterIt(int minutesAfter, bool completed, bool answers)
+    {
+        // Arrange
+        var task = completed ? Waiting().Answered(AReply()) : Waiting();
+
+        // Act
+        var answerable = task.IsAnswerableBy(new TaskAnswer(StoredEmailId.Create(Guid.NewGuid()), Began.AddMinutes(minutesAfter)));
+
+        // Assert
+        Assert.Equal(answers, answerable);
+    }
 
     private static TaskAnswer AReply() => new(StoredEmailId.Create(Guid.NewGuid()), new DateTimeOffset(2026, 11, 21, 8, 0, 0, TimeSpan.Zero));
 
@@ -528,5 +622,6 @@ public sealed class PersonalTaskTests
         TaskAnnouncement.Silent,
         PersonalTaskOrigin.Asserted,
         sourceMessage: null,
-        TaskCommitment.Owed with { Direction = PersonalTaskDirection.Awaited });
+        TaskCommitment.Owed with { Direction = PersonalTaskDirection.Awaited },
+        Began);
 }

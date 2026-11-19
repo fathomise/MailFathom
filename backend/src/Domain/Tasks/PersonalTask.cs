@@ -63,7 +63,8 @@ public sealed record PersonalTask
         StoredEmailId? sourceMessage,
         bool isCompleted,
         TaskCommitment commitment,
-        TaskAnswer? answer)
+        TaskAnswer? answer,
+        DateTimeOffset? waitingSince)
     {
         this.Id = id;
         this.User = user;
@@ -80,6 +81,7 @@ public sealed record PersonalTask
         this.Anchor = commitment.Anchor;
         this.Counterpart = commitment.Counterpart;
         this.Answer = answer;
+        this.WaitingSince = waitingSince;
     }
 
     /// <summary>Gets what addresses this task.</summary>
@@ -156,6 +158,14 @@ public sealed record PersonalTask
     /// <summary>Gets the reply that answered a task its person was waiting on, and <see langword="null" /> until one did.</summary>
     public TaskAnswer? Answer { get; }
 
+    /// <summary>Gets the instant from which only a later reply answers the wait, and <see langword="null" /> for a task the person owes.</summary>
+    /// <remarks>
+    /// When the person began waiting, or, once they reopened a wait a reply had answered, when that reply arrived. A
+    /// backfill or a resynchronization settles years of a thread's history again, and every message in it from the
+    /// person a wait names would otherwise answer a question asked after it was written.
+    /// </remarks>
+    public DateTimeOffset? WaitingSince { get; }
+
     /// <summary>Composes a task nobody has completed yet.</summary>
     /// <param name="id">What addresses the task.</param>
     /// <param name="user">The person whose list it is on.</param>
@@ -165,6 +175,7 @@ public sealed record PersonalTask
     /// <param name="origin">Where the task came from.</param>
     /// <param name="sourceMessage">The message it was read out of, or <see langword="null" /> where it names none.</param>
     /// <param name="commitment">What the task is as a commitment, or <see cref="TaskCommitment.Owed" /> where nothing more is said.</param>
+    /// <param name="composedAt">When the task is written down, which is when a wait begins.</param>
     /// <returns>A task that stands outstanding.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> or <paramref name="commitment" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is blank, when <paramref name="user" /> names nobody, when <paramref name="id" /> is the struct default, when one lead is stated twice, or when leads are stated against no due day.</exception>
@@ -181,7 +192,8 @@ public sealed record PersonalTask
         TaskAnnouncement announcement,
         PersonalTaskOrigin origin,
         StoredEmailId? sourceMessage,
-        TaskCommitment commitment)
+        TaskCommitment commitment,
+        DateTimeOffset composedAt)
     {
         Validate(id, user, origin, commitment);
 
@@ -198,7 +210,8 @@ public sealed record PersonalTask
             sourceMessage,
             isCompleted: false,
             commitment,
-            answer: null);
+            answer: null,
+            commitment.Direction == PersonalTaskDirection.Awaited ? composedAt : null);
     }
 
     /// <summary>Restores a task this deployment already kept, with the origin and completion it was stored under.</summary>
@@ -212,9 +225,10 @@ public sealed record PersonalTask
     /// <param name="isCompleted">Whether the person has done it.</param>
     /// <param name="commitment">What the task is as a commitment, as the row states it.</param>
     /// <param name="answer">The reply that answered it, or <see langword="null" /> where none did.</param>
+    /// <param name="waitingSince">The instant from which only a later reply answers it, or <see langword="null" /> for a task the person owes.</param>
     /// <returns>The task as it stands.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> or <paramref name="commitment" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is blank, when <paramref name="user" /> names nobody, when <paramref name="id" /> is the struct default, when one lead is stated twice, when leads are stated against no due day, or when <paramref name="answer" /> is stated for a task that is not a completed wait.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is blank, when <paramref name="user" /> names nobody, when <paramref name="id" /> is the struct default, when one lead is stated twice, when leads are stated against no due day, when <paramref name="answer" /> is stated for a task that is not a completed wait, or when <paramref name="waitingSince" /> is stated for a task that is not a wait or missing from one that is.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="origin" /> is not a declared origin, when <paramref name="commitment" /> states an undeclared direction or an estimate outside five minutes to twelve hours, when <paramref name="title" /> exceeds <see cref="MaximumTitleLength" />, when more than <see cref="Reminder.MaximumCount" /> leads are stated, or when the stated offset is not one a UTC offset can be.</exception>
     /// <remarks>
     /// It validates exactly what <see cref="Compose" /> validates rather than trusting the store, because a row read
@@ -232,13 +246,19 @@ public sealed record PersonalTask
         StoredEmailId? sourceMessage,
         bool isCompleted,
         TaskCommitment commitment,
-        TaskAnswer? answer)
+        TaskAnswer? answer,
+        DateTimeOffset? waitingSince)
     {
         Validate(id, user, origin, commitment);
 
         if (answer is not null && (commitment.Direction != PersonalTaskDirection.Awaited || !isCompleted))
         {
             throw new ArgumentException("A reply answers only a completed task the person waited for.", nameof(answer));
+        }
+
+        if ((commitment.Direction == PersonalTaskDirection.Awaited) != waitingSince.HasValue)
+        {
+            throw new ArgumentException("A wait states when it began, and a task the person owes states no such instant.", nameof(waitingSince));
         }
 
         var announced = Announced(dueOn, announcement);
@@ -254,7 +274,8 @@ public sealed record PersonalTask
             sourceMessage,
             isCompleted,
             commitment,
-            answer);
+            answer,
+            waitingSince);
     }
 
     /// <summary>States the task as the person has just edited it.</summary>
@@ -262,6 +283,7 @@ public sealed record PersonalTask
     /// <param name="dueOn">The day it is due on, or <see langword="null" /> where the person took the date off it.</param>
     /// <param name="announcement">What announces it afterwards and the offset its due day runs in, or <see cref="TaskAnnouncement.Silent" /> to announce nothing.</param>
     /// <param name="commitment">What the task is as a commitment from now on.</param>
+    /// <param name="revisedAt">When the edit is made, which is when a task the person owed becomes a wait.</param>
     /// <returns>The task as it now stands.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> or <paramref name="commitment" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is blank, when one lead is stated twice, or when leads are stated against no due day.</exception>
@@ -274,7 +296,12 @@ public sealed record PersonalTask
     /// citation records where the task came from rather than what it is now about. An edit that could rewrite any of those would let a person turn a proposal into a commitment, or
     /// point one at a message it was never read out of, through the route that renames it.
     /// </remarks>
-    public PersonalTask Revise(string title, DateOnly? dueOn, TaskAnnouncement announcement, TaskCommitment commitment)
+    public PersonalTask Revise(
+        string title,
+        DateOnly? dueOn,
+        TaskAnnouncement announcement,
+        TaskCommitment commitment,
+        DateTimeOffset revisedAt)
     {
         var announced = Announced(dueOn, announcement);
 
@@ -296,7 +323,8 @@ public sealed record PersonalTask
             this.SourceMessage,
             this.IsCompleted,
             commitment,
-            this.Answer);
+            this.Answer,
+            commitment.Direction != PersonalTaskDirection.Awaited ? null : this.WaitingSince ?? revisedAt);
     }
 
     /// <summary>Gets what the task is as a commitment, in the form <see cref="Revise" /> takes.</summary>
@@ -335,7 +363,19 @@ public sealed record PersonalTask
             this.SourceMessage,
             isCompleted: true,
             this.Commitment,
-            answer);
+            answer,
+            this.WaitingSince);
+    }
+
+    /// <summary>Answers whether a reply could close this task: an open wait, and a reply that arrived after the wait began.</summary>
+    /// <param name="answer">The reply that arrived.</param>
+    /// <returns><see langword="true" /> where the reply is one the person is still waiting for.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="answer" /> is <see langword="null" />.</exception>
+    public bool IsAnswerableBy(TaskAnswer answer)
+    {
+        ArgumentNullException.ThrowIfNull(answer);
+
+        return !this.IsCompleted && this.WaitingSince is { } since && answer.ArrivedAt > since;
     }
 
     /// <summary>Reports the instant one of this task's reminders falls at.</summary>

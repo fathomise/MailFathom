@@ -35,7 +35,8 @@ public sealed class PersonalTaskMappingTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Proposed,
             message,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Act
         var entity = PersonalTaskMapping.ToEntity(task);
@@ -63,7 +64,8 @@ public sealed class PersonalTaskMappingTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Act
         var entity = PersonalTaskMapping.ToEntity(task);
@@ -144,7 +146,8 @@ public sealed class PersonalTaskMappingTests
             new TaskAnnouncement(warsaw, [Reminder.Create(0), Reminder.Create(24 * 60)]),
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Act
         var entity = PersonalTaskMapping.ToEntity(task);
@@ -173,7 +176,8 @@ public sealed class PersonalTaskMappingTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Act
         var entity = PersonalTaskMapping.ToEntity(task);
@@ -255,8 +259,8 @@ public sealed class PersonalTaskMappingTests
     }
 
     /// <summary>
-    /// Every part of a commitment and the reply that closed it survives being written and read back, with the plan and
-    /// the answer as the instants they were rather than the offsets they were stated in.
+    /// Every part of a commitment, when the wait began, and the reply that closed it survive being written and read
+    /// back, with the plan, the wait, and the answer as the instants they were rather than the offsets they were stated in.
     /// </summary>
     [Fact]
     public void ToPersonalTask_TheRowAnAnsweredWaitIsWrittenAs_ReadsBackAsThatWait()
@@ -264,6 +268,7 @@ public sealed class PersonalTaskMappingTests
         // Arrange
         var warsaw = TimeSpan.FromHours(1);
         var thread = EmailThreadId.Create(Guid.NewGuid());
+        var waitingSince = new DateTimeOffset(2026, 11, 19, 16, 0, 0, warsaw);
         var answer = new TaskAnswer(StoredEmailId.Create(Guid.NewGuid()), new DateTimeOffset(2026, 11, 21, 9, 30, 0, warsaw));
         var commitment = new TaskCommitment(
             PersonalTaskDirection.Awaited,
@@ -279,7 +284,8 @@ public sealed class PersonalTaskMappingTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            commitment).Answered(answer);
+            commitment,
+            waitingSince).Answered(answer);
 
         // Act
         var entity = PersonalTaskMapping.ToEntity(task);
@@ -287,11 +293,13 @@ public sealed class PersonalTaskMappingTests
 
         // Assert
         Assert.Equal(TimeSpan.Zero, entity.PlannedStartAt?.Offset);
+        Assert.Equal(TimeSpan.Zero, entity.WaitingSince?.Offset);
         Assert.Equal("Anna.Example@example.org", entity.CounterpartAddress);
         Assert.Equal("ANNA.EXAMPLE@EXAMPLE.ORG", entity.CounterpartNormalizedAddress);
         Assert.Equal("Anna.Example@example.org", restored.Counterpart?.Address.Address);
         Assert.Equal(commitment, restored.Commitment);
         Assert.Equal(answer, restored.Answer);
+        Assert.Equal(waitingSince, restored.WaitingSince);
         Assert.True(restored.IsCompleted);
     }
 
@@ -309,7 +317,8 @@ public sealed class PersonalTaskMappingTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed with { Anchor = TaskAnchor.Event(calendarEvent, "Kick-off") });
+            TaskCommitment.Owed with { Anchor = TaskAnchor.Event(calendarEvent, "Kick-off") },
+            DateTimeOffset.UnixEpoch);
 
         // Act
         var entity = PersonalTaskMapping.ToEntity(task);

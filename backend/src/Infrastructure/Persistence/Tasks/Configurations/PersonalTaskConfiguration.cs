@@ -62,6 +62,22 @@ internal sealed class PersonalTaskConfiguration : IEntityTypeConfiguration<Perso
                 table.HasCheckConstraint(
                     PersistenceConstraintNames.PersonalTaskAnswerCompleteCheckConstraintName,
                     $"(\"{nameof(PersonalTaskEntity.AnswerStoredEmailId)}\" IS NULL) = (\"{nameof(PersonalTaskEntity.AnsweredAt)}\" IS NULL)");
+                table.HasCheckConstraint(
+                    PersistenceConstraintNames.PersonalTaskWaitBeganCheckConstraintName,
+                    $"(\"{nameof(PersonalTaskEntity.Direction)}\" = '{nameof(PersonalTaskDirection.Awaited)}') = (\"{nameof(PersonalTaskEntity.WaitingSince)}\" IS NOT NULL)");
+
+                // The ranges the domain refuses outside of, held here too for the reason the answer rule is: a row
+                // outside them would fail every later read of the list, and the columns are text and integers any
+                // statement can write.
+                table.HasCheckConstraint(
+                    PersistenceConstraintNames.PersonalTaskDirectionDeclaredCheckConstraintName,
+                    $"\"{nameof(PersonalTaskEntity.Direction)}\" IN ('{nameof(PersonalTaskDirection.Owed)}', '{nameof(PersonalTaskDirection.Awaited)}')");
+                table.HasCheckConstraint(
+                    PersistenceConstraintNames.PersonalTaskEstimateBoundedCheckConstraintName,
+                    $"\"{nameof(PersonalTaskEntity.EstimatedMinutes)}\" IS NULL OR \"{nameof(PersonalTaskEntity.EstimatedMinutes)}\" BETWEEN {TaskPlan.ShortestMinutes} AND {TaskPlan.LongestMinutes}");
+                table.HasCheckConstraint(
+                    PersistenceConstraintNames.PersonalTaskPlanBoundedCheckConstraintName,
+                    $"\"{nameof(PersonalTaskEntity.PlannedMinutes)}\" IS NULL OR \"{nameof(PersonalTaskEntity.PlannedMinutes)}\" BETWEEN {TaskPlan.ShortestMinutes} AND {TaskPlan.LongestMinutes}");
             });
         entity.HasKey(task => task.Id);
         entity.Property(task => task.Id).ValueGeneratedNever();

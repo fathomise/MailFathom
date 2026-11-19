@@ -92,6 +92,9 @@ internal sealed class PersonalTaskEntity
     /// <summary>Gets or sets when that reply arrived, which is set exactly when <see cref="AnswerStoredEmailId" /> is.</summary>
     public DateTimeOffset? AnsweredAt { get; set; }
 
+    /// <summary>Gets or sets the instant from which only a later reply answers a wait, which is set exactly when <see cref="Direction" /> is awaited.</summary>
+    public DateTimeOffset? WaitingSince { get; set; }
+
     /// <summary>Gets the leads this task is announced at, which go with it when it is erased.</summary>
     public ICollection<PersonalTaskReminderEntity> Reminders { get; } = [];
 }

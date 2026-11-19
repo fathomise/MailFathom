@@ -99,7 +99,7 @@ internal sealed class InMemoryPersonalTaskStore : IPersonalTaskStore
         return Task.FromResult(this.Replace(
             revision.User,
             revision.Id,
-            held => held.Revise(revision.Title, revision.DueOn, Announcing(revision), revision.Commitment)));
+            _ => revision));
     }
 
     public Task<PersonalTaskChangeOutcome> AcceptAsync(
@@ -119,7 +119,8 @@ internal sealed class InMemoryPersonalTaskStore : IPersonalTaskStore
                 held.SourceMessage,
                 held.IsCompleted,
                 held.Commitment,
-                held.Answer)));
+                held.Answer,
+                held.WaitingSince)));
 
     public Task<PersonalTaskChangeOutcome> SetCompletionAsync(
         UserId user,
@@ -139,7 +140,8 @@ internal sealed class InMemoryPersonalTaskStore : IPersonalTaskStore
                 held.SourceMessage,
                 isCompleted,
                 held.Commitment,
-                isCompleted ? held.Answer : null)));
+                isCompleted ? held.Answer : null,
+                isCompleted ? held.WaitingSince : held.Answer?.ArrivedAt ?? held.WaitingSince)));
 
     /// <summary>Restates what announces a held task, which a state change keeps rather than rewrites.</summary>
     private static TaskAnnouncement Announcing(PersonalTask task) => task.DueDayOffset is { } offset

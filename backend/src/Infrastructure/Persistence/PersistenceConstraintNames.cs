@@ -1104,6 +1104,18 @@ internal static class PersistenceConstraintNames
     /// <summary>The rule that an answered wait names both the reply and when it arrived.</summary>
     internal const string PersonalTaskAnswerCompleteCheckConstraintName = "ck_tasks_answer_complete";
 
+    /// <summary>The rule that a wait states when it began, and a task the person owes states no such instant.</summary>
+    internal const string PersonalTaskWaitBeganCheckConstraintName = "ck_tasks_wait_began";
+
+    /// <summary>The rule that a task runs one of the two declared directions.</summary>
+    internal const string PersonalTaskDirectionDeclaredCheckConstraintName = "ck_tasks_direction_declared";
+
+    /// <summary>The rule that an estimate lies between five minutes and twelve hours, where there is one.</summary>
+    internal const string PersonalTaskEstimateBoundedCheckConstraintName = "ck_tasks_estimate_bounded";
+
+    /// <summary>The rule that a plan runs between five minutes and twelve hours, where there is one.</summary>
+    internal const string PersonalTaskPlanBoundedCheckConstraintName = "ck_tasks_plan_bounded";
+
     /// <summary>The open waits of every user, by the thread a reply would answer them in.</summary>
     /// <remarks>
     /// Stated because it is partial, and because the question it serves is the one read here that names no user: a

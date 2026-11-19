@@ -336,7 +336,7 @@ public sealed class OwnTasksTests
         Assert.Equal("theirs", Assert.Single(store.Held).Title);
     }
 
-    /// <summary>A wait is recorded with what it waits on and who it waits for, so a reply in that thread can close it.</summary>
+    /// <summary>A wait is recorded with what it waits on, who it waits for, and when it began, so a later reply in that thread can close it.</summary>
     [Fact]
     public async Task RecordAsync_AWaitingTaskForAThread_AnswersItWithItsAnchorAndCounterpart()
     {
@@ -361,6 +361,7 @@ public sealed class OwnTasksTests
         // Assert
         Assert.Equal(commitment, written.Commitment);
         Assert.Equal(commitment, Assert.Single(store.Held).Commitment);
+        Assert.Equal(Stamped, written.WaitingSince);
     }
 
     /// <summary>A revision writes the commitment it states, so a plan dragged onto the calendar is there when the list is read again.</summary>
@@ -481,7 +482,8 @@ public sealed class OwnTasksTests
             TaskAnnouncement.Silent,
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            Awaiting());
+            Awaiting(),
+            DateTimeOffset.UnixEpoch);
         var store = Substitute.For<IPersonalTaskStore>();
         store.FindAsync(User, waiting.Id, Arg.Any<CancellationToken>()).Returns(waiting);
         store.ReviseAsync(Arg.Any<PersonalTask>(), Arg.Any<CancellationToken>())
@@ -795,7 +797,8 @@ public sealed class OwnTasksTests
             TaskAnnouncement.Silent,
             origin,
             sourceMessage: null,
-            commitment ?? TaskCommitment.Owed);
+            commitment ?? TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         await store.AddAsync(task, TestContext.Current.CancellationToken);
 

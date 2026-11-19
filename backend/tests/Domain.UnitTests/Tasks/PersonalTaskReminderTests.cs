@@ -79,7 +79,8 @@ public sealed class PersonalTaskReminderTests
             task.Title,
             new DateOnly(2026, 10, 1),
             new TaskAnnouncement(Warsaw, task.Reminders),
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Equal(
@@ -98,7 +99,7 @@ public sealed class PersonalTaskReminderTests
         var task = Announcing(60);
 
         // Act
-        var revising = () => task.Revise(task.Title, dueOn: null, new TaskAnnouncement(Warsaw, task.Reminders), TaskCommitment.Owed);
+        var revising = () => task.Revise(task.Title, dueOn: null, new TaskAnnouncement(Warsaw, task.Reminders), TaskCommitment.Owed, DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Equal("announcement", Assert.Throws<ArgumentException>(revising).ParamName);
@@ -112,7 +113,7 @@ public sealed class PersonalTaskReminderTests
         var task = Announcing(60);
 
         // Act
-        var quiet = task.Revise(task.Title, task.DueOn, TaskAnnouncement.Silent, TaskCommitment.Owed);
+        var quiet = task.Revise(task.Title, task.DueOn, TaskAnnouncement.Silent, TaskCommitment.Owed, DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Empty(quiet.Reminders);
@@ -133,7 +134,8 @@ public sealed class PersonalTaskReminderTests
             new TaskAnnouncement(Warsaw, [Reminder.Create(60)]),
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Equal("announcement", Assert.Throws<ArgumentException>(composing).ParamName);
@@ -198,7 +200,8 @@ public sealed class PersonalTaskReminderTests
             new TaskAnnouncement(offset, [Reminder.Create(60)]),
             PersonalTaskOrigin.Asserted,
             sourceMessage: null,
-            TaskCommitment.Owed);
+            TaskCommitment.Owed,
+            DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.Equal("announcement", Assert.Throws<ArgumentOutOfRangeException>(composing).ParamName);
@@ -262,7 +265,8 @@ public sealed class PersonalTaskReminderTests
         sourceMessage: null,
         isCompleted: false,
         TaskCommitment.Owed,
-        answer: null);
+        answer: null,
+        waitingSince: null);
 
     private static PersonalTask Announcing(int minutesBefore) => Compose([Reminder.Create(minutesBefore)]);
 
@@ -274,5 +278,6 @@ public sealed class PersonalTaskReminderTests
         reminders.Length == 0 ? TaskAnnouncement.Silent : new TaskAnnouncement(Warsaw, reminders),
         PersonalTaskOrigin.Asserted,
         sourceMessage: null,
-        TaskCommitment.Owed);
+        TaskCommitment.Owed,
+        DateTimeOffset.UnixEpoch);
 }

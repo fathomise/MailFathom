@@ -30,6 +30,8 @@ public sealed class OrchestratedPersonalTaskStoreTests(MailFathomOrchestrationFi
 
     private static readonly TimeSpan Warsaw = TimeSpan.FromHours(1);
 
+    private static readonly DateTimeOffset WrittenAt = new(2031, 1, 2, 8, 0, 0, Warsaw);
+
     [Fact]
     public async Task AddAsync_ATaskStatingEveryPartOfItsCommitment_ReadsBackWhole()
     {
@@ -58,6 +60,7 @@ public sealed class OrchestratedPersonalTaskStoreTests(MailFathomOrchestrationFi
         // Assert
         Assert.NotNull(read);
         Assert.Equal(commitment, read.Commitment);
+        Assert.Equal(WrittenAt, read.WaitingSince);
         Assert.Null(read.Answer);
     }
 
@@ -90,7 +93,7 @@ public sealed class OrchestratedPersonalTaskStoreTests(MailFathomOrchestrationFi
                 await store.AddAsync(held, token);
                 Assert.Equal(
                     PersonalTaskChangeOutcome.Applied,
-                    await store.ReviseAsync(held.Revise(held.Title, held.DueOn, TaskAnnouncement.Silent, commitment), token));
+                    await store.ReviseAsync(held.Revise(held.Title, held.DueOn, TaskAnnouncement.Silent, commitment, DateTimeOffset.UnixEpoch), token));
 
                 return await store.FindAsync(services.ServedUser, held.Id, token);
             },
@@ -361,6 +364,7 @@ public sealed class OrchestratedPersonalTaskStoreTests(MailFathomOrchestrationFi
         Assert.NotNull(read);
         Assert.False(read.IsCompleted);
         Assert.Null(read.Answer);
+        Assert.Equal(reply.ArrivedAt, read.WaitingSince);
         Assert.Equal([waiting.Id], awaiting.Select(task => task.Id));
     }
 
@@ -395,6 +399,39 @@ public sealed class OrchestratedPersonalTaskStoreTests(MailFathomOrchestrationFi
 
         // Assert
         Assert.Equal(PersistenceConstraintNames.PersonalTaskAnswerClosesAWaitCheckConstraintName, refusal.ConstraintName);
+    }
+
+    [Theory]
+    [InlineData("UPDATE tasks SET \"Direction\" = 'Sideways' WHERE \"Id\" = {0}", false, PersistenceConstraintNames.PersonalTaskDirectionDeclaredCheckConstraintName)]
+    [InlineData("UPDATE tasks SET \"EstimatedMinutes\" = 721 WHERE \"Id\" = {0}", false, PersistenceConstraintNames.PersonalTaskEstimateBoundedCheckConstraintName)]
+    [InlineData("UPDATE tasks SET \"PlannedStartAt\" = now(), \"PlannedMinutes\" = 4 WHERE \"Id\" = {0}", false, PersistenceConstraintNames.PersonalTaskPlanBoundedCheckConstraintName)]
+    [InlineData("UPDATE tasks SET \"WaitingSince\" = NULL WHERE \"Id\" = {0}", true, PersistenceConstraintNames.PersonalTaskWaitBeganCheckConstraintName)]
+    [InlineData("UPDATE tasks SET \"WaitingSince\" = now() WHERE \"Id\" = {0}", false, PersistenceConstraintNames.PersonalTaskWaitBeganCheckConstraintName)]
+    public async Task Table_AValueTheDomainRefuses_IsRefused(string statement, bool waits, string constraint)
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var task = waits ? Awaiting(services, Guid.NewGuid()) : Task(services, "Book the room", dueOn: null, TaskCommitment.Owed);
+        await InStoreAsync(
+            services,
+            async (store, token) =>
+            {
+                await store.AddAsync(task, token);
+
+                return true;
+            },
+            cancellationToken);
+
+        // Act
+        var refusal = await services.InScopeAsync(
+            (scope, token) => Assert.ThrowsAsync<PostgresException>(() => scope.GetRequiredService<MailFathomDbContext>()
+                .Database
+                .ExecuteSqlRawAsync(statement, [task.Id.Value], token)),
+            cancellationToken);
+
+        // Assert
+        Assert.Equal(constraint, refusal.ConstraintName);
     }
 
     private static Task<IReadOnlyList<PersonalTask>> AddAndReadAsync(
@@ -478,7 +515,8 @@ public sealed class OrchestratedPersonalTaskStoreTests(MailFathomOrchestrationFi
         TaskAnnouncement.Silent,
         PersonalTaskOrigin.Asserted,
         sourceMessage: null,
-        commitment);
+        commitment,
+        WrittenAt);
 
     private static EmailAddress Address(string address) =>
         EmailAddress.TryCreate(displayName: null, address, out var parsed)

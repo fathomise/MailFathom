@@ -150,8 +150,10 @@ internal static class ClientTaskEndpoints
             .WithMetadata(new RequestSizeLimitAttribute(MaxWriteRequestBytes))
             .RequirePermission(MailFathomPermission.TasksWrite);
 
+        // The conflict is stated because the return type cannot carry it: it travels as a problem, beside the refusals.
         api.MapPut(TaskRoute, ReviseAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaxWriteRequestBytes))
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .RequirePermission(MailFathomPermission.TasksWrite);
 
         api.MapPost(TaskCompletionRoute, SetCompletionAsync)

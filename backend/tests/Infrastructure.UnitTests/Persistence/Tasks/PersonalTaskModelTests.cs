@@ -220,6 +220,7 @@ public sealed class PersonalTaskModelTests
     [InlineData(PersistenceConstraintNames.PersonalTaskCounterpartCompleteCheckConstraintName, "\"CounterpartAddress\" IS NULL", "\"CounterpartNormalizedAddress\" IS NULL")]
     [InlineData(PersistenceConstraintNames.PersonalTaskAnswerClosesAWaitCheckConstraintName, "\"AnswerStoredEmailId\" IS NULL OR", "\"Direction\" = 'Awaited' AND \"IsCompleted\"")]
     [InlineData(PersistenceConstraintNames.PersonalTaskAnswerCompleteCheckConstraintName, "\"AnswerStoredEmailId\" IS NULL", "\"AnsweredAt\" IS NULL")]
+    [InlineData(PersistenceConstraintNames.PersonalTaskWaitBeganCheckConstraintName, "(\"Direction\" = 'Awaited')", "(\"WaitingSince\" IS NOT NULL)")]
     public void Model_EachWholeValue_IsCheckedByTheTable(string name, string firstHalf, string secondHalf)
     {
         // Arrange
@@ -235,6 +236,27 @@ public sealed class PersonalTaskModelTests
         // Assert
         Assert.Contains(firstHalf, constraint.Sql, StringComparison.Ordinal);
         Assert.Contains(secondHalf, constraint.Sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>The direction and the minutes a plan or an estimate holds are refused outside what the domain takes, whoever writes the row.</summary>
+    [Theory]
+    [InlineData(PersistenceConstraintNames.PersonalTaskDirectionDeclaredCheckConstraintName, "\"Direction\" IN ('Owed', 'Awaited')")]
+    [InlineData(PersistenceConstraintNames.PersonalTaskEstimateBoundedCheckConstraintName, "\"EstimatedMinutes\" IS NULL OR \"EstimatedMinutes\" BETWEEN 5 AND 720")]
+    [InlineData(PersistenceConstraintNames.PersonalTaskPlanBoundedCheckConstraintName, "\"PlannedMinutes\" IS NULL OR \"PlannedMinutes\" BETWEEN 5 AND 720")]
+    public void Model_EachRangeTheDomainHolds_IsCheckedByTheTable(string name, string rule)
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var constraint = context.GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType(typeof(PersonalTaskEntity))!
+            .GetCheckConstraints()
+            .Single(candidate => candidate.Name == name);
+
+        // Assert
+        Assert.Equal(rule, constraint.Sql);
     }
 
     /// <summary>Each surface reads one person's tasks by one of these, so each leads with the person.</summary>

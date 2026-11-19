@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.AutomaticReplies;
+using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Settlement;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Mail.Delivery.Composition;
@@ -344,7 +345,13 @@ public sealed class MailSettlementPassTests
         identities.FindSenderIdentity(Account).Returns(
             OutgoingSenderIdentity.Create(Account, AutomaticReplyWorld.Address(AutomaticReplyWorld.OwnAddress)));
 
-        return new AwaitedReplies(summaries, tasks, identities, signals, this.clock);
+        return new AwaitedReplies(
+            summaries,
+            Substitute.For<IEmailContentStore>(),
+            Substitute.For<IArrivedMailEnvelopeReader>(),
+            tasks,
+            identities,
+            signals);
     }
 
     private async Task<(SettlingEmail Inbox, InMemoryStoredEmailSummaries Summaries, InMemoryPersonalTaskStore Tasks)> ArrangeReplyToAWaitAsync()
@@ -369,7 +376,8 @@ public sealed class MailSettlementPassTests
                 TaskAnnouncement.Silent,
                 PersonalTaskOrigin.Asserted,
                 sourceMessage: null,
-                new TaskCommitment(PersonalTaskDirection.Awaited, null, null, TaskAnchor.Thread(thread, "Tender"), null)),
+                new TaskCommitment(PersonalTaskDirection.Awaited, null, null, TaskAnchor.Thread(thread, "Tender"), null),
+                Now.AddHours(-1)),
             TestContext.Current.CancellationToken);
         this.store.Holding(inbox);
 

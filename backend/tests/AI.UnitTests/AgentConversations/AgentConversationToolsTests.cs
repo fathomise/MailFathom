@@ -2630,7 +2630,8 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         sourceMessage: null,
         isCompleted: false,
         TaskCommitment.Owed,
-        answer: null);
+        answer: null,
+        waitingSince: null);
 
     private static CalendarEvent CalendarEntry(string title, DateTimeOffset start) => CalendarEvent.Create(
         CalendarEventId.Create(Guid.CreateVersion7()),

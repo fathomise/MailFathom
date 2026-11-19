@@ -173,7 +173,8 @@ internal static class PersonalAgenda
             source,
             isCompleted,
             commitment ?? TaskCommitment.Owed,
-            answer: null);
+            answer: null,
+            waitingSince: commitment?.Direction is PersonalTaskDirection.Awaited ? DateTimeOffset.UnixEpoch : null);
 
     private static EmailThreadState State(IReadOnlyList<CorpusMessage> exchange, params ThreadStateEntry[] entries) =>
         new(

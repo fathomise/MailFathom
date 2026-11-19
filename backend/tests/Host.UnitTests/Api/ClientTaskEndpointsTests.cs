@@ -1074,7 +1074,8 @@ public sealed class ClientTaskEndpointsTests
         sourceMessage: null,
         isCompleted: false,
         TaskCommitment.Owed with { Anchor = TaskAnchor.Thread(EmailThreadId.Create(ThreadIdentifier), "Tender questions") },
-        answer: null);
+        answer: null,
+        waitingSince: null);
 
     private static PersonalTask Answered() => PersonalTask.Restore(
         PersonalTaskId.Create(TaskIdentifier),
@@ -1086,7 +1087,8 @@ public sealed class ClientTaskEndpointsTests
         sourceMessage: null,
         isCompleted: true,
         new TaskCommitment(PersonalTaskDirection.Awaited, null, null, null, null),
-        new TaskAnswer(StoredEmailId.Create(MessageIdentifier), Stamped));
+        new TaskAnswer(StoredEmailId.Create(MessageIdentifier), Stamped),
+        waitingSince: DateTimeOffset.UnixEpoch);
 
     /// <summary>Builds the conversation reader over the real scope resolution, holding the anchored thread for this person or for nobody.</summary>
     private static MailThreadBrowser Threads(bool readable)
@@ -1373,5 +1375,6 @@ public sealed class ClientTaskEndpointsTests
             StoredEmailId.Create(MessageIdentifier),
             isCompleted,
             TaskCommitment.Owed,
-            answer: null);
+            answer: null,
+            waitingSince: null);
 }

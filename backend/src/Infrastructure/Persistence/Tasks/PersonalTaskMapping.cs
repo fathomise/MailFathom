@@ -32,7 +32,8 @@ internal static class PersonalTaskMapping
             entity.SourceStoredEmailId is { } message ? StoredEmailId.Create(message) : null,
             entity.IsCompleted,
             ToCommitment(entity),
-            ToAnswer(entity));
+            ToAnswer(entity),
+            entity.WaitingSince);
     }
 
     /// <summary>Maps one task onto the row it is written as.</summary>
@@ -55,6 +56,7 @@ internal static class PersonalTaskMapping
             SourceStoredEmailId = task.SourceMessage?.Value,
             AnswerStoredEmailId = task.Answer?.Message.Value,
             AnsweredAt = task.Answer?.ArrivedAt.ToUniversalTime(),
+            WaitingSince = task.WaitingSince?.ToUniversalTime(),
         };
 
         WriteCommitment(entity, task.Commitment);

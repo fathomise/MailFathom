@@ -48,7 +48,7 @@ public sealed record PersonalTaskQuery(
         : null;
 
     /// <summary>Refuses a query no store should answer.</summary>
-    /// <exception cref="ArgumentException">Thrown when <see cref="Origin" /> is not a declared origin, when an anchor or counterpart is the struct default, when only one bound of the window is stated, or when the window closes before it opens or is longer than <see cref="LongestWindowDays" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when <see cref="Origin" /> is not a declared origin, when an anchor or counterpart is the struct default, when only one bound of the window is stated, or when the window closes at or before the instant it opens or is longer than <see cref="LongestWindowDays" />.</exception>
     public void EnsureAnswerable()
     {
         if (this.Origin is { } origin && !Enum.IsDefined(origin))

@@ -99,8 +99,9 @@ public sealed class MailDerivedTaskProposals
         {
             foreach (var proposal in proposals)
             {
+                var now = this.clock.GetUtcNow();
                 var task = PersonalTask.Compose(
-                    PersonalTaskId.Create(Guid.CreateVersion7(this.clock.GetUtcNow())),
+                    PersonalTaskId.Create(Guid.CreateVersion7(now)),
                     user,
                     proposal.Title,
                     proposal.DueOn,
@@ -110,7 +111,8 @@ public sealed class MailDerivedTaskProposals
                     TaskAnnouncement.Silent,
                     PersonalTaskOrigin.Proposed,
                     message,
-                    TaskCommitment.Owed);
+                    TaskCommitment.Owed,
+                    now);
 
                 await this.store.AddAsync(task, cancellationToken);
 

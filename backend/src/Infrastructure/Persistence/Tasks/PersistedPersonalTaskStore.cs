@@ -154,6 +154,7 @@ internal sealed class PersistedPersonalTaskStore(
                             ? (int)offset.TotalMinutes
                             : null;
                         PersonalTaskMapping.WriteCommitment(stored, revision.Commitment);
+                        stored.WaitingSince = revision.WaitingSince?.ToUniversalTime();
 
                         Reconcile(writeContext, stored, revision);
                     },
@@ -207,7 +208,9 @@ internal sealed class PersistedPersonalTaskStore(
     /// <remarks>
     /// The user is part of the lookup rather than a check after it, which is what makes another person's task answer
     /// as one that does not exist. Reopening a wait a reply answered clears that answer, because an open wait is one
-    /// nothing has answered yet: the next reply settled in its thread answers it again.
+    /// nothing has answered yet: the next reply settled in its thread answers it again. The wait is then held to begin
+    /// when that reply arrived, because the person reopening it has said that reply was not the answer — so settling it
+    /// again, as a resynchronization does, closes nothing.
     /// </remarks>
     public Task<PersonalTaskChangeOutcome> SetCompletionAsync(
         UserId user,
@@ -225,6 +228,7 @@ internal sealed class PersistedPersonalTaskStore(
 
                     if (!isCompleted)
                     {
+                        stored.WaitingSince = stored.AnsweredAt ?? stored.WaitingSince;
                         stored.AnswerStoredEmailId = null;
                         stored.AnsweredAt = null;
                     }

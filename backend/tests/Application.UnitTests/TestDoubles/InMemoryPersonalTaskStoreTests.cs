@@ -128,7 +128,8 @@ public sealed class InMemoryPersonalTaskStoreTests
         TaskAnnouncement.Silent,
         PersonalTaskOrigin.Asserted,
         sourceMessage: null,
-        commitment);
+        commitment,
+        DateTimeOffset.UnixEpoch);
 
     private static EmailAddress Address(string address) =>
         EmailAddress.TryCreate(displayName: null, address, out var parsed)
