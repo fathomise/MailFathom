@@ -306,7 +306,7 @@ desktop composition steps back the same way a phone does, and what differs is on
 
 | Press | What it takes away |
 |---|---|
-| A surface stands over the screen | That surface: the drawer, a sheet, the composer, a dialog, Settings, a menu, the notification centre, the catch-up, Fathom's menu, and its answer |
+| A surface stands over the screen | That surface: the drawer, a sheet, the composer, a dialog, Settings, a menu, the notification centre, Fathom's menu, and its answer |
 | A view stands where another was | That view, as its own *Back* does: the thread in front of the list (`singlePane`), a person in front of its list (`isMobile`) |
 | Nothing stands in the space | The space, back to the one before it — closing every surface still open, as switching space does |
 
@@ -383,7 +383,6 @@ score.
 | State | Flag | Reveal |
 |---|---|---|
 | The day | `showIdle` | `st.phase === "idle"` — the state the prototype opens in: *Good afternoon, Karolina*, the date, then *Right now* and *Watching* |
-| The catch-up, on Start | `cuCardShown` | a catch-up exists (`st.catchup`) and nothing is being asked — a card across the page under the greeting: an accent-edged `--panel` card with `flight_land` (an absence) or `beach_access` (a Holiday), *While you were away*, a line naming the absence, how many still need the reader and *on one page* (`cuCardSub`), *Open* and *Done with it*. It has no expiry — § *The catch-up* |
 | Now | `nowParas` | always, first on the page — **the *Now* widget**: a card on a 16 px radius with an `--accent-line` border, a ground running from `--accent-soft` at its top corner into `--panel`, and a soft shadow. Its head is an accent dot ringed in `--accent-soft`, *NOW* in 12 px accent capitals, and **when it was last updated** at the end (*Updated 6 min ago · 13:34*). Under it, where the reader stands and what they have to do, in the voice of a manager briefing them, with a light touch of humour: a few short paragraphs (`HOME.now.paras`), one of them **the day's numbers said in words** — how much arrived and how little of it needs a reply, who is waiting, what is due, how many things are on the list and how many are today's — never a table or a row of chips. **A sentence that states a fact ends in a source marker** (`nowCiteStyle`, `HOME.now.sources`): a small number on `--accent-soft`, 17 px, and 22 under a finger so the text keeps its lines — the one control on Start below the touch target — named *Source n:* and the conversation's subject, which opens that conversation, or the Mail list for the day's counts. The paragraphs stand at 17 px (15.5 below 1020 px, 15 on a phone) in `--text2`, the few things that matter in semibold `--text`, and nothing else formatted. Its foot, over an accent hairline, is one faint line behind the provenance glyph, *Written from today's mail, calendar and tasks · 4 sources* |
 | Right now | `rightNow` | always — **the *Right now* widget**: the docked panel from 1020 px, with no card of its own inside it, and below that a `--panel` card on a 16 px radius with a soft shadow. Either is headed by an accent dot, *RIGHT NOW* in 12 px accent capitals, and *13:40 · read off by rules* at the end. It holds what matters most **at this moment**, a group for the mail, one for the tasks and one for the calendar (`HOME.rightNow`). A group opens on a head — the space's glyph, its name, and its counts in faint text (*14 new · 3 waiting on you*, *2 due today*, *2 meetings today · 1 left*) with a chevron — which opens that space; 34 px tall, 44 under a finger. Under it stand the group's one or two most urgent rows: a 34 px tile with the row's glyph, the title in 14 px semibold, one line saying why it is here, and when as a chip at the row's end. The tile and the chip share a tone — `--warn` for a deadline, `--err` for a security risk, the accent for the next meeting, neutral for a task — and the glyph and the words say the same, so the tone is never the only signal. A row opens its conversation, Tasks or Calendar. On a phone the reason is one line, cut with an ellipsis |
 | Right now, widened | `rightNowScale` / `rightNowResize` | the docked, unfolded panel's start edge is a handle: a 5 px `--line` bar for the panel's whole height with the list boundary's 44 px pill grip at its middle, drawn under a mouse and a finger alike. Dragged toward the space, the panel widens **to twice its own width at the most** (920 px on Start at its widest, 600 px beside the other spaces) and never past 60% of the window; dragged back it stops at its own width, and a double click puts it there. From 360 px the rows keep their time at the row's end instead of under the reason. The width is kept as a multiple, so it follows the panel from Start to the other spaces |
@@ -396,38 +395,6 @@ score.
 | A watched refresh paused | `w.isPaused` | the seeded `paused` row — the answer as it last stood and a warning line naming when the refresh resumes, because the allowance is spent |
 | Watching stopped | `w.stop` | × on a row — the row goes and the toast says the question no longer refreshes |
 | Nothing watched | `noWatched` | every row stopped, so the list is not drawn — a dashed hint under the head: ask above, then press *Watch* on the answer, and the question stays here and refreshes when new mail matches it |
-
-### The catch-up
-
-**Start is drawn for the reader who opens it every day, so a reader back from an absence gets the absence first.** The
-first time Start is opened after more than two days without MailFathom being opened, or after an all-day *Holiday* or
-*Out of office* on the reader's own calendar that has ended since, it opens the catch-up over everything: **one page of
-panels, read in any order**, saying what happened while they were away. Nothing on it moves by itself and nothing on it
-expires: closing it lands on the ordinary day, which keeps the catch-up's card until the reader is done with it (or the
-next absence replaces it). The sample absence is 11 to 26 August (`data/prototype/catchup.js`), and every panel is
-counted and sorted by rules from mail the deployment already holds; what the model writes is only what a quick action
-asks for.
-
-| State | Flag | Reveal |
-|---|---|---|
-| Open | `cuOpen` | the prototype control below, or *Open* on Start's card. On two panes a sheet up to 1180 × 920 px on an 18 px radius over the scrim; on a phone it fills the screen, the bottom bar included. `role="dialog"` |
-| Its head | `cuHeadTitle` / `cuHeadSub` | *While you were away* and the absence with its range (*16 days away · 11-26 August*, *Holiday · 11-26 August*), with *Export*, *Done with it* and × (glyphs alone on a phone, each with its name) |
-| Why it opened | `cuHelloLede` | `st.catchup.reason` — `away` (*You were last here on Monday 10 August, 17 days ago.*) or `holiday` (*Your calendar said Holiday from 11 to 26 August.*), under *Welcome back, Karolina* |
-| The counts | `cuStats` | four tiles across (two by two on a phone): *messages arrived*, *conversations*, *meetings went ahead*, *still need you* |
-| Its panels | `cuPanels` | in two columns that pack like a masonry (one under 1020 px, stacked on a phone), in this order: *Still needs you*, *Worth a careful look* (most urgent first), *Settled without you*, *Who wrote most*, *What it was about*, *Safe to archive*. Each `--panel` card has a tile in its tone (accent, warn, ok, neutral), its eyebrow, title and lede |
-| Panel layouts | `cp.isList` / `cp.isBars` / `cp.isChips` / `cp.isStats` | rows with an icon, a title, a line and a date badge; people with initials on a rounded square, a count and a bar; topics as pills sized by how much mail they took; counts in a three-column grid |
-| An item's quick actions | `ci.open` | pressing anything on a panel — a count, a thread, a person, a risk, a topic — opens the context menu (`ctxMenu`) headed by that item, with what its kind offers (`fathom.itemActions`): a count *Summarize*, *Break it down*, *Show these*; a thread *Summarize*, *Give me more*, *Translate*, *Draft a reply*, *Open the thread*; a settled thread *How did it settle?*, *Open the thread*; a risk *Why is this a risk?*, *What should I check?*, *Mark as safe*, *Open the message*; a person *Context*, *Summarize their mail*, *Write to them*, *Open in People*; a topic *Summarize*, *What was decided?*, *Show the threads* |
-| Selected text | `cuSelect` | selecting any words on the page (a hold under a finger) opens the same menu headed *Selected text* with the selection quoted: *Explain*, *Summarize*, *Translate*, *Give me more*, *Ask the agent*, *Copy* |
-| An answer | `fathomAnswerOpen` | an action that answers writes into Fathom's answer card, centred low over the sheet on two panes and across the bottom of a phone — § *Fathom* |
-| Archived from it | `st.catchupArchived` | *Archive all 221* on *Safe to archive* — it reads *Archived · Undo*, and the toast carries *Undo* |
-| Export | `cuExport` | *Export* in the head — a menu headed *Written on this device. Nothing is sent.* offering a PDF of the page, one image per panel, or text with links to the threads; the toast names the file |
-| Closed | `cuClose` | ×, a press on the scrim, Escape or back — Start's ordinary day with the card |
-| Done with it | `cuDone` | *Done with it* in the head or on Start's card — the catch-up is gone from Start; the toast says nothing in the mail changed and carries *Undo* |
-
-**The prototype's control.** A dashed `beach_access` button under *Prototype* in the rail (`tryCatchup`), and *Try the
-catch-up · prototype* in the phone's *More* sheet, open a menu: *Back after 16 days away* and *Back from a Holiday in
-the calendar* each start a fresh catch-up and open it on Start; once one exists, *Forget the catch-up* removes it.
-Nothing in the client carries this control.
 
 ### Asking
 
@@ -1521,7 +1488,7 @@ Every label in the prototype is English, among them the Settings tabs *Profile* 
 they look: the bottom-right corner, 24 px from both edges (20 px on a phone, above its bottom bar). It is an accent rounded square,
 56 px with an 18 px radius on the phone, 48 px with a 14 px radius elsewhere, a floating shadow, a brighter hover,
 and a 22 px `auto_awesome` glyph at weight 400 in `--onaccent`. Opening the choices changes the glyph to `close`.
-It is drawn on Start and Mail, and stands aside for the composer, a document, Settings, Notifications, the catch-up,
+It is drawn on Start and Mail, and stands aside for the composer, a document, Settings, Notifications,
 the reply drafter, and a selection on the phone (`fathomFabShown`). The Agent, Tasks, Calendar and People carry none: the Agent is
 the conversation Fathom would open, and the others keep their own actions.
 
@@ -1926,8 +1893,8 @@ clicking a preview.
   *The server did not answer, so it is not known whether that change to the photo was stored.*
 - **Start with nothing watched** (`noWatched`). Reached only by stopping every watched question first. A watched question that **could not refresh**
   has no seeded row in the prototype; `d_watched` in the Client States file draws it.
-- **A catch-up** (`cuOpen`, `cuCardShown`). Nothing in the prototype's day is an absence, so it is reached only by the
-  dashed *Prototype* control in the rail or *Try the catch-up* in the phone's *More* sheet.
+- **Fathom's answer card** (`fathomAnswerOpen`). No choice Fathom offers on Start or Mail answers in place, so no
+  press in the prototype opens it.
 - **An arrival with no subject, and the moment arrivals merge.** Every sample mail row carries a subject, so *No
   subject* is drawn by no preview; and the sample centre holds its merged row from the start, so the sixth arrival
   folding five separate rows into one is a rule the inventory states rather than a click that plays it.

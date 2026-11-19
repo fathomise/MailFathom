@@ -22,7 +22,6 @@ Project repository: https://github.com/fathomise/MailFathom
 <script src="data/prototype/compose.js"></script>
 <script src="data/prototype/ask.js"></script>
 <script src="data/prototype/home.js"></script>
-<script src="data/prototype/catchup.js"></script>
 <script src="data/prototype/fathom.js"></script>
 <script src="data/prototype/calendar.js"></script>
 <script src="data/prototype/tasks.js"></script>
@@ -194,7 +193,6 @@ Project repository: https://github.com/fathomise/MailFathom
             <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1">cloud_off</span>
           </div>
         </sc-if>
-        <div role="button" tabIndex="0" onClick="{{ tryCatchup }}" title="Try the catch-up after an absence (prototype)" aria-label="Try the catch-up after an absence (prototype)" style="{{ tryBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text);border-color:var(--accent-line)">beach_access</div>
         <div onClick="{{ refreshAll }}" title="Refresh" style="{{ refreshBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">
           <span style="{{ refreshIconStyle }}">refresh</span>
         </div>
@@ -366,19 +364,6 @@ Project repository: https://github.com/fathomise/MailFathom
               <div style="{{ idleTitleStyle }}">Good afternoon, Karolina</div>
               <div style="font-size:13px;color:var(--muted);text-wrap:pretty">{{ sample.today }}</div>
             </div>
-            <sc-if value="{{ cuCardShown }}" hint-placeholder-val="{{ false }}">
-              <div style="{{ cuCardStyle }}{{ startSpanStyle }}">
-                <span aria-hidden="true" style="{{ cuCardIconStyle }}">{{ cuCardIcon }}</span>
-                <div style="flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:2px">
-                  <div style="font-size:15px;font-weight:600">{{ cuCardTitle }}</div>
-                  <div style="font-size:12.5px;color:var(--muted);text-wrap:pretty">{{ cuCardSub }}</div>
-                </div>
-                <div style="display:flex;gap:8px;align-items:center">
-                  <div role="button" tabIndex="0" onClick="{{ openCatchup }}" style="{{ cuOpenBtnStyle }}" style-hover="cursor:pointer;opacity:0.9">Open</div>
-                  <div role="button" tabIndex="0" onClick="{{ cuDone }}" style="{{ cuQuietBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Done with it</div>
-                </div>
-              </div>
-            </sc-if>
 
             <div role="region" aria-label="Now" style="{{ nowCardStyle }}">
               <div style="display:flex;align-items:center;gap:8px;min-width:0">
@@ -2893,10 +2878,6 @@ Project repository: https://github.com/fathomise/MailFathom
             <span style="{{ refreshIconStyle }};width:26px;text-align:center;font-size:22px">refresh</span>
             <span style="font-size:15px">Refresh</span>
           </div>
-          <div onClick="{{ tryCatchup }}" style="{{ moreRowStyle }}" style-hover="background:var(--hover)">
-            <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;width:26px;text-align:center">beach_access</span>
-            <span style="font-size:15px">Try the catch-up <span style="color:var(--faint)">· prototype</span></span>
-          </div>
           <div onClick="{{ moreSettings }}" style="{{ moreRowStyle }}" style-hover="background:var(--hover)">
             <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;width:26px;text-align:center">settings</span>
             <span style="font-size:15px">Settings</span>
@@ -3086,105 +3067,8 @@ Project repository: https://github.com/fathomise/MailFathom
     </div>
   </sc-if>
 
-  <sc-if value="{{ cuOpen }}" hint-placeholder-val="{{ false }}">
-    <div data-motion="scrim" data-phase="{{ mo.catchupOpen }}" onClick="{{ cuClose }}" style="{{ cuScrimStyle }}">
-      <div data-motion="pop" data-phase="{{ mo.catchupOpen }}" role="dialog" aria-modal="true" aria-label="While you were away" onClick="{{ stopProp }}" onMouseUp="{{ cuSelect }}" onTouchEnd="{{ cuSelect }}" style="{{ cuSheetStyle }}">
-        <div style="{{ cuHeadStyle }}">
-          <span aria-hidden="true" style="{{ cuHeadIconStyle }}">{{ cuCardIcon }}</span>
-          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
-            <div style="font-size:15px;font-weight:600">{{ cuHeadTitle }}</div>
-            <div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ cuHeadSub }}</div>
-          </div>
-          <sc-if value="{{ cuHeadLabels }}" hint-placeholder-val="{{ true }}">
-            <div role="button" tabIndex="0" onClick="{{ cuExport }}" style="{{ cuQuiet }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:17px">ios_share</span>Export</div>
-            <div role="button" tabIndex="0" onClick="{{ cuDone }}" style="{{ cuQuiet }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:17px">done_all</span>Done with it</div>
-          </sc-if>
-          <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
-            <div role="button" tabIndex="0" aria-label="Export" title="Export" onClick="{{ cuExport }}" style="{{ cuIconBtn }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">ios_share</div>
-            <div role="button" tabIndex="0" aria-label="Done with it" title="Done with it" onClick="{{ cuDone }}" style="{{ cuIconBtn }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">done_all</div>
-          </sc-if>
-          <div role="button" tabIndex="0" aria-label="Close" title="Close" onClick="{{ cuClose }}" style="{{ cuIconBtn }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
-        </div>
-        <div style="{{ cuBodyStyle }}">
-          <div style="display:flex;flex-direction:column;gap:6px">
-            <div style="{{ cuHelloTitleStyle }}">{{ cuHelloTitle }}</div>
-            <div style="{{ cuHelloLedeStyle }}">{{ cuHelloLede }}</div>
-          </div>
-          <div style="{{ cuStatsStyle }}">
-            <sc-for list="{{ cuStats }}" as="ci" hint-placeholder-count="4">
-              <div role="button" tabIndex="0" aria-label="{{ ci.aria }}" onClick="{{ ci.open }}" style="{{ ci.statStyle }}" style-hover="cursor:pointer;border-color:var(--accent-line)" style-focus="outline:2px solid var(--accent);outline-offset:2px">
-                <span style="{{ ci.statNStyle }}">{{ ci.n }}</span><span style="{{ ci.statLabelStyle }}">{{ ci.label }}</span>
-              </div>
-            </sc-for>
-          </div>
-          <div style="font-size:11.5px;color:var(--faint)">{{ cuHint }}</div>
-          <div style="{{ cuGridStyle }}">
-            <sc-for list="{{ cuPanels }}" as="cp" hint-placeholder-count="6">
-              <section aria-label="{{ cp.eyebrow }}" style="{{ cp.panelStyle }}">
-                <div style="display:flex;align-items:flex-start;gap:11px">
-                  <span aria-hidden="true" style="{{ cp.tileStyle }}">{{ cp.icon }}</span>
-                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
-                    <div style="font-size:11px;font-weight:600;color:var(--muted)">{{ cp.eyebrow }}</div>
-                    <div style="font-size:16px;font-weight:600;line-height:1.3;text-wrap:pretty;user-select:text">{{ cp.title }}</div>
-                    <div style="font-size:13px;line-height:1.45;color:var(--text2);text-wrap:pretty;user-select:text">{{ cp.lede }}</div>
-                  </div>
-                </div>
-                <sc-if value="{{ cp.isList }}" hint-placeholder-val="{{ true }}">
-                  <div style="display:flex;flex-direction:column">
-                    <sc-for list="{{ cp.items }}" as="ci" hint-placeholder-count="3">
-                      <div role="button" tabIndex="0" aria-label="{{ ci.aria }}" onClick="{{ ci.open }}" style="{{ ci.rowStyle }}" style-hover="cursor:pointer;background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
-                        <span aria-hidden="true" style="{{ ci.rowIconStyle }}">{{ ci.icon }}</span>
-                        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
-                          <div style="font-size:14px;font-weight:600;line-height:1.35;text-wrap:pretty;user-select:text">{{ ci.label }}</div>
-                          <div style="font-size:12.5px;line-height:1.4;color:var(--muted);text-wrap:pretty;user-select:text">{{ ci.sub }}</div>
-                        </div>
-                        <sc-if value="{{ ci.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="{{ ci.badgeStyle }}">{{ ci.badge }}</span></sc-if>
-                      </div>
-                    </sc-for>
-                  </div>
-                </sc-if>
-                <sc-if value="{{ cp.isBars }}" hint-placeholder-val="{{ false }}">
-                  <div style="display:flex;flex-direction:column">
-                    <sc-for list="{{ cp.items }}" as="ci" hint-placeholder-count="4">
-                      <div role="button" tabIndex="0" aria-label="{{ ci.aria }}" onClick="{{ ci.open }}" style="{{ ci.barRowStyle }}" style-hover="cursor:pointer;background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
-                        <span aria-hidden="true" style="{{ ci.avatarStyle }}">{{ ci.initials }}</span>
-                        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
-                          <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:14px;font-weight:600">{{ ci.label }}</span><span style="font-size:12px;color:var(--muted)">{{ ci.sub }}</span><span style="margin-left:auto;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text2)">{{ ci.n }}</span></div>
-                          <div style="{{ ci.barStyle }}"></div>
-                        </div>
-                      </div>
-                    </sc-for>
-                  </div>
-                </sc-if>
-                <sc-if value="{{ cp.isChips }}" hint-placeholder-val="{{ false }}">
-                  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-                    <sc-for list="{{ cp.items }}" as="ci" hint-placeholder-count="6">
-                      <div role="button" tabIndex="0" aria-label="{{ ci.aria }}" onClick="{{ ci.open }}" style="{{ ci.chipStyle }}" style-hover="cursor:pointer;border-color:var(--accent-line)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ ci.label }}<span style="{{ ci.chipNStyle }}">{{ ci.n }}</span></div>
-                    </sc-for>
-                  </div>
-                </sc-if>
-                <sc-if value="{{ cp.isStats }}" hint-placeholder-val="{{ false }}">
-                  <div style="{{ cuPanelStatsStyle }}">
-                    <sc-for list="{{ cp.items }}" as="ci" hint-placeholder-count="3">
-                      <div role="button" tabIndex="0" aria-label="{{ ci.aria }}" onClick="{{ ci.open }}" style="{{ ci.statStyle }}" style-hover="cursor:pointer;border-color:var(--accent-line)" style-focus="outline:2px solid var(--accent);outline-offset:2px">
-                        <span style="{{ ci.statNStyle }}">{{ ci.n }}</span><span style="{{ ci.statLabelStyle }}">{{ ci.label }}</span>
-                      </div>
-                    </sc-for>
-                  </div>
-                </sc-if>
-                <sc-if value="{{ cp.hasCta }}" hint-placeholder-val="{{ false }}">
-                  <div style="display:flex"><div role="button" tabIndex="0" onClick="{{ cp.cta }}" style="{{ cp.ctaStyle }}" style-hover="cursor:pointer;opacity:0.9"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:17px">{{ cp.ctaIcon }}</span>{{ cp.ctaLabel }}</div></div>
-                </sc-if>
-              </section>
-            </sc-for>
-          </div>
-        </div>
-      </div>
-    </div>
-  </sc-if>
-
   <sc-if value="{{ fathomAnswerOpen }}" hint-placeholder-val="{{ false }}">
-    <div data-fathom-ui="1" data-cu-skip="1" data-motion="pop" data-phase="{{ mo.fathomAnswer }}" role="status" aria-live="polite" style="{{ fathomAnswerStyle }}">
+    <div data-fathom-ui="1" data-motion="pop" data-phase="{{ mo.fathomAnswer }}" role="status" aria-live="polite" style="{{ fathomAnswerStyle }}">
       <div style="display:flex;align-items:center;gap:9px">
         <span style="font-size:11px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:5px;padding:3px 7px">Fathom</span>
         <span style="font-size:13px;font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ fathomAnswerTitle }}</span>

@@ -1344,7 +1344,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "statusMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
-      "newTask", "newEvent", "newContact", "filtersOpen", "catchupOpen", "fathomMenu", "fathomAnswer",
+      "newTask", "newEvent", "newContact", "filtersOpen", "fathomMenu", "fathomAnswer",
       "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "receiptPop", "sendLaterAsk", "linkAsk", "source"];
     static MOTION_PANES = ["mailPane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
@@ -1393,7 +1393,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        going back across one closes everything still standing, the way the client's change of destination does.
        Steps close in BACK_LAYERS order when several stand at once; the client keeps the true opening order. */
     static BACK_LAYERS = ["sideDrawer", "doc", "htmlDoc", "source", "compose", "threadSheet", "notifCenter", "settings", "userMenu",
-      "statusMenu", "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "receiptPop", "sendLaterAsk", "replyDock", "replyChooser", "linkAsk", "catchupOpen", "fathomMenu", "fathomSmart", "fathomAnswer"];
+      "statusMenu", "more", "aiSum", "moveFor", "spamAsk", "notSpamAsk", "newFolder", "remFor", "event", "ctxMenu", "senderMark", "receiptPop", "sendLaterAsk", "replyDock", "replyChooser", "linkAsk", "fathomMenu", "fathomSmart", "fathomAnswer"];
 
     backSteps = (state) => {
       const FR = FRAMES[this.props.layout ?? "auto"] || null;
