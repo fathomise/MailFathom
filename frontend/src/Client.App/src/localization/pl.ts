@@ -1313,6 +1313,8 @@ export const pl: Catalogue = {
     'compose.waitsForReply':
         'Jeśli nikt nie odpowie do {day}, wiadomość poczeka w Zadaniach i przypomni o sobie tego dnia.',
     'compose.dontWait': 'Nie czekaj',
+    'compose.changeFollowUpDay': 'Zmień dzień',
+    'compose.dontWaitForReply': 'Nie czekaj na odpowiedź',
     'compose.replyFrom': 'Odpowiedź od {who}',
     'compose.followUpNotWritten': 'Wiadomość wysłano, ale serwer nie zapisał oczekiwania na odpowiedź.',
     'compose.sendingOptionsLeaves': 'Opcje wysyłania - wyjdzie {when}',

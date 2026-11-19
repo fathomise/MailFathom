@@ -854,7 +854,7 @@ export class FakeDeployment {
             case 'GET /tasks/proposed':
                 return answering({ tasks: this.tasksIn(this.tasks().proposed, request.query), nextCursor: null });
             case 'POST /tasks':
-                return answering(this.taskWritten(request.body));
+                return this.tasksChanged(answering(this.taskWritten(request.body)));
             case 'GET /tasks/today/layout':
                 return answering(tasks.daysArranged);
             case 'POST /tasks/today/layout':
@@ -1009,8 +1009,24 @@ export class FakeDeployment {
         return null;
     }
 
+    /**
+     * Says the task list moved once a write to it was taken, as the deployment says `tasks.changed` to every client the
+     * person has open, and answers with the write's own answer.
+     */
+    private tasksChanged(answer: FakeAnswer | null): FakeAnswer | null {
+        if (answer !== null && answer.status === 200) {
+            this.signal({ kind: 'tasks.changed' });
+        }
+
+        return answer;
+    }
+
+    private taskAnswer(request: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
+        return request.method === 'GET' ? null : this.tasksChanged(this.taskWrite(request, segments));
+    }
+
     /** Revising one task to the whole record stated, marking it done or not done, and erasing it, from whichever half holds it. */
-    private taskAnswer({ method, body }: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
+    private taskWrite({ method, body }: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
         const [space, id = '', part] = segments;
 
         if (space !== 'tasks' || segments.length > 3) {

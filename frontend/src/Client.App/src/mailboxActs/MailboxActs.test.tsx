@@ -1568,6 +1568,7 @@ describe('MailboxActsProvider', () => {
             unread: false,
             flagged: false,
             spam: null,
+            threadId: null,
         };
 
         perform(held, 'flag', [invoice]);
@@ -1624,6 +1625,7 @@ describe('MailboxActsProvider', () => {
                             unread: false,
                             flagged: false,
                             spam: null,
+                            threadId: null,
                         },
                     ],
                     Date.now() + 1,

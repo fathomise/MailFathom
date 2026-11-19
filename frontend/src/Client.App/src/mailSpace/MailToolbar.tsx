@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import type { ReactNode } from 'react';
 import type { MailDraftAnswer } from '@mailfathom/client-backend';
 import { useComposing } from '../composer/useComposing';
 import { Control } from '../controls/Control';
@@ -16,7 +17,7 @@ import { MoreActions } from '../messageSource/MoreActions';
 import { SpamControl } from '../spamMarking/SpamControl';
 import { actedMessages, useListedMail } from '../messageList/useListedMail';
 import { useCoarsePointer, useTwoPanes } from '../shell/useWideWorkspace';
-import { useMailTasks } from '../tasks/useMailTasks';
+import { useMailTasks, type MailTasks } from '../tasks/useMailTasks';
 import { useMailboxesForm } from '../workspace/mailboxesForm';
 import { useWorkspace } from '../workspace/useWorkspace';
 import type { StripFitting } from './useStripFit';
@@ -74,21 +75,31 @@ export function MailToolbar({
 
     // Where two panes stand under a finger the head leaves its acts to this strip, *Make a task* among them, before
     // the spam control. The strip holds only the open message's identity, so the thread it stands in is read on the
-    // press. With nothing open it is drawn as what it is, as the answers are.
+    // press; a message the list drew threaded with nothing is offered none, as the head offers none. With nothing open
+    // it is drawn as what it is, as the answers are.
     const mailTasks = useMailTasks();
-    const makeTask =
-        mailTasks === null || !twoPanes || !coarse || openSpam ? null : open === null ? (
-            <PlannedControl label={translate('tasks.makeTask')} icon="add_task" shape={actShape} />
-        ) : (
+    const makeTask = mailTasks === null || !twoPanes || !coarse || openSpam ? null : makeTaskControl(mailTasks);
+
+    function makeTaskControl(tasks: MailTasks): ReactNode {
+        if (open === null) {
+            return <PlannedControl label={translate('tasks.makeTask')} icon="add_task" shape={actShape} />;
+        }
+
+        if (openMessages[0]?.threadId === null) {
+            return null;
+        }
+
+        return (
             <Control
                 label={translate('tasks.makeTask')}
                 icon="add_task"
                 shape={actShape}
                 onPress={() => {
-                    mailTasks.makeTaskOn(open);
+                    tasks.makeTaskOn(open);
                 }}
             />
         );
+    }
 
     return (
         <div

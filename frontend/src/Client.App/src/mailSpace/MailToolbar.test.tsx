@@ -9,7 +9,7 @@ import type { MailSpamVerdict } from '@mailfathom/client-backend';
 import type { Composing } from '../composer/useComposing';
 import { ComposingContext } from '../composer/useComposing';
 import { LocalizationProvider } from '../localization/Localization';
-import { MailboxActsContext, nothingActed, type MailboxActs } from '../mailboxActs/useMailboxActs';
+import { MailboxActsContext, nothingActed, type ActedMessage, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { ListedMailContext, nothingListed } from '../messageList/useListedMail';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { useWorkspace, type OpenOutbox } from '../workspace/useWorkspace';
@@ -48,6 +48,7 @@ function drawToolbar(
     lead: { readonly openMailboxes: (() => void) | null } = { openMailboxes: null },
     outbox: OpenOutbox | null = null,
     tasks: MailTasks | null = null,
+    placed: ActedMessage = place,
 ): { composed: ReturnType<typeof vi.fn> } {
     const composed = vi.fn();
     const composing: Composing = {
@@ -62,7 +63,7 @@ function drawToolbar(
     render(
         <LocalizationProvider>
             <WorkspaceProvider>
-                <ListedMailContext value={{ ...nothingListed, placeOf: () => place }}>
+                <ListedMailContext value={{ ...nothingListed, placeOf: () => placed }}>
                     <MailboxActsContext value={acts}>
                         <ComposingContext value={composing}>
                             <Opens selection={selection} outbox={outbox} />
@@ -77,6 +78,19 @@ function drawToolbar(
     );
 
     return { composed };
+}
+
+function keepingTasks(makeTaskOn: MailTasks['makeTaskOn'] = () => undefined): MailTasks {
+    return {
+        session: { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' },
+        transport: () => Promise.reject(new Error('Nothing is read here.')),
+        threadsWithTasks: new Set(),
+        makeTask: () => undefined,
+        makeTaskOn,
+        openTask: () => undefined,
+        record: () => Promise.reject(new Error('Nothing is written here.')),
+        follow: () => () => undefined,
+    };
 }
 
 function actsOffering(performed: MailboxActs['perform']): MailboxActs {
@@ -243,16 +257,7 @@ describe('MailToolbar', () => {
     // thread of the message open, which the strip reads on the press since it holds only its identity.
     it('takes Make a task over from the head at two panes under a finger, about the open message', () => {
         const madeOn = vi.fn();
-        const tasks: MailTasks = {
-            session: { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' },
-            transport: () => Promise.reject(new Error('Nothing is read here.')),
-            threadsWithTasks: new Set(),
-            makeTask: () => undefined,
-            makeTaskOn: madeOn,
-            openTask: () => undefined,
-            record: () => Promise.reject(new Error('Nothing is written here.')),
-            follow: () => () => undefined,
-        };
+        const tasks = keepingTasks(madeOn);
 
         theCompositionHasTwoPanes(true);
         drawToolbar(true, messageId, actsOffering(vi.fn()), 'labelled', { openMailboxes: null }, null, tasks);
@@ -263,6 +268,18 @@ describe('MailToolbar', () => {
         cleanup();
         theCompositionHasTwoPanes(false);
         drawToolbar(true, messageId, actsOffering(vi.fn()), 'labelled', { openMailboxes: null }, null, tasks);
+
+        expect(screen.getByRole('button', { name: 'Reply' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Make a task' })).toBeNull();
+    });
+
+    // A message the deployment threads with nothing has no thread for a task to belong to, so nothing offers one.
+    it('offers no Make a task for a message that stands in no thread', () => {
+        theCompositionHasTwoPanes(true);
+        drawToolbar(true, messageId, actsOffering(vi.fn()), 'labelled', { openMailboxes: null }, null, keepingTasks(), {
+            ...place,
+            threadId: null,
+        });
 
         expect(screen.getByRole('button', { name: 'Reply' })).toBeDefined();
         expect(screen.queryByRole('button', { name: 'Make a task' })).toBeNull();

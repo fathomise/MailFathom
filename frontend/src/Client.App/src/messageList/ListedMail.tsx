@@ -34,6 +34,7 @@ export function ListedMailProvider({ children }: { readonly children: ReactNode 
                     unread: email.unread,
                     flagged: email.flagged,
                     spam: email.spam,
+                    threadId: email.threadId,
                 });
             }
 

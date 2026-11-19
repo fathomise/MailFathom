@@ -4,7 +4,7 @@
 
 import { expect, type Page } from '@playwright/test';
 
-import { holdTheDay, openSignedInAsDeveloper, switchDeveloperModeOn, test } from './client.harness';
+import { holdTheDay, openSignedInAsDeveloper, test } from './client.harness';
 import type { FakeDeployment } from './fakeDeployment';
 import { conversationId } from './fixtures/mail';
 
@@ -23,7 +23,10 @@ async function openMailWriting(page: Page, deployment: FakeDeployment): Promise<
 
     const today = await holdTheDay(page, deployment);
 
+    // The channel is what tells the Tasks space, standing mounted beside Mail, that a task was written down.
+    deployment.serveSignals();
     await openSignedInAsDeveloper(page, '/#/mail');
+    await expect.poll(() => deployment.channelsOpen()).toBe(1);
 
     return today;
 }
@@ -83,10 +86,6 @@ test('a reply sent with "Remind me tomorrow" waits in Tasks for its recipient', 
         }),
     ]);
 
-    // Read again from a cold start, since the Tasks space stays mounted beside Mail and hears of the write only through
-    // a signal this deployment does not serve.
-    await page.reload();
-    await switchDeveloperModeOn(page);
     await page.evaluate(`window.location.replace('/#/tasks')`);
     await page.getByRole('radio', { name: /^Waiting for/u }).press('Space');
 

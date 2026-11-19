@@ -200,6 +200,23 @@ export function useSendingOptions({
         },
     });
 
+    // The follow-up line's two controls say what each does beyond their one word, as the design names them.
+    const changeDayTip = useTip({
+        says: translate('compose.changeFollowUpDay'),
+        describes: true,
+        onPress: () => {
+            open(false);
+        },
+    });
+    const dontWaitTip = useTip({
+        says: translate('compose.dontWaitForReply'),
+        describes: true,
+        onPress: () => {
+            followUp?.onChosen(null);
+            control.current?.focus();
+        },
+    });
+
     return {
         line:
             asking === 'none' ? null : (
@@ -264,34 +281,35 @@ export function useSendingOptions({
             ),
         followLine:
             waitsUntil === null ? null : (
-                <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-t border-accent-line bg-accent-soft py-1.5 ps-3.75 pe-2.25 text-base/normal text-pretty text-text-soft pointer-coarse:min-h-13 pointer-coarse:py-1">
+                <div
+                    role="status"
+                    className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-t border-accent-line bg-accent-soft py-1.5 ps-3.75 pe-2.25 text-base/normal text-pretty text-text-soft pointer-coarse:min-h-13 pointer-coarse:py-1"
+                >
                     <Icon name="hourglass_top" className="size-icon-md shrink-0 text-warning" />
                     <span className="min-w-0 flex-1 basis-55">
                         {translate('compose.waitsForReply', { day: wordFollowUpDay(waitsUntil.dueOn) })}
                     </span>
                     <span className="ms-auto flex shrink-0 items-center gap-1.5">
                         <button
+                            {...changeDayTip.anchor}
                             type="button"
+                            aria-haspopup="menu"
                             className="flex h-7 items-center rounded-md px-2 text-base font-semibold text-accent-deep transition hover:bg-hover pointer-coarse:h-11"
-                            onClick={() => {
-                                open(false);
-                            }}
                         >
                             {translate('compose.changeSendTime')}
                         </button>
+                        {changeDayTip.tip}
                         <button
+                            {...dontWaitTip.anchor}
                             type="button"
                             className="flex h-7 items-center gap-1 rounded-md border border-accent-line bg-panel px-2 text-base text-text-soft transition hover:bg-hover pointer-coarse:h-11"
-                            onClick={() => {
-                                followUp?.onChosen(null);
-                                control.current?.focus();
-                            }}
                         >
                             <Icon name="close" className="size-icon-sm" />
                             {translate('compose.dontWait')}
                         </button>
+                        {dontWaitTip.tip}
                     </span>
-                </p>
+                </div>
             ),
         control: (
             <>

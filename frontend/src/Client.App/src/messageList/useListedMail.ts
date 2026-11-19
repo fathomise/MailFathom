@@ -102,6 +102,7 @@ export interface DrawnMail {
     readonly unread: boolean;
     readonly flagged: boolean;
     readonly spam: MailSpamVerdict | null;
+    readonly threadId: string | null;
 }
 
 /** What a list on the screen answers for, filled by the list itself and by nothing above it. */

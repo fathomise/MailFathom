@@ -20,12 +20,14 @@ import {
     readMailBody,
     readMailDraft,
     readMailMessage,
+    wentUnanswered,
     type ClientFailureReason,
     type ClientSession,
     type MailAccount,
     type MailAttachment,
     type MailDraft,
     type MailDraftAnswer,
+    type MailMessage,
     type MailSendDueTime,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
@@ -524,6 +526,12 @@ export function Composer({
                 return;
             }
 
+            // A draft of an answer stands in the thread it answers, and the message read for it says which, so a wait
+            // its send leaves belongs to that thread as an answer's does.
+            if (answer.outcome === 'read') {
+                setAnsweredThread(answeredThreadOf(answer.value));
+            }
+
             if (filed.outcome === 'read') {
                 if (answer.outcome === 'read') {
                     setParticipants(offeredFrom(answer.value.headers.participants));
@@ -814,7 +822,7 @@ export function Composer({
         let stopped = false;
         const scheduled = sendAt;
         const waiting = followUp;
-        const waitedIn = sending.answering === null ? null : answeredThread;
+        const waitedIn = answeredThread;
 
         // A message scheduled for later is not being sent, so no *Sending your message…* stands over it: what it
         // came to is said once the deployment has answered.
@@ -873,28 +881,53 @@ export function Composer({
 
     // A message the deployment queued waits for its reply as a task. Writing it down can fail where the send did not, and
     // the message is gone either way, so a refusal is said beside the send's own notice rather than instead of it.
+    //
+    // An answer waits in the thread of the message it answers, and a draft of one carried on from Drafts in the thread
+    // the draft stands in; both were read as the composer opened. An answer whose message had not been read by then is
+    // read here, at the send — a wait left belonging to no thread is one no reply in that thread would ever close.
     function waitForTheReply(
         sending: Composition,
         waiting: FollowUp,
         thread: { readonly threadId: string; readonly subject: string } | null,
     ): void {
-        const record = followUpRecord({
-            to: sending.to,
-            named: participants,
-            thread,
-            dueOn: waiting.dueOn,
-            timeZone: zone,
-            replyFrom: (who) => translate('compose.replyFrom', { who }),
-        });
-
-        if (mailTasks === null || record === null) {
+        if (mailTasks === null) {
             return;
         }
 
-        void mailTasks.record(record).then((answer) => {
-            if (answer.outcome === 'failed') {
-                toasts.raise({ kind: 'warning', title: translate('compose.followUpNotWritten') });
+        const answered = sending.answering;
+        const waitsIn =
+            thread !== null || answered === null
+                ? Promise.resolve(thread)
+                : readMailMessage(session, transport, answered.storedEmailId).then((answer) =>
+                      answer.outcome === 'failed' || answer.value.threadId === null
+                          ? null
+                          : { threadId: answer.value.threadId, subject: answer.value.headers.subject ?? '' },
+                  );
+
+        void waitsIn.then((resolved) => {
+            const record = followUpRecord({
+                to: sending.to,
+                named: participants,
+                thread: resolved,
+                dueOn: waiting.dueOn,
+                timeZone: zone,
+                replyFrom: (who) => translate('compose.replyFrom', { who }),
+            });
+
+            if (record === null) {
+                return;
             }
+
+            void mailTasks.record(record).then((answer) => {
+                if (answer.outcome === 'failed') {
+                    toasts.raise({
+                        kind: 'warning',
+                        title: translate(
+                            wentUnanswered(answer.failure) ? 'tasks.writeUnknown' : 'compose.followUpNotWritten',
+                        ),
+                    });
+                }
+            });
         });
     }
 
@@ -1654,6 +1687,14 @@ export function Composer({
 
 // The people a conversation names, as a recipient field offers them: each address once, however many headers it is in,
 // under the name the message gave it where it gave one.
+// The thread a draft stands in where it answers something, which is the one its wait is about; a draft of a message of
+// its own answers nothing, and its wait belongs to no thread.
+function answeredThreadOf(draft: MailMessage): { readonly threadId: string; readonly subject: string } | null {
+    return draft.threadId === null || draft.headers.inReplyTo === null
+        ? null
+        : { threadId: draft.threadId, subject: draft.headers.subject ?? '' };
+}
+
 function offeredFrom(
     named: readonly { readonly address: string; readonly displayName: string | null }[],
 ): readonly RecipientSuggestion[] {

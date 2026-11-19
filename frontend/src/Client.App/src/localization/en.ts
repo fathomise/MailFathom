@@ -1286,6 +1286,8 @@ export const en = {
     'compose.followUpDay': '{weekday} {day}',
     'compose.waitsForReply': 'If nobody replies by {day}, this waits in Tasks and reminds you that day.',
     'compose.dontWait': "Don't wait",
+    'compose.changeFollowUpDay': 'Change the day',
+    'compose.dontWaitForReply': 'Do not wait for a reply',
     'compose.replyFrom': 'Reply from {who}',
     'compose.followUpNotWritten': 'The message was sent, but the server did not write down the wait for its reply.',
     'compose.sendingOptionsLeaves': 'Sending options - leaves {when}',

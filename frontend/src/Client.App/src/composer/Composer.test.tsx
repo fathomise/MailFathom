@@ -6,6 +6,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { useState, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type {
+    ClientFailure,
     ClientRequest,
     ClientSession,
     DraftPassageRewriteRequest,
@@ -641,10 +642,14 @@ describe('Composer, waiting for a reply', () => {
         };
     }
 
-    function sendWaiting(record: MailTasks['record']): void {
+    function drawWaiting(
+        record: MailTasks['record'],
+        opening: ComposerOpening = { kind: 'new' },
+        answers: Answers = {},
+    ): void {
         drawComposer(
-            { kind: 'new' },
-            {},
+            opening,
+            answers,
             [work],
             true,
             uploadsOneFile,
@@ -657,17 +662,27 @@ describe('Composer, waiting for a reply', () => {
             null,
             keepingTasks(record),
         );
+    }
+
+    function waitUntilTomorrow(): void {
+        fireEvent.click(screen.getByRole('button', { name: /^Sending options/u }));
+        fireEvent.click(screen.getByRole('menuitemradio', { name: /^Remind me tomorrow/u }));
+    }
+
+    function sendWaiting(record: MailTasks['record']): void {
+        drawWaiting(record);
 
         address('ada@example.invalid');
-        fireEvent.click(screen.getByRole('button', { name: 'Sending options' }));
-        fireEvent.click(screen.getByRole('menuitemradio', { name: /^Remind me tomorrow/u }));
+        waitUntilTomorrow();
         confirmSend();
     }
 
+    function failingWith(failure: ClientFailure): MailTasks['record'] {
+        return () => Promise.resolve({ outcome: 'failed', failure });
+    }
+
     it('writes the wait down for the first recipient once the message is queued', async () => {
-        const record = vi.fn<MailTasks['record']>(() =>
-            Promise.resolve({ outcome: 'failed', failure: { reason: 'unavailable', status: null } }),
-        );
+        const record = vi.fn(failingWith({ reason: 'unavailable', status: null }));
 
         sendWaiting(record);
 
@@ -685,12 +700,95 @@ describe('Composer, waiting for a reply', () => {
     });
 
     it('says the wait was not written down where the server refused it, and the message is still sent', async () => {
-        sendWaiting(() => Promise.resolve({ outcome: 'failed', failure: { reason: 'unavailable', status: 503 } }));
+        sendWaiting(failingWith({ reason: 'unauthorized', status: 403 }));
 
         expect(await screen.findByText('Queued to go out.')).toBeDefined();
         expect(
             await screen.findByText('The message was sent, but the server did not write down the wait for its reply.'),
         ).toBeDefined();
+    });
+
+    it('says it is not known whether the wait was written down where the server did not answer', async () => {
+        sendWaiting(failingWith({ reason: 'unavailable', status: 503 }));
+
+        expect(await screen.findByText('Queued to go out.')).toBeDefined();
+        expect(
+            await screen.findByText('The server did not answer, so it is not known whether that was changed.'),
+        ).toBeDefined();
+    });
+
+    it('writes the wait down for a message scheduled to leave later, once the deployment holds it', async () => {
+        const record = vi.fn(failingWith({ reason: 'unavailable', status: null }));
+
+        drawWaiting(record);
+        address('ada@example.invalid');
+        fireEvent.click(screen.getByRole('button', { name: 'Sending options' }));
+        fireEvent.click(screen.getByRole('menuitemradio', { name: /^Tomorrow morning/u }));
+        waitUntilTomorrow();
+        fireEvent.click(screen.getByRole('button', { name: /^Send .+ at /u }));
+        fireEvent.click(
+            within(screen.getByRole('dialog', { name: 'Schedule this message?' })).getByRole('button', {
+                name: /^Schedule( anyway)?$/u,
+            }),
+        );
+
+        expect(await screen.findByText('Message scheduled')).toBeDefined();
+        await waitFor(() => {
+            expect(record).toHaveBeenCalledWith(expect.objectContaining({ direction: 'Awaited' }));
+        });
+    });
+
+    it('writes no wait down for a message the deployment refused to send', async () => {
+        const record = vi.fn(failingWith({ reason: 'unavailable', status: null }));
+
+        drawWaiting(record, { kind: 'new' }, { send: { status: 409, body: JSON.stringify({ errorCode: 12 }) } });
+        address('ada@example.invalid');
+        waitUntilTomorrow();
+        confirmSend();
+
+        expect(
+            await screen.findAllByText(
+                'The server refused to send it. Your administrator can see why in the server log.',
+            ),
+        ).toHaveLength(2);
+        expect(record).not.toHaveBeenCalled();
+    });
+
+    // A draft carried on from Drafts opens on no answered message of its own, so the thread it answers is the one
+    // the draft itself stands in.
+    it('writes the wait of an answer carried on from Drafts down in the thread it answers', async () => {
+        const record = vi.fn(failingWith({ reason: 'unavailable', status: null }));
+        const threadId = '5b0d6c1e-2f4a-4c39-9e7d-1a2b3c4d5e6f';
+
+        drawWaiting(
+            record,
+            { kind: 'draft', storedEmailId: messageId },
+            {
+                message: {
+                    status: 200,
+                    body: messageBody({
+                        threadId,
+                        headers: {
+                            ...(JSON.parse(messageBody()) as { headers: Record<string, unknown> }).headers,
+                            subject: 'Re: Quarterly invoice',
+                            inReplyTo: 'abc@example.invalid',
+                        },
+                    }),
+                },
+            },
+        );
+
+        await screen.findByText('Half a thought');
+        waitUntilTomorrow();
+        confirmSend();
+
+        await waitFor(() => {
+            expect(record).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    anchor: { kind: 'Thread', id: threadId, label: 'Re: Quarterly invoice' },
+                }),
+            );
+        });
     });
 });
 

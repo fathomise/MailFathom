@@ -97,6 +97,12 @@ export interface ActedMessage {
      * what this person has marked since.
      */
     readonly spam: MailSpamVerdict | null;
+
+    /**
+     * The thread the message stands in, as the list drew it, or `null` for one the deployment threads with nothing.
+     * Absent where whatever handed the message over never said, which is no answer either way.
+     */
+    readonly threadId?: string | null;
 }
 
 /**

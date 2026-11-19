@@ -15,6 +15,7 @@ function drawn(at: number): {
     readonly unread: boolean;
     readonly flagged: boolean;
     readonly spam: null;
+    readonly threadId: string | null;
 } {
     return {
         id: `message-${String(at)}`,
@@ -23,6 +24,7 @@ function drawn(at: number): {
         unread: at % 2 === 0,
         flagged: at % 3 === 0,
         spam: null,
+        threadId: at === 1 ? 'thread-1' : null,
     };
 }
 
@@ -47,6 +49,7 @@ describe('ListedMailProvider', () => {
             unread: false,
             flagged: false,
             spam: null,
+            threadId: 'thread-1',
         });
     });
 

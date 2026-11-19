@@ -4,7 +4,7 @@
 
 import { expect, type Page } from '@playwright/test';
 
-import { holdTheDay, openSignedInAsDeveloper, test } from './client.harness';
+import { holdTheDay, openSignedInAsDeveloper, tabletWindow, test } from './client.harness';
 import { conversationId } from './fixtures/mail';
 
 // The commitments a thread carries, read where the thread is: one chip per open task under the head's address line,
@@ -75,6 +75,28 @@ test('"Make a task" in a thread links the new task to that thread', async ({ pag
             counterpart: { address: 'sales@nordwind.example', displayName: 'Nordwind' },
         }),
     ]);
+});
+
+// Two panes under a finger leave the thread's head its subject alone, so the strip above them carries the act, and
+// whether a pointer is a finger is the browser's to say.
+test.describe('driven by a finger', () => {
+    test.use({ viewport: tabletWindow, hasTouch: true });
+
+    test('"Make a task" stands in the toolbar beside the open thread', async ({ page, deployment }) => {
+        await holdTheDay(page, deployment);
+        await openSignedInAsDeveloper(page, '/#/mail');
+
+        const conversation = await openTheConversation(page);
+
+        await expect(conversation.getByRole('button', { name: 'Make a task' })).toHaveCount(0);
+
+        await page.getByRole('toolbar', { name: 'Mail actions' }).getByRole('button', { name: 'Make a task' }).tap();
+
+        const writing = page.getByRole('dialog', { name: 'New task' });
+
+        await expect(writing.getByText('Belongs to the thread')).toBeVisible();
+        await expect(writing.getByLabel('Task description')).toHaveValue(subject);
+    });
 });
 
 test('a thread with an open task is marked in the list', async ({ page, deployment }) => {
