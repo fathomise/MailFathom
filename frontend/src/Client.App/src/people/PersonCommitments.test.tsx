@@ -44,16 +44,18 @@ function answering(request: ClientRequest): unknown[] {
           ];
 }
 
-function drawCommitments(answer: (request: ClientRequest) => unknown[] = answering) {
+function drawCommitments(answer: (request: ClientRequest) => unknown[] | null = answering) {
     const asked: ClientRequest[] = [];
     const transport: MailFathomTransport = (request) => {
         asked.push(request);
 
-        return Promise.resolve({
-            status: 200,
-            headers: {},
-            body: JSON.stringify({ tasks: answer(request), nextCursor: null }),
-        });
+        const tasks = answer(request);
+
+        return Promise.resolve(
+            tasks === null
+                ? { status: 503, headers: {}, body: '' }
+                : { status: 200, headers: {}, body: JSON.stringify({ tasks, nextCursor: null }) },
+        );
     };
     const tasks: MailTasks = {
         session,
@@ -82,7 +84,7 @@ function drawCommitments(answer: (request: ClientRequest) => unknown[] = answeri
 }
 
 describe('PersonCommitments', () => {
-    it('PersonCommitments splits owed from awaited', async () => {
+    it('splits owed from awaited', async () => {
         const { tasks, asked } = drawCommitments();
 
         const owed = await screen.findByRole('list', { name: 'You owe Ada' });
@@ -120,5 +122,23 @@ describe('PersonCommitments', () => {
         expect(tasks.makeTask).toHaveBeenCalledWith({
             counterpart: { address: 'ada@example.invalid', displayName: 'Ada Lovelace' },
         });
+    });
+
+    it('draws every task on a side rather than counting past the fourth', async () => {
+        drawCommitments(() =>
+            ['one', 'two', 'three', 'four', 'five', 'six'].map((id) => taskWith(id, 'ada@example.invalid')),
+        );
+
+        const owed = await screen.findByRole('list', { name: 'You owe Ada' });
+
+        expect(within(owed).getAllByRole('button')).toHaveLength(6);
+    });
+
+    it('says the tasks could not be read, and says neither side is empty', async () => {
+        drawCommitments(() => null);
+
+        expect(await screen.findByText('The tasks with this person could not be read.')).toBeDefined();
+        expect(screen.queryByText('Nothing you owe.')).toBeNull();
+        expect(screen.queryByText('Nothing you are waiting for.')).toBeNull();
     });
 });

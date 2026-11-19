@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useEffectEvent } from 'react';
+import { useEffect, useEffectEvent, useId } from 'react';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
 import { TaskChips } from '../tasks/TaskChips';
@@ -15,7 +15,15 @@ import { useTasksWhereAny } from '../tasks/useTasksWhere';
 // is with whichever one it names, so each address is read and the answers merged. Nothing is drawn where the person
 // keeps no tasks.
 
-export function PersonCommitments(props: {
+// How many of a person's addresses are read, one walk each; shortcut: addresses past the eighth are not read, replace the
+// per-address walks with one server-side filter over all of a person's addresses when records carry more.
+const mostAddressesRead = 8;
+
+export function PersonCommitments({
+    addresses,
+    preferredAddress,
+    displayName,
+}: {
     readonly addresses: readonly string[];
 
     /** The address a task written down from here is with, or `null` where the record names none. */
@@ -24,22 +32,34 @@ export function PersonCommitments(props: {
     readonly displayName: string;
 }) {
     const tasks = useMailTasks();
+    const withAddress = preferredAddress ?? addresses[0];
 
-    return tasks === null || props.addresses.length === 0 ? null : <Commitments tasks={tasks} {...props} />;
+    return tasks === null || withAddress === undefined ? null : (
+        <Commitments
+            tasks={tasks}
+            addresses={addresses.slice(0, mostAddressesRead)}
+            withAddress={withAddress}
+            displayName={displayName}
+        />
+    );
 }
 
 function Commitments({
     tasks,
     addresses,
-    preferredAddress,
+    withAddress,
     displayName,
 }: {
     readonly tasks: MailTasks;
     readonly addresses: readonly string[];
-    readonly preferredAddress: string | null;
+
+    /** The address a task written down from here is with. */
+    readonly withAddress: string;
+
     readonly displayName: string;
 }) {
     const { translate } = useLocalization();
+    const labels = useId();
     const where = useTasksWhereAny(
         tasks.session,
         tasks.transport,
@@ -52,7 +72,9 @@ function Commitments({
     useEffect(() => follow(() => readAgain()), [follow]);
 
     const open = where.tasks.filter((task) => !task.completed);
-    const name = displayName.split(' ')[0] ?? displayName;
+
+    // The first word of the name, as the design writes it.
+    const name = displayName.trim().split(/\s+/u, 1).join('');
     const sides = [
         { label: translate('people.youOwe', { name }), none: translate('people.nothingYouOwe'), direction: 'Owed' },
         {
@@ -61,7 +83,10 @@ function Commitments({
             direction: 'Awaited',
         },
     ] as const;
-    const withAddress = preferredAddress ?? addresses[0] ?? '';
+
+    // A side is said to be empty only once every address answered, so neither a read under way nor a failed one reads
+    // as nothing being owed.
+    const answered = !where.reading && where.failure === null;
 
     return (
         <section className="flex min-w-0 flex-col gap-2.5 rounded-lg border border-line bg-panel px-4.25 py-3.75">
@@ -79,40 +104,42 @@ function Commitments({
                 </button>
             </div>
 
-            {where.failure !== null && open.length === 0 ? (
+            {where.failure === null ? null : (
                 <p className="text-sm text-muted">{translate('people.commitmentsUnread')}</p>
-            ) : (
-                <div className="flex flex-col gap-3 roomy:flex-row roomy:*:flex-1">
-                    {sides.map((side) => {
-                        const listed = open.filter((task) => task.direction === side.direction);
-
-                        return (
-                            <div key={side.direction} className="flex min-w-0 flex-col gap-1">
-                                <p className="text-sm font-semibold text-text-soft">{side.label}</p>
-                                {listed.length === 0 ? (
-                                    // Said once the answer came, so a side being read does not read as an empty one.
-                                    where.reading ? null : (
-                                        <p className="text-base text-faint">{side.none}</p>
-                                    )
-                                ) : (
-                                    <TaskChips
-                                        tasks={listed}
-                                        stacked
-                                        label={side.label}
-                                        onOpen={(taskId) => {
-                                            const task = listed.find((held) => held.id === taskId);
-
-                                            if (task !== undefined) {
-                                                tasks.openTask(task);
-                                            }
-                                        }}
-                                    />
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
             )}
+
+            <div className="flex flex-col gap-3 roomy:flex-row roomy:*:flex-1">
+                {sides.map((side) => {
+                    const listed = open.filter((task) => task.direction === side.direction);
+
+                    return (
+                        <div key={side.direction} className="flex min-w-0 flex-col gap-1">
+                            <p id={`${labels}-${side.direction}`} className="text-sm font-semibold text-text-soft">
+                                {side.label}
+                            </p>
+                            {listed.length === 0 ? (
+                                answered ? (
+                                    <p className="text-base text-faint">{side.none}</p>
+                                ) : null
+                            ) : (
+                                <TaskChips
+                                    tasks={listed}
+                                    stacked
+                                    whole
+                                    labelledBy={`${labels}-${side.direction}`}
+                                    onOpen={(taskId) => {
+                                        const task = listed.find((held) => held.id === taskId);
+
+                                        if (task !== undefined) {
+                                            tasks.openTask(task);
+                                        }
+                                    }}
+                                />
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
         </section>
     );
 }

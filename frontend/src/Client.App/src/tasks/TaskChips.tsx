@@ -14,7 +14,8 @@ import { doneTaskFade } from './taskShapes';
 // The tasks one thing carries, drawn where that thing is read — a thread, an event, a person — each as its line, what
 // it waits on or when it is due, and the way into it. A wait carries an hourglass and the reader's own work a box, so
 // the two directions stay apart at a glance. Past the first few the rest are counted quietly rather than drawn, and the
-// count opens them, so a thread carrying a dozen tasks does not push the message it heads off the screen.
+// count opens them, so a thread carrying a dozen tasks does not push the message it heads off the screen. A person's
+// card is the exception and draws every one, as the design does.
 //
 // A task done is still drawn, faded, where the caller hands one over: an event's tasks are what was prepared for it,
 // done or not, while a thread hands over only what is open.
@@ -26,7 +27,8 @@ export function TaskChips({
     tasks,
     onOpen,
     stacked = false,
-    label,
+    whole = false,
+    labelledBy,
 }: {
     readonly tasks: readonly PersonalTask[];
 
@@ -36,15 +38,18 @@ export function TaskChips({
     /** Whether each stands on a line of its own, which the event dialog draws, rather than wrapping as chips. */
     readonly stacked?: boolean;
 
-    /** What the list is called where it stands beside another, as a person's two sides do. */
-    readonly label?: string;
+    /** Whether every task is drawn rather than the first few and a count, as a person's card draws them. */
+    readonly whole?: boolean;
+
+    /** The element naming the list where it stands beside another, as a person's two sides do. */
+    readonly labelledBy?: string;
 }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
     const [now] = useState(() => Date.now());
     const [all, setAll] = useState(false);
 
-    const shown = all ? tasks : tasks.slice(0, chipsShown);
+    const shown = all || whole ? tasks : tasks.slice(0, chipsShown);
     const counted = tasks.length - shown.length;
     const today = calendarDayIn(now, timeZone);
 
@@ -73,7 +78,7 @@ export function TaskChips({
     }
 
     return (
-        <ul aria-label={label} className={stacked ? 'flex flex-col gap-0.5' : 'flex flex-wrap gap-1.5'}>
+        <ul aria-labelledby={labelledBy} className={stacked ? 'flex flex-col gap-0.5' : 'flex flex-wrap gap-1.5'}>
             {shown.map((task) => {
                 const awaited = task.direction === 'Awaited';
 
@@ -94,7 +99,9 @@ export function TaskChips({
                                 name={awaited ? 'hourglass_top' : 'check_box_outline_blank'}
                                 className={`size-icon-sm shrink-0 ${awaited ? 'text-warning' : 'text-accent-deep'}`}
                             />
-                            <span className={`min-w-0 truncate ${stacked ? 'flex-1 text-sm' : ''}`}>{task.title}</span>
+                            <span className={`min-w-0 truncate ${stacked ? 'flex-1 text-base' : ''}`}>
+                                {task.title}
+                            </span>
                             <span className="shrink-0 text-xs text-muted">{whenOf(task)}</span>
                         </button>
                     </li>

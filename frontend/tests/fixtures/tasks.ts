@@ -173,7 +173,7 @@ export function committedTasks(day: string) {
                 anchor: thread(contractThread, 'Contract addendum - signatures'),
                 counterpart: person('anna@contoso.example', 'Anna Kowalska'),
             }),
-            task('wait-racking', 'Racking quote from Anna Marlow', dayAfter(day, 4), {
+            task('wait-quote', 'Racking quote from Anna Marlow', dayAfter(day, 4), {
                 direction: 'Awaited',
                 counterpart: person('a.marlow@nordwind.example', 'Anna Marlow'),
             }),

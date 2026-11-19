@@ -90,6 +90,7 @@ function deployment({
     leavesUnanswered = [],
     holdsTaskWrites = false,
     heldElsewhere = [],
+    holdsTaskReads = false,
 }: {
     committed?: readonly unknown[];
     proposed?: readonly unknown[];
@@ -109,6 +110,9 @@ function deployment({
 
     /** Tasks this deployment holds that no page of the list answers, read only by their identity. */
     heldElsewhere?: readonly unknown[];
+
+    /** Whether one task's read by its identity waits until it is let through, which is how a press is caught ahead of it. */
+    holdsTaskReads?: boolean;
 } = {}): {
     readonly transport: MailFathomTransport;
     readonly sent: () => readonly ClientRequest[];
@@ -174,6 +178,16 @@ function deployment({
                     found === undefined
                         ? { status: 404, headers: {}, body: '' }
                         : { ...answered, body: JSON.stringify(found) };
+
+                if (holdsTaskReads) {
+                    const holding = answer;
+
+                    return new Promise<ClientResponse>((resolve) => {
+                        held.push(() => {
+                            resolve(holding);
+                        });
+                    });
+                }
             } else if (path.includes('/tasks/proposed')) {
                 served += 1;
                 answer = { ...answered, body: JSON.stringify({ tasks: served > 1 ? [] : proposed, nextCursor: null }) };
@@ -355,6 +369,26 @@ describe('TasksSpace', () => {
 
         expect(within(dialog).getByLabelText('What is it?')).toHaveProperty('value', 'Renew the warehouse lease');
         expect(pathsSent(sent(), 'GET')).toContain('https://mail.example.invalid/api/client/tasks/z');
+    });
+
+    it('keeps the task the reader opened by hand when the read a reminder asked for answers after it', async () => {
+        const { transport, letThrough } = deployment({
+            heldElsewhere: [taskCalled('z', 'Renew the warehouse lease')],
+            holdsTaskReads: true,
+        });
+
+        drawSpace(transport, { taskAsked: { taskId: 'z' } });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Answer the tender' }));
+
+        const dialog = screen.getByRole('dialog', { name: 'Task' });
+
+        letThrough();
+
+        await waitFor(() => {
+            expect(within(dialog).getByLabelText('What is it?')).toHaveProperty('value', 'Answer the tender');
+        });
+        expect(screen.queryByDisplayValue('Renew the warehouse lease')).toBeNull();
     });
 
     it('says a task another screen asked for is gone where nobody holds it any longer', async () => {

@@ -63,7 +63,7 @@ describe('followTarget', () => {
         expect(client.openMail).not.toHaveBeenCalled();
     });
 
-    it('followTarget opens the task a reminder names', () => {
+    it('opens the task a reminder names', () => {
         const client = following();
 
         followTarget({ kind: 'PersonalTask', taskId: 't-7' }, client);

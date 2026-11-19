@@ -166,9 +166,8 @@ test('a task reminder opens that task', async ({ page, deployment }) => {
     await openSignedInAsDeveloper(page, '/#/mail');
     await openCentre(page);
 
-    await centre(page)
-        .getByRole('button', { name: /Prepare the IT contract list for audit/u })
-        .first()
+    await row(page, 'Reminder: Prepare the IT contract list for audit')
+        .getByRole('button', { name: /^Reminder: Prepare the IT contract list for audit/u })
         .click();
 
     await expect(centre(page)).toBeHidden();

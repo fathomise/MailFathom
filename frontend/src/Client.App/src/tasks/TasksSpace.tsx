@@ -292,6 +292,12 @@ export function TasksSpace({
         });
     });
 
+    // A task the reader opens while a reminder's read is still out is the one they want, so that read opens nothing.
+    function openByHand(taskId: string): void {
+        taskSought.current += 1;
+        setOpenedId(taskId);
+    }
+
     useEffect(() => {
         if (taskAsked !== null) {
             readAskedTask(taskAsked.taskId);
@@ -751,7 +757,7 @@ export function TasksSpace({
                     onToggleCompleted={toggleCompleted}
                     onOpen={(task) => {
                         setSaid(null);
-                        setOpenedId(task.id);
+                        openByHand(task.id);
                     }}
                     anchorOpener={anchorOpener}
                     onAccept={accept}
@@ -793,7 +799,7 @@ export function TasksSpace({
                             onDrop={dropped}
                             onOpenTask={(task) => {
                                 setSaid(null);
-                                setOpenedId(task.id);
+                                openByHand(task.id);
                             }}
                             onOpenEvent={onOpenEvent}
                         />

@@ -131,4 +131,59 @@ describe('useTasksWhere', () => {
             expect(result.current.tasks.map((task) => task.id)).toStrictEqual(['shared', 'first-only', 'second-only']);
         });
     });
+
+    it('keeps what the other walks answered when one of several fails on a later read, and says it failed', async () => {
+        let reads = 0;
+        const transport: MailFathomTransport = (request) => {
+            reads += 1;
+
+            if (request.path.includes('counterpart=ann%40example.invalid')) {
+                return Promise.resolve(pageOf(reads > 2 ? 'first-again' : 'first'));
+            }
+
+            return Promise.resolve(reads > 2 ? { status: 503, headers: {}, body: '' } : pageOf('second'));
+        };
+        const listeners = new Set<SignalListener>();
+        const wrapper = ({ children }: { readonly children: ReactNode }) =>
+            createElement(
+                SignalledChangesContext,
+                {
+                    value: {
+                        listen: (listener) => {
+                            listeners.add(listener);
+
+                            return () => {
+                                listeners.delete(listener);
+                            };
+                        },
+                        refresh: () => undefined,
+                    },
+                },
+                children,
+            );
+
+        const { result } = renderHook(
+            () =>
+                useTasksWhereAny(session, transport, [
+                    { counterpart: 'ann@example.invalid' },
+                    { counterpart: 'a.n@example.invalid' },
+                ]),
+            { wrapper },
+        );
+
+        await waitFor(() => {
+            expect(result.current.tasks.map((task) => task.id)).toStrictEqual(['first', 'second']);
+        });
+
+        act(() => {
+            for (const listener of listeners) {
+                listener({ kind: 'tasks.changed' });
+            }
+        });
+
+        await waitFor(() => {
+            expect(result.current.failure).toBe('unavailable');
+        });
+        expect(result.current.tasks.map((task) => task.id)).toStrictEqual(['first-again', 'first', 'second']);
+    });
 });

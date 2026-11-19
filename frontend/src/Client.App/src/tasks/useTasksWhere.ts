@@ -71,23 +71,17 @@ export async function readEveryPage(
     return { outcome: 'read', value: tasks };
 }
 
-// The walks' answers as one, each task once and in the order the walks first named it, or the first failure.
-function merged(answers: readonly ClientResult<readonly PersonalTask[]>[]): ClientResult<readonly PersonalTask[]> {
+// Several lists as one, each task once and where it was first named, so the walk named first wins.
+function once(lists: readonly (readonly PersonalTask[])[]): readonly PersonalTask[] {
     const tasks = new Map<string, PersonalTask>();
 
-    for (const answer of answers) {
-        if (answer.outcome === 'failed') {
-            return answer;
-        }
-
-        for (const task of answer.value) {
-            if (!tasks.has(task.id)) {
-                tasks.set(task.id, task);
-            }
+    for (const task of lists.flat()) {
+        if (!tasks.has(task.id)) {
+            tasks.set(task.id, task);
         }
     }
 
-    return { outcome: 'read', value: [...tasks.values()] };
+    return [...tasks.values()];
 }
 
 interface HeldWhere {
@@ -148,10 +142,8 @@ export function useTasksWhereAny(
         }
 
         const asking = ++latest.current;
-        const answer = merged(
-            await Promise.all(
-                stated.map((filter) => readEveryPage((page) => readOwnTasks(session, transport, { ...page, filter }))),
-            ),
+        const answers = await Promise.all(
+            stated.map((filter) => readEveryPage((page) => readOwnTasks(session, transport, { ...page, filter }))),
         );
 
         if (asking !== latest.current) {
@@ -159,18 +151,25 @@ export function useTasksWhereAny(
         }
 
         const askedFor = JSON.stringify(stated);
+        const answered = answers.flatMap((answer) => (answer.outcome === 'read' ? [answer.value] : []));
+        const refused = answers.find((answer) => answer.outcome === 'failed');
+        const failure = refused?.outcome === 'failed' ? refused.failure.reason : null;
 
-        setHeld((standing) =>
-            answer.outcome === 'read'
-                ? { session, asked: askedFor, tasks: answer.value, reading: false, failure: null }
-                : {
-                      session,
-                      asked: askedFor,
-                      tasks: standing.session === session && standing.asked === askedFor ? standing.tasks : [],
-                      reading: false,
-                      failure: answer.failure.reason,
-                  },
-        );
+        // A walk that failed leaves what it answered last standing beside what the others answer now, and the failure
+        // is said beside them: a task it held may since have gone, which is what saying so is for.
+        setHeld((standing) => ({
+            session,
+            asked: askedFor,
+            tasks:
+                failure === null
+                    ? once(answered)
+                    : once([
+                          ...answered,
+                          standing.session === session && standing.asked === askedFor ? standing.tasks : [],
+                      ]),
+            reading: false,
+            failure,
+        }));
     }, [session, transport, stated]);
 
     useEffect(() => {

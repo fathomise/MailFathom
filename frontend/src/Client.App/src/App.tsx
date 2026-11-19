@@ -507,6 +507,16 @@ export function App({
     const [taskAsked, setTaskAsked] = useState<TaskOpenAsked | null>(null);
     const [spaceSeen, setSpaceSeen] = useState(space);
 
+    // An ask belongs to whoever was signed in when it was made, so signing out or in as somebody else lets it go
+    // rather than opening a reminder's task or an event for the next person.
+    const [asksFor, setAsksFor] = useState(signedInAs);
+
+    if (signedInAs !== asksFor) {
+        setAsksFor(signedInAs);
+        setTaskAsked(null);
+        setEventAsked(null);
+    }
+
     if (space !== spaceSeen) {
         setSpaceSeen(space);
 
