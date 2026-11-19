@@ -46,14 +46,15 @@ const answered: PersonalTask = {
     answer: { messageId: 'reply-a', arrivedAt: '2026-09-24T07:12:00+00:00' },
 };
 
-// The deployment behind the dialog: a revise answers with the task it was handed, or with the status a case names —
+// The deployment behind the dialog: each revise answers with the task, or with the status a case names for it in turn —
 // at once, or only when the case lets it go.
-function deployment(status = 200, waits = false) {
+function deployment(statuses: readonly number[], waits: boolean) {
     const sent: ClientRequest[] = [];
     let release: () => void = () => undefined;
     const transport: MailFathomTransport = (request) => {
         sent.push(request);
 
+        const status = statuses[sent.length - 1] ?? statuses.at(-1) ?? 200;
         const answer: ClientResponse =
             status === 200 ? { status, headers: {}, body: JSON.stringify(held) } : { status, headers: {}, body: '' };
 
@@ -80,11 +81,13 @@ function Opened({
     transport,
     onWritten,
     onToggleCompleted,
+    onReminders,
 }: {
     readonly task: PersonalTask;
     readonly transport: MailFathomTransport;
     readonly onWritten: (said: string) => void;
     readonly onToggleCompleted: (task: PersonalTask) => void;
+    readonly onReminders: (task: PersonalTask) => void;
 }) {
     const asked = useRef<HTMLDialogElement>(null);
 
@@ -102,25 +105,52 @@ function Opened({
             onWritten={onWritten}
             onToggleCompleted={onToggleCompleted}
             onAskErasure={vi.fn()}
-            onReminders={vi.fn()}
+            onReminders={onReminders}
             onOpenAnchor={undefined}
             onLeft={vi.fn()}
         />
     );
 }
 
-function drawDialog({ status = 200, task = held, waits = false } = {}) {
-    const { transport, sent, release } = deployment(status, waits);
+function drawDialog({
+    status = 200,
+    statuses = [status],
+    task = held,
+    waits = false,
+}: {
+    status?: number;
+    statuses?: readonly number[];
+    task?: PersonalTask;
+    waits?: boolean;
+} = {}) {
+    const { transport, sent, release } = deployment(statuses, waits);
     const written = vi.fn();
     const toggled = vi.fn();
-
-    render(
+    const announcing = vi.fn();
+    const drawn = (shown: PersonalTask) => (
         <LocalizationProvider>
-            <Opened task={task} transport={transport} onWritten={written} onToggleCompleted={toggled} />
-        </LocalizationProvider>,
+            <Opened
+                task={shown}
+                transport={transport}
+                onWritten={written}
+                onToggleCompleted={toggled}
+                onReminders={announcing}
+            />
+        </LocalizationProvider>
     );
+    const { rerender } = render(drawn(task));
 
-    return { sent, written, toggled, release };
+    return {
+        sent,
+        written,
+        toggled,
+        announcing,
+        release,
+        // What the screen hands the dialog once its list has read the task again.
+        readAgain: (shown: PersonalTask) => {
+            rerender(drawn(shown));
+        },
+    };
 }
 
 function revisions(sent: readonly ClientRequest[]): unknown[] {
@@ -256,6 +286,77 @@ describe('TaskDialog', () => {
 
         expect(revisions(sent)).toMatchObject([{ dueOn: null, reminders: [] }, { reminders: [] }]);
         expect(screen.getByText('No reminder')).toBeDefined();
+    });
+
+    it('tells the list what a first write took when the press queued behind it is refused', async () => {
+        const { sent, written, release } = drawDialog({ statuses: [200, 409], waits: true });
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Tomorrow' }));
+        fireEvent.click(screen.getByRole('radio', { name: 'I am waiting for this' }));
+        release();
+
+        await waitFor(() => {
+            expect(revisions(sent)).toHaveLength(2);
+        });
+
+        release();
+
+        expect(
+            await screen.findByText('A reply already answered this task, so which way it runs cannot change.'),
+        ).toBeDefined();
+        expect(written).toHaveBeenCalledWith('tasks.revised');
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Tomorrow' }).checked).toBe(true);
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'I owe this' }).checked).toBe(true);
+    });
+
+    it('sends nothing more and lets go when the task went while a press was queued', async () => {
+        const { sent, written, release } = drawDialog({ statuses: [404], waits: true });
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Tomorrow' }));
+        fireEvent.click(screen.getByRole('radio', { name: 'I am waiting for this' }));
+        release();
+
+        await waitFor(() => {
+            expect(written).toHaveBeenCalledWith('tasks.gone');
+        });
+
+        expect(revisions(sent)).toHaveLength(1);
+        expect(dialog().open).toBe(false);
+    });
+
+    it('lets reminders set elsewhere stand over the ones a chip cleared', async () => {
+        const { sent, written, announcing, readAgain } = drawDialog();
+        const tomorrow = dayFrom(calendarDayIn(Date.now(), null), 1);
+
+        fireEvent.click(screen.getByRole('radio', { name: 'No day' }));
+
+        await waitFor(() => {
+            expect(written).toHaveBeenCalledTimes(1);
+        });
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Tomorrow' }));
+
+        await waitFor(() => {
+            expect(written).toHaveBeenCalledTimes(2);
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Change the reminders' }));
+
+        // The panel is handed what the dialog shows, not what the list last read.
+        expect(announcing).toHaveBeenCalledWith(expect.objectContaining({ dueOn: tomorrow, reminders: [] }));
+
+        // The panel wrote a reminder through the screen, whose list then read the task back.
+        readAgain({ ...held, dueOn: tomorrow, reminders: [1440] });
+
+        expect(screen.getByText('1 reminder')).toBeDefined();
+
+        fireEvent.click(screen.getByRole('radio', { name: 'I am waiting for this' }));
+
+        await waitFor(() => {
+            expect(written).toHaveBeenCalledTimes(3);
+        });
+
+        expect(revisions(sent).at(-1)).toMatchObject({ direction: 'Awaited', dueOn: tomorrow, reminders: [1440] });
     });
 
     it('says a reply already answered a wait turned round, and puts the chip back', async () => {

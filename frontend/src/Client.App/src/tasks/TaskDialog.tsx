@@ -130,6 +130,17 @@ interface TaskChoices {
     readonly counterpart: TaskCounterpart | null;
 }
 
+// What chips laid over the task, and — beside reminders a chip cleared — the reminders the task held then, so a
+// change made to them elsewhere, which the list reads back, is what stands rather than the clearing.
+type ChoicesLaid = Partial<TaskChoices> & { readonly remindersOver?: readonly number[] };
+
+// Nothing laid yet, which is also how the dialog knows none of its writes was taken.
+const nothingLaid: ChoicesLaid = {};
+
+function sameLeads(one: readonly number[], other: readonly number[]): boolean {
+    return one.length === other.length && one.every((lead, at) => lead === other[at]);
+}
+
 export function TaskDialog({
     session,
     transport,
@@ -185,9 +196,9 @@ export function TaskDialog({
     // What the chips pressed here applied, over what the task the screen read holds: a chip stands where it was pressed
     // while its write is out, and stays there once the deployment took it, whatever the list has read back by then.
     // `pressed` is the same thing for the write that answers later, and `taken` what the deployment last took.
-    const [applied, setApplied] = useState<Partial<TaskChoices>>({});
-    const pressed = useRef<Partial<TaskChoices>>({});
-    const taken = useRef<Partial<TaskChoices>>({});
+    const [applied, setApplied] = useState<ChoicesLaid>(nothingLaid);
+    const pressed = useRef<ChoicesLaid>(nothingLaid);
+    const taken = useRef<ChoicesLaid>(nothingLaid);
     const sending = useRef(false);
     const [said, setSaid] = useState<MessageKey | null>(null);
     const [writing, setWriting] = useState<'save' | 'chip' | null>(null);
@@ -204,13 +215,16 @@ export function TaskDialog({
         };
     }, []);
 
-    const choicesOver = (over: Partial<TaskChoices>): TaskChoices => ({
+    const choicesOver = ({ remindersOver, ...over }: ChoicesLaid): TaskChoices => ({
         dueOn: task.dueOn,
-        reminders: task.reminders,
         direction: task.direction,
         anchor: task.anchor,
         counterpart: task.counterpart,
         ...over,
+        reminders:
+            over.reminders !== undefined && remindersOver !== undefined && sameLeads(remindersOver, task.reminders)
+                ? over.reminders
+                : task.reminders,
     });
     const chosen = choicesOver(applied);
     const writeRefused = useWriteRefusal();
@@ -228,7 +242,7 @@ export function TaskDialog({
     // write is out is laid over the dialog at once and written when that write answers, the latest press winning; a
     // refusal puts every chip back to what the deployment last took. The answer acts on this dialog only while the
     // dialog still stands; once it has been left, the screen is told what the write did and nothing else.
-    function send(over: Partial<TaskChoices>, line: string, closes: boolean): void {
+    function send(over: ChoicesLaid, line: string, closes: boolean): void {
         if (session === null) {
             return;
         }
@@ -269,6 +283,11 @@ export function TaskDialog({
                     setSaid(refusal);
                 }
 
+                // A write before this one was taken, so the list is behind the deployment until it reads again.
+                if (taken.current !== nothingLaid) {
+                    onWritten('tasks.revised');
+                }
+
                 return;
             }
 
@@ -303,7 +322,11 @@ export function TaskDialog({
 
         // A lead is measured back from the due day, so a task left with no day announces nothing — and stays that
         // way when a day is chosen again, whatever the list has not read back yet.
-        const over = { ...pressed.current, ...change, ...(change.dueOn === null ? { reminders: [] } : {}) };
+        const over: ChoicesLaid = {
+            ...pressed.current,
+            ...change,
+            ...(change.dueOn === null ? { reminders: [], remindersOver: task.reminders } : {}),
+        };
 
         pressed.current = over;
         setApplied(over);
@@ -529,7 +552,7 @@ export function TaskDialog({
                                 aria-label={translate('tasks.changeReminders')}
                                 className="text-sm text-accent-deep hover:underline"
                                 onClick={() => {
-                                    onReminders(task);
+                                    onReminders({ ...task, ...chosen });
                                 }}
                             >
                                 {translate('tasks.change')}
