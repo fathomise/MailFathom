@@ -5461,6 +5461,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const framePad = (top, bottom) => (isMobile || narrow || compact)
         ? "padding:" + top + "px " + frameX + "px " + bottom + "px;"
         : "padding:" + top + "px max(" + frameX + "px, calc(100% - " + (frameMax + frameX) + "px)) " + bottom + "px " + frameX + "px;";
+      const rightNowDocked = !isMobile && !narrow && st.phase === "idle";
       const watchPer = isMobile ? 1 : (narrow || compact) ? 2 : startWide ? 4 : 3;
       const watchList = st.watched || [];
       const watchPages = Math.max(1, Math.ceil(watchList.length / watchPer));
@@ -7663,11 +7664,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         searchWrapStyle: "flex:0 0 auto;position:relative;z-index:1;overflow:hidden;scrollbar-gutter:stable;background:var(--panel);border-bottom:1px solid var(--line);" + (st.phase === "idle" ? "box-shadow:0 6px 14px -12px var(--sh-3);" : ""),
         searchInnerStyle: "display:flex;flex-direction:column;box-sizing:border-box;" + (isMobile ? "gap:10px;" + framePad(12, 12) : "gap:12px;" + framePad(16, 16)),
         idleStyle: "flex:1;display:flex;flex-direction:column;overflow:auto;scrollbar-gutter:stable;min-height:0",
-        /* Now and Right now stand side by side, and what is watched runs across the page under them. One column below 1020 px. */
-        startBodyStyle: "box-sizing:border-box;" + (isMobile || narrow
-          ? "display:flex;flex-direction:column;gap:22px;" + framePad(isMobile ? 16 : 24, isMobile ? 96 : 32)
-          : "display:grid;grid-template-columns:minmax(0, 3fr) minmax(360px, 2fr);gap:26px 28px;align-items:start;max-width:1480px;" + framePad(26, 40)),
-        startSpanStyle: isMobile || narrow ? "" : "grid-column:1 / -1;",
+        /* Start is one column - Now, then what is watched, on the same width - and from 1020 px Right now is a panel
+           docked on the right for the whole height of the screen. Below that it stands between the two. */
+        startScreenStyle: "flex:1;display:flex;min-width:0;min-height:0;flex-direction:" + (rightNowDocked ? "row" : "column"),
+        rightNowDocked, rightNowInline: !rightNowDocked,
+        rightNowPanelStyle: "flex:0 0 auto;width:clamp(360px, 29%, 460px);box-sizing:border-box;overflow:auto;background:var(--panel);border-left:1px solid var(--line);padding:22px 14px 96px",
+        rightNowDockedCardStyle: "display:flex;flex-direction:column;gap:8px;box-sizing:border-box;min-width:0",
+        startBodyStyle: "box-sizing:border-box;display:flex;flex-direction:column;" + (isMobile || narrow
+          ? "gap:22px;" + framePad(isMobile ? 16 : 24, isMobile ? 96 : 32)
+          : "gap:26px;max-width:1180px;" + framePad(26, 40)),
+        startSpanStyle: "",
         startHeadStyle: "display:flex;align-items:center;gap:9px;min-width:0;min-height:24px",
         startHeadTitleStyle: "font-size:16px;font-weight:600;letter-spacing:-0.01em;color:var(--text);white-space:nowrap",
         startHeadNoteStyle: "flex:1;min-width:0;font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
@@ -7689,7 +7695,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             open: () => src && (src.tid ? this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: src.tid, cameFrom: false }) : this.goScreen("mail", { mailPane: "list", cameFrom: false })) };
         }) })),
         nowNote: HOME.now.note,
-        /* Right now: the widget beside Now. What matters most at this moment from the mail, the tasks and the calendar,
+        /* Right now: the panel beside Now and Watching. What matters most at this moment from the mail, the tasks and the calendar,
            a group each, read off by rules. */
         rightNowCardStyle: "display:flex;flex-direction:column;gap:8px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 28px -18px var(--sh-3);padding:" + (isMobile ? "14px 8px 4px" : "18px 12px 6px"),
         rightNowAt: HOME.rightNowAt,
