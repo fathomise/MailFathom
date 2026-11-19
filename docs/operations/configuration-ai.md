@@ -998,9 +998,10 @@ declares no chat endpoint tells the client it arranges no day, and the control i
 what a deployment spends here is one call for each time somebody asked, and nothing at all for the days nobody asked
 about. A day with nothing owed on it is answered without a call at all.
 
-**What leaves the deployment is the day, not the lists.** The window, the lines of the tasks due by the end of it, and
-the titles and times of what is already on the calendar during it; no message, no address, no identity, and nothing
-about a task beyond the line it is drawn with. The answer comes back naming tasks by identity rather than repeating
+**What leaves the deployment is the day, not the lists.** The window; the lines of the tasks the person owes
+by the end of it, each with its due day and, where one was stated, its estimate; and the titles and times of what is
+already committed during it, which is the events on the calendar and the tasks the person has already planned into the
+window. No message, no address, no identity, and nothing else about a task. The answer comes back naming tasks by identity rather than repeating
 them, which is what keeps an arrangement from becoming a second copy of somebody's list, and **every line passes the
 egress guard the arrival derivation's prompt passes**, under the posture of the person whose day it is.
 
