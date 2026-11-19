@@ -1085,4 +1085,26 @@ internal static class PersistenceConstraintNames
     /// is what keeps two tasks due on one day in a stable order across reads.
     /// </remarks>
     internal const string PersonalTaskDueOrderIndexName = "ix_tasks_user_due";
+
+    /// <summary>The rule that a task's plan states both when it starts and how long it runs, or neither.</summary>
+    internal const string PersonalTaskPlanCompleteCheckConstraintName = "ck_tasks_plan_complete";
+
+    /// <summary>The rule that a task is anchored to one thread or one event, never to both.</summary>
+    internal const string PersonalTaskSingleAnchorCheckConstraintName = "ck_tasks_single_anchor";
+
+    /// <summary>The rule that a task carries the words its anchor was drawn with exactly when it has an anchor.</summary>
+    internal const string PersonalTaskAnchorLabelledCheckConstraintName = "ck_tasks_anchor_labelled";
+
+    /// <summary>The rule that a counterpart's address is stored with its comparison form, or neither is.</summary>
+    internal const string PersonalTaskCounterpartCompleteCheckConstraintName = "ck_tasks_counterpart_complete";
+
+    /// <summary>The rule that an answered wait names both the reply and when it arrived.</summary>
+    internal const string PersonalTaskAnswerCompleteCheckConstraintName = "ck_tasks_answer_complete";
+
+    /// <summary>The open waits of every user, by the thread a reply would answer them in.</summary>
+    /// <remarks>
+    /// Stated because it is partial, and because the question it serves is the one read here that names no user: a
+    /// settled reply asks which waits its thread answers, whoever holds them.
+    /// </remarks>
+    internal const string PersonalTaskAwaitingAnswerIndexName = "ix_tasks_awaiting_answer_thread";
 }

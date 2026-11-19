@@ -52,6 +52,46 @@ internal sealed class PersonalTaskEntity
     /// </remarks>
     public Guid? SourceStoredEmailId { get; set; }
 
+    /// <summary>Gets or sets whether the person owes it or waits for it, which every row written before the column reads as owed.</summary>
+    public PersonalTaskDirection Direction { get; set; }
+
+    /// <summary>Gets or sets how many minutes the person expects it to take, and <see langword="null" /> where nobody said.</summary>
+    public int? EstimatedMinutes { get; set; }
+
+    /// <summary>Gets or sets when the person plans to do it, which is set exactly when <see cref="PlannedMinutes" /> is.</summary>
+    public DateTimeOffset? PlannedStartAt { get; set; }
+
+    /// <summary>Gets or sets how long the planned slot runs, in minutes.</summary>
+    public int? PlannedMinutes { get; set; }
+
+    /// <summary>Gets or sets the thread the task belongs to, as a value rather than as an association.</summary>
+    /// <remarks>
+    /// A value for the reason <see cref="SourceStoredEmailId" /> is one: a task outlives the mail it is about. When the
+    /// thread is later merged into another, the identifier stays as it was written and the merge is followed on read.
+    /// </remarks>
+    public Guid? AnchorThreadId { get; set; }
+
+    /// <summary>Gets or sets the calendar event the task belongs to, as a value for the same reason.</summary>
+    public Guid? AnchorEventId { get; set; }
+
+    /// <summary>Gets or sets the words the anchor was drawn with when the task was written, kept so a gone anchor still reads.</summary>
+    public string? AnchorLabel { get; set; }
+
+    /// <summary>Gets or sets the address of the person the task is with, as it was written, which is what a reader is shown.</summary>
+    public string? CounterpartAddress { get; set; }
+
+    /// <summary>Gets or sets the comparison form of that address, which is what a person's page matches and indexes on.</summary>
+    public string? CounterpartNormalizedAddress { get; set; }
+
+    /// <summary>Gets or sets the name that person is drawn with.</summary>
+    public string? CounterpartDisplayName { get; set; }
+
+    /// <summary>Gets or sets the reply that closed a wait, as a value for the reason the source message is one.</summary>
+    public Guid? AnswerStoredEmailId { get; set; }
+
+    /// <summary>Gets or sets when that reply arrived, which is set exactly when <see cref="AnswerStoredEmailId" /> is.</summary>
+    public DateTimeOffset? AnsweredAt { get; set; }
+
     /// <summary>Gets the leads this task is announced at, which go with it when it is erased.</summary>
     public ICollection<PersonalTaskReminderEntity> Reminders { get; } = [];
 }

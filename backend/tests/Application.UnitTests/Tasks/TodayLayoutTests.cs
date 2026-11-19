@@ -140,7 +140,7 @@ public sealed class TodayLayoutTests
         Assert.Equal(DayLayoutWithholding.NotActivated, derivation!.Withheld);
         await taskStore.DidNotReceiveWithAnyArgs().ReadAsync(
             default,
-            default,
+            default!,
             default,
             default,
             TestContext.Current.CancellationToken);
@@ -182,7 +182,7 @@ public sealed class TodayLayoutTests
         // Assert
         await taskStore.Received(1).ReadAsync(
             Person,
-            PersonalTaskOrigin.Asserted,
+            new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             null,
             Arg.Any<int>(),
             Arg.Any<CancellationToken>());
@@ -321,7 +321,7 @@ public sealed class TodayLayoutTests
         store
             .ReadAsync(
                 Person,
-                PersonalTaskOrigin.Asserted,
+                new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
                 Arg.Any<PersonalTaskCursor?>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())

@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Calendar;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Reminders;
 using MailFathom.Domain.Tasks;
@@ -30,8 +31,8 @@ internal static class PersonalTaskMapping
             entity.Origin,
             entity.SourceStoredEmailId is { } message ? StoredEmailId.Create(message) : null,
             entity.IsCompleted,
-            TaskCommitment.Owed,
-            answer: null);
+            ToCommitment(entity),
+            ToAnswer(entity));
     }
 
     /// <summary>Maps one task onto the row it is written as.</summary>
@@ -52,7 +53,11 @@ internal static class PersonalTaskMapping
             Origin = task.Origin,
             IsCompleted = task.IsCompleted,
             SourceStoredEmailId = task.SourceMessage?.Value,
+            AnswerStoredEmailId = task.Answer?.Message.Value,
+            AnsweredAt = task.Answer?.ArrivedAt.ToUniversalTime(),
         };
+
+        WriteCommitment(entity, task.Commitment);
 
         foreach (var reminder in task.Reminders)
         {
@@ -79,6 +84,53 @@ internal static class PersonalTaskMapping
             DueAt = task.RemindsAt(reminder),
         };
     }
+
+    /// <summary>Writes the columns a task's commitment is stored in, which a revision moves as one.</summary>
+    /// <remarks>An instant is written in UTC, which is the only offset the provider writes to a <c>timestamptz</c>.</remarks>
+    /// <param name="entity">The row to write onto.</param>
+    /// <param name="commitment">The commitment the row is to hold.</param>
+    public static void WriteCommitment(PersonalTaskEntity entity, TaskCommitment commitment)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        ArgumentNullException.ThrowIfNull(commitment);
+
+        entity.Direction = commitment.Direction;
+        entity.EstimatedMinutes = commitment.EstimatedMinutes;
+        entity.PlannedStartAt = commitment.Plan?.StartAt.ToUniversalTime();
+        entity.PlannedMinutes = commitment.Plan?.Minutes;
+        entity.AnchorThreadId = commitment.Anchor?.ThreadId?.Value;
+        entity.AnchorEventId = commitment.Anchor?.EventId?.Value;
+        entity.AnchorLabel = commitment.Anchor?.Label;
+        entity.CounterpartAddress = commitment.Counterpart?.Address.Address;
+        entity.CounterpartNormalizedAddress = commitment.Counterpart?.Address.NormalizedAddress;
+        entity.CounterpartDisplayName = commitment.Counterpart?.DisplayName;
+    }
+
+    /// <summary>Reads the commitment a stored row holds.</summary>
+    /// <remarks>
+    /// An address that no longer parses names nobody, so it reads back as no counterpart rather than failing the whole
+    /// list over one row.
+    /// </remarks>
+    private static TaskCommitment ToCommitment(PersonalTaskEntity entity) => new(
+        entity.Direction,
+        entity.EstimatedMinutes,
+        entity.PlannedStartAt is { } startAt && entity.PlannedMinutes is { } minutes ? TaskPlan.Create(startAt, minutes) : null,
+        ToAnchor(entity),
+        EmailAddress.TryCreate(displayName: null, entity.CounterpartAddress, out var address)
+            ? new TaskCounterpart(address, entity.CounterpartDisplayName)
+            : null);
+
+    private static TaskAnchor? ToAnchor(PersonalTaskEntity entity) => (entity.AnchorThreadId, entity.AnchorEventId, entity.AnchorLabel) switch
+    {
+        ({ } thread, _, { } label) => TaskAnchor.Thread(EmailThreadId.Create(thread), label),
+        (_, { } calendarEvent, { } label) => TaskAnchor.Event(CalendarEventId.Create(calendarEvent), label),
+        _ => null,
+    };
+
+    private static TaskAnswer? ToAnswer(PersonalTaskEntity entity) =>
+        entity.AnswerStoredEmailId is { } message && entity.AnsweredAt is { } arrivedAt
+            ? new TaskAnswer(StoredEmailId.Create(message), arrivedAt)
+            : null;
 
     /// <summary>Reads what a stored row says announces the task.</summary>
     /// <remarks>

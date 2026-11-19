@@ -119,7 +119,7 @@ public sealed class OwnTasks
         }
 
         var limit = Bounded(pageSize);
-        var tasks = await this.store.ReadAsync(user, origin, boundary, limit, cancellationToken);
+        var tasks = await this.store.ReadAsync(user, new PersonalTaskQuery(origin), boundary, limit, cancellationToken);
 
         // The page is short only where the list held nothing more, so the boundary is issued exactly when a full page
         // came back — which is what lets a caller stop on the absent cursor rather than on a length comparison.

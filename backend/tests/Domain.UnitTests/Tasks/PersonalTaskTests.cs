@@ -449,6 +449,75 @@ public sealed class PersonalTaskTests
         Assert.Throws<InvalidOperationException>(answering);
     }
 
+    /// <summary>A reply is what closes a wait, so a row citing one on a task nobody waited for is refused rather than read.</summary>
+    [Fact]
+    public void Restore_AnAnswerOnAnOwedTask_IsRefused()
+    {
+        // Act
+        var restoring = () => Restored(TaskCommitment.Owed, isCompleted: true, AReply());
+
+        // Assert
+        Assert.Throws<ArgumentException>(restoring);
+    }
+
+    /// <summary>An answer completes the wait it closes, so a row citing one on a task still open contradicts itself.</summary>
+    [Fact]
+    public void Restore_AnAnswerOnAnOpenAwaitedTask_IsRefused()
+    {
+        // Act
+        var restoring = () => Restored(
+            TaskCommitment.Owed with { Direction = PersonalTaskDirection.Awaited },
+            isCompleted: false,
+            AReply());
+
+        // Assert
+        Assert.Throws<ArgumentException>(restoring);
+    }
+
+    /// <summary>A wait the reply closed reads back with the reply it cites.</summary>
+    [Fact]
+    public void Restore_AnAnsweredAwaitedTask_ReadsBackWithItsAnswer()
+    {
+        // Arrange
+        var reply = AReply();
+
+        // Act
+        var task = Restored(TaskCommitment.Owed with { Direction = PersonalTaskDirection.Awaited }, isCompleted: true, reply);
+
+        // Assert
+        Assert.Equal(reply, task.Answer);
+    }
+
+    /// <summary>The answer belongs to the wait it closed, so a task it answered is never turned into something owed.</summary>
+    [Fact]
+    public void Revise_TurningAnAnsweredWaitingTaskIntoAnOwedOne_IsRefused()
+    {
+        // Arrange
+        var answered = Waiting().Answered(AReply());
+
+        // Act
+        var revising = () => answered.Revise(
+            answered.Title,
+            dueOn: null,
+            TaskAnnouncement.Silent,
+            answered.Commitment with { Direction = PersonalTaskDirection.Owed });
+
+        // Assert
+        Assert.Throws<InvalidOperationException>(revising);
+    }
+
+    private static PersonalTask Restored(TaskCommitment commitment, bool isCompleted, TaskAnswer answer) => PersonalTask.Restore(
+        Identifier,
+        User,
+        "Hear back about the tender",
+        dueOn: null,
+        TaskAnnouncement.Silent,
+        PersonalTaskOrigin.Asserted,
+        sourceMessage: null,
+        isCompleted,
+        commitment,
+        answer);
+
     private static TaskAnswer AReply() => new(StoredEmailId.Create(Guid.NewGuid()), new DateTimeOffset(2026, 11, 21, 8, 0, 0, TimeSpan.Zero));
 
     private static PersonalTask Waiting() => PersonalTask.Compose(

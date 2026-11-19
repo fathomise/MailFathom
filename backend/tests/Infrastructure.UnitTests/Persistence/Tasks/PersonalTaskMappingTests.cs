@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Calendar;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Reminders;
 using MailFathom.Domain.Tasks;
@@ -252,4 +253,97 @@ public sealed class PersonalTaskMappingTests
         Assert.Empty(task.Reminders);
         Assert.Null(task.AnchorsRemindersAt);
     }
+
+    /// <summary>
+    /// Every part of a commitment and the reply that closed it survives being written and read back, with the plan and
+    /// the answer as the instants they were rather than the offsets they were stated in.
+    /// </summary>
+    [Fact]
+    public void ToPersonalTask_TheRowAnAnsweredWaitIsWrittenAs_ReadsBackAsThatWait()
+    {
+        // Arrange
+        var warsaw = TimeSpan.FromHours(1);
+        var thread = EmailThreadId.Create(Guid.NewGuid());
+        var answer = new TaskAnswer(StoredEmailId.Create(Guid.NewGuid()), new DateTimeOffset(2026, 11, 21, 9, 30, 0, warsaw));
+        var commitment = new TaskCommitment(
+            PersonalTaskDirection.Awaited,
+            EstimatedMinutes: 45,
+            TaskPlan.Create(new DateTimeOffset(2026, 11, 20, 14, 0, 0, warsaw), 30),
+            TaskAnchor.Thread(thread, "Tender reply"),
+            new TaskCounterpart(Address("Anna.Example@example.org"), "Anna Example"));
+        var task = PersonalTask.Compose(
+            PersonalTaskId.Create(Guid.NewGuid()),
+            User,
+            "Hear back about the tender",
+            DueOn,
+            TaskAnnouncement.Silent,
+            PersonalTaskOrigin.Asserted,
+            sourceMessage: null,
+            commitment).Answered(answer);
+
+        // Act
+        var entity = PersonalTaskMapping.ToEntity(task);
+        var restored = PersonalTaskMapping.ToPersonalTask(entity);
+
+        // Assert
+        Assert.Equal(TimeSpan.Zero, entity.PlannedStartAt?.Offset);
+        Assert.Equal("Anna.Example@example.org", entity.CounterpartAddress);
+        Assert.Equal("ANNA.EXAMPLE@EXAMPLE.ORG", entity.CounterpartNormalizedAddress);
+        Assert.Equal("Anna.Example@example.org", restored.Counterpart?.Address.Address);
+        Assert.Equal(commitment, restored.Commitment);
+        Assert.Equal(answer, restored.Answer);
+        Assert.True(restored.IsCompleted);
+    }
+
+    /// <summary>An event anchor is written to the event's own column, leaving the thread's empty.</summary>
+    [Fact]
+    public void ToEntity_ATaskAnchoredToAnEvent_WritesTheEventAndNoThread()
+    {
+        // Arrange
+        var calendarEvent = CalendarEventId.Create(Guid.NewGuid());
+        var task = PersonalTask.Compose(
+            PersonalTaskId.Create(Guid.NewGuid()),
+            User,
+            "Bring the slides",
+            DueOn,
+            TaskAnnouncement.Silent,
+            PersonalTaskOrigin.Asserted,
+            sourceMessage: null,
+            TaskCommitment.Owed with { Anchor = TaskAnchor.Event(calendarEvent, "Kick-off") });
+
+        // Act
+        var entity = PersonalTaskMapping.ToEntity(task);
+
+        // Assert
+        Assert.Equal(calendarEvent.Value, entity.AnchorEventId);
+        Assert.Null(entity.AnchorThreadId);
+        Assert.Equal("Kick-off", entity.AnchorLabel);
+        Assert.Equal(PersonalTaskDirection.Owed, entity.Direction);
+    }
+
+    /// <summary>A row written before the columns existed reads back as something owed and nothing more.</summary>
+    [Fact]
+    public void ToPersonalTask_ARowStatingNoCommitment_ReadsBackAsOwed()
+    {
+        // Arrange
+        var entity = new PersonalTaskEntity
+        {
+            Id = Guid.NewGuid(),
+            UserId = User.Value,
+            Title = "Sign the NDA",
+            Origin = PersonalTaskOrigin.Asserted,
+        };
+
+        // Act
+        var task = PersonalTaskMapping.ToPersonalTask(entity);
+
+        // Assert
+        Assert.Equal(TaskCommitment.Owed, task.Commitment);
+        Assert.Null(task.Answer);
+    }
+
+    private static EmailAddress Address(string address) =>
+        EmailAddress.TryCreate(displayName: null, address, out var parsed)
+            ? parsed
+            : throw new InvalidOperationException("The fixture address is usable.");
 }

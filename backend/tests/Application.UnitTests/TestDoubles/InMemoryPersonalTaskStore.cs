@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Tasks;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Tasks;
 
 namespace MailFathom.Application.UnitTests.TestDoubles;
@@ -35,16 +36,18 @@ internal sealed class InMemoryPersonalTaskStore : IPersonalTaskStore
 
     public Task<IReadOnlyList<PersonalTask>> ReadAsync(
         UserId user,
-        PersonalTaskOrigin? origin,
+        PersonalTaskQuery query,
         PersonalTaskCursor? after,
         int limit,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(query);
+        query.EnsureAnswerable();
+
         this.LastLimit = limit;
 
         var ordered = this.tasks
-            .Where(task => task.User == user)
-            .Where(task => origin is not { } named || task.Origin == named)
+            .Where(task => task.User == user && Matches(task, query))
             .OrderBy(task => task.DueOn is null)
             .ThenBy(task => task.DueOn)
             .ThenBy(task => task.Id.Value);
@@ -54,6 +57,31 @@ internal sealed class InMemoryPersonalTaskStore : IPersonalTaskStore
             : ordered;
 
         return Task.FromResult<IReadOnlyList<PersonalTask>>([.. page.Take(limit)]);
+    }
+
+    /// <summary>Reads the open waits anchored to one thread, whoever holds them.</summary>
+    /// <remarks>Threads are never merged here, so a wait is answered in the thread it was anchored to and no other.</remarks>
+    public Task<IReadOnlyList<PersonalTask>> ReadAwaitingAnswerAsync(EmailThreadId thread, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<PersonalTask>>(
+        [
+            .. this.tasks.Where(task => task.Direction == PersonalTaskDirection.Awaited
+                && !task.IsCompleted
+                && task.Anchor?.ThreadId == thread),
+        ]);
+
+    public Task<PersonalTaskChangeOutcome> AnswerAsync(
+        UserId user,
+        PersonalTaskId task,
+        TaskAnswer answer,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(answer);
+
+        var held = this.tasks.FirstOrDefault(candidate => candidate.User == user && candidate.Id == task);
+
+        return Task.FromResult(held is { Direction: PersonalTaskDirection.Awaited, IsCompleted: false }
+            ? this.Replace(user, task, open => open.Answered(answer))
+            : PersonalTaskChangeOutcome.NotFound);
     }
 
     public Task<PersonalTask?> FindAsync(UserId user, PersonalTaskId task, CancellationToken cancellationToken) =>
@@ -66,7 +94,7 @@ internal sealed class InMemoryPersonalTaskStore : IPersonalTaskStore
         return Task.FromResult(this.Replace(
             revision.User,
             revision.Id,
-            held => held.Revise(revision.Title, revision.DueOn, Announcing(revision), held.Commitment)));
+            held => held.Revise(revision.Title, revision.DueOn, Announcing(revision), revision.Commitment)));
     }
 
     public Task<PersonalTaskChangeOutcome> AcceptAsync(
@@ -115,6 +143,16 @@ internal sealed class InMemoryPersonalTaskStore : IPersonalTaskStore
 
     public Task<bool> EraseAsync(UserId user, PersonalTaskId task, CancellationToken cancellationToken) =>
         Task.FromResult(this.tasks.RemoveAll(held => held.User == user && held.Id == task) > 0);
+
+    /// <summary>Reports whether a task meets every narrowing a query states, as the persisted store reads them.</summary>
+    private static bool Matches(PersonalTask task, PersonalTaskQuery query) =>
+        (query.Origin is not { } origin || task.Origin == origin)
+        && (query.Thread is not { } thread || task.Anchor?.ThreadId == thread)
+        && (query.Event is not { } calendarEvent || task.Anchor?.EventId == calendarEvent)
+        && (query.Counterpart is not { } counterpart || task.Counterpart?.Address == counterpart)
+        && (query.DueDays is not { } days
+            || (task.DueOn >= days.First && task.DueOn <= days.Last)
+            || (task.Plan?.StartAt >= query.From && task.Plan?.StartAt < query.Until));
 
     /// <summary>Reports whether a task stands after a boundary in the order this store serves.</summary>
     private static bool IsBeyond(PersonalTask task, PersonalTaskCursor boundary) => boundary.DueOn is { } dueOn

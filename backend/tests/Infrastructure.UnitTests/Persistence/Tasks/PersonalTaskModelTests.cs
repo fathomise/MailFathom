@@ -2,9 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Tasks;
 using MailFathom.Infrastructure.Persistence;
 using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Xunit;
 
@@ -175,6 +177,101 @@ public sealed class PersonalTaskModelTests
 
         // Assert
         Assert.Equal(PersistenceConstraintNames.PersonalTaskReminderPrimaryKeyConstraintName, key.GetName());
+    }
+
+    /// <summary>A row written before the column existed is owed, which is what every task was until a wait could be stated.</summary>
+    [Fact]
+    public void Model_TheDirection_IsStoredByNameAndDefaultsToOwed()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var direction = EntityType(context).FindProperty(nameof(PersonalTaskEntity.Direction))!;
+
+        // Assert
+        Assert.Equal(typeof(string), direction.GetProviderClrType());
+        Assert.Equal(PersonalTaskDirection.Owed, direction.GetDefaultValue());
+        Assert.False(direction.IsNullable);
+    }
+
+    /// <summary>
+    /// The thread, the event, and the reply are cited for the reason the source message is: a task outlives the mail
+    /// and the meeting it is about, so none of them is an association that could take the task with it.
+    /// </summary>
+    [Fact]
+    public void Model_TheAnchorAndTheAnswer_AreValuesRatherThanAssociations()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var principals = EntityType(context).GetForeignKeys().Select(foreignKey => foreignKey.PrincipalEntityType.ClrType);
+
+        // Assert
+        Assert.Equal([typeof(UserAccountEntity)], principals);
+    }
+
+    /// <summary>Half of a plan, an anchor, or an answer names nothing, so the table refuses one whoever writes the row.</summary>
+    [Theory]
+    [InlineData(PersistenceConstraintNames.PersonalTaskPlanCompleteCheckConstraintName, "\"PlannedStartAt\" IS NULL", "\"PlannedMinutes\" IS NULL")]
+    [InlineData(PersistenceConstraintNames.PersonalTaskSingleAnchorCheckConstraintName, "\"AnchorThreadId\" IS NULL OR \"AnchorEventId\" IS NULL", "\"AnchorThreadId\"")]
+    [InlineData(PersistenceConstraintNames.PersonalTaskAnchorLabelledCheckConstraintName, "\"AnchorLabel\" IS NULL", "\"AnchorEventId\" IS NULL")]
+    [InlineData(PersistenceConstraintNames.PersonalTaskCounterpartCompleteCheckConstraintName, "\"CounterpartAddress\" IS NULL", "\"CounterpartNormalizedAddress\" IS NULL")]
+    [InlineData(PersistenceConstraintNames.PersonalTaskAnswerCompleteCheckConstraintName, "\"AnswerStoredEmailId\" IS NULL", "\"AnsweredAt\" IS NULL")]
+    public void Model_EachWholeValue_IsCheckedByTheTable(string name, string firstHalf, string secondHalf)
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var constraint = context.GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType(typeof(PersonalTaskEntity))!
+            .GetCheckConstraints()
+            .Single(candidate => candidate.Name == name);
+
+        // Assert
+        Assert.Contains(firstHalf, constraint.Sql, StringComparison.Ordinal);
+        Assert.Contains(secondHalf, constraint.Sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>Each surface reads one person's tasks by one of these, so each leads with the person.</summary>
+    [Theory]
+    [InlineData(nameof(PersonalTaskEntity.AnchorThreadId))]
+    [InlineData(nameof(PersonalTaskEntity.AnchorEventId))]
+    [InlineData(nameof(PersonalTaskEntity.PlannedStartAt))]
+    [InlineData(nameof(PersonalTaskEntity.CounterpartNormalizedAddress))]
+    public void Model_TheNarrowingsAPersonReadsBy_AreIndexedBehindThePerson(string column)
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var indexed = EntityType(context).GetIndexes().Select(index => index.Properties.Select(property => property.Name).ToArray());
+
+        // Assert
+        Assert.Contains(indexed, columns => columns.SequenceEqual([nameof(PersonalTaskEntity.UserId), column]));
+    }
+
+    /// <summary>
+    /// Settling a reply asks across every user which waits its thread answers, which a user-led index cannot serve, so
+    /// it rides a partial index holding only the open waits.
+    /// </summary>
+    [Fact]
+    public void Model_TheAwaitingAnswerIndex_HoldsOnlyTheOpenWaitsByThread()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var index = EntityType(context)
+            .GetIndexes()
+            .Single(candidate => candidate.GetDatabaseName() == PersistenceConstraintNames.PersonalTaskAwaitingAnswerIndexName);
+
+        // Assert
+        Assert.Equal([nameof(PersonalTaskEntity.AnchorThreadId)], index.Properties.Select(property => property.Name));
+        Assert.Equal("\"Direction\" = 'Awaited' AND NOT \"IsCompleted\"", index.GetFilter());
     }
 
     private static IEntityType ReminderEntityType(MailFathomDbContext context) =>

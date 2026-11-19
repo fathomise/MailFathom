@@ -214,7 +214,7 @@ public sealed record PersonalTask
     /// <param name="answer">The reply that answered it, or <see langword="null" /> where none did.</param>
     /// <returns>The task as it stands.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> or <paramref name="commitment" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is blank, when <paramref name="user" /> names nobody, when <paramref name="id" /> is the struct default, when one lead is stated twice, or when leads are stated against no due day.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is blank, when <paramref name="user" /> names nobody, when <paramref name="id" /> is the struct default, when one lead is stated twice, when leads are stated against no due day, or when <paramref name="answer" /> is stated for a task that is not a completed wait.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="origin" /> is not a declared origin, when <paramref name="commitment" /> states an undeclared direction or an estimate outside five minutes to twelve hours, when <paramref name="title" /> exceeds <see cref="MaximumTitleLength" />, when more than <see cref="Reminder.MaximumCount" /> leads are stated, or when the stated offset is not one a UTC offset can be.</exception>
     /// <remarks>
     /// It validates exactly what <see cref="Compose" /> validates rather than trusting the store, because a row read
@@ -235,6 +235,11 @@ public sealed record PersonalTask
         TaskAnswer? answer)
     {
         Validate(id, user, origin, commitment);
+
+        if (answer is not null && (commitment.Direction != PersonalTaskDirection.Awaited || !isCompleted))
+        {
+            throw new ArgumentException("A reply answers only a completed task the person waited for.", nameof(answer));
+        }
 
         var announced = Announced(dueOn, announcement);
 
@@ -261,6 +266,7 @@ public sealed record PersonalTask
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> or <paramref name="commitment" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is blank, when one lead is stated twice, or when leads are stated against no due day.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="commitment" /> states an undeclared direction or an estimate outside five minutes to twelve hours, when <paramref name="title" /> exceeds <see cref="MaximumTitleLength" />, when more than <see cref="Reminder.MaximumCount" /> leads are stated, or when the stated offset is not one a UTC offset can be.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when <paramref name="commitment" /> changes the direction of a task a reply already answered.</exception>
     /// <remarks>
     /// Only the values an edit is about, because the rest of the record is not the editor's to state: the identity
     /// and the person are what address the task, the origin moves by accepting a proposal rather than by typing, the
@@ -273,6 +279,11 @@ public sealed record PersonalTask
         var announced = Announced(dueOn, announcement);
 
         ValidateCommitment(commitment);
+
+        if (this.Answer is not null && commitment.Direction != this.Direction)
+        {
+            throw new InvalidOperationException("A task a reply answered stays the wait that reply closed.");
+        }
 
         return new PersonalTask(
             this.Id,

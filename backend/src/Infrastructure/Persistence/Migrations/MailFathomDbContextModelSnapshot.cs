@@ -4093,11 +4093,49 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("AnchorEventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AnchorLabel")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("AnchorThreadId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AnswerStoredEmailId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("AnsweredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CounterpartAddress")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("CounterpartDisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("CounterpartNormalizedAddress")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("Owed");
+
                     b.Property<int?>("DueDayOffsetMinutes")
                         .HasColumnType("integer");
 
                     b.Property<DateOnly?>("DueOn")
                         .HasColumnType("date");
+
+                    b.Property<int?>("EstimatedMinutes")
+                        .HasColumnType("integer");
 
                     b.Property<bool>("IsCompleted")
                         .HasColumnType("boolean");
@@ -4106,6 +4144,12 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<int?>("PlannedMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("PlannedStartAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("SourceStoredEmailId")
                         .HasColumnType("uuid");
@@ -4120,10 +4164,33 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AnchorThreadId")
+                        .HasDatabaseName("ix_tasks_awaiting_answer_thread")
+                        .HasFilter("\"Direction\" = 'Awaited' AND NOT \"IsCompleted\"");
+
+                    b.HasIndex("UserId", "AnchorEventId");
+
+                    b.HasIndex("UserId", "AnchorThreadId");
+
+                    b.HasIndex("UserId", "CounterpartNormalizedAddress");
+
+                    b.HasIndex("UserId", "PlannedStartAt");
+
                     b.HasIndex("UserId", "DueOn", "Id")
                         .HasDatabaseName("ix_tasks_user_due");
 
-                    b.ToTable("tasks", (string)null);
+                    b.ToTable("tasks", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_tasks_anchor_labelled", "(\"AnchorLabel\" IS NULL) = (\"AnchorThreadId\" IS NULL AND \"AnchorEventId\" IS NULL)");
+
+                            t.HasCheckConstraint("ck_tasks_answer_complete", "(\"AnswerStoredEmailId\" IS NULL) = (\"AnsweredAt\" IS NULL)");
+
+                            t.HasCheckConstraint("ck_tasks_counterpart_complete", "(\"CounterpartAddress\" IS NULL) = (\"CounterpartNormalizedAddress\" IS NULL)");
+
+                            t.HasCheckConstraint("ck_tasks_plan_complete", "(\"PlannedStartAt\" IS NULL) = (\"PlannedMinutes\" IS NULL)");
+
+                            t.HasCheckConstraint("ck_tasks_single_anchor", "\"AnchorThreadId\" IS NULL OR \"AnchorEventId\" IS NULL");
+                        });
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.PersonalTaskReminderEntity", b =>

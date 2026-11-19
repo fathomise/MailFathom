@@ -202,11 +202,11 @@ internal static class PersonalAgenda
     /// <summary>The task list as its store answers a page: one origin, soonest due first, undated last.</summary>
     private sealed class AgendaTasks : IPersonalTaskStore
     {
-        public Task<IReadOnlyList<PersonalTask>> ReadAsync(UserId user, PersonalTaskOrigin? origin, PersonalTaskCursor? after, int limit, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<PersonalTask>> ReadAsync(UserId user, PersonalTaskQuery query, PersonalTaskCursor? after, int limit, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PersonalTask>>(
             [
                 .. Tasks
-                    .Where(task => task.User == user && (origin is null || task.Origin == origin))
+                    .Where(task => task.User == user && (query.Origin is null || task.Origin == query.Origin))
                     .OrderBy(static task => task.DueOn is null)
                     .ThenBy(static task => task.DueOn)
                     .Take(after is null ? limit : 0),
@@ -225,6 +225,12 @@ internal static class PersonalAgenda
             throw new NotSupportedException("The Agent proposes a task and never writes one.");
 
         public Task<PersonalTaskChangeOutcome> SetCompletionAsync(UserId user, PersonalTaskId task, bool isCompleted, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The Agent proposes a task and never writes one.");
+
+        public Task<IReadOnlyList<PersonalTask>> ReadAwaitingAnswerAsync(EmailThreadId thread, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The Agent reads one person's list and never settles a reply.");
+
+        public Task<PersonalTaskChangeOutcome> AnswerAsync(UserId user, PersonalTaskId task, TaskAnswer answer, CancellationToken cancellationToken) =>
             throw new NotSupportedException("The Agent proposes a task and never writes one.");
 
         public Task<bool> EraseAsync(UserId user, PersonalTaskId task, CancellationToken cancellationToken) =>

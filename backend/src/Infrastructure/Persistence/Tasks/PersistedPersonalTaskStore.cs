@@ -7,7 +7,9 @@ using MailFathom.Application.Persistence;
 using MailFathom.Application.Tasks;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Tasks;
+using MailFathom.Infrastructure.Persistence.Emails.Threads;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
 using Microsoft.EntityFrameworkCore;
@@ -59,17 +61,14 @@ internal sealed class PersistedPersonalTaskStore(
     /// </remarks>
     public async Task<IReadOnlyList<PersonalTask>> ReadAsync(
         UserId user,
-        PersonalTaskOrigin? origin,
+        PersonalTaskQuery query,
         PersonalTaskCursor? after,
         int limit,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(query);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
-
-        if (origin is { } requested && !Enum.IsDefined(requested))
-        {
-            throw new ArgumentOutOfRangeException(nameof(origin), requested, "A task carries a declared origin.");
-        }
+        query.EnsureAnswerable();
 
         if (after is { Task.IsSpecified: false })
         {
@@ -84,10 +83,7 @@ internal sealed class PersistedPersonalTaskStore(
             .Include(task => task.Reminders)
             .Where(task => task.UserId == userValue);
 
-        if (origin is { } named)
-        {
-            rows = rows.Where(task => task.Origin == named);
-        }
+        rows = Narrowed(rows, query);
 
         if (after is { } boundary)
         {
@@ -128,7 +124,7 @@ internal sealed class PersistedPersonalTaskStore(
 
     /// <inheritdoc />
     /// <remarks>
-    /// The three columns an edit states and the reminder rows behind them, which is the only way this differs from
+    /// The columns an edit states and the reminder rows behind them, which is the only way this differs from
     /// the two state changes below it: the addressing, the session, and the commit policy are the same, and the
     /// revision supplies the row it is written against rather than being looked up from a second identity.
     /// </remarks>
@@ -148,6 +144,7 @@ internal sealed class PersistedPersonalTaskStore(
                     stored.DueDayOffsetMinutes = revision.DueDayOffset is { } offset
                         ? (int)offset.TotalMinutes
                         : null;
+                    PersonalTaskMapping.WriteCommitment(stored, revision.Commitment);
 
                     Reconcile(writeContext, stored, revision);
                 },
@@ -192,6 +189,75 @@ internal sealed class PersistedPersonalTaskStore(
                 (_, stored) => stored.IsCompleted = isCompleted,
                 token),
             cancellationToken);
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The merges are walked backwards from the thread a reply arrived in — each step one query for the threads folded
+    /// into the ones already found — and the tasks are then read in one query over every identifier the walk reached.
+    /// A merge points straight at its survivor, so the walk is one step on nearly every call and ends at the ceiling
+    /// <see cref="SurvivingEmailThread" /> holds a forward walk to, against a chain that reached the database some
+    /// other way.
+    /// </remarks>
+    public async Task<IReadOnlyList<PersonalTask>> ReadAwaitingAnswerAsync(
+        EmailThreadId thread,
+        CancellationToken cancellationToken)
+    {
+        var threads = await this.ThreadsEndingAtAsync(thread.Value, cancellationToken);
+
+        var waiting = await readContext.PersonalTasks
+            .AsNoTracking()
+            .Include(task => task.Reminders)
+            .Where(task => task.Direction == PersonalTaskDirection.Awaited
+                && !task.IsCompleted
+                && task.AnchorThreadId != null
+                && threads.Contains(task.AnchorThreadId.Value))
+            .OrderBy(task => task.Id)
+            .ToArrayAsync(cancellationToken);
+
+        return [.. waiting.Select(PersonalTaskMapping.ToPersonalTask)];
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The condition is read inside the same transaction as the write, so a wait completed by hand between the read
+    /// that found it and this call is left as it stands, and two replicas settling one reply converge: the second finds
+    /// the wait already closed and reports nothing to answer.
+    /// </remarks>
+    public Task<PersonalTaskChangeOutcome> AnswerAsync(
+        UserId user,
+        PersonalTaskId task,
+        TaskAnswer answer,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(answer);
+
+        return commitPolicy.CommitAsync(
+            async (session, token) =>
+            {
+                var applied = PersonalTaskChangeOutcome.NotFound;
+
+                await StageAsync(
+                    session,
+                    user,
+                    task,
+                    (_, stored) =>
+                    {
+                        if (stored.Direction != PersonalTaskDirection.Awaited || stored.IsCompleted)
+                        {
+                            return;
+                        }
+
+                        stored.IsCompleted = true;
+                        stored.AnswerStoredEmailId = answer.Message.Value;
+                        stored.AnsweredAt = answer.ArrivedAt.ToUniversalTime();
+                        applied = PersonalTaskChangeOutcome.Applied;
+                    },
+                    token);
+
+                return applied;
+            },
+            cancellationToken);
+    }
 
     /// <inheritdoc />
     /// <remarks>
@@ -248,6 +314,72 @@ internal sealed class PersistedPersonalTaskStore(
                 row.RaisedForDueAt = null;
             }
         }
+    }
+
+    /// <summary>Applies every narrowing a query states to one person's tasks.</summary>
+    /// <remarks>
+    /// The counterpart is compared by its normalized column, so the index answers it whatever case either address was
+    /// written in. A window reads a task due on one of the days it reaches or planned to start inside it, which is the two places a
+    /// calendar draws one.
+    /// </remarks>
+    private static IQueryable<PersonalTaskEntity> Narrowed(IQueryable<PersonalTaskEntity> rows, PersonalTaskQuery query)
+    {
+        if (query.Origin is { } origin)
+        {
+            rows = rows.Where(task => task.Origin == origin);
+        }
+
+        if (query.Thread is { } thread)
+        {
+            var threadValue = thread.Value;
+            rows = rows.Where(task => task.AnchorThreadId == threadValue);
+        }
+
+        if (query.Event is { } calendarEvent)
+        {
+            var eventValue = calendarEvent.Value;
+            rows = rows.Where(task => task.AnchorEventId == eventValue);
+        }
+
+        if (query.Counterpart is { } counterpart)
+        {
+            var normalized = counterpart.NormalizedAddress;
+            rows = rows.Where(task => task.CounterpartNormalizedAddress == normalized);
+        }
+
+        if (query.From is { } from && query.Until is { } until && query.DueDays is { } days)
+        {
+            var (firstDay, lastDay) = days;
+            var opensAt = from.ToUniversalTime();
+            var closesAt = until.ToUniversalTime();
+            rows = rows.Where(task => (task.DueOn >= firstDay && task.DueOn <= lastDay)
+                || (task.PlannedStartAt >= opensAt && task.PlannedStartAt < closesAt));
+        }
+
+        return rows;
+    }
+
+    /// <summary>Collects a thread and every thread whose merges end at it.</summary>
+    private async Task<IReadOnlyCollection<Guid>> ThreadsEndingAtAsync(Guid thread, CancellationToken cancellationToken)
+    {
+        var reached = new HashSet<Guid> { thread };
+        Guid[] frontier = [thread];
+
+        for (var step = 0; step < SurvivingEmailThread.MaximumMergeChainWalk && frontier.Length > 0; step++)
+        {
+            var current = frontier;
+            var folded = await readContext.EmailThreads
+                .AsNoTracking()
+                .Where(candidate => candidate.MergedIntoEmailThreadId != null
+                    && current.Contains(candidate.MergedIntoEmailThreadId.Value))
+                .Select(candidate => candidate.Id)
+                .ToArrayAsync(cancellationToken);
+
+            frontier = [.. folded.Where(candidate => !reached.Contains(candidate))];
+            reached.UnionWith(frontier);
+        }
+
+        return reached;
     }
 
     /// <summary>Narrows a person's tasks to the ones the order puts after a boundary.</summary>

@@ -876,6 +876,18 @@ board: no column assigns work to anybody but the person whose list it is.
 | `Origin` | Where the task came from — `Asserted` for one the person entered or accepted, `Proposed` for one read out of mail and not yet committed to — stored as text |
 | `IsCompleted` | Whether the person has done it |
 | `SourceStoredEmailId` | The message the task was read out of, as a plain value carrying no foreign key. Absent where the task cites none, which most do |
+| `Direction` | Whether the person owes it — `Owed` — or waits for somebody else to answer it — `Awaited` — stored as text and defaulted to `Owed` in the database, which is what every task written before the column was |
+| `EstimatedMinutes` | How long the person expects it to take, in whole minutes from 5 to 720, and absent where nobody said |
+| `PlannedStartAt` | When the person plans to do it, as a `timestamptz` written in UTC. Separate from `DueOn`, because a task due Thursday may be planned for Friday, and a calendar draws it at both |
+| `PlannedMinutes` | How long that planned slot runs. `ck_tasks_plan_complete` holds it present exactly when `PlannedStartAt` is, because half a plan names no slot |
+| `AnchorThreadId` | The thread the task belongs to, as a plain value carrying no foreign key for the reason `SourceStoredEmailId` carries none. It keeps the identifier it was written with when that thread is later merged into another, and a reader follows the merge instead |
+| `AnchorEventId` | The calendar event the task belongs to, as a value for the same reason. `ck_tasks_single_anchor` holds at most one of the two anchors present |
+| `AnchorLabel` | The subject or event title the anchor was drawn with when the task was written, bounded at 200 characters, so an anchor that is gone still reads. `ck_tasks_anchor_labelled` holds it present exactly when an anchor is |
+| `CounterpartAddress` | The address of the person the task is with, as it was written, bounded at 320 characters, which is what a reader is shown |
+| `CounterpartNormalizedAddress` | The comparison form of that address, which is what a person's page matches and indexes on, so an address written in another case still finds the task. `ck_tasks_counterpart_complete` holds the two present together |
+| `CounterpartDisplayName` | The name that person is drawn with, bounded at 200 characters |
+| `AnswerStoredEmailId` | The reply that closed a wait, as a plain value for the reason the source message is one |
+| `AnsweredAt` | When that reply arrived. `ck_tasks_answer_complete` holds it present exactly when `AnswerStoredEmailId` is |
 
 **Accepting a proposal moves `Origin` and writes no second row.** That is what keeps a commitment and the suggestion it
 came from one task: whatever already points at the row — a reminder, a citation — still points at it afterwards, and a
@@ -891,6 +903,11 @@ is the one those two already carry: nothing constrains the column, so a reader r
 been erased finds nothing under that identity and says so. That is the answer a task wants — *the mail this came from
 is no longer here* — where `notifications`, which only offers to open something, is erased outright by the cascade it
 does carry.
+
+**A wait is closed by the reply it waits for, and the answer is decided inside the write.** Settling a reply asks
+which open waits its thread answers across every user, following each merge that ends at that thread through
+`email_threads`, and then answers each one in its own transaction that reads the row again — so a wait the person
+completed by hand in between, or one a second replica answered first, is left as it stands rather than answered twice.
 
 **Completing a task and erasing one are each a single state change.** Completion moves one column, and an erasure takes
 the row rather than marking it gone: a task nobody owes any more is not a record anything is owed about, and keeping
@@ -2972,6 +2989,10 @@ account reach these four tables through the same cascade every other table is re
 | `IX_notifications_TargetMailboxMutationId` | `(TargetMailboxMutationId)` | The same for the change a given-up notice leads to, which is what removing a change record reaches its notice by |
 | `IX_notifications_TargetMailDraftId` | `(TargetMailDraftId)` | The same for the draft an out-of-step notice leads to, which is what removing a draft reaches its notice by |
 | `ix_tasks_user_due` | `(UserId, DueOn, Id)` | The one order a personal task list is read and drawn in: one person's tasks soonest due first, with PostgreSQL's own `NULLS LAST` leaving the undated ones at the end and the identifier keeping two tasks due on one day in a stable order across reads. Reading the proposals apart from the commitments is an equality on `Origin` within one person's rows, which is a handful of them, so that column earns no place in the key |
+| `IX_tasks_UserId_AnchorThreadId`, `IX_tasks_UserId_AnchorEventId` | `(UserId, AnchorThreadId)`, `(UserId, AnchorEventId)` | What one person owes about one thread or one event, which is what a thread and an event each draw beside themselves |
+| `IX_tasks_UserId_PlannedStartAt` | `(UserId, PlannedStartAt)` | The plans one person's calendar window reads. A window also reads the tasks due on one of its days, through `ix_tasks_user_due`, and matches a task either way |
+| `IX_tasks_UserId_CounterpartNormalizedAddress` | `(UserId, CounterpartNormalizedAddress)` | What one person owes to, and awaits from, the person a page is about |
+| `ix_tasks_awaiting_answer_thread` | `(AnchorThreadId)`, over the rows with `Direction = 'Awaited'` that are not completed | The one read of this table that names no user: which open waits a settled reply's thread answers, whoever holds them. The filter keeps it the size of what is still awaited |
 | `ix_mailbox_exports_account_requested` | `(MailboxAccountId, RequestedAt DESC)` | One account's exports newest first, which is the listing an operator asks for and the only order this table is read in |
 | `ix_mailbox_exports_expires_at` | `(ExpiresAt)` where it is not null | The archives the expiry pass has to delete. The filter is what keeps the index the size of the archives that exist rather than of every export the deployment has ever written: one that failed, was cancelled, or has already gone carries no expiry |
 | `IX_stored_content_claims_ExpiresAt` | `(ExpiresAt)` | The sweep every claim statement opens with, which is what keeps the table the size of the payloads currently in flight rather than of every claim a replica ever died holding. Unfiltered, because what an expiry divides the table into changes with the clock rather than with a row |

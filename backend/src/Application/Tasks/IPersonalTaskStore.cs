@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Tasks;
 
 namespace MailFathom.Application.Tasks;
@@ -24,13 +25,14 @@ public interface IPersonalTaskStore
 
     /// <summary>Reads one bounded page of a person's tasks, soonest due first.</summary>
     /// <param name="user">The person whose list is read.</param>
-    /// <param name="origin">The origin to read, or <see langword="null" /> for the whole list.</param>
+    /// <param name="query">What the list is narrowed to, which <see cref="PersonalTaskQuery.EnsureAnswerable" /> accepts.</param>
     /// <param name="after">The position a continued walk reads beyond, or <see langword="null" /> for the first page.</param>
     /// <param name="limit">The greatest number of tasks the answer may hold.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The tasks, soonest due first, with the undated ones last, holding at most <paramref name="limit" />.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="origin" /> is not a declared origin, or when <paramref name="limit" /> is not positive.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="after" /> is the struct default, which names no position.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="query" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="limit" /> is not positive.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="query" /> is not answerable, or when <paramref name="after" /> is the struct default, which names no position.</exception>
     /// <remarks>
     /// Naming an origin is what reads the proposals apart from the commitments, so a screen can offer what mail
     /// suggested without it standing on the list as something the person agreed to. Completed tasks are read with the
@@ -41,10 +43,22 @@ public interface IPersonalTaskStore
     /// </remarks>
     Task<IReadOnlyList<PersonalTask>> ReadAsync(
         UserId user,
-        PersonalTaskOrigin? origin,
+        PersonalTaskQuery query,
         PersonalTaskCursor? after,
         int limit,
         CancellationToken cancellationToken);
+
+    /// <summary>Reads every person's open waits that a reply in one thread would answer.</summary>
+    /// <param name="thread">The thread a reply arrived in.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The awaited tasks, not yet completed, anchored to that thread or to one merged into it.</returns>
+    /// <remarks>
+    /// Read across users because a reply is settled for a mailbox rather than for a person, and whoever is waiting in
+    /// that thread is who it answers. A task keeps the thread it was anchored to when that thread is later merged into
+    /// another, so the read follows every merge that ends at <paramref name="thread" /> rather than matching the
+    /// identifier alone — otherwise a reply arriving in the surviving thread would leave the wait open forever.
+    /// </remarks>
+    Task<IReadOnlyList<PersonalTask>> ReadAwaitingAnswerAsync(EmailThreadId thread, CancellationToken cancellationToken);
 
     /// <summary>Reads one of a person's tasks by the identity it was addressed under.</summary>
     /// <param name="user">The person whose task is read, which is what scopes the read.</param>
@@ -64,9 +78,10 @@ public interface IPersonalTaskStore
     /// <returns>What became of the request.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="revision" /> is <see langword="null" />.</exception>
     /// <remarks>
-    /// It writes the title and the day and nothing else, and it addresses the row by the revision's own user and
-    /// identity. The rest of the record moves through the acts that own it — accepting a proposal, completing a task —
-    /// so a revision that carried a stale origin or completion beside the edited text could not undo either of them.
+    /// It writes the title, the day, and the commitment — direction, estimate, plan, anchor, and counterpart — and
+    /// nothing else, and it addresses the row by the revision's own user and identity. The rest of the record moves
+    /// through the acts that own it — accepting a proposal, completing a task, a reply answering a wait — so a revision
+    /// that carried a stale origin, completion, or answer beside the edited text could not undo any of them.
     /// </remarks>
     Task<PersonalTaskChangeOutcome> ReviseAsync(PersonalTask revision, CancellationToken cancellationToken);
 
@@ -99,6 +114,27 @@ public interface IPersonalTaskStore
         UserId user,
         PersonalTaskId task,
         bool isCompleted,
+        CancellationToken cancellationToken);
+
+    /// <summary>Closes one of a person's waits with the reply that answered it.</summary>
+    /// <param name="user">The person whose task is answered, which is what scopes the write.</param>
+    /// <param name="task">The task to answer.</param>
+    /// <param name="answer">The reply that answered it.</param>
+    /// <param name="cancellationToken">Cancels the read and the write.</param>
+    /// <returns>
+    /// <see cref="PersonalTaskChangeOutcome.Applied" /> when this call closed the wait, and
+    /// <see cref="PersonalTaskChangeOutcome.NotFound" /> when this user holds no open wait under that identity.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="answer" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// The task is read again inside the write, so a wait the person completed by hand, or one a second replica
+    /// answered first, is left as it stands and reported as nothing to answer. That is what lets the caller tell the
+    /// person only about the waits it actually closed.
+    /// </remarks>
+    Task<PersonalTaskChangeOutcome> AnswerAsync(
+        UserId user,
+        PersonalTaskId task,
+        TaskAnswer answer,
         CancellationToken cancellationToken);
 
     /// <summary>Erases one of a person's tasks.</summary>

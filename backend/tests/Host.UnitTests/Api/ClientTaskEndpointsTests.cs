@@ -45,7 +45,7 @@ public sealed class ClientTaskEndpointsTests
         var store = Substitute.For<IPersonalTaskStore>();
         store.ReadAsync(
                 User,
-                PersonalTaskOrigin.Asserted,
+                new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
                 null,
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
@@ -79,7 +79,7 @@ public sealed class ClientTaskEndpointsTests
         var store = Substitute.For<IPersonalTaskStore>();
         store.ReadAsync(
                 User,
-                PersonalTaskOrigin.Proposed,
+                new PersonalTaskQuery(PersonalTaskOrigin.Proposed),
                 null,
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
@@ -123,7 +123,7 @@ public sealed class ClientTaskEndpointsTests
     {
         // Arrange
         var store = Substitute.For<IPersonalTaskStore>();
-        store.ReadAsync(User, PersonalTaskOrigin.Asserted, null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+        store.ReadAsync(User, new PersonalTaskQuery(PersonalTaskOrigin.Asserted), null, Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(_ => []);
 
         // Act
@@ -621,7 +621,7 @@ public sealed class ClientTaskEndpointsTests
         store
             .ReadAsync(
                 User,
-                PersonalTaskOrigin.Asserted,
+                new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
                 Arg.Any<PersonalTaskCursor?>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
