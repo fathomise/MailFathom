@@ -164,11 +164,10 @@ MailFathomDesign.data.home.myDay = [
   { id: "d-training", icon: "task_alt", tone: "plain", title: "Finish the security training", note: "Assigned to everyone in August · 20 minutes", when: "15.09", go: "tasks" },
 ];
 
-// The summary above My day: where the reader stands and what they have to do, written by the model in a manager's
+// Now, the widget above My day: where the reader stands and what they have to do, written by the model in a manager's
 // voice. A paragraph is a list of runs, and `b` marks the few words drawn in bold.
-MailFathomDesign.data.home.summary = [
+MailFathomDesign.data.home.now = { at: "13:40", note: "Written from today's mail, calendar and tasks", paras: [
   [{ t: "You are in decent shape today, but " }, { t: "Contoso cannot wait any longer", b: true }, { t: ". Anna has asked twice and the decision is due tomorrow, so send the counter-proposal with the 5% cap before anything else." }],
   [{ t: "Before the " }, { t: "15:00 rollout call with Piotr", b: true }, { t: ", confirm the Q4 date to Fabrikam, because phase three depends on it. And " }, { t: "do not pay the Fabrikam invoice", b: true }, { t: " until you have phoned Tomasz: the bank account on it is new." }],
   [{ t: "Everything else can wait until tomorrow." }],
-];
-MailFathomDesign.data.home.summaryNote = "Written from today's mail, calendar and tasks";
+] };

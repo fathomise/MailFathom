@@ -7661,12 +7661,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         startHeadStyle: "display:flex;align-items:center;gap:9px;min-width:0;min-height:24px",
         startHeadTitleStyle: "font-size:16px;font-weight:600;letter-spacing:-0.01em;color:var(--text);white-space:nowrap",
         startHeadNoteStyle: "flex:1;min-width:0;font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
-        /* Above My day: where the reader stands and what they have to do, written by the model the way a manager would
-           say it. Plain text with the few things that matter in bold, and no card around it. */
-        startSummaryStyle: "display:flex;flex-direction:column;gap:10px;min-width:0;padding-bottom:" + (isMobile ? 6 : 10) + "px",
-        startSummaryParaStyle: "font-size:" + (isMobile ? 15 : 15.5) + "px;line-height:1.6;color:var(--text2);text-wrap:pretty",
-        startSummary: HOME.summary.map(p => ({ runs: p.map(r => ({ t: r.t, style: r.b ? "font-weight:600;color:var(--text)" : "" })) })),
-        startSummaryNote: HOME.summaryNote,
+        /* Now: the widget above My day. Where the reader stands and what they have to do, written by the model the way
+           a manager would say it, with the few things that matter in bold. */
+        nowCardStyle: "display:flex;flex-direction:column;gap:10px;min-width:0;box-sizing:border-box;margin-bottom:12px;border:1px solid var(--accent-line);border-radius:16px;" +
+          "background:linear-gradient(160deg, var(--accent-soft), var(--panel) 62%);box-shadow:0 10px 28px -18px var(--sh-3);padding:" + (isMobile ? "14px 14px 12px" : "16px 18px 14px"),
+        nowDotStyle: "width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)",
+        nowLabelStyle: "font-family:'Geist',system-ui,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent-d)",
+        nowAt: HOME.now.at,
+        nowParaStyle: "font-size:" + (isMobile ? 15 : 15.5) + "px;line-height:1.6;color:var(--text2);text-wrap:pretty",
+        nowParas: HOME.now.paras.map(p => ({ runs: p.map(r => ({ t: r.t, style: r.b ? "font-weight:600;color:var(--text)" : "" })) })),
+        nowNote: HOME.now.note,
         myDayCardStyle: "display:flex;flex-direction:column;gap:6px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:" + (isMobile ? "12px 12px 4px" : "14px 14px 6px"),
         myDayRowStyle: "display:flex;align-items:center;gap:12px;min-width:0;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;min-height:" + (touch ? 60 : 54) + "px;padding:9px 6px",
         /* On a phone a row is its title and one line, so the card stays short. */
