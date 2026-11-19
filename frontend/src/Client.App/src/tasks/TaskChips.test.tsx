@@ -59,7 +59,7 @@ describe('TaskChips', () => {
 
         expect(screen.queryByRole('button', { name: /^five/u })).toBeNull();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Show every task (2 more)' }));
+        fireEvent.click(screen.getByRole('button', { name: '+2', description: 'Show every task (2 more)' }));
 
         expect(screen.getByRole('button', { name: /^six/u })).toBeDefined();
     });

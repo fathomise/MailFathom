@@ -11,6 +11,7 @@ import type {
     PersonalTaskRecord,
 } from '@mailfathom/client-backend';
 import type { TaskContext } from './NewTask';
+import { anchorLabel, taskLine } from './taskRecords';
 
 // What Mail reaches of the person's tasks: the commitments a thread carries, the way to write one down about it, and
 // the wait a sent message leaves. Context because the surfaces asking sit far apart — a list row, the head of a thread,
@@ -53,12 +54,13 @@ export function useMailTasks(): MailTasks | null {
  */
 export function taskAboutThread(
     threadId: string,
-    subject: string,
+    subject: string | null,
     sender: { readonly address: string; readonly displayName: string | null } | null,
+    noSubject: string,
 ): TaskContext {
     return {
-        anchor: { kind: 'Thread', id: threadId, label: subject },
-        title: subject,
+        anchor: { kind: 'Thread', id: threadId, label: anchorLabel(subject, noSubject) },
+        title: taskLine(subject ?? ''),
         ...(sender === null ? {} : { counterpart: { address: sender.address, displayName: sender.displayName } }),
     };
 }

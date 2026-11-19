@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import { longestAnchorLabel, longestTaskTitle } from '@mailfathom/client-backend';
 import { describe, expect, it } from 'vitest';
 import { followUpDays, followUpRecord } from './followUp';
 
@@ -9,6 +10,8 @@ import { followUpDays, followUpRecord } from './followUp';
 const thursdayMorning = Date.parse('2026-08-27T08:47:00Z');
 
 const replyFrom = (who: string) => `Reply from ${who}`;
+
+const noSubject = 'No subject';
 
 describe('followUpDays', () => {
     it('offers tomorrow, the next Monday, and a week on, as the reader’s zone counts days', () => {
@@ -30,6 +33,7 @@ describe('followUpRecord', () => {
                 dueOn: '2026-08-28',
                 timeZone: 'Europe/Warsaw',
                 replyFrom,
+                noSubject,
             }),
         ).toStrictEqual({
             title: 'Reply from Anna Kowalska',
@@ -53,6 +57,7 @@ describe('followUpRecord', () => {
             dueOn: '2026-08-28',
             timeZone: null,
             replyFrom,
+            noSubject,
         });
 
         expect(record).toMatchObject({
@@ -62,9 +67,46 @@ describe('followUpRecord', () => {
         });
     });
 
+    it('waits in a thread whose message had no subject under the words for no subject', () => {
+        const record = followUpRecord({
+            to: ['ewa@adventure-works.example'],
+            named: [],
+            thread: { threadId: 'thread-2', subject: ' ' },
+            dueOn: '2026-08-28',
+            timeZone: null,
+            replyFrom,
+            noSubject,
+        });
+
+        expect(record?.anchor).toStrictEqual({ kind: 'Thread', id: 'thread-2', label: 'No subject' });
+    });
+
+    it('cuts a subject and a line longer than the deployment keeps to what it keeps', () => {
+        const record = followUpRecord({
+            to: [`${'x'.repeat(300)}@adventure-works.example`],
+            named: [],
+            thread: { threadId: 'thread-3', subject: 's'.repeat(260) },
+            dueOn: '2026-08-28',
+            timeZone: null,
+            replyFrom,
+            noSubject,
+        });
+
+        expect(record?.anchor?.label).toHaveLength(longestAnchorLabel);
+        expect(record?.title).toHaveLength(longestTaskTitle);
+    });
+
     it('waits for nobody where the message has no recipient', () => {
         expect(
-            followUpRecord({ to: [], named: [], thread: null, dueOn: '2026-08-28', timeZone: null, replyFrom }),
+            followUpRecord({
+                to: [],
+                named: [],
+                thread: null,
+                dueOn: '2026-08-28',
+                timeZone: null,
+                replyFrom,
+                noSubject,
+            }),
         ).toBeNull();
     });
 });

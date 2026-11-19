@@ -182,6 +182,8 @@ export function TaskDialog({
     // a reader's finger at midnight would be a different day than the one they pressed.
     const [now] = useState(() => Date.now());
     const [title, setTitle] = useState(task.title);
+    // *Keep waiting* takes its own banner away, so focus goes to the line the dialog opens on rather than to the body.
+    const titleField = useRef<HTMLInputElement | null>(null);
 
     // What the chips pressed here applied, over what the task the screen read holds: a chip stands where it was pressed
     // while its write is out, and stays there once the deployment took it, whatever the list has read back by then.
@@ -310,8 +312,12 @@ export function TaskDialog({
         });
     }
 
+    // A save closes the dialog on what it sent, so a chip pressed while it is out would be written by nobody: the chips
+    // are withdrawn until it answers, and the save control saying *Saving…* is what says why.
+    const saving = writing === 'save';
+
     function apply(change: Partial<TaskChoices>): void {
-        if (session === null || refused !== null) {
+        if (session === null || refused !== null || saving) {
             return;
         }
 
@@ -395,6 +401,7 @@ export function TaskDialog({
                                 className="text-sm text-accent-deep hover:underline"
                                 onClick={() => {
                                     onToggleCompleted(task);
+                                    titleField.current?.focus();
                                 }}
                             >
                                 {translate('tasks.keepWaiting')}
@@ -406,6 +413,7 @@ export function TaskDialog({
                         {translate('tasks.whatIsIt')}
                     </label>
                     <input
+                        ref={titleField}
                         id={titled}
                         type="text"
                         maxLength={longestTaskTitle}
@@ -417,7 +425,10 @@ export function TaskDialog({
                         }}
                     />
 
-                    <fieldset className="flex gap-1.5">
+                    <fieldset
+                        disabled={saving}
+                        className="flex gap-1.5 [&:disabled_label]:cursor-default [&:disabled_label]:opacity-60"
+                    >
                         <legend className="sr-only">{translate('tasks.directions')}</legend>
                         {(['Owed', 'Awaited'] as const).map((direction) => (
                             <ChoiceSegment
@@ -435,7 +446,10 @@ export function TaskDialog({
                         ))}
                     </fieldset>
 
-                    <fieldset className="flex flex-col gap-1.75">
+                    <fieldset
+                        disabled={saving}
+                        className="flex flex-col gap-1.75 [&:disabled_label]:cursor-default [&:disabled_label]:opacity-60"
+                    >
                         <legend className="mb-1.75 text-sm font-semibold text-muted">
                             {translate(awaited ? 'tasks.followUpOnLabel' : 'tasks.due')}
                         </legend>

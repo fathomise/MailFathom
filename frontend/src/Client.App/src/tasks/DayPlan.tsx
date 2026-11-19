@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useState, type DragEvent } from 'react';
+import { useId, useState, type DragEvent } from 'react';
 import type { ClientFailureReason, PersonalTask } from '@mailfathom/client-backend';
 import { instantOf } from '../composer/sendLater';
 import { SecondaryButton } from '../controls/SecondaryButton';
@@ -68,13 +68,14 @@ export function DayPlan({
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
     const [dropAt, setDropAt] = useState<number | null>(null);
+    const heading = useId();
     const today = calendarDayIn(now, timeZone);
     const planned = tasks.filter((task) => task.plan !== null && !task.completed && task.direction === 'Owed');
 
     return (
-        <section aria-labelledby="tasks-day-plan" className="flex flex-col gap-2.5">
+        <section aria-labelledby={heading} className="flex flex-col gap-2.5">
             <div className="flex items-center gap-2.25">
-                <h2 id="tasks-day-plan" className="text-xs font-semibold text-muted">
+                <h2 id={heading} className="text-xs font-semibold text-muted">
                     {translate('tasks.dayPlanHead', {
                         day: new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric' }).format(
                             new Date(`${today}T00:00:00`),

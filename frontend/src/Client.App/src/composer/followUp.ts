@@ -4,6 +4,7 @@
 
 import { dueDayOffsetMinutes, type PersonalTaskRecord } from '@mailfathom/client-backend';
 import { calendarDayIn, dayFrom } from '../localization/instants';
+import { anchorLabel, taskLine } from '../tasks/taskRecords';
 import { readyTimes } from './sendLater';
 
 // *If nobody replies*: a message that wants an answer is sent with a day, and becomes a task waiting for whoever it
@@ -50,6 +51,7 @@ export function followUpRecord({
     dueOn,
     timeZone,
     replyFrom,
+    noSubject,
 }: {
     readonly to: readonly string[];
 
@@ -64,6 +66,9 @@ export function followUpRecord({
 
     /** The task's line, worded around who it waits for. */
     readonly replyFrom: (who: string) => string;
+
+    /** What the thread is called where the message it answers had no subject. */
+    readonly noSubject: string;
 }): PersonalTaskRecord | null {
     const [address] = to;
 
@@ -74,7 +79,7 @@ export function followUpRecord({
     const displayName = named.find((one) => one.address.toLowerCase() === address.toLowerCase())?.name ?? null;
 
     return {
-        title: replyFrom(displayName ?? address),
+        title: taskLine(replyFrom(displayName ?? address)),
         dueOn,
         reminders: [0],
         dueDayOffsetMinutes: dueDayOffsetMinutes(dueOn, timeZone),
@@ -82,7 +87,10 @@ export function followUpRecord({
         direction: 'Awaited',
         estimatedMinutes: null,
         plan: null,
-        anchor: thread === null ? null : { kind: 'Thread', id: thread.threadId, label: thread.subject },
+        anchor:
+            thread === null
+                ? null
+                : { kind: 'Thread', id: thread.threadId, label: anchorLabel(thread.subject, noSubject) },
         counterpart: { address, displayName },
     };
 }

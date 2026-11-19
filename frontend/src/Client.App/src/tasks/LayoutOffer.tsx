@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
     layOutToday,
     type CalendarEvent,
@@ -101,8 +101,12 @@ export function LayoutOffer({
     const here = useRef(true);
 
     // The control that asked is gone while the day is laid out, so focus moves to the sentence being waited on rather
-    // than falling to the document body.
+    // than falling to the document body. That sentence goes in turn once the answer is drawn, and *Plan these* and *Not
+    // now* take themselves away, so after each the panel's first stop takes focus: the offer's heading, or the first
+    // control drawn in its place.
     const waiting = useRef<HTMLParagraphElement | null>(null);
+    const panel = useRef<HTMLDivElement | null>(null);
+    const regains = useRef(false);
 
     function arrange(): void {
         if (session === null) {
@@ -137,9 +141,25 @@ export function LayoutOffer({
 
     useEffect(() => {
         if (offer.kind === 'arranging') {
+            regains.current = true;
             waiting.current?.focus();
+        } else if (regains.current) {
+            regains.current = false;
+            panel.current?.querySelector<HTMLElement>('[data-first-stop], button')?.focus();
         }
-    }, [offer.kind]);
+    }, [offer]);
+
+    function putDown(): void {
+        regains.current = true;
+        setOffer({ kind: 'idle' });
+    }
+
+    // One element whatever is drawn, laying out nothing of its own, so the first stop is found inside it.
+    const held = (drawn: ReactNode) => (
+        <div ref={panel} className="contents">
+            {drawn}
+        </div>
+    );
 
     const titles = new Map(tasks.map((task) => [task.id, task]));
     const refused = writeRefused(translate('tasks.layOutToday'));
@@ -154,7 +174,7 @@ export function LayoutOffer({
     );
 
     if (offer.kind === 'arranging') {
-        return (
+        return held(
             <p
                 ref={waiting}
                 tabIndex={-1}
@@ -163,12 +183,12 @@ export function LayoutOffer({
             >
                 <Icon name="progress_activity" className="size-icon-sm shrink-0 animate-spin" />
                 {translate('tasks.arranging')}
-            </p>
+            </p>,
         );
     }
 
     if (offer.kind === 'idle' || offer.kind === 'failed') {
-        return (
+        return held(
             <>
                 {offer.kind === 'failed' ? (
                     <p role="alert" className="text-sm text-warning text-pretty">
@@ -176,7 +196,7 @@ export function LayoutOffer({
                     </p>
                 ) : null}
                 {layOut}
-            </>
+            </>,
         );
     }
 
@@ -191,14 +211,14 @@ export function LayoutOffer({
     });
 
     if (layout.outcome === 'AllowanceSpent') {
-        return (
+        return held(
             <>
                 <p role="status" className="flex items-start gap-1.75 text-sm text-warning-text text-pretty">
                     <Icon name="hourglass_disabled" className="size-icon-md shrink-0" />
                     {translate('tasks.allowanceSpent')}
                 </p>
                 {layOut}
-            </>
+            </>,
         );
     }
 
@@ -208,7 +228,7 @@ export function LayoutOffer({
         layout.outcome === 'Arranged' && layout.placements.some((placement) => !titles.has(placement.taskId));
 
     if (layout.outcome === 'NotArranged' || placed.length === 0) {
-        return (
+        return held(
             <>
                 {unread && placed.length === 0 ? (
                     <p role="status" className="text-sm text-muted text-pretty">
@@ -220,12 +240,8 @@ export function LayoutOffer({
                         {translate('tasks.nothingLeftToLayOut')}
                     </p>
                 )}
-                <PutDown
-                    onPress={() => {
-                        setOffer({ kind: 'idle' });
-                    }}
-                />
-            </>
+                <PutDown onPress={putDown} />
+            </>,
         );
     }
 
@@ -235,9 +251,11 @@ export function LayoutOffer({
         return task === undefined ? [] : [task.title];
     });
 
-    return (
+    return held(
         <div className="flex flex-col gap-2.25">
-            <p className="text-sm font-semibold text-text">{translate('tasks.layoutOffered')}</p>
+            <p data-first-stop tabIndex={-1} className="text-sm font-semibold text-text outline-none">
+                {translate('tasks.layoutOffered')}
+            </p>
 
             <ul className="flex flex-col gap-1.5">
                 {placed.map(({ task, plan }) => (
@@ -276,19 +294,15 @@ export function LayoutOffer({
                     type="button"
                     className={mannerDrawn.act}
                     onClick={() => {
-                        setOffer({ kind: 'idle' });
+                        putDown();
                         onPlan(placed.map(({ task, plan }) => [task, plan] as const));
                     }}
                 >
                     {translate('tasks.planThese')}
                 </button>
-                <PutDown
-                    onPress={() => {
-                        setOffer({ kind: 'idle' });
-                    }}
-                />
+                <PutDown onPress={putDown} />
             </div>
-        </div>
+        </div>,
     );
 
     // Where a task already held a time and the offer moves it, the row says from when — and what it clashed with there.

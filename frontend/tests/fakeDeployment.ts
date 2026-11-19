@@ -855,7 +855,9 @@ export class FakeDeployment {
             case 'GET /tasks/proposed':
                 return answering({ tasks: this.tasksIn(this.tasks().proposed, request.query), nextCursor: null });
             case 'POST /tasks':
-                return this.tasksChanged(answering(this.taskWritten(request.body)));
+                return refusesItsAnchor(request.body)
+                    ? { status: 400, body: '' }
+                    : this.tasksChanged(answering(this.taskWritten(request.body)));
             case 'GET /tasks/today/layout':
                 return answering(tasks.daysArranged);
             case 'POST /tasks/today/layout':
@@ -1061,6 +1063,10 @@ export class FakeDeployment {
             }
 
             const stated = recordIn(body) ?? {};
+
+            if (refusesItsAnchor(body)) {
+                return { status: 400, body: '' };
+            }
 
             // The deployment refuses to turn round a wait a reply already answered.
             if (standing['answer'] !== null && stated['direction'] !== standing['direction']) {
@@ -2864,6 +2870,13 @@ const choiceLasts: Readonly<Record<string, number>> = {
 };
 
 /** A client renewing its presence or closing it, which the deployment takes and answers nothing to. */
+/** Whether a task's anchor carries a label the deployment refuses: blank, or longer than the 200 characters it keeps. */
+function refusesItsAnchor(body: unknown): boolean {
+    const label = recordIn(recordIn(body)?.['anchor'])?.['label'];
+
+    return label !== undefined && (typeof label !== 'string' || label.trim() === '' || label.trim().length > 200);
+}
+
 function presenceClientAnswer({ method }: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
     const [space, part] = segments;
 

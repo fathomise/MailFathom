@@ -4,9 +4,8 @@
 
 import { useEffect, useRef } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-    dueDayOffsetMinutes,
     type ClientRequest,
     type ClientResponse,
     type ClientSession,
@@ -16,6 +15,20 @@ import {
 import { calendarDayIn, dayFrom } from '../localization/instants';
 import { LocalizationProvider } from '../localization/Localization';
 import { TaskDialog } from './TaskDialog';
+
+const machineZone = process.env['TZ'];
+
+// The day chips are read against today, so today is fixed: a Monday, with the task's own day further on.
+beforeEach(() => {
+    process.env['TZ'] = 'UTC';
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-21T07:00:00Z'));
+});
+
+afterEach(() => {
+    vi.useRealTimers();
+    process.env['TZ'] = machineZone;
+});
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
@@ -185,7 +198,8 @@ describe('TaskDialog', () => {
                 title: 'Send the signed addendum',
                 dueOn: '2026-09-24',
                 reminders: [60],
-                dueDayOffsetMinutes: dueDayOffsetMinutes('2026-09-24', null),
+                // The clock runs in UTC here, so the day is read at no offset — sent as 0 whatever its sign.
+                dueDayOffsetMinutes: 0,
                 sourceMessageId: 'message-a',
                 direction: 'Owed',
                 estimatedMinutes: 45,
@@ -383,6 +397,37 @@ describe('TaskDialog', () => {
 
         expect(toggled).toHaveBeenCalledWith(answered);
         expect(dialog().open).toBe(true);
+    });
+
+    // *Keep waiting* takes its own banner away once the list reads the wait back open, so focus is already elsewhere.
+    it('puts focus on the line once "Keep waiting" is pressed, before its banner goes', () => {
+        const { readAgain } = drawDialog({ task: answered });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Keep waiting' }));
+        readAgain({ ...answered, completed: false, answer: null });
+
+        expect(screen.queryByRole('button', { name: 'Keep waiting' })).toBeNull();
+        expect(document.activeElement).toBe(screen.getByLabelText('What is it?'));
+    });
+
+    // A save closes the dialog on what it sent, so a chip pressed while it is out would be written by nobody.
+    it('withdraws the chips while a save is out, so none is pressed and lost', async () => {
+        const { sent, release, written } = drawDialog({ waits: true });
+
+        fireEvent.change(screen.getByLabelText('What is it?'), { target: { value: 'Send the signed addendum' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        expect(screen.getByRole('radio', { name: 'I am waiting for this' }).matches(':disabled')).toBe(true);
+        expect(screen.getByRole('radio', { name: 'Tomorrow' }).matches(':disabled')).toBe(true);
+        expect(screen.getByRole('button', { name: 'Saving…' })).toBeDefined();
+
+        release();
+
+        await waitFor(() => {
+            expect(written).toHaveBeenCalledWith('tasks.revised');
+        });
+
+        expect(revisions(sent)).toHaveLength(1);
     });
 
     it('lets go of a task the deployment no longer holds when nothing about what it belongs to changed', async () => {

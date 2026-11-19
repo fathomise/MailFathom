@@ -229,6 +229,43 @@ describe('LayoutOffer', () => {
         });
     });
 
+    // The sentence waited on goes once the answer is drawn, so focus moves on to the offer rather than to the body.
+    it('puts focus on the offer once the day is laid out', async () => {
+        const { transport } = deployment(200, arranged);
+
+        drawOffer(transport);
+        fireEvent.click(screen.getByRole('button', { name: 'Lay out today' }));
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(screen.getByText('Here is a way to fit the rest of today'));
+        });
+    });
+
+    // *Plan these* and *Not now* take themselves away with the offer, so focus lands on the control drawn in its place.
+    it.each(['Plan these', 'Not now'])('puts focus on "Lay out today" once "%s" put the offer down', async (answer) => {
+        const { transport } = deployment(200, arranged);
+
+        drawOffer(transport);
+        fireEvent.click(screen.getByRole('button', { name: 'Lay out today' }));
+        fireEvent.click(await screen.findByRole('button', { name: answer }));
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Lay out today' }));
+        });
+    });
+
+    // A day that cannot be laid out draws the act again in place of the sentence waited on, and focus goes to it.
+    it('puts focus on "Lay out today" once laying out days is used up', async () => {
+        const { transport } = deployment(429, {});
+
+        drawOffer(transport);
+        fireEvent.click(screen.getByRole('button', { name: 'Lay out today' }));
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Lay out today' }));
+        });
+    });
+
     // Opened from the calendar's *Plan my day*, the day is laid out once the deployment has said it arranges days, and
     // never before.
     it('lays the day out on opening only once the deployment has said it arranges days', async () => {

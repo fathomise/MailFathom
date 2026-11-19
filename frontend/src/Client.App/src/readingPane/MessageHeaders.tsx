@@ -120,7 +120,9 @@ export function MessageHeaders({
         mailTasks === null || threadId === null
             ? undefined
             : () => {
-                  mailTasks.makeTask(taskAboutThread(threadId, subject, authors[0] ?? null));
+                  mailTasks.makeTask(
+                      taskAboutThread(threadId, subject, authors[0] ?? null, translate('message.noSubject')),
+                  );
               };
 
     const authorLine = (

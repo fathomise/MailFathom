@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { PersonalTask } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { calendarDayIn } from '../localization/instants';
@@ -51,6 +51,9 @@ export function TaskChips({
 
     const shown = all || whole ? tasks : tasks.slice(0, chipsShown);
     const counted = tasks.length - shown.length;
+    const countWords = new Intl.NumberFormat(locale).format(counted);
+    const more = translate('tasks.moreTasks', { count: countWords });
+    const moreSaid = useId();
     const today = calendarDayIn(now, timeZone);
 
     // When the task stands: who replied, when to follow a wait up, where it is planned, when it is due, or no day.
@@ -110,18 +113,21 @@ export function TaskChips({
 
             {counted === 0 ? null : (
                 <li>
+                    {/* Named by what it shows, so somebody speaking the words they see reaches it, and described by
+                        what pressing it does. */}
                     <button
                         type="button"
-                        aria-label={translate('tasks.moreTasksNamed', {
-                            count: new Intl.NumberFormat(locale).format(counted),
-                        })}
+                        aria-describedby={moreSaid}
                         className="rounded-full px-2.25 py-1 text-sm text-muted hover:bg-hover"
                         onClick={() => {
                             setAll(true);
                         }}
                     >
-                        {translate('tasks.moreTasks', { count: new Intl.NumberFormat(locale).format(counted) })}
+                        {more}
                     </button>
+                    <span id={moreSaid} hidden>
+                        {translate('tasks.moreTasksNamed', { count: countWords })}
+                    </span>
                 </li>
             )}
         </ul>

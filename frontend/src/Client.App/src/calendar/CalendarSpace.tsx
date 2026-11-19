@@ -40,7 +40,7 @@ import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { useTwoPanes, useWideWorkspace } from '../shell/useWideWorkspace';
 import { NewTask, type TaskContext, type TaskDraft } from '../tasks/NewTask';
-import { recordOfDraft } from '../tasks/taskRecords';
+import { recordOfDraft, taskLine } from '../tasks/taskRecords';
 import { TaskSurfaces, type TaskAsked } from '../tasks/TaskSurfaces';
 import { clashOf } from '../tasks/taskViews';
 import { usePlanWriter, withPlansPressed } from '../tasks/usePlanWriter';
@@ -818,7 +818,7 @@ export function CalendarSpace({
                             setSaid(null);
                             setTaskContext({
                                 anchor: { kind: 'Event', id: event.id, label: event.title },
-                                title: translate('calendar.prepareFor', { title: event.title }),
+                                title: taskLine(translate('calendar.prepareFor', { title: event.title })),
                                 ...(Number.isNaN(day.getTime())
                                     ? {}
                                     : { dueOn: calendarDayIn(day.getTime(), timeZone) }),

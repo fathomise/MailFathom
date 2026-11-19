@@ -135,8 +135,9 @@ export function MailTasksProvider({
                     makeTask(
                         taskAboutThread(
                             answer.value.threadId,
-                            answer.value.headers.subject ?? word('message.noSubject'),
+                            answer.value.headers.subject,
                             sender,
+                            word('message.noSubject'),
                         ),
                     );
                 });

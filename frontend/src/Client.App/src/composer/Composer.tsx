@@ -923,6 +923,7 @@ export function Composer({
                 dueOn: waiting.dueOn,
                 timeZone: zone,
                 replyFrom: (who) => translate('compose.replyFrom', { who }),
+                noSubject: translate('message.noSubject'),
             });
 
             if (record === null) {

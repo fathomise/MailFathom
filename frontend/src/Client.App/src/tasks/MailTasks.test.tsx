@@ -134,7 +134,7 @@ describe('MailTasksProvider', () => {
 
         drawMail(transport);
         act(() => {
-            reached?.makeTask(taskAboutThread(threadId, 'Contract addendum', null));
+            reached?.makeTask(taskAboutThread(threadId, 'Contract addendum', null, 'No subject'));
         });
 
         const writing = screen.getByRole('dialog', { name: 'New task' });

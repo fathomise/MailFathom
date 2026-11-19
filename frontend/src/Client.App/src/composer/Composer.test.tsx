@@ -738,6 +738,23 @@ describe('Composer, waiting for a reply', () => {
         });
     });
 
+    // A stop while the send is out lands as the send answers, so the message is taken back before anything is written
+    // down for it: no wait stands for a message that never left.
+    it('writes no wait down for a send stopped while it was out and taken back', async () => {
+        const record = vi.fn(failingWith({ reason: 'unavailable', status: null }));
+
+        sendWaiting(record);
+        fireEvent.click(screen.getByRole('button', { name: 'Stop the operation' }));
+        fireEvent.click(
+            within(screen.getByRole('dialog', { name: 'Stop the operation?' })).getByRole('button', {
+                name: 'Stop the operation',
+            }),
+        );
+
+        expect(await screen.findByText('Message taken back')).toBeDefined();
+        expect(record).not.toHaveBeenCalled();
+    });
+
     it('writes no wait down for a message the deployment refused to send', async () => {
         const record = vi.fn(failingWith({ reason: 'unavailable', status: null }));
 
