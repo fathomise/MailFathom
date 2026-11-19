@@ -30,7 +30,7 @@ import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { PlanDialog } from './PlanDialog';
 import { TaskDialog } from './TaskDialog';
 import { daysSpanned, wordTaskDay } from './taskWording';
-import { usePlanWriter, withPlansPressed } from './usePlanWriter';
+import { withPlansPressed, type PlanWriter } from './usePlanWriter';
 import { useTodayCalendar } from './useTodayCalendar';
 
 // One task opened from a screen other than Tasks — the calendar, an event, and later a thread and a person — and every
@@ -38,8 +38,10 @@ import { useTodayCalendar } from './useTodayCalendar';
 // and the question its deletion stands behind. The screen holds which task was asked for and how; this holds the
 // writes, so each screen opening a task gets the same answer to the same press.
 //
-// **A plan is written by `usePlanWriter`**, as on the Tasks screen, and by the task dialog's own chips; nothing here
-// writes one any other way. Every write tells the screen what it did, and the screen reads again.
+// **A plan is written by the screen's `usePlanWriter`**, as on the Tasks screen, and by the task dialog's own chips;
+// nothing here writes one any other way. The screen holds the writer so that what it draws lays every plan pressed over
+// what it read. Every write tells the screen what it did, and the screen reads again — and the plans pressed are let go
+// of only once that read has answered, so a plan pressed is drawn at once and a dialog opened again shows it.
 
 /** How a task was asked for: opened, held for its menu at a point, or straight to choosing its plan. */
 export type TaskAsked =
@@ -60,6 +62,7 @@ export function TaskSurfaces({
     asked,
     events,
     tasks,
+    writer,
     onAsk,
     onWritten,
     onOpenAnchor,
@@ -76,11 +79,14 @@ export function TaskSurfaces({
     /** The other tasks the screen holds, which the plan dialog draws in the hours they are planned into. */
     readonly tasks: readonly PersonalTask[];
 
+    /** The screen's writer of plans, whose plans pressed the screen draws. */
+    readonly writer: PlanWriter;
+
     /** Asks for another surface over the same task, or for none. */
     readonly onAsk: (asked: TaskAsked | null) => void;
 
-    /** Says what a write did, so the screen reads again. */
-    readonly onWritten: (said: MessageKey, names?: Readonly<Record<string, string>>) => void;
+    /** Says what a write did, so the screen reads again, settling once that read has answered. */
+    readonly onWritten: (said: MessageKey, names?: Readonly<Record<string, string>>) => Promise<void>;
 
     /** Opens what a task belongs to, or `undefined` where this screen reaches neither a thread nor the calendar. */
     readonly onOpenAnchor: ((anchor: TaskAnchor) => void) | undefined;
@@ -96,7 +102,6 @@ export function TaskSurfaces({
     const panel = useRef<HTMLDialogElement | null>(null);
     const erasure = useRef<HTMLDialogElement | null>(null);
 
-    const writer = usePlanWriter(session, transport, timeZone);
     const today = calendarDayIn(now, timeZone);
     const choosing = asked !== null && asked.kind !== 'menu';
 
@@ -121,7 +126,7 @@ export function TaskSurfaces({
         }
 
         void setTaskCompletion(session, transport, task.id, !task.completed).then((answer) => {
-            onWritten(failedSaid(answer) ?? (task.completed ? 'tasks.markedNotDone' : 'tasks.markedDone'));
+            void onWritten(failedSaid(answer) ?? (task.completed ? 'tasks.markedNotDone' : 'tasks.markedDone'));
         });
     }
 
@@ -135,7 +140,7 @@ export function TaskSurfaces({
                 opening.current?.close();
             }
 
-            onWritten(failedSaid(answer) ?? 'tasks.erased');
+            void onWritten(failedSaid(answer) ?? 'tasks.erased');
         });
     }
 
@@ -159,7 +164,7 @@ export function TaskSurfaces({
             anchor: task.anchor,
             counterpart: task.counterpart,
         }).then((answer) => {
-            onWritten(failedSaid(answer) ?? 'tasks.remindersWritten');
+            void onWritten(failedSaid(answer) ?? 'tasks.remindersWritten');
         });
     }
 
@@ -171,18 +176,18 @@ export function TaskSurfaces({
                 const refused = answers.map(failedSaid).find((said) => said !== null);
 
                 if (refused !== undefined) {
-                    onWritten(refused);
-                } else if (chosen === null) {
-                    onWritten('tasks.unplanned');
-                } else {
-                    onWritten('tasks.plannedOn', {
-                        title: task.title,
-                        day: wordTaskDay(calendarDayIn(Date.parse(chosen.startAt), timeZone), locale, now, timeZone),
-                        time: wordInstant(chosen.startAt, locale, 'time', timeZone) ?? '',
-                    });
+                    return onWritten(refused);
                 }
 
-                return Promise.resolve();
+                if (chosen === null) {
+                    return onWritten('tasks.unplanned');
+                }
+
+                return onWritten('tasks.plannedOn', {
+                    title: task.title,
+                    day: wordTaskDay(calendarDayIn(Date.parse(chosen.startAt), timeZone), locale, now, timeZone),
+                    time: wordInstant(chosen.startAt, locale, 'time', timeZone) ?? '',
+                });
             },
         );
     }
@@ -251,7 +256,7 @@ export function TaskSurfaces({
                         planningEvents={planningDays.events}
                         tasks={tasks}
                         onWritten={(said) => {
-                            onWritten(said);
+                            void onWritten(said);
                         }}
                         onToggleCompleted={toggleCompleted}
                         onAskErasure={(erased) => {

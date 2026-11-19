@@ -9,6 +9,7 @@ import { calendarDayIn } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { wordPlan, wordReply, wordTaskDay } from './taskWording';
+import { doneTaskFade } from './taskShapes';
 
 // The tasks one thing carries, drawn where that thing is read — a thread, an event, a person — each as its line, what
 // it waits on or when it is due, and the way into it. A wait carries an hourglass and the reader's own work a box, so
@@ -80,7 +81,7 @@ export function TaskChips({
                                 stacked
                                     ? 'w-full rounded-md px-2 py-1.25 hover:bg-hover'
                                     : 'rounded-full border border-line bg-sunken px-2.75 py-1 text-sm text-text-soft hover:border-accent'
-                            } ${task.completed ? 'opacity-60' : ''}`}
+                            } ${task.completed ? doneTaskFade : ''}`}
                             onClick={() => {
                                 onOpen(task.id);
                             }}

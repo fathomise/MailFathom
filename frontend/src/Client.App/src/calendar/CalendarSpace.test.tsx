@@ -556,12 +556,32 @@ function withTasks({
     own = [plannedTask],
     proposed = [proposedTask],
     ofTheEvent = [],
-}: { own?: readonly unknown[]; proposed?: readonly unknown[]; ofTheEvent?: readonly unknown[] } = {}) {
+    arrangesDays = true,
+    failsTasks = false,
+}: {
+    own?: readonly unknown[];
+    proposed?: readonly unknown[];
+    ofTheEvent?: readonly unknown[];
+
+    /** Whether this deployment arranges a day, which *Plan my day* is offered under. */
+    arrangesDays?: boolean;
+
+    /** Whether every task read fails while the calendar itself answers. */
+    failsTasks?: boolean;
+} = {}) {
     const calendar = deployment();
 
     const transport: MailFathomTransport = (request) => {
         if (!request.path.includes('/tasks')) {
             return calendar.transport(request);
+        }
+
+        if (request.path.includes('/tasks/today/layout')) {
+            return Promise.resolve({ ...answered, body: JSON.stringify({ arrangesDays }) });
+        }
+
+        if (failsTasks && request.method === 'GET') {
+            return Promise.resolve({ status: 503, headers: {}, body: '' });
         }
 
         const page = request.path.includes('/tasks/proposed')
@@ -641,6 +661,58 @@ describe('CalendarSpace with tasks', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Plan my day' }));
 
         expect(onPlanDay).toHaveBeenCalledOnce();
+    });
+
+    it('offers no "Plan my day" where the deployment arranges no day', async () => {
+        const { transport } = withTasks({ arrangesDays: false });
+        drawSpaceWithTasks(transport);
+
+        await screen.findByRole('region', { name: 'Proposed tasks' });
+        await screen.findByRole('option', { name: /Review with Anna/u });
+
+        expect(screen.queryByRole('button', { name: 'Plan my day' })).toBeNull();
+    });
+
+    it('says the tasks of these days failed apart from the calendar, and reads them again', async () => {
+        const { transport, sent } = withTasks({ failsTasks: true });
+        drawSpaceWithTasks(transport);
+
+        expect(await screen.findByText('The tasks for these days could not be read.')).toBeDefined();
+        expect(screen.getByRole('option', { name: /Review with Anna/u })).toBeDefined();
+
+        const readsBefore = sent().filter(
+            (request) => request.method === 'GET' && request.path.includes('/tasks?'),
+        ).length;
+        fireEvent.click(screen.getByRole('button', { name: 'Read again' }));
+
+        await waitFor(() => {
+            expect(
+                sent().filter((request) => request.method === 'GET' && request.path.includes('/tasks?')).length,
+            ).toBeGreaterThan(readsBefore);
+        });
+    });
+
+    it('says an event another screen asked for is gone when the calendar no longer holds it', async () => {
+        const calendar = deployment();
+        const transport: MailFathomTransport = (request) =>
+            request.path.endsWith('/calendar/gone')
+                ? Promise.resolve({ status: 404, headers: {}, body: '' })
+                : calendar.transport(request);
+
+        render(
+            <LocalizationProvider>
+                <CalendarSpace
+                    session={session}
+                    transport={transport}
+                    now={() => standing}
+                    onOpenMessage={vi.fn()}
+                    eventAsked={{ eventId: 'gone' }}
+                />
+            </LocalizationProvider>,
+        );
+
+        expect(await screen.findByText('That event is no longer on the calendar.')).toBeDefined();
+        expect(screen.queryByRole('dialog')).toBeNull();
     });
 
     it('shows the tasks an event carries, and adds one prepared for it and due on its day', async () => {

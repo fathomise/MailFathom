@@ -43,6 +43,7 @@ import { TaskList } from './TaskList';
 import { TaskSelectionBar } from './TaskSelectionBar';
 import { TasksHead } from './TasksHead';
 import { reachedTheRowsRead } from './rowsRead';
+import { recordOfDraft } from './taskRecords';
 import { clashOf, openIn, openOwedToday, plannedDay, taskViews, tasksIn, type TaskView } from './taskViews';
 import { daysSpanned, wordTaskDay } from './taskWording';
 import { useTasks } from './useTasks';
@@ -591,20 +592,7 @@ export function TasksSpace({
             return;
         }
 
-        // A task is written announcing nothing, which is what the design's own *New task* offers: the panel is reached
-        // from the row once the task exists, and a day is what a lead is measured back from.
-        void recordTask(session, transport, {
-            title: draft.title,
-            dueOn: draft.dueOn === '' ? null : draft.dueOn,
-            reminders: [],
-            dueDayOffsetMinutes: null,
-            sourceMessageId: null,
-            direction: draft.direction,
-            estimatedMinutes: draft.estimatedMinutes,
-            plan: null,
-            anchor: draft.anchor,
-            counterpart: draft.counterpart,
-        }).then((answer) => {
+        void recordTask(session, transport, recordOfDraft(draft)).then((answer) => {
             void after([wrote(answer)], 'tasks.written');
         });
     }

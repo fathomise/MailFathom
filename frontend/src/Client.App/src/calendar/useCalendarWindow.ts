@@ -77,8 +77,14 @@ export interface CalendarInForce {
     /** Why the span did not answer, or `null` where it did. */
     readonly failure: ClientFailureReason | null;
 
-    /** Reads the span again: the way out of a failure, and what every write is followed by. */
-    readonly readAgain: () => void;
+    /** Why the tasks of the span did not answer, or `null` where they did or are not read. */
+    readonly tasksFailure: ClientFailureReason | null;
+
+    /**
+     * Reads the span and its tasks again: the way out of a failure, and what every write is followed by. It settles once
+     * both have answered, which is how a write knows the screen now draws what it did.
+     */
+    readonly readAgain: () => Promise<void>;
 }
 
 interface HeldSpan {
@@ -165,7 +171,7 @@ export function useCalendarWindow(
     }, [from, session, transport, until]);
 
     // The tasks of the span and the proposals, read as a pair of their own so a calendar answered is drawn whether or
-    // not the task list has answered yet. Either half failing fails the pair, which the screen says beside the span.
+    // not the task list has answered yet. Either half failing fails the pair, which the screen says on its own line.
     const latestTasks = useRef(0);
 
     const readTasks = useCallback(async (): Promise<void> => {
@@ -243,7 +249,8 @@ export function useCalendarWindow(
               };
 
     // The tasks are held over a span being read for the reason the events are, and the proposals with them: those are
-    // not the span's, so the column offering them does not empty while the views move.
+    // not the span's, so the column offering them does not empty while the views move. Their failure is their own, so
+    // a calendar that answered is not said to have failed because the task list did not.
     const tasksRead = readsTasks && heldTasks.session === session;
     const tasksOfSpan = tasksRead && heldTasks.from === from && heldTasks.until === until;
 
@@ -253,12 +260,12 @@ export function useCalendarWindow(
         tasks: tasksRead ? calendarTasksOf(heldTasks.tasks) : [],
         proposedTasks: tasksRead ? heldTasks.proposed : [],
         reading: standing.reading,
-        failure: standing.failure ?? (tasksOfSpan ? heldTasks.failure : null),
-        readAgain: () => {
+        failure: standing.failure,
+        tasksFailure: tasksOfSpan ? heldTasks.failure : null,
+        readAgain: async () => {
             setHeld({ ...standing, reading: true, failure: null });
             setHeldTasks((tasks) => ({ ...tasks, failure: null }));
-            void read();
-            void readTasks();
+            await Promise.all([read(), readTasks()]);
         },
     };
 }

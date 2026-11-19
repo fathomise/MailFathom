@@ -2919,6 +2919,8 @@ export const pl: Catalogue = {
     'calendar.eventTasksReading': 'Odczytywanie zadań do tego wydarzenia…',
     'calendar.eventTasksFailed': 'Nie udało się odczytać zadań do tego wydarzenia.',
     'calendar.eventGone': 'Tego wydarzenia nie ma już w kalendarzu.',
+    'calendar.tasksFailed': 'Nie udało się odczytać zadań na te dni.',
+    'calendar.readTasksAgain': 'Wczytaj ponownie',
     'calendar.eventAllDay': 'Cały dzień',
     'calendar.eventReminders': 'Przypomnienia',
     'calendar.newEvent': 'Nowe wydarzenie',

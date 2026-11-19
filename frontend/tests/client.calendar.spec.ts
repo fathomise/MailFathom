@@ -189,6 +189,29 @@ test('planned tasks appear in the week, day, month and agenda views', async ({ p
     );
 });
 
+test("a task's hold menu in the calendar marks it done and plans it elsewhere", async ({ page, deployment }) => {
+    const day = await holdTheDay(page, deployment);
+
+    await openSignedInAsDeveloper(page, '/#/calendar');
+
+    const drawn = await viewOfToday(page, day, 'Week', 11);
+
+    await drawn.getByRole('option', { name: plannedToday }).click({ button: 'right' });
+
+    const menu = page.getByRole('menu');
+
+    await expect(menu.getByRole('menuitem')).toHaveText(['Open task', 'Mark as done', 'Move']);
+    await menu.getByRole('menuitem', { name: 'Move' }).click();
+    await expect(page.getByRole('dialog', { name: 'Plan a time' })).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await drawn.getByRole('option', { name: plannedToday }).click({ button: 'right' });
+    await page.getByRole('menu').getByRole('menuitem', { name: 'Mark as done' }).click();
+
+    await expect(page.getByRole('status').filter({ hasText: 'Marked as done.' })).toBeVisible();
+    expect(deployment.requests('POST', '/tasks/task-tender/completion')).toHaveLength(1);
+});
+
 test('accepting a proposed task from the calendar makes it a task', async ({ page, deployment }) => {
     const day = await holdTheDay(page, deployment);
 

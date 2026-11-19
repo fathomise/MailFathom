@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import type { PersonalTask } from '@mailfathom/client-backend';
+import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import { useLocalization } from '../localization/useLocalization';
@@ -16,7 +17,7 @@ import { wordTaskDay } from '../tasks/taskWording';
 // day, where it came from, and the two answers — *Accept*, which makes it a task the calendar then draws on its day,
 // and *Dismiss*, which erases it at once, nobody having taken it on.
 //
-// ***Plan my day*** stands here rather than under a briefing, because the briefing bar the design hangs it from has no
+// ***Plan my day*** stands beside this heading rather than under a briefing, because the briefing bar the design hangs it from has no
 // route behind it on this surface: it is the way to Tasks › *Today* with the day being laid out, and is drawn only
 // where the frame hands over a way there.
 
@@ -42,21 +43,22 @@ export function ProposedTasks({
 
     return (
         <section aria-label={translate('calendar.tasksHeading')} className="flex flex-col gap-2.75">
-            <h3 className="flex items-center gap-2.25 text-xs font-semibold text-muted">
-                {translate('calendar.tasksHeading')}
-                <span className="rounded-sm bg-accent px-1.5 py-0.5 text-xs text-on-accent">
-                    {translate('calendar.authored')}
-                </span>
+            <div className="flex items-center gap-2.25">
+                <h3 className="flex items-center gap-2.25 text-xs font-semibold text-muted">
+                    {translate('calendar.tasksHeading')}
+                    <span className="rounded-sm bg-accent px-1.5 py-0.5 text-xs text-on-accent">
+                        {translate('calendar.authored')}
+                    </span>
+                </h3>
                 {onPlanDay === undefined ? null : (
-                    <button
-                        type="button"
-                        className="ms-auto text-xs font-normal text-accent-deep hover:underline"
-                        onClick={onPlanDay}
-                    >
-                        {translate('calendar.planMyDay')}
-                    </button>
+                    <Control
+                        label={translate('calendar.planMyDay')}
+                        shape="link"
+                        className="ms-auto text-xs"
+                        onPress={onPlanDay}
+                    />
                 )}
-            </h3>
+            </div>
 
             <p className="text-sm text-muted text-pretty">{translate('calendar.tasksExplained')}</p>
 
@@ -96,11 +98,11 @@ export function ProposedTasks({
                                 </p>
 
                                 <div className="flex flex-wrap gap-1.75">
-                                    <SecondaryButton
+                                    <Control
                                         label={translate('tasks.accept')}
-                                        shape="compact"
-                                        held={refused !== null}
-                                        onActivate={() => {
+                                        shape="primary"
+                                        {...(refused === null ? {} : { held: true, hint: refused })}
+                                        onPress={() => {
                                             onAccept(task);
                                         }}
                                     />

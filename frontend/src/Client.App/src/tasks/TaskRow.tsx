@@ -18,6 +18,7 @@ import { wordReminderCount } from '../reminders/reminderWords';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { carriedTaskType } from './dayHours';
 import { wordCounterpart, wordEstimate, wordPlan, wordReply, wordTaskDay } from './taskWording';
+import { doneTaskFade } from './taskShapes';
 
 const anchorGlyphs: Readonly<Record<TaskAnchor['kind'], IconName>> = { Thread: 'mail', Event: 'event' };
 
@@ -247,7 +248,7 @@ export function TaskRow({
                 selected
                     ? 'border-accent-line bg-accent-soft'
                     : `${clash === null ? 'border-line' : 'border-error'} bg-panel hover:bg-hover`
-            } ${completed ? 'opacity-60' : ''}`}
+            } ${completed ? doneTaskFade : ''}`}
             draggable={dragsToPlan}
             onDragStart={(event) => {
                 // A type of this client's own rather than text, so a drop on a text field somewhere else pastes nothing.

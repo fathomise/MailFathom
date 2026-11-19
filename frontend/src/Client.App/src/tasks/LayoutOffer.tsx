@@ -80,9 +80,21 @@ export function LayoutOffer({
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
     const writeRefused = useWriteRefusal();
+    // Opened to lay the day out, the panel does so only over a deployment that arranges one; one whose answer is still
+    // on its way starts once it has said it does.
+    const starts = startsArranging && offered;
     const [offer, setOffer] = useState<Offer>({
-        kind: startsArranging && session !== null ? 'arranging' : 'idle',
+        kind: starts && session !== null ? 'arranging' : 'idle',
     });
+    const [startsSeen, setStartsSeen] = useState(starts);
+
+    if (starts !== startsSeen) {
+        setStartsSeen(starts);
+
+        if (starts && session !== null && offer.kind === 'idle') {
+            setOffer({ kind: 'arranging' });
+        }
+    }
 
     // Which arrangement is the latest asked for, and whether the panel still stands to draw one.
     const asked = useRef(0);
@@ -110,7 +122,7 @@ export function LayoutOffer({
     useEffect(() => {
         here.current = true;
 
-        if (startsArranging && session !== null && asked.current === 0) {
+        if (starts && session !== null && asked.current === 0) {
             const asking = ++asked.current;
 
             void restOfToday(session, transport).then((answer) => {
@@ -121,7 +133,7 @@ export function LayoutOffer({
         return () => {
             here.current = false;
         };
-    }, [startsArranging, session, transport]);
+    }, [starts, session, transport]);
 
     useEffect(() => {
         if (offer.kind === 'arranging') {

@@ -3,10 +3,13 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { CalendarEvent } from '@mailfathom/client-backend';
+import type { CalendarEvent, PersonalTask } from '@mailfathom/client-backend';
 import {
     addDays,
     daysOf,
+    entriesInHour,
+    entriesOn,
+    entryKey,
     eventsInHour,
     eventsOn,
     hoursOfDay,
@@ -237,5 +240,42 @@ describe('inTimeOrder', () => {
         inTimeOrder(events);
 
         expect(events.map((one) => one.id)).toEqual(['later', 'earlier']);
+    });
+});
+
+describe('entriesOn and entriesInHour', () => {
+    const task: PersonalTask = {
+        id: 'friday',
+        title: 'Send the counter-proposal',
+        dueOn: '2026-09-24',
+        reminders: [],
+        remindsAt: [],
+        origin: 'Asserted',
+        completed: false,
+        sourceMessageId: null,
+        direction: 'Owed',
+        estimatedMinutes: 30,
+        plan: { startAt: '2026-09-25T11:00:00+02:00', minutes: 30 },
+        anchor: null,
+        counterpart: null,
+        answer: null,
+    };
+    const tasks = [
+        { task, kind: 'due' as const },
+        { task, kind: 'planned' as const },
+    ];
+    const review = event('review', '2026-09-25T09:00:00+02:00', '2026-09-25T10:00:00+02:00');
+
+    // Review Focus 3, placed: the task planned on Friday and due on Thursday is a due mark at the top of Thursday and
+    // work at eleven on Friday, and neither day draws the other's entry.
+    it('draws a task due on Thursday at the top of Thursday and its plan at its hour on Friday', () => {
+        const thursday = entriesOn([review], tasks, new Date(2026, 8, 24));
+        const friday = entriesOn([review], tasks, new Date(2026, 8, 25));
+
+        expect(thursday.map(entryKey)).toStrictEqual(['due:friday']);
+        expect(friday.map(entryKey)).toStrictEqual(['event:review', 'planned:friday']);
+        expect(entriesInHour(friday, new Date(2026, 8, 25, 11)).map(entryKey)).toStrictEqual(['planned:friday']);
+        expect(entriesInHour(friday, new Date(2026, 8, 25, 9)).map(entryKey)).toStrictEqual(['event:review']);
+        expect(entriesInHour(thursday, new Date(2026, 8, 24, 8)).map(entryKey)).toStrictEqual([]);
     });
 });

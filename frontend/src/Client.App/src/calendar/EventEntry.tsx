@@ -13,6 +13,7 @@ import { useReadingZone } from '../localization/useReadingZone';
 import type { CalendarTask, DayEntry } from './calendarSpan';
 import type { EventActs } from './eventActs';
 import { eventShapes, taskMarks, taskTones, timeShown, type EventShape, type TaskTone } from './eventShapes';
+import { doneTaskFade } from '../tasks/taskShapes';
 
 // One event wherever a view draws one, which is its own component for the reason a message row is: it is what carries
 // the press, the keyboard path, and a test. Four views draw it and none of them draws a second one, which is what keeps
@@ -223,7 +224,7 @@ export function TaskEntry({
             role="option"
             tabIndex={0}
             className={`${eventShapes[shape].shape} ${agenda ? 'border-transparent hover:bg-hover' : taskTones[tone]} ${
-                task.completed ? 'opacity-55' : ''
+                task.completed ? doneTaskFade : ''
             }`}
             onContextMenu={press.onContextMenu}
             onPointerDown={press.onPointerDown}

@@ -2867,6 +2867,8 @@ export const en = {
     'calendar.eventTasksReading': 'Reading the tasks for this event…',
     'calendar.eventTasksFailed': 'The tasks for this event could not be read.',
     'calendar.eventGone': 'That event is no longer on the calendar.',
+    'calendar.tasksFailed': 'The tasks for these days could not be read.',
+    'calendar.readTasksAgain': 'Read again',
     'calendar.eventAllDay': 'All day',
     'calendar.eventReminders': 'Reminders',
     'calendar.newEvent': 'New event',

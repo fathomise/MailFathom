@@ -5,6 +5,7 @@
 import { expect, type Page } from '@playwright/test';
 
 import { holdTheDay, openSignedInAsDeveloper, switchDeveloperModeOn, test } from './client.harness';
+import { corpusEventId } from './fixtures/calendar';
 import { conversationId } from './fixtures/mail';
 
 // The Tasks space as somebody works it: the four views over the corpus's commitments, a task written down, finished,
@@ -207,6 +208,18 @@ test('what a task belongs to opens from its row', async ({ page, deployment }) =
 
     await expect(page).toHaveURL(/#\/mail/u);
     expect(deployment.requests('GET', `/threads/${conversationId}`)).not.toHaveLength(0);
+});
+
+test('an event a task belongs to opens in the calendar with its dialog open', async ({ page, deployment }) => {
+    await holdTheDay(page, deployment);
+    await openSignedInAsDeveloper(page, '/#/tasks');
+    await showView(page, 'Upcoming');
+
+    await titlesIn(page, 'Tomorrow').first().getByRole('button', { name: 'Carrier review', exact: true }).click();
+
+    await expect(page).toHaveURL(/#\/calendar/u);
+    await expect(page.getByRole('dialog', { name: 'Carrier review' })).toBeVisible();
+    expect(deployment.requests('GET', `/calendar/${corpusEventId(2)}`)).toHaveLength(1);
 });
 
 test('a proposal is dismissed at once', async ({ page, deployment }) => {

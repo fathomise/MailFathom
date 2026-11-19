@@ -30,8 +30,8 @@ export interface TasksWhere {
     /** Why the tasks did not answer, or `null` where they did. */
     readonly failure: ClientFailureReason | null;
 
-    /** Reads them again: the way out of a failure, and what a write is followed by. */
-    readonly readAgain: () => void;
+    /** Reads them again: the way out of a failure, and what a write is followed by. It settles once they answered. */
+    readonly readAgain: () => Promise<void>;
 }
 
 // How many pages one filter is walked across. A filter names one thing, so a walk this long is an answer that was
@@ -156,11 +156,11 @@ export function useTasksWhere(
         tasks: standing.tasks,
         reading: standing.reading,
         failure: standing.failure,
-        readAgain: () => {
+        readAgain: async () => {
             // With nothing to ask with, nothing is read, so nothing is said to be waiting either.
             if (session !== null) {
                 setHeld({ ...standing, reading: true, failure: null });
-                void read();
+                await read();
             }
         },
     };

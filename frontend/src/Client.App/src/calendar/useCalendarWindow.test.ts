@@ -190,4 +190,26 @@ describe('useCalendarWindow', () => {
         expect(window).toContain(`from=${encodeURIComponent(thisWeek.from.toISOString())}`);
         expect(window).toContain(`until=${encodeURIComponent(thisWeek.until.toISOString())}`);
     });
+
+    // A calendar that answered is not said to have failed because the task list did not: each has its own failure.
+    it('says the tasks of the span failed apart from the span itself', async () => {
+        const transport: MailFathomTransport = (request) =>
+            Promise.resolve(
+                request.path.includes('/tasks')
+                    ? { status: 503, headers: {}, body: '' }
+                    : {
+                          status: 200,
+                          headers: {},
+                          body: JSON.stringify({ events: [eventCalled('review', 'Asserted')] }),
+                      },
+            );
+
+        const { result } = renderHook(() => useCalendarWindow(session, transport, thisWeek, true));
+
+        await waitFor(() => {
+            expect(result.current.tasksFailure).toBe('unavailable');
+        });
+        expect(result.current.failure).toBeNull();
+        expect(result.current.events.map((event) => event.id)).toStrictEqual(['review']);
+    });
 });

@@ -229,6 +229,34 @@ describe('LayoutOffer', () => {
         });
     });
 
+    // Opened from the calendar's *Plan my day*, the day is laid out once the deployment has said it arranges days, and
+    // never before.
+    it('lays the day out on opening only once the deployment has said it arranges days', async () => {
+        const { sent, transport } = deployment(200, arranged);
+        const drawn = (offered: boolean) => (
+            <LocalizationProvider>
+                <LayoutOffer
+                    session={session}
+                    transport={transport}
+                    offered={offered}
+                    startsArranging
+                    tasks={[room, reply, audit]}
+                    events={[]}
+                    onPlan={vi.fn()}
+                />
+            </LocalizationProvider>
+        );
+        const { rerender } = render(drawn(false));
+
+        expect(sent).toHaveLength(0);
+        expect(screen.queryByRole('status')).toBeNull();
+
+        rerender(drawn(true));
+
+        expect(await screen.findByRole('button', { name: 'Plan these' })).toBeDefined();
+        expect(sent.map(({ method }) => method)).toStrictEqual(['POST']);
+    });
+
     it('offers nothing to lay out where the deployment arranges no day', () => {
         const { transport } = deployment(200, arranged);
 

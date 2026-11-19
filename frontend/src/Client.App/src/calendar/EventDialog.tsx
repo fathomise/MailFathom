@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { CalendarEvent, CalendarEventAmendment } from '@mailfathom/client-backend';
 import { mannerDrawn } from '../confirmation/wayOutShapes';
+import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import { SurfaceControl } from '../controls/SurfaceControl';
@@ -150,9 +151,12 @@ export function EventDialog({
                     <Icon name="task_alt" className="size-icon-md shrink-0 text-muted" />
                     <h3 className="min-w-0 flex-1 text-sm font-semibold">{translate('calendar.eventTasks')}</h3>
                     {onAddTask === undefined ? null : (
-                        <button type="button" className="text-xs text-accent-deep hover:underline" onClick={onAddTask}>
-                            {translate('calendar.addEventTask')}
-                        </button>
+                        <Control
+                            label={translate('calendar.addEventTask')}
+                            shape="link"
+                            className="text-xs"
+                            onPress={onAddTask}
+                        />
                     )}
                 </div>
 
@@ -164,7 +168,9 @@ export function EventDialog({
                         <SecondaryButton
                             label={translate('calendar.readAgain')}
                             shape="compact"
-                            onActivate={where.readAgain}
+                            onActivate={() => {
+                                void where.readAgain();
+                            }}
                         />
                     </div>
                 ) : where.reading ? (

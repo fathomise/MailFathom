@@ -7,6 +7,7 @@ import {
     acceptCalendarEvent,
     acceptTask,
     amendCalendarEvent,
+    arrangesDays,
     deleteCalendarEvent,
     eraseTask,
     readCalendarEvent,
@@ -39,8 +40,10 @@ import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { useTwoPanes, useWideWorkspace } from '../shell/useWideWorkspace';
 import { NewTask, type TaskContext, type TaskDraft } from '../tasks/NewTask';
+import { recordOfDraft } from '../tasks/taskRecords';
 import { TaskSurfaces, type TaskAsked } from '../tasks/TaskSurfaces';
 import { clashOf } from '../tasks/taskViews';
+import { usePlanWriter, withPlansPressed } from '../tasks/usePlanWriter';
 import { useTasksWhere } from '../tasks/useTasksWhere';
 import { AgendaView } from './AgendaView';
 import { CalendarNavigation } from './CalendarNavigation';
@@ -54,7 +57,7 @@ import { MonthView } from './MonthView';
 import { NewEvent } from './NewEvent';
 import { ProposedDates } from './ProposedDates';
 import { ProposedTasks } from './ProposedTasks';
-import { useCalendarWindow } from './useCalendarWindow';
+import { calendarTasksOf, useCalendarWindow } from './useCalendarWindow';
 import { WeekView } from './WeekView';
 import { Departing } from '../shell/Departing';
 
@@ -222,8 +225,21 @@ export function CalendarSpace({
         eventId: opened?.event.id ?? '',
     });
 
+    // Every plan pressed here is laid over the tasks read until the read after its write has answered, so a task is
+    // drawn where it was planned the moment it is, and a dialog opened on it again shows that plan.
+    const writer = usePlanWriter(session, transport, timeZone);
+    const drawnTasks =
+        writer.pressed.size === 0
+            ? reading.tasks
+            : calendarTasksOf(
+                  withPlansPressed(
+                      [...new Map(reading.tasks.map(({ task }) => [task.id, task])).values()],
+                      writer.pressed,
+                  ),
+              );
+
     // The task asked for, read back out of whatever the screen read last, so a dialog draws the task as it now stands.
-    const tasksHeld = [...reading.tasks.map(({ task }) => task), ...eventTasks.tasks];
+    const tasksHeld = [...drawnTasks.map(({ task }) => task), ...withPlansPressed(eventTasks.tasks, writer.pressed)];
     const askedTask: TaskAsked | null =
         taskAsked === null
             ? null
@@ -248,6 +264,35 @@ export function CalendarSpace({
             listening = false;
         };
     }, [session, transport]);
+
+    // Whether this deployment arranges a day at all, which *Plan my day* is offered under exactly as Tasks' own *Lay out
+    // the day* is: an offer to lay a day out over a deployment that composes none fails a person when they trust it.
+    // What the answer was asked under is kept beside it, so a credential replaced offers nothing until it has answered.
+    const [arranges, setArranges] = useState<{ readonly asked: ClientSession | null; readonly answered: boolean }>({
+        asked: null,
+        answered: false,
+    });
+    const asksArrangement = onPlanDay !== undefined && readsTasks;
+
+    useEffect(() => {
+        if (session === null || !asksArrangement) {
+            return;
+        }
+
+        let listening = true;
+
+        void arrangesDays(session, transport).then((answer) => {
+            if (listening && answer.outcome === 'read') {
+                setArranges({ asked: session, answered: answer.value });
+            }
+        });
+
+        return () => {
+            listening = false;
+        };
+    }, [session, transport, asksArrangement]);
+
+    const arrangesThisDay = asksArrangement && arranges.asked === session && arranges.answered;
 
     // The events picked out, read back out of the span rather than held as records: the selection holds identities and
     // the span holds what each of them is, so a selection cannot outlive a read that no longer names one of them.
@@ -359,10 +404,10 @@ export function CalendarSpace({
     }
 
     // Every task write is answered by reading what the screen holds of tasks again, and said where the reader is.
-    function afterTaskWrite(said: MessageKey, names?: Readonly<Record<string, string>>): void {
+    function afterTaskWrite(said: MessageKey, names?: Readonly<Record<string, string>>): Promise<void> {
         setSaid({ where: opened === null ? 'calendar' : 'event', said, ...(names === undefined ? {} : { names }) });
-        reading.readAgain();
-        eventTasks.readAgain();
+
+        return Promise.all([reading.readAgain(), eventTasks.readAgain()]).then(() => undefined);
     }
 
     function recordEventTask(draft: TaskDraft): void {
@@ -370,26 +415,15 @@ export function CalendarSpace({
             return;
         }
 
-        void recordTask(session, transport, {
-            title: draft.title,
-            dueOn: draft.dueOn === '' ? null : draft.dueOn,
-            reminders: [],
-            dueDayOffsetMinutes: null,
-            sourceMessageId: null,
-            direction: draft.direction,
-            estimatedMinutes: draft.estimatedMinutes,
-            plan: null,
-            anchor: draft.anchor,
-            counterpart: draft.counterpart,
-        }).then((answer) => {
-            afterTaskWrite(taskFailedSaid(answer) ?? 'tasks.written');
-        });
+        void recordTask(session, transport, recordOfDraft(draft)).then((answer) =>
+            afterTaskWrite(taskFailedSaid(answer) ?? 'tasks.written'),
+        );
     }
 
     function readAfter(write: Promise<{ readonly said: MessageKey; readonly where: WriteSaid['where'] }>): void {
         void write.then((answer) => {
             setSaid({ where: answer.where, said: answer.said });
-            reading.readAgain();
+            void reading.readAgain();
         });
     }
 
@@ -442,7 +476,7 @@ export function CalendarSpace({
             }
 
             setSaid({ where: 'calendar', said: answer.said });
-            reading.readAgain();
+            void reading.readAgain();
         });
     }
 
@@ -529,7 +563,7 @@ export function CalendarSpace({
                 opening.current?.close();
             }
 
-            reading.readAgain();
+            void reading.readAgain();
         });
     }
 
@@ -586,15 +620,15 @@ export function CalendarSpace({
     // stops being able to see the structure of the screen.
     function drawnView() {
         if (view === 'day') {
-            return <DayView span={span} events={reading.events} tasks={reading.tasks} acts={acts} />;
+            return <DayView span={span} events={reading.events} tasks={drawnTasks} acts={acts} />;
         }
 
         if (view === 'agenda' || drawnAsAgenda) {
-            return <AgendaView span={span} events={reading.events} tasks={reading.tasks} today={today} acts={acts} />;
+            return <AgendaView span={span} events={reading.events} tasks={drawnTasks} today={today} acts={acts} />;
         }
 
         if (view === 'week') {
-            return <WeekView span={span} events={reading.events} tasks={reading.tasks} today={today} acts={acts} />;
+            return <WeekView span={span} events={reading.events} tasks={drawnTasks} today={today} acts={acts} />;
         }
 
         return (
@@ -602,7 +636,7 @@ export function CalendarSpace({
                 span={span}
                 anchor={anchor}
                 events={reading.events}
-                tasks={reading.tasks}
+                tasks={drawnTasks}
                 today={today}
                 acts={acts}
                 onOpenDay={openDay}
@@ -679,7 +713,25 @@ export function CalendarSpace({
                     <SecondaryButton
                         label={translate('calendar.readAgain')}
                         shape="compact"
-                        onActivate={reading.readAgain}
+                        onActivate={() => {
+                            void reading.readAgain();
+                        }}
+                    />
+                </div>
+            )}
+
+            {/* The tasks of the span failing is said on a line of its own, since the calendar beside them answered. */}
+            {reading.tasksFailure === null || reading.failure !== null ? null : (
+                <div className="flex shrink-0 flex-col items-start gap-2 border-b border-line bg-sunken px-4 py-2.75">
+                    <p role="alert" className="text-sm text-warning text-pretty">
+                        {translate('calendar.tasksFailed')}
+                    </p>
+                    <SecondaryButton
+                        label={translate('calendar.readTasksAgain')}
+                        shape="compact"
+                        onActivate={() => {
+                            void reading.readAgain();
+                        }}
                     />
                 </div>
             )}
@@ -705,7 +757,7 @@ export function CalendarSpace({
                             onDismiss={(task) => {
                                 answerTask(task, false);
                             }}
-                            onPlanDay={onPlanDay}
+                            onPlanDay={arrangesThisDay ? onPlanDay : undefined}
                         />
                     ) : null}
                 </div>
@@ -797,7 +849,8 @@ export function CalendarSpace({
                         transport={transport}
                         asked={askedTask}
                         events={reading.events}
-                        tasks={reading.tasks.filter(({ kind }) => kind === 'planned').map(({ task }) => task)}
+                        tasks={drawnTasks.filter(({ kind }) => kind === 'planned').map(({ task }) => task)}
+                        writer={writer}
                         onAsk={setTaskAsked}
                         onWritten={afterTaskWrite}
                         onOpenAnchor={openAnchor}

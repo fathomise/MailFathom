@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import { corpusEventId } from './calendar';
 import { conversationId } from './mail';
 import { newsletterId } from './messages';
 
@@ -79,7 +80,9 @@ function announcing(id: string, title: string, dueOn: string, reminders: readonl
 }
 
 // The threads and the event the corpus's tasks belong to. One is the conversation the mail corpus holds, so a thread
-// opened from a task lands on mail the corpus can draw; the rest are named by identity alone, which is what an anchor is.
+// opened from a task lands on mail the corpus can draw, and the event is one the calendar corpus holds, so an event
+// opened from a task lands on an event the calendar can draw; the rest are named by identity alone, which is what an
+// anchor is.
 const contractThread = conversationId;
 const calculationThread = '00000000-0000-4000-8000-0000000000d1';
 const slaThread = '00000000-0000-4000-8000-0000000000d2';
@@ -88,7 +91,7 @@ const registerThread = '00000000-0000-4000-8000-0000000000d4';
 const ndaThread = '00000000-0000-4000-8000-0000000000d5';
 const opinionThread = '00000000-0000-4000-8000-0000000000d6';
 const rolloutThread = '00000000-0000-4000-8000-0000000000d7';
-const annaCall = '00000000-0000-4000-8000-0000000000e1';
+const carrierReview = corpusEventId(2);
 
 function thread(id: string, label: string) {
     return { kind: 'Thread', id, label };
@@ -133,7 +136,7 @@ export function committedTasks(day: string) {
             task('task-addendum', 'Review the addendum before the call', dayAfter(day, 1), {
                 estimatedMinutes: 30,
                 plan: planned(dayAfter(day, 1), '09:00', 30),
-                anchor: { kind: 'Event', id: annaCall, label: 'Call with Anna Kowalska' },
+                anchor: { kind: 'Event', id: carrierReview, label: 'Carrier review' },
             }),
             announcing('task-return', 'Answer Adventure Works on weekend SLA', dayAfter(day, 3), [0], {
                 estimatedMinutes: 30,
