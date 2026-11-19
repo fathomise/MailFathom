@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-// Fathom and the catch-up: the button in the bottom-right corner of Start and Mail, its Smart mode, the answer card both
+// Fathom and the catch-up: the button in the bottom-right corner of Start and Mail, the answer card both
 // write into, and the run of cards Start opens after an absence. `component.js` calls `install` once and merges `vals`
 // into what the template reads; the sample content is `data/prototype/fathom.js` and `data/prototype/catchup.js`.
 MailFathomDesign.fathomUi = (() => {
@@ -26,10 +26,10 @@ MailFathomDesign.fathomUi = (() => {
       self.timers.forEach(clearTimeout);
       self.setState({
         catchup: { reason: reason }, catchupOpen: true, catchupArchived: false,
-        screen: "start", phase: "idle", fathomMenu: false, fathomSmart: false, fathomAnswer: null, ctxMenu: null, more: false,
+        screen: "start", phase: "idle", fathomMenu: false, fathomAnswer: null, ctxMenu: null, more: false,
       });
     };
-    self.openCatchup = () => self.setState({ catchupOpen: true, fathomMenu: false, fathomSmart: false, fathomAnswer: null });
+    self.openCatchup = () => self.setState({ catchupOpen: true, fathomMenu: false, fathomAnswer: null });
     self.closeCatchup = () => self.setState({ catchupOpen: false, fathomAnswer: null });
     self.doneCatchup = () => {
       const was = self.state.catchup;
@@ -45,11 +45,11 @@ MailFathomDesign.fathomUi = (() => {
       } });
     };
 
-    /* A target is anything an action can act on: an item on a card, a component Smart found, or a selection. */
+    /* A target is anything an action can act on: an item on a card or a selection. */
     self.runFathom = (a, t) => {
-      const closeAll = { fathomMenu: false, fathomSmart: false, smartHover: null, fathomAnswer: null };
+      const closeAll = { fathomMenu: false, fathomAnswer: null };
       if (a.do === "answer") {
-        self.setState({ fathomMenu: false, fathomSmart: false, smartHover: null, fathomAnswer: { title: a.label, about: t.label || "", text: answerText(a, t), ctx: t.label || a.label } });
+        self.setState({ fathomMenu: false, fathomAnswer: { title: a.label, about: t.label || "", text: answerText(a, t), ctx: t.label || a.label } });
         return;
       }
       if (a.do === "agent") {
@@ -91,156 +91,14 @@ MailFathomDesign.fathomUi = (() => {
       self.setState({ ctxMenu: { x: x, y: y, title: title, detail: detail, items: actions.map(a => ({ icon: a.icon, label: a.label, run: () => self.runFathom(a, t) })) } });
     };
 
-    /* Smart: the next press lands on a component instead of acting. Listened for on the window in the capture phase,
-       so it runs before anything the page itself does with a press, and the page still scrolls as it always does. */
-    const smartTarget = (x, y) => {
-      if (typeof document === "undefined") return null;
-      const els = document.elementsFromPoint(x, y);
-      for (const el of els) {
-        if (el.closest && el.closest("[data-fathom-ui]")) return { ui: true };
-        const c = el.closest && el.closest("[data-smart]");
-        if (c) return { el: c };
-      }
-      return null;
-    };
-    const smartRect = (el) => {
-      const r = el.getBoundingClientRect();
-      const root = self.rootRef.current && self.rootRef.current.getBoundingClientRect();
-      const ox = root ? root.left : 0, oy = root ? root.top : 0;
-      return { x: r.left - ox, y: r.top - oy, w: r.width, h: r.height, r: getComputedStyle(el).borderTopLeftRadius };
-    };
-    const smartOf = (el) => {
-      const id = el.getAttribute("data-smart");
-      const comp = D().fathom.components[id];
-      return comp ? { id: id, comp: comp, label: el.getAttribute("data-smart-label") || "", text: el.getAttribute("data-smart-text") || "", tid: el.getAttribute("data-smart-ref") || "" } : null;
-    };
-    const disabledBySmart = new Set();
-    const mutedBySmart = new Set();
-    self.syncSmartDisabled = () => {
-      const next = new Set();
-      const muted = new Set();
-      const root = self.rootRef.current;
-      if (self.state.fathomSmart && root) {
-        const available = "[data-smart], [data-fathom-ui], [data-ctx-menu]";
-        const visit = (el) => {
-          if (el.matches(available)) return;
-          if (!el.querySelector(available)) { muted.add(el); return; }
-          Array.from(el.children).forEach(visit);
-        };
-        Array.from(root.children).forEach(visit);
-        root.querySelectorAll("[data-rail], button, input, textarea, select, a[href], [contenteditable], [role=button], [role=tab], [tabindex]").forEach(el => {
-          if (el.closest("[data-fathom-ui], [data-ctx-menu]") || el.matches("[data-smart]") || el.querySelector("[data-smart], [data-fathom-ui], [data-ctx-menu]")) return;
-          next.add(el);
-        });
-      }
-      mutedBySmart.forEach(el => {
-        if (muted.has(el)) return;
-        el.removeAttribute("data-smart-muted");
-        mutedBySmart.delete(el);
-      });
-      muted.forEach(el => {
-        el.setAttribute("data-smart-muted", "1");
-        mutedBySmart.add(el);
-      });
-      disabledBySmart.forEach(el => {
-        if (next.has(el)) return;
-        el.inert = false;
-        el.removeAttribute("data-smart-disabled");
-        disabledBySmart.delete(el);
-      });
-      next.forEach(el => {
-        if (el.inert) return;
-        el.inert = true;
-        el.setAttribute("data-smart-disabled", "1");
-        disabledBySmart.add(el);
-      });
-    };
-    self._smartPt = null;
-    self._smartKey = null;
-    /* Smart from the keyboard: Tab and Shift+Tab step through the components on screen in reading order, Enter or Space
-       opens the one outlined, and its menu takes the focus. */
-    const smartList = () => Array.from(document.querySelectorAll("[data-smart]")).filter(el => {
-      const r = el.getBoundingClientRect();
-      return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight && getComputedStyle(el).visibility !== "hidden" && !!smartOf(el);
-    });
-    const smartOutline = (el) => {
-      const s = smartOf(el);
-      self.setState({ smartHover: Object.assign({ id: s.id, name: s.comp.name, label: s.label }, smartRect(el)) });
-    };
-    const smartStep = (back) => {
-      const list = smartList();
-      if (!list.length) return;
-      const at = list.indexOf(self._smartKey);
-      const next = at < 0 ? (back ? list.length - 1 : 0) : (at + (back ? -1 : 1) + list.length) % list.length;
-      self._smartKey = list[next];
-      self._smartKey.scrollIntoView({ block: "nearest" });
-      smartOutline(self._smartKey);
-    };
-    const smartOpenKeyed = () => {
-      const el = self._smartKey;
-      const s = smartOf(el);
-      const r = smartRect(el);
-      const x = r.x + 12, y = r.y + Math.min(r.h, 44);
-      self.fathomMenuFor(s.comp.name, s.label || s.comp.what, s.comp.actions, { label: s.label || s.comp.name, text: s.text, tid: s.tid, x: x, y: y }, x, y);
-      setTimeout(() => { const first = document.querySelector("[data-ctx-menu] [role=menuitem]"); if (first) first.focus(); }, 0);
-    };
-    self.onSmartMove = (e) => {
-      if (!self.state.fathomSmart || self.state.ctxMenu) return;
-      if (!e && self._smartKey && document.contains(self._smartKey)) { smartOutline(self._smartKey); return; }
-      if (e && e.clientX != null) { self._smartPt = { x: e.clientX, y: e.clientY }; self._smartKey = null; }
-      const p = self._smartPt;
-      if (!p) return;
-      const hit = smartTarget(p.x, p.y);
-      const s = hit && hit.el ? smartOf(hit.el) : null;
-      const prev = self.state.smartHover;
-      if (!s) { if (prev) self.setState({ smartHover: null }); return; }
-      const r = smartRect(hit.el);
-      if (prev && prev.id === s.id && prev.label === s.label && prev.x === r.x && prev.y === r.y && prev.w === r.w) return;
-      self.setState({ smartHover: Object.assign({ id: s.id, name: s.comp.name, label: s.label }, r) });
-    };
-    self.onSmartPress = (e) => {
-      if (!self.state.fathomSmart || self.state.ctxMenu) return;
-      const hit = smartTarget(e.clientX, e.clientY);
-      if (hit && hit.ui) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.type !== "click") return;
-      const s = hit && hit.el ? smartOf(hit.el) : null;
-      if (!s) return;
-      const r = smartRect(hit.el);
-      self.setState({ smartHover: Object.assign({ id: s.id, name: s.comp.name, label: s.label }, r) });
-      const p = self.localPt(e.clientX, e.clientY);
-      self.fathomMenuFor(s.comp.name, s.label || s.comp.what, s.comp.actions, { label: s.label || s.comp.name, text: s.text, tid: s.tid, x: p.x, y: p.y }, p.x, p.y);
-    };
     self.onFathomKey = (e) => {
       const st = self.state;
-      if (st.fathomSmart && !st.ctxMenu && e.key === "Tab") { e.preventDefault(); e.stopPropagation(); smartStep(e.shiftKey); return; }
-      if (st.fathomSmart && !st.ctxMenu && (e.key === "Enter" || e.key === " ") && self._smartKey && document.contains(self._smartKey)) { e.preventDefault(); e.stopPropagation(); smartOpenKeyed(); return; }
-      if (e.key === "Escape") {
-        if (st.fathomSmart) {
-          e.preventDefault();
-          e.stopPropagation();
-          self._smartKey = null;
-          self.setState({ fathomSmart: false, smartHover: null, ctxMenu: null });
-          return;
-        }
-        if (st.ctxMenu) return;
-        if (st.fathomAnswer) self.setState({ fathomAnswer: null });
-        else if (st.fathomMenu) self.setState({ fathomMenu: false });
-        else if (st.catchupOpen) self.closeCatchup();
-        return;
-      }
-      if (st.fathomSmart && !e.target.closest?.("[data-fathom-ui], [data-ctx-menu]")) {
-        if (e.key === "Enter" || e.key === " " || e.target.matches?.("input, textarea, [contenteditable]")) e.preventDefault();
-        e.stopPropagation();
-      }
+      if (e.key !== "Escape" || st.ctxMenu) return;
+      if (st.fathomAnswer) self.setState({ fathomAnswer: null });
+      else if (st.fathomMenu) self.setState({ fathomMenu: false });
+      else if (st.catchupOpen) self.closeCatchup();
     };
-    if (typeof window !== "undefined") {
-      ["pointerdown", "mousedown", "pointerup", "click"].forEach(t => window.addEventListener(t, self.onSmartPress, true));
-      window.addEventListener("pointermove", self.onSmartMove, true);
-      window.addEventListener("scroll", () => self.onSmartMove(null), true);
-      window.addEventListener("keydown", self.onFathomKey, true);
-    }
+    if (typeof window !== "undefined") window.addEventListener("keydown", self.onFathomKey, true);
   }
 
   function vals(self, c) {
@@ -249,7 +107,7 @@ MailFathomDesign.fathomUi = (() => {
     const barH = c.navBottom ? self.barH() : 0;
 
     /* ——— The Fathom button ——— */
-    /* It stands on Start and Mail; Smart, which needs components to land on, only on Start. */
+    /* It stands on Start and Mail. */
     const supported = st.screen === "start";
     const menuKey = st.screen;
     const where = "your day";
@@ -259,7 +117,6 @@ MailFathomDesign.fathomUi = (() => {
     /* 24 px from both edges, 20 on a phone, above its bottom bar. */
     const fabEdge = isMobile ? 20 : 24;
     const fabBottom = fabEdge + barH;
-    const smartOn = supported && !!st.fathomSmart;
     const menuRun = (a) => () => {
       if (a.do === "agent") { self.setState({ fathomMenu: false }); self.goAgentWith(a.ctx || where); return; }
       self.runFathom(a, { label: where });
@@ -268,11 +125,10 @@ MailFathomDesign.fathomUi = (() => {
       (touch ? "min-height:48px;padding:0 18px 0 14px;font-size:15px;" : "height:40px;padding:0 16px 0 12px;font-size:14px;");
     const v = {
       fathomFabShown: fabShown,
-      fathomFabIcon: st.fathomMenu || smartOn ? "close" : "auto_awesome",
-      fathomFabTitle: smartOn ? "Leave Smart" : st.fathomMenu ? "Close" : "Fathom - ask or act on what is on screen",
+      fathomFabIcon: st.fathomMenu ? "close" : "auto_awesome",
+      fathomFabTitle: st.fathomMenu ? "Close" : "Fathom - ask or act on what is on screen",
       fathomFabExpanded: !!st.fathomMenu,
       toggleFathom: () => {
-        if (self.state.fathomSmart) { self._smartKey = null; self.setState({ fathomSmart: false, smartHover: null }); return; }
         self.setState(s => ({ fathomMenu: !s.fathomMenu, fathomAnswer: null }));
       },
       fathomFabStyle: "position:fixed;z-index:88;right:" + fabEdge + "px;bottom:" + fabBottom + "px;width:" + fabSize + "px;height:" + fabSize + "px;box-sizing:border-box;" +
@@ -285,36 +141,9 @@ MailFathomDesign.fathomUi = (() => {
         (F.menu[menuKey] || []).map(a => Object.assign({}, a, { run: menuRun(a) })),
         c.fathomReply || [],
       ).map(a => ({ icon: a.icon, label: a.label, run: () => { self.setState({ fathomMenu: false }); a.run(); }, style: rowStyle })),
-      fathomSmartOffered: supported,
       fathomRowStyle: rowStyle,
       fathomMenuStyle: "position:fixed;z-index:89;right:" + fabEdge + "px;bottom:" + (fabBottom + fabSize + (isMobile ? 12 : 8)) + "px;display:flex;flex-direction:column;align-items:flex-end;gap:8px",
-      startSmart: () => { document.activeElement?.blur(); self._smartKey = null; self.setState({ fathomMenu: false, fathomSmart: true, smartHover: null }); },
       openAgentFromFathom: () => { self.setState({ fathomMenu: false }); self.goScreen("agent"); },
-      smartHint: isMobile ? "Tap an item" : touch ? "Tap a highlighted item for its actions" : "Choose a highlighted item, or Tab to it",
-      smartOn,
-      smartMode: smartOn ? "on" : undefined,
-      /* Level with Fathom at the foot of the screen, so it covers no target at the top; on the phone it fills the width
-         beside the button. */
-      smartBarStyle: "position:fixed;z-index:87;bottom:" + (fabBottom + (fabSize - (touch ? 54 : 42)) / 2) + "px;" +
-        (isMobile ? "left:12px;right:" + (fabEdge + fabSize + 12) + "px;" : "left:50%;transform:translateX(-50%);max-width:calc(100% - 24px);") + "display:flex;align-items:center;gap:10px;box-sizing:border-box;" +
-        "background:var(--panel);border:1px solid var(--accent-line);border-radius:999px;box-shadow:0 10px 26px var(--sh-3);font-size:13px;color:var(--text2);" + (touch ? "padding:4px 4px 4px 14px;" : "padding:5px 5px 5px 14px;"),
-      smartDoneStyle: "display:inline-flex;align-items:center;justify-content:center;border-radius:999px;font-weight:600;color:var(--onaccent);background:var(--accent);white-space:nowrap;" + (touch ? "min-height:44px;min-width:64px;padding:0 18px;font-size:14px;" : "min-height:30px;padding:0 13px;font-size:13px;"),
-      leaveSmart: () => { self._smartKey = null; self.setState({ fathomSmart: false, smartHover: null }); },
-      smartHoverShown: smartOn && !!st.smartHover,
-      smartBoxStyle: (() => {
-        const h = st.smartHover || { x: 0, y: 0, w: 0, h: 0 };
-        return "position:fixed;z-index:86;pointer-events:none;left:" + h.x + "px;top:" + h.y + "px;width:" + h.w + "px;height:" + h.h + "px;box-sizing:border-box;" +
-          "border:2px solid var(--accent);border-radius:" + (parseFloat(h.r) > 0 ? h.r : "6px") + ";background:color-mix(in oklch, var(--accent) 7%, transparent);" +
-          "transition:left 90ms ease,top 90ms ease,width 90ms ease,height 90ms ease";
-      })(),
-      smartTagStyle: (() => {
-        const h = st.smartHover || { x: 0, y: 0 };
-        const above = h.y > 34;
-        return "position:fixed;z-index:86;pointer-events:none;left:" + Math.max(6, h.x) + "px;top:" + (above ? h.y - 28 : h.y + 6) + "px;display:inline-flex;align-items:center;gap:6px;" +
-          "font-size:12px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:7px;padding:4px 9px 4px 7px;white-space:nowrap;box-shadow:0 4px 12px var(--sh-2)";
-      })(),
-      smartTagText: st.smartHover ? st.smartHover.name + (st.smartHover.label ? " · " + st.smartHover.label : "") : "",
-      smartTagGlyph: GLYPH + "font-size:14px",
     };
 
     /* ——— The answer card both Fathom and the catch-up write into ——— */
@@ -386,7 +215,7 @@ MailFathomDesign.fathomUi = (() => {
       cuCardSub: reason.label + " · " + needN + " still need you · on one page",
       cuCardIcon: cu && cu.reason === "holiday" ? "beach_access" : "flight_land",
       cuCardIconStyle: toneTile("accent"),
-      cuCardStyle: (isMobile || narrow ? "order:2;" : "") + "display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-sizing:border-box;border-radius:14px;background:var(--panel);border:1px solid var(--accent-line);box-shadow:inset 3px 0 0 var(--accent);" + (isMobile ? "padding:12px 12px 12px 15px;" : "padding:12px 14px 12px 17px;"),
+      cuCardStyle: "display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-sizing:border-box;border-radius:14px;background:var(--panel);border:1px solid var(--accent-line);box-shadow:inset 3px 0 0 var(--accent);" + (isMobile ? "padding:12px 12px 12px 15px;" : "padding:12px 14px 12px 17px;"),
       cuOpenBtnStyle: primaryBtn,
       cuQuietBtnStyle: quietBtn,
       openCatchup: self.openCatchup,

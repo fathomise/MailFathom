@@ -124,11 +124,11 @@ Object.assign(MailFathomDesign.data.plans.people, {
 // Questions kept on Start. Each refreshes when new mail matches it; `changed` says whether that moved
 // its answer since it was last opened, and `paused` stands for a refresh the allowance did not cover.
 MailFathomDesign.data.watchedQuestions = [
-  { id: "w1", q: "What is still open with Contoso before 28 August?", state: "changed", note: "1 new message from Anna Kowalska since Tuesday" },
-  { id: "w2", q: "Which invoices from August are unpaid?", state: "same", note: "no change since yesterday" },
-  { id: "w3", q: "Who owns the Q4 renewals?", state: "paused", note: "paused until 1 September - the allowance is spent" },
-  { id: "w4", q: "When does the Fabrikam pilot sign-off land?", state: "same", note: "no change since Monday" },
-  { id: "w5", q: "Has anyone answered about the office move in October?", state: "changed", note: "2 new replies in the facilities thread" },
+  { id: "w1", q: "What is still open with Contoso before 28 August?", state: "changed", note: "1 new message from Anna Kowalska since Tuesday", answer: "Two things: the CPI cap counter-proposal and the signature page. Anna asked for both again on Tuesday." },
+  { id: "w2", q: "Which invoices from August are unpaid?", state: "same", note: "no change since yesterday", answer: "Two: invoice 08/2026 from Fabrikam, waiting on your approval, and the Adventure Works licence renewal." },
+  { id: "w3", q: "Who owns the Q4 renewals?", state: "paused", note: "paused until 1 September - the allowance is spent", answer: "Marta Nowak for Contoso and Fabrikam; nobody is named for Adventure Works yet." },
+  { id: "w4", q: "When does the Fabrikam pilot sign-off land?", state: "same", note: "no change since Monday", answer: "Planned for 12 November, once Fabrikam confirms the Q4 delivery date." },
+  { id: "w5", q: "Has anyone answered about the office move in October?", state: "changed", note: "2 new replies in the facilities thread", answer: "Yes. Facilities confirmed the weekend of 17 October, and packing crates arrive the week before." },
 ];
 
 // The questions Start offers as chips under its field.

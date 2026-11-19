@@ -2633,7 +2633,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     goScreen = (id, patch) => {
       this.setState({ fathomMenu: false });
-      if (id !== "start") this.setState({ fathomSmart: false, fathomAnswer: null });
+      if (id !== "start") this.setState({ fathomAnswer: null });
       if (id !== "start" && id !== "agent") this.setState({ selBar: null });
       /* The first entry into mail starts with an empty panel; after that the open message
          is remembered for the session (in-memory state - gone when the app closes). */
@@ -5234,7 +5234,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     componentDidUpdate(prevProps) {
       if (this.props.agentFiles !== (prevProps || {}).agentFiles) this.seedAgentFiles();
-      this.syncSmartDisabled();
       /* `space` opens a space the way its rail item does, so a capture reaches it in one step at every
          composition - on a phone Tasks, Calendar and People sit behind More. */
       const space = this.props.space;
@@ -7654,13 +7653,27 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         searchWrapStyle: "flex:0 0 auto;position:relative;z-index:1;overflow:hidden;scrollbar-gutter:stable;background:var(--panel);border-bottom:1px solid var(--line);" + (st.phase === "idle" ? "box-shadow:0 6px 14px -12px var(--sh-3);" : ""),
         searchInnerStyle: "display:flex;flex-direction:column;box-sizing:border-box;" + (isMobile ? "gap:10px;" + framePad(12, 12) : "gap:12px;" + framePad(16, 16)),
         idleStyle: "flex:1;display:flex;flex-direction:column;overflow:auto;scrollbar-gutter:stable;min-height:0",
-        startBodyStyle: "box-sizing:border-box;" + (isMobile
-          ? "display:flex;flex-direction:column;gap:22px;" + framePad(20, 28)
-          : narrow
-          ? "display:flex;flex-direction:column;gap:22px;" + framePad(24, 32)
-          : startWide
-          ? "display:grid;grid-template-columns:minmax(0,1fr) " + asideX + " " + asideY + ";gap:28px;align-items:start;" + framePad(26, 40)
-          : "display:flex;gap:28px;" + framePad(26, 40)),
+        /* Start is two things side by side: the day in short, and what is watched. One column below 1020 px. */
+        startBodyStyle: "box-sizing:border-box;" + (isMobile || narrow
+          ? "display:flex;flex-direction:column;gap:22px;" + framePad(isMobile ? 16 : 24, isMobile ? 96 : 32)
+          : "display:grid;grid-template-columns:minmax(340px, 2fr) minmax(0, 3fr);gap:22px 28px;align-items:start;max-width:1480px;" + framePad(26, 40)),
+        startSpanStyle: isMobile || narrow ? "" : "grid-column:1 / -1;",
+        startHeadStyle: "display:flex;align-items:center;gap:9px;min-width:0;min-height:24px",
+        startHeadTitleStyle: "font-size:16px;font-weight:600;letter-spacing:-0.01em;color:var(--text);white-space:nowrap",
+        startHeadNoteStyle: "flex:1;min-width:0;font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
+        myDayCardStyle: "display:flex;flex-direction:column;gap:6px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:" + (isMobile ? "12px 12px 4px" : "14px 14px 6px"),
+        myDayRowStyle: "display:flex;align-items:center;gap:12px;min-width:0;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;min-height:" + (touch ? 60 : 54) + "px;padding:9px 6px",
+        /* On a phone a row is its title and one line, so the watched questions start on the first screen. */
+        myDayNoteStyle: "font-size:12.5px;line-height:1.4;color:var(--muted);" + (isMobile ? "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "text-wrap:pretty"),
+        myDay: HOME.myDay.map(d => {
+          const tone = d.tone === "err" ? ["var(--err-text)", "var(--err-soft)"] : d.tone === "warn" ? ["var(--warn-text)", "var(--warn-soft)"] : d.tone === "accent" ? ["var(--accent-d)", "var(--accent-soft)"] : ["var(--muted)", "var(--sub)"];
+          return { icon: d.icon, title: d.title, note: d.note, when: d.when,
+            open: () => d.go === "thread" ? this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: d.tid, cameFrom: false }) : this.goScreen(d.go),
+            tileStyle: "flex:0 0 34px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:10px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:19px;color:" + tone[0] + ";background:" + tone[1],
+            whenStyle: "flex:0 0 auto;font-size:12px;font-weight:600;white-space:nowrap;border-radius:999px;padding:3px 9px;color:" + tone[0] + ";background:" + tone[1] };
+        }),
+        watchGridStyle: "display:grid;gap:12px;min-width:0;grid-template-columns:" + (isMobile ? "minmax(0,1fr)" : "repeat(auto-fill,minmax(280px,1fr))"),
+        watchAnswerStyle: "flex:1;min-width:0;font-size:13px;line-height:1.45;color:var(--text2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty",
         idleTitleStyle: isMobile
           ? "font-size:24px;font-weight:600;letter-spacing:-0.015em;text-wrap:pretty"
           : "font-size:28px;font-weight:600;letter-spacing:-0.015em",
@@ -7800,9 +7813,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             : c.key === "waiting" ? () => this.goScreen("mail", { mailPane: "list", threadOpen: false, cameFrom: false })
             : () => this.goScreen("mail", { mailPane: "list", cameFrom: false });
           return { n: c.n, label: c.label, icon: c.icon, open, aria: c.n + " " + c.label + " - open",
-            style: "display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--line);border-radius:999px;white-space:nowrap;box-sizing:border-box;" + (touch ? "min-height:36px;padding:0 13px 0 10px;" : "padding:5px 12px 5px 9px;") };
+            style: "display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--text2);background:var(--panel);border:1px solid var(--line);white-space:nowrap;box-sizing:border-box;min-width:0;" + (isMobile ? "flex-direction:column;justify-content:center;gap:1px;border-radius:10px;font-size:11px;min-height:60px;padding:6px 2px;" : "border-radius:999px;" + (touch ? "min-height:44px;padding:0 13px 0 10px;" : "padding:5px 12px 5px 9px;")) };
         }),
-        dayCountsStyle: isMobile ? "display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px" : "display:flex;gap:8px;flex-wrap:wrap",
+        dayCountsStyle: (isMobile ? "display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px" : "display:flex;gap:8px;flex-wrap:wrap") + ";padding-bottom:8px",
         /* From 1680 px Start takes a third column, so a large screen holds the people waiting and what needs the reader
            beside the day instead of below it; under that the two stand in one aside. */
         /* In one column the sections leave their columns and take one order, most actionable first: what could hurt,
@@ -7975,7 +7988,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         watchMovedDotStyle: "width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:var(--accent)",
         watchQuiet: !isMobile && !watchList.some(w => w.state === "changed"),
         watchQuietText: "nothing moved since you last looked",
-        watchHint: isMobile ? "" : "refreshed when new mail matches · each refresh counts against your allowance",
+        watchHint: isMobile ? "" : "refreshed when new mail matches",
         watchHintStyle: "flex:1;min-width:0;text-align:right;font-size:11px;color:var(--faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
         /* A carousel of fixed cards: the same count per page at each width, each card the same size whatever its question,
            and the arrows in the head, so the strip never changes shape as questions come and go. On two panes the cards
@@ -7993,13 +8006,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         watchNextOff: watchAt >= watchPages - 1 ? "true" : undefined,
         watchPrevStyle: stepNav(watchAt > 0),
         watchNextStyle: stepNav(watchAt < watchPages - 1),
-        watchQStyle: "flex:1;min-width:0;font-size:13.5px;font-weight:500;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty",
+        watchQStyle: "flex:1;min-width:0;font-size:14px;font-weight:600;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty",
         watchStopStyle: "display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:8px;color:var(--faint);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;" +
           (touch ? "width:44px;height:44px;margin:-10px -8px 0 0;" : "width:28px;height:28px;margin:-4px -4px 0 0;"),
         watchEmptyStyle: "font-size:13px;line-height:1.45;color:var(--muted);border:1px dashed var(--border2);border-radius:11px;padding:10px 13px;text-wrap:pretty",
         noWatched: !(st.watched || []).length,
-        watchedPage: watchList.slice(watchAt * watchPer, (watchAt + 1) * watchPer).map(w => ({
-          q: w.q, note: w.note,
+        /* Every watched question stands on Start, the ones whose answer moved first. */
+        watchedAll: watchList.filter(w => w.state === "changed").concat(watchList.filter(w => w.state !== "changed")).map(w => ({
+          q: w.q, note: w.note, answer: w.answer,
           open: () => this.openWatched(w),
           stop: (e) => {
             if (e && e.stopPropagation) e.stopPropagation();
@@ -8009,7 +8023,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           stopAria: "Stop watching: " + w.q,
           isChanged: w.state === "changed", isPaused: w.state === "paused", isFailed: w.state === "failed",
           /* A card whose answer moved carries the accent edge, so it is found before it is read. */
-          rowStyle: "min-width:0;height:" + (touch ? 92 : 78) + "px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;box-sizing:border-box;background:var(--bg);border:1px solid " + (w.state === "changed" ? "var(--accent-line)" : "var(--line)") + ";border-radius:12px;padding:" + (touch ? "12px 12px 11px 14px" : "10px 10px 9px 13px") + (w.state === "changed" ? ";box-shadow:inset 3px 0 0 var(--accent)" : ""),
+          rowStyle: "min-width:0;display:flex;flex-direction:column;gap:8px;box-sizing:border-box;background:var(--panel);border:1px solid " + (w.state === "changed" ? "var(--accent-line)" : "var(--line)") + ";border-radius:12px;padding:" + (touch ? "12px 12px 11px 14px" : "10px 10px 9px 13px") + (w.state === "changed" ? ";box-shadow:inset 3px 0 0 var(--accent)" : ""),
           stateStyle: "display:flex;align-items:center;gap:6px;min-width:0;font-size:12px;line-height:1.4;" + (w.state === "changed" ? "color:var(--accent-d);font-weight:600;"
             : w.state === "paused" || w.state === "failed" ? "color:var(--warn-text);" : "color:var(--muted);"),
           dotStyle: "width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:" + (w.state === "changed" ? "var(--accent)" : w.state === "paused" || w.state === "failed" ? "var(--warn)" : "var(--border2)"),

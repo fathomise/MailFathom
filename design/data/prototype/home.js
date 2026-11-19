@@ -137,3 +137,12 @@ MailFathomDesign.data.home.headsUp = [
     why: "Anna Kowalska asked twice; without an answer the 2027 terms renew at Contoso's proposal.",
     check: "The step at the top proposes a 5% cap.", tid: "contoso", rule: "deadline without a reply" },
 ];
+
+// My day: the few things that matter most today, most urgent first, read off the mail, the calendar and the tasks by
+// rules. `tone` colours the tile and the time left; `go` is the space a row opens, and `tid` the thread when it is one.
+MailFathomDesign.data.home.myDay = [
+  { id: "d-contoso", icon: "schedule", tone: "warn", title: "The Contoso decision is due tomorrow", note: "Anna Kowalska asked twice · the counter-proposal has not gone out", when: "tomorrow", go: "thread", tid: "contoso" },
+  { id: "d-bank", icon: "gpp_maybe", tone: "err", title: "An invoice asks to pay a new bank account", note: "Not from fabrikam.com · confirm by phone before anything is paid", when: "before 29.08", go: "thread", tid: "fabrikam1" },
+  { id: "d-rollout", icon: "event", tone: "accent", title: "Rollout status with Piotr", note: "Teams · 2 open questions in the thread", when: "15:00", go: "cal" },
+  { id: "d-fabrikam", icon: "task_alt", tone: "plain", title: "Confirm the Q4 date to Fabrikam", note: "Tomasz Bąk asked yesterday · due today", when: "16:30", go: "tasks" },
+];
