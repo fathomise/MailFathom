@@ -44,10 +44,7 @@ export function ProposedDates({
     const timeZone = useReadingZone();
 
     return (
-        <section
-            aria-label={translate('calendar.proposedHeading')}
-            className="flex shrink-0 flex-col gap-2.75 border-t border-line bg-sunken px-4 py-3.5 desktop:w-calendar-side desktop:border-t-0 desktop:overflow-y-auto desktop:border-s"
-        >
+        <section aria-label={translate('calendar.proposedHeading')} className="flex flex-col gap-2.75">
             <h3 className="flex items-center gap-2.25 text-xs font-semibold text-muted">
                 {translate('calendar.proposedHeading')}
                 <span className="rounded-sm bg-accent px-1.5 py-0.5 text-xs text-on-accent">

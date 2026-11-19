@@ -5,6 +5,7 @@
 import { expect, test } from '@playwright/test';
 
 import { FakeDeployment, type HubSocket } from './fakeDeployment';
+import { corpusEventId } from './fixtures/calendar';
 import * as agent from './fixtures/agent';
 import * as fixtures from './fixtures/deployment';
 import * as discovery from './fixtures/discovery';
@@ -999,7 +1000,7 @@ test('holds a corpus event where an amendment put it, rather than where the next
             events: { id: string; title: string; start: string }[];
         };
 
-    ask(deployment, 'PUT', '/calendar/calendar-1', {
+    ask(deployment, 'PUT', `/calendar/${corpusEventId(0)}`, {
         title: 'Warehouse handover',
         start: '2026-10-07T09:00:00.000Z',
         end: '2026-10-07T10:00:00.000Z',
@@ -1008,10 +1009,10 @@ test('holds a corpus event where an amendment put it, rather than where the next
     });
 
     expect(window('2026-09-28T00:00:00.000Z', '2026-10-05T00:00:00.000Z').events.map(({ id }) => id)).not.toContain(
-        'calendar-1',
+        corpusEventId(0),
     );
     expect(window('2026-10-07T00:00:00.000Z', '2026-10-08T00:00:00.000Z').events).toContainEqual(
-        expect.objectContaining({ id: 'calendar-1', start: '2026-10-07T09:00:00.000Z' }),
+        expect.objectContaining({ id: corpusEventId(0), start: '2026-10-07T09:00:00.000Z' }),
     );
 });
 

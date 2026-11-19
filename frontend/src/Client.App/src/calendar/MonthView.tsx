@@ -4,9 +4,9 @@
 
 import type { CalendarEvent } from '@mailfathom/client-backend';
 import { useLocalization } from '../localization/useLocalization';
-import { daysOf, eventsOn, inTimeOrder, sameDay, type CalendarSpan } from './calendarSpan';
+import { daysOf, entriesOn, entryKey, sameDay, type CalendarSpan, type CalendarTask } from './calendarSpan';
 import { wordDay, wordDayOfMonth, weekdayNames } from './calendarWording';
-import { EventEntry } from './EventEntry';
+import { DayEntryView } from './EventEntry';
 import type { EventActs } from './eventActs';
 
 // The month as a grid of whole weeks, which is the view the design draws for a reader looking for a shape
@@ -23,6 +23,7 @@ export function MonthView({
     span,
     anchor,
     events,
+    tasks,
     today,
     acts,
     onOpenDay,
@@ -33,6 +34,9 @@ export function MonthView({
     readonly anchor: Date;
 
     readonly events: readonly CalendarEvent[];
+
+    /** The tasks the span holds, drawn beside the events. */
+    readonly tasks: readonly CalendarTask[];
     readonly today: Date;
     readonly acts: EventActs;
 
@@ -82,23 +86,8 @@ export function MonthView({
                                 aria-label={translate('calendar.dayEvents', { day: wordDay(day, locale) })}
                                 className="flex min-w-0 flex-col gap-0.75"
                             >
-                                {inTimeOrder(eventsOn(events, day)).map((event) => (
-                                    <EventEntry
-                                        key={event.id}
-                                        event={event}
-                                        shape="cell"
-                                        selected={acts.selected.includes(event.id)}
-                                        picking={acts.selected.length > 0}
-                                        onOpen={() => {
-                                            acts.onOpen(event);
-                                        }}
-                                        onToggle={() => {
-                                            acts.onToggle(event);
-                                        }}
-                                        onPress={(at) => {
-                                            acts.onPress(event, at);
-                                        }}
-                                    />
+                                {entriesOn(events, tasks, day).map((entry) => (
+                                    <DayEntryView key={entryKey(entry)} entry={entry} shape="cell" acts={acts} />
                                 ))}
                             </ul>
                         </div>

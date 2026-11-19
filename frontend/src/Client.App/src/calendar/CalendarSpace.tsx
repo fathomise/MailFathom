@@ -2,13 +2,18 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import {
     acceptCalendarEvent,
+    acceptTask,
     amendCalendarEvent,
     deleteCalendarEvent,
+    eraseTask,
+    readCalendarEvent,
+    readMailThread,
     readsCalendarDescriptions,
     recordCalendarEvent,
+    recordTask,
     wentUnanswered,
     type CalendarEvent,
     type CalendarEventAmendment,
@@ -17,7 +22,10 @@ import {
     type ClientFailure,
     type ClientFailureReason,
     type ClientSession,
+    type ClientResult,
     type MailFathomTransport,
+    type PersonalTask,
+    type TaskAnchor,
 } from '@mailfathom/client-backend';
 import { Confirmation } from '../confirmation/Confirmation';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
@@ -26,8 +34,14 @@ import { Control } from '../controls/Control';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import { useTabSwipe } from '../controls/useTabSwipe';
 import type { MessageKey } from '../localization/en';
+import { calendarDayIn } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
+import { useReadingZone } from '../localization/useReadingZone';
 import { useTwoPanes, useWideWorkspace } from '../shell/useWideWorkspace';
+import { NewTask, type TaskContext, type TaskDraft } from '../tasks/NewTask';
+import { TaskSurfaces, type TaskAsked } from '../tasks/TaskSurfaces';
+import { clashOf } from '../tasks/taskViews';
+import { useTasksWhere } from '../tasks/useTasksWhere';
 import { AgendaView } from './AgendaView';
 import { CalendarNavigation } from './CalendarNavigation';
 import { calendarViews, movedBy, spanOf, startOfDay, type CalendarView } from './calendarSpan';
@@ -39,6 +53,7 @@ import type { EventActs } from './eventActs';
 import { MonthView } from './MonthView';
 import { NewEvent } from './NewEvent';
 import { ProposedDates } from './ProposedDates';
+import { ProposedTasks } from './ProposedTasks';
 import { useCalendarWindow } from './useCalendarWindow';
 import { WeekView } from './WeekView';
 import { Departing } from '../shell/Departing';
@@ -46,11 +61,17 @@ import { Departing } from '../shell/Departing';
 // The Calendar space as the design composes it: a toolbar, the span somebody is looking at, one of four views
 // over it, and the dates their mail proposed down the side.
 //
-// **This screen draws; it does not derive.** Every fact on it comes from the deployment, which is why three regions the
-// design draws are absent rather than invented: the briefing bar over the views and its *Plan my day* control, the
-// suggested blocks of time above the proposals, and the reminders on an event. `/api/client` answers none of the
-// three, and a control with no destination is left out rather than drawn inert — each arrives with the change that
-// gives it a route.
+// **This screen draws; it does not derive.** Every fact on it comes from the deployment, which is why two regions the
+// design draws are absent rather than invented: the briefing bar over the views and the suggested blocks of time above
+// the proposals. `/api/client` answers neither, and a control with no destination is left out rather than drawn inert
+// — each arrives with the change that gives it a route. *Plan my day*, which the design hangs under the briefing,
+// stands over the proposed tasks instead, since what it opens — Tasks › *Today* with the day being laid out — exists.
+//
+// **Tasks stand beside the events where this credential keeps tasks**: planned work at its time and a task due that day
+// at the top of it, in every view, each opening the task dialog rather than the event dialog and holding a menu of its
+// own; the tasks proposed to the reader beside the dates their mail proposed; and an event's own tasks in its dialog,
+// with *Add a task* writing one down that belongs to it. Every task surface opened here is `tasks/TaskSurfaces.tsx`,
+// and every task write is answered by reading the span and the event's tasks again.
 //
 // **Four of the five toolbar acts are absent for the same reason.** The design draws *Today*, *Find a slot*,
 // *Invitation*, *Export* and *Print*; *Today* is this screen's own navigation and stands where the reader moves
@@ -104,6 +125,21 @@ interface OpenedEvent {
 interface WriteSaid {
     readonly where: 'calendar' | 'event';
     readonly said: MessageKey;
+    readonly names?: Readonly<Record<string, string>>;
+}
+
+// What a task write that failed is said as, for the reason `failedSaid` gives about an event.
+function taskFailedSaid(answer: ClientResult<unknown>): MessageKey | null {
+    if (answer.outcome !== 'failed') {
+        return null;
+    }
+
+    return wentUnanswered(answer.failure) ? 'tasks.writeUnknown' : 'tasks.writeFailed';
+}
+
+/** An event another screen asked the calendar to open, by its identity; each ask is a new value. */
+export interface EventAsked {
+    readonly eventId: string;
 }
 
 export function CalendarSpace({
@@ -111,6 +147,9 @@ export function CalendarSpace({
     transport,
     now = () => new Date(),
     onOpenMessage,
+    readsTasks = false,
+    onPlanDay,
+    eventAsked = null,
 }: {
     /** Who is asking and where, or `null` where there is nothing to ask with. */
     readonly session: ClientSession | null;
@@ -125,8 +164,18 @@ export function CalendarSpace({
      * where this credential reads no mail.
      */
     readonly onOpenMessage: ((messageId: string) => void) | undefined;
+
+    /** Whether this credential keeps tasks, which are drawn beside the events only where it does. */
+    readonly readsTasks?: boolean;
+
+    /** Opens Tasks on *Today* with the day being laid out, or `undefined` where this credential cannot lay one out. */
+    readonly onPlanDay?: (() => void) | undefined;
+
+    /** An event another screen asked to be opened, or `null` where none is. */
+    readonly eventAsked?: EventAsked | null;
 }) {
     const { translate } = useLocalization();
+    const timeZone = useReadingZone();
     const twoPanes = useTwoPanes();
     const wide = useWideWorkspace();
 
@@ -146,13 +195,39 @@ export function CalendarSpace({
     const [menu, setMenu] = useState<{ readonly event: CalendarEvent; readonly at: MenuPoint } | null>(null);
     const [said, setSaid] = useState<WriteSaid | null>(null);
     const [readsDescriptions, setReadsDescriptions] = useState(false);
+    const [taskAsked, setTaskAsked] = useState<TaskAsked | null>(null);
+    const [taskContext, setTaskContext] = useState<TaskContext | undefined>(undefined);
 
     const asked = useRef<HTMLDialogElement | null>(null);
     const asking = useRef<HTMLDialogElement | null>(null);
     const opening = useRef<HTMLDialogElement | null>(null);
+    const askingTask = useRef<HTMLDialogElement | null>(null);
+
+    // Which event or thread read is the latest one asked for: an earlier one, or one answering after the screen went,
+    // opens nothing.
+    const sought = useRef(0);
+
+    useEffect(
+        () => () => {
+            sought.current += 1;
+        },
+        [],
+    );
 
     const span = spanOf(view, anchor);
-    const reading = useCalendarWindow(session, transport, span);
+    const reading = useCalendarWindow(session, transport, span, readsTasks);
+
+    // The tasks that belong to the event open, read only while one is.
+    const eventTasks = useTasksWhere(readsTasks && opened !== null ? session : null, transport, {
+        eventId: opened?.event.id ?? '',
+    });
+
+    // The task asked for, read back out of whatever the screen read last, so a dialog draws the task as it now stands.
+    const tasksHeld = [...reading.tasks.map(({ task }) => task), ...eventTasks.tasks];
+    const askedTask: TaskAsked | null =
+        taskAsked === null
+            ? null
+            : { ...taskAsked, task: tasksHeld.find((task) => task.id === taskAsked.task.id) ?? taskAsked.task };
 
     // Whether the deployment turns a typed description into an event, which decides whether the new-event dialog draws
     // the field at all. A request going out, and therefore the one thing an effect is for.
@@ -181,6 +256,7 @@ export function CalendarSpace({
     // The proposals still worth answering, which is what the deployment named less whatever this reader has just
     // answered. The list is emptied by the read that follows each write.
     const standing = reading.proposals.filter((proposal) => !answered.includes(proposal.id));
+    const tasksProposed = reading.proposedTasks.filter((proposal) => !answered.includes(proposal.id));
 
     // The dialog is the platform's own, so opening it is an imperative call on an element that has to exist first —
     // which is the other thing an effect is for. It runs when the opened event changes rather than on every commit.
@@ -192,6 +268,123 @@ export function CalendarSpace({
             opening.current.showModal();
         }
     }, [opened]);
+
+    // Opens one event by its identity: the one the span holds, or the one the deployment reads back, on its own day.
+    function openEvent(eventId: string): void {
+        const held = reading.events.find((event) => event.id === eventId);
+
+        if (held === undefined) {
+            readEvent(eventId);
+
+            return;
+        }
+
+        setSaid(null);
+        setOpened({ event: held, reminders: false });
+    }
+
+    // Reads one event and opens it on its own day, which is how an event outside the span is reached.
+    function readEvent(eventId: string): void {
+        if (session === null) {
+            return;
+        }
+
+        sought.current += 1;
+
+        const seeking = sought.current;
+
+        void readCalendarEvent(session, transport, eventId).then((answer) => {
+            if (seeking !== sought.current) {
+                return;
+            }
+
+            if (answer.outcome === 'failed') {
+                setSaid({
+                    where: 'calendar',
+                    said:
+                        answer.failure.reason === 'missing'
+                            ? 'calendar.eventGone'
+                            : spanFailures[answer.failure.reason],
+                });
+
+                return;
+            }
+
+            setAnchor(startOfDay(new Date(answer.value.start)));
+            setSelected([]);
+            setSaid(null);
+            setOpened({ event: answer.value, reminders: false });
+        });
+    }
+
+    // An event another screen asked for is read and opened once per ask, which is a request going out when the ask
+    // arrives — read even where the span holds it, so the answer is the event as it now stands.
+    const eventArrived = useEffectEvent(readEvent);
+
+    useEffect(() => {
+        if (eventAsked !== null) {
+            eventArrived(eventAsked.eventId);
+        }
+    }, [eventAsked]);
+
+    // What a task belongs to, opened from a task's dialog: an event here, a thread's first message in the Mail space.
+    function openAnchor(anchor: TaskAnchor): void {
+        if (anchor.kind === 'Event') {
+            openEvent(anchor.id);
+
+            return;
+        }
+
+        if (session === null || onOpenMessage === undefined) {
+            return;
+        }
+
+        sought.current += 1;
+
+        const seeking = sought.current;
+
+        void readMailThread(session, transport, anchor.id, null).then((answer) => {
+            const first = answer.outcome === 'read' ? answer.value.messages[0] : undefined;
+
+            if (seeking !== sought.current) {
+                return;
+            }
+
+            if (first === undefined) {
+                setSaid({ where: 'calendar', said: 'tasks.threadUnopened' });
+            } else {
+                onOpenMessage(first.email.id);
+            }
+        });
+    }
+
+    // Every task write is answered by reading what the screen holds of tasks again, and said where the reader is.
+    function afterTaskWrite(said: MessageKey, names?: Readonly<Record<string, string>>): void {
+        setSaid({ where: opened === null ? 'calendar' : 'event', said, ...(names === undefined ? {} : { names }) });
+        reading.readAgain();
+        eventTasks.readAgain();
+    }
+
+    function recordEventTask(draft: TaskDraft): void {
+        if (session === null) {
+            return;
+        }
+
+        void recordTask(session, transport, {
+            title: draft.title,
+            dueOn: draft.dueOn === '' ? null : draft.dueOn,
+            reminders: [],
+            dueDayOffsetMinutes: null,
+            sourceMessageId: null,
+            direction: draft.direction,
+            estimatedMinutes: draft.estimatedMinutes,
+            plan: null,
+            anchor: draft.anchor,
+            counterpart: draft.counterpart,
+        }).then((answer) => {
+            afterTaskWrite(taskFailedSaid(answer) ?? 'tasks.written');
+        });
+    }
 
     function readAfter(write: Promise<{ readonly said: MessageKey; readonly where: WriteSaid['where'] }>): void {
         void write.then((answer) => {
@@ -238,14 +431,14 @@ export function CalendarSpace({
     // the whole of what this correction is: a card still offering *Add* after somebody pressed it is a card they press
     // twice, and a card gone after a refusal is a date they were told nothing about and can no longer answer.
     function answerProposal(
-        proposal: CalendarEvent,
+        proposal: { readonly id: string },
         write: Promise<{ readonly failed: boolean; readonly said: MessageKey }>,
     ): void {
         setAnswered((held) => [...held, proposal.id]);
 
         void write.then((answer) => {
             if (answer.failed) {
-                setAnswered((held) => held.filter((event) => event !== proposal.id));
+                setAnswered((held) => held.filter((answeredId) => answeredId !== proposal.id));
             }
 
             setSaid({ where: 'calendar', said: answer.said });
@@ -278,6 +471,24 @@ export function CalendarSpace({
                 failed: answer.outcome === 'failed',
                 said: answer.outcome === 'failed' ? failedSaid(answer.failure) : 'calendar.proposalDismissed',
             })),
+        );
+    }
+
+    // A proposed task answered from the column leaves it at once, as a proposed date does, and an accepted one is then
+    // drawn on its day by the read that follows.
+    function answerTask(proposal: PersonalTask, accepting: boolean): void {
+        if (session === null) {
+            return;
+        }
+
+        answerProposal(
+            proposal,
+            (accepting ? acceptTask(session, transport, proposal.id) : eraseTask(session, transport, proposal.id)).then(
+                (answer: ClientResult<unknown>) => ({
+                    failed: answer.outcome === 'failed',
+                    said: taskFailedSaid(answer) ?? (accepting ? 'tasks.accepted' : 'tasks.dismissed'),
+                }),
+            ),
         );
     }
 
@@ -343,6 +554,14 @@ export function CalendarSpace({
         onPress: (event, at) => {
             setMenu({ event, at });
         },
+        onOpenTask: (task) => {
+            setSaid(null);
+            setTaskAsked({ kind: 'open', task });
+        },
+        onPressTask: (task, at) => {
+            setTaskAsked({ kind: 'menu', task, at });
+        },
+        clashes: (task) => clashOf(task, reading.events) !== null,
     };
 
     // Which view is actually drawn, as against which one the reader chose. Seven columns and a month grid each need a
@@ -367,15 +586,15 @@ export function CalendarSpace({
     // stops being able to see the structure of the screen.
     function drawnView() {
         if (view === 'day') {
-            return <DayView span={span} events={reading.events} acts={acts} />;
+            return <DayView span={span} events={reading.events} tasks={reading.tasks} acts={acts} />;
         }
 
         if (view === 'agenda' || drawnAsAgenda) {
-            return <AgendaView span={span} events={reading.events} today={today} acts={acts} />;
+            return <AgendaView span={span} events={reading.events} tasks={reading.tasks} today={today} acts={acts} />;
         }
 
         if (view === 'week') {
-            return <WeekView span={span} events={reading.events} today={today} acts={acts} />;
+            return <WeekView span={span} events={reading.events} tasks={reading.tasks} today={today} acts={acts} />;
         }
 
         return (
@@ -383,6 +602,7 @@ export function CalendarSpace({
                 span={span}
                 anchor={anchor}
                 events={reading.events}
+                tasks={reading.tasks}
                 today={today}
                 acts={acts}
                 onOpenDay={openDay}
@@ -439,7 +659,7 @@ export function CalendarSpace({
 
             {said?.where === 'calendar' ? (
                 <p role="status" className="shrink-0 border-b border-line bg-sunken px-4 py-2 text-sm text-muted">
-                    {translate(said.said)}
+                    {translate(said.said, said.names)}
                 </p>
             ) : null}
 
@@ -471,7 +691,24 @@ export function CalendarSpace({
             >
                 {drawnView()}
 
-                <ProposedDates proposals={standing} onAccept={accept} onDismiss={dismiss} />
+                {/* The column beside the views: the dates the mail proposed and, where tasks are kept, the tasks proposed
+                    to the reader under them. */}
+                <div className="flex shrink-0 flex-col gap-4.5 border-t border-line bg-sunken px-4 py-3.5 desktop:w-calendar-side desktop:overflow-y-auto desktop:border-s desktop:border-t-0">
+                    <ProposedDates proposals={standing} onAccept={accept} onDismiss={dismiss} />
+
+                    {readsTasks ? (
+                        <ProposedTasks
+                            proposals={tasksProposed}
+                            onAccept={(task) => {
+                                answerTask(task, true);
+                            }}
+                            onDismiss={(task) => {
+                                answerTask(task, false);
+                            }}
+                            onPlanDay={onPlanDay}
+                        />
+                    ) : null}
+                </div>
             </div>
 
             {/* The narrow composition's own way to write an event down, which is where a thumb reaches rather than at
@@ -513,6 +750,29 @@ export function CalendarSpace({
                         event={opened.event}
                         asked={opening}
                         said={said?.where === 'event' ? said.said : null}
+                        saidNames={said?.where === 'event' ? said.names : undefined}
+                        tasks={readsTasks ? eventTasks : null}
+                        onOpenTask={(taskId) => {
+                            const task = eventTasks.tasks.find((held) => held.id === taskId);
+
+                            if (task !== undefined) {
+                                setTaskAsked({ kind: 'open', task });
+                            }
+                        }}
+                        onAddTask={() => {
+                            const { event } = opened;
+                            const day = new Date(event.start);
+
+                            setSaid(null);
+                            setTaskContext({
+                                anchor: { kind: 'Event', id: event.id, label: event.title },
+                                title: translate('calendar.prepareFor', { title: event.title }),
+                                ...(Number.isNaN(day.getTime())
+                                    ? {}
+                                    : { dueOn: calendarDayIn(day.getTime(), timeZone) }),
+                            });
+                            askingTask.current?.showModal();
+                        }}
                         remindersAsked={opened.reminders}
                         onAmend={(amendment) => {
                             amend(opened.event, amendment);
@@ -527,6 +787,23 @@ export function CalendarSpace({
                     />
                 )}
             </Departing>
+
+            {readsTasks ? (
+                <>
+                    <NewTask asked={askingTask} context={taskContext} onSave={recordEventTask} />
+
+                    <TaskSurfaces
+                        session={session}
+                        transport={transport}
+                        asked={askedTask}
+                        events={reading.events}
+                        tasks={reading.tasks.filter(({ kind }) => kind === 'planned').map(({ task }) => task)}
+                        onAsk={setTaskAsked}
+                        onWritten={afterTaskWrite}
+                        onOpenAnchor={openAnchor}
+                    />
+                </>
+            ) : null}
 
             <Departing value={menu}>
                 {(menu) => (

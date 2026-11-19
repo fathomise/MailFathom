@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { CalendarEvent } from '@mailfathom/client-backend';
+import type { CalendarEvent, PersonalTask } from '@mailfathom/client-backend';
 
 // The arithmetic every view over the calendar is: which days a view covers, which day an event falls on, and where the
 // next span begins. It sits beside the screen rather than inside it because four components read the same answers and
@@ -26,6 +26,17 @@ export interface CalendarSpan {
     readonly from: Date;
     readonly until: Date;
 }
+
+/** One task as the calendar draws it: at its planned time, or as a mark on the day it is due. */
+export interface CalendarTask {
+    readonly task: PersonalTask;
+    readonly kind: 'planned' | 'due';
+}
+
+/** One thing a day draws: an event, or a task at its plan or on its due day. */
+export type DayEntry =
+    | { readonly event: CalendarEvent; readonly task?: undefined }
+    | { readonly task: CalendarTask; readonly event?: undefined };
 
 /** How long a day is, where nothing crosses a daylight-saving boundary — which is every use of it below. */
 const aDay = 86_400_000;
@@ -212,4 +223,71 @@ export function inTimeOrder(events: readonly CalendarEvent[]): readonly Calendar
 
         return difference === 0 ? one.title.localeCompare(other.title) : difference;
     });
+}
+
+/** That day as a calendar day is spelled, `yyyy-mm-dd`, in the reader's own zone. */
+function calendarDayOf(day: Date): string {
+    return `${String(day.getFullYear())}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+}
+
+// Where a planned task begins, or not a number where its plan names no instant this client can read.
+function plannedAt(task: CalendarTask): number {
+    return task.kind === 'planned' && task.task.plan !== null ? Date.parse(task.task.plan.startAt) : Number.NaN;
+}
+
+/**
+ * What one day draws, in the order a reader meets it: the tasks due that day first, standing at the top of the day,
+ * then the events and the tasks planned into it, earliest first and by title where two begin together.
+ */
+export function entriesOn(
+    events: readonly CalendarEvent[],
+    tasks: readonly CalendarTask[],
+    day: Date,
+): readonly DayEntry[] {
+    const opens = startOfDay(day).getTime();
+    const closes = addDays(startOfDay(day), 1).getTime();
+    const spelled = calendarDayOf(day);
+
+    const due = tasks
+        .filter((task) => task.kind === 'due' && task.task.dueOn === spelled)
+        .sort((one, other) => one.task.title.localeCompare(other.task.title))
+        .map((task): DayEntry => ({ task }));
+
+    const timed: { readonly entry: DayEntry; readonly at: number; readonly title: string }[] = [
+        ...eventsOn(events, day).map((event) => ({
+            entry: { event },
+            at: Date.parse(event.start),
+            title: event.title,
+        })),
+        ...tasks
+            .filter((task) => plannedAt(task) >= opens && plannedAt(task) < closes)
+            .map((task) => ({ entry: { task }, at: plannedAt(task), title: task.task.title })),
+    ];
+
+    timed.sort((one, other) => (one.at === other.at ? one.title.localeCompare(other.title) : one.at - other.at));
+
+    return [...due, ...timed.map(({ entry }) => entry)];
+}
+
+/** The entries of a day drawn in one of its hours: the events {@link eventsInHour} names, and the tasks planned into it. */
+export function entriesInHour(entries: readonly DayEntry[], hour: Date): readonly DayEntry[] {
+    const opens = hour.getTime();
+    const closes = new Date(hour.getFullYear(), hour.getMonth(), hour.getDate(), hour.getHours() + 1).getTime();
+    const events = new Set(
+        eventsInHour(
+            entries.flatMap((entry) => (entry.event === undefined ? [] : [entry.event])),
+            hour,
+        ),
+    );
+
+    return entries.filter((entry) =>
+        entry.event === undefined
+            ? plannedAt(entry.task) >= opens && plannedAt(entry.task) < closes
+            : events.has(entry.event),
+    );
+}
+
+/** What tells one entry of a day from the others, a task drawn twice in one span being two entries. */
+export function entryKey(entry: DayEntry): string {
+    return entry.event === undefined ? `${entry.task.kind}:${entry.task.task.id}` : `event:${entry.event.id}`;
 }

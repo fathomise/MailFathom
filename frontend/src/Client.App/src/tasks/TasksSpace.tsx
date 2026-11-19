@@ -44,7 +44,7 @@ import { TaskSelectionBar } from './TaskSelectionBar';
 import { TasksHead } from './TasksHead';
 import { reachedTheRowsRead } from './rowsRead';
 import { clashOf, openIn, openOwedToday, plannedDay, taskViews, tasksIn, type TaskView } from './taskViews';
-import { daysOffered, wordTaskDay } from './taskWording';
+import { daysSpanned, wordTaskDay } from './taskWording';
 import { useTasks } from './useTasks';
 import { useTodayCalendar } from './useTodayCalendar';
 import { usePlanWriter, withPlansPressed, type PlanPress } from './usePlanWriter';
@@ -74,8 +74,10 @@ import { usePlanWriter, withPlansPressed, type PlanPress } from './usePlanWriter
 // **A task is planned into the day rather than written into the calendar.** Its plan is part of the task, so planning
 // one — from its row's *Plan*, by dragging its row onto an hour of the day beside the list, or from the laid-out day's
 // *Plan these* — revises the task with the whole record restated and its plan beside it, and the calendar draws it from
-// there. `usePlanWriter` is the one writer of a plan: one write is out per task at a time, the latest plan pressed for
-// it wins, and what was pressed is drawn at once and restated by every other write until the list is read back. *Lay
+// there. `usePlanWriter` writes every plan pressed on this screen: one write is out per task at a time, the latest plan
+// pressed for it wins, and what was pressed is drawn at once and restated by every other write until the list is read
+// back. The task dialog is the other writer of a plan — its *Plan* or *Move* is queued behind its own chip writes, the
+// whole record restated — so a plan reaches the deployment through one of those two and never through a third. *Lay
 // out today* is an offer the deployment composes, and nothing is planned until somebody accepts it. Nothing on this
 // screen writes a calendar event of its own.
 
@@ -126,14 +128,6 @@ const failureLabels: Readonly<Record<ClientFailureReason, MessageKey>> = {
     unreadable: 'failure.unreadable',
     missing: 'failure.missing',
 };
-
-// How many days ahead the calendar is read while a plan is being chosen: every day the plan dialog offers, so a clash
-// is drawn on whichever of them is picked.
-function daysSpanned(today: string): number {
-    const last = daysOffered(today).at(-1) ?? today;
-
-    return Math.round((Date.parse(last) - Date.parse(today)) / 86_400_000) + 1;
-}
 
 // What one write became. A deployment that refused names the reason it gave; a write the screen found nothing to
 // perform names none, which is a different thing from a refusal and must not be worded as one.
@@ -227,8 +221,19 @@ export function TasksSpace({
     });
 
     // Each press of *Lay out the day* draws the offer afresh, already laying the day out; the screen opened to lay it
-    // out has been pressed once.
+    // out has been pressed once, and so has a screen already standing that another one asks to lay the day out — every
+    // space stays mounted while it is aside, so the ask arrives as the prop turning on rather than as a first render.
     const [layoutsAsked, setLayoutsAsked] = useState(openLayoutOffer ? 1 : 0);
+    const [layoutOfferSeen, setLayoutOfferSeen] = useState(openLayoutOffer);
+
+    if (openLayoutOffer !== layoutOfferSeen) {
+        setLayoutOfferSeen(openLayoutOffer);
+
+        if (openLayoutOffer) {
+            setView('today');
+            setLayoutsAsked((times) => times + 1);
+        }
+    }
 
     const [announcing, setAnnouncing] = useState<PersonalTask | null>(null);
 

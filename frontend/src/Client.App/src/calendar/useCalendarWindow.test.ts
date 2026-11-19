@@ -51,6 +51,25 @@ function told(): { readonly say: SignalListener; readonly changes: SignalledChan
     };
 }
 
+function taskCalled(id: string, dueOn: string | null, startAt: string | null): unknown {
+    return {
+        id,
+        title: id,
+        dueOn,
+        reminders: [],
+        remindsAt: [],
+        origin: 'Asserted',
+        completed: false,
+        sourceMessageId: null,
+        direction: 'Owed',
+        estimatedMinutes: 30,
+        plan: startAt === null ? null : { startAt, minutes: 30 },
+        anchor: null,
+        counterpart: null,
+        answer: null,
+    };
+}
+
 const thisWeek: CalendarSpan = { from: new Date(2026, 8, 21), until: new Date(2026, 8, 28) };
 const nextWeek: CalendarSpan = { from: new Date(2026, 8, 28), until: new Date(2026, 9, 5) };
 
@@ -123,5 +142,52 @@ describe('useCalendarWindow', () => {
             expect(result.current.events.map((event) => event.id)).toStrictEqual(['review-3']);
         });
         expect(asked).toBe(3);
+    });
+
+    // Review Focus 3: the plan and the due day are two facts, and neither is moved to meet the other. A task due inside
+    // the window and planned outside it is a due marker here, and one planned inside it and due later is planned work.
+    it('a task planned on Friday and due on Thursday yields a planned entry on Friday and a due marker on Thursday', async () => {
+        const tasks = [
+            taskCalled('friday', '2026-09-24', '2026-09-25T09:00:00+02:00'),
+            taskCalled('due-here', '2026-09-23', '2026-10-01T09:00:00+02:00'),
+            taskCalled('planned-here', '2026-10-02', '2026-09-22T09:00:00+02:00'),
+            taskCalled('same-day', '2026-09-22', '2026-09-22T13:00:00+02:00'),
+        ];
+        const asked: string[] = [];
+        const transport: MailFathomTransport = (request) => {
+            asked.push(request.path);
+
+            return Promise.resolve({
+                status: 200,
+                headers: {},
+                body: JSON.stringify(
+                    request.path.includes('/tasks/proposed')
+                        ? { tasks: [], nextCursor: null }
+                        : request.path.includes('/tasks')
+                          ? { tasks, nextCursor: null }
+                          : { events: [] },
+                ),
+            });
+        };
+
+        const { result } = renderHook(() => useCalendarWindow(session, transport, thisWeek, true));
+
+        await waitFor(() => {
+            expect(result.current.tasks).not.toHaveLength(0);
+        });
+
+        expect(result.current.tasks.map(({ task, kind }) => `${task.id} ${kind}`)).toStrictEqual([
+            'friday due',
+            'friday planned',
+            'due-here due',
+            'due-here planned',
+            'planned-here due',
+            'planned-here planned',
+            'same-day planned',
+        ]);
+
+        const window = asked.find((path) => path.includes('/tasks?'));
+        expect(window).toContain(`from=${encodeURIComponent(thisWeek.from.toISOString())}`);
+        expect(window).toContain(`until=${encodeURIComponent(thisWeek.until.toISOString())}`);
     });
 });

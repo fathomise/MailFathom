@@ -10,7 +10,9 @@ import { Icon } from '../controls/Icon';
 import { wordInstantRange } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
-import { eventShapes, timeShown, type EventShape } from './eventShapes';
+import type { CalendarTask, DayEntry } from './calendarSpan';
+import type { EventActs } from './eventActs';
+import { eventShapes, taskMarks, taskTones, timeShown, type EventShape, type TaskTone } from './eventShapes';
 
 // One event wherever a view draws one, which is its own component for the reason a message row is: it is what carries
 // the press, the keyboard path, and a test. Four views draw it and none of them draws a second one, which is what keeps
@@ -24,6 +26,11 @@ import { eventShapes, timeShown, type EventShape } from './eventShapes';
 // there is no one order for an arrow key to walk and a roving stop would leave six of the seven columns unreachable.
 // What a view holds is bounded by the span it draws rather than by the mailbox, so tabbing through it is a walk of a
 // dozen entries rather than of a hundred thousand.
+//
+// **A task stands among the events in the same shape**, told apart by its border and its first line — *Task · 11:00–11:45*
+// where it is planned, *Due · task* where it is due that day and planned nowhere — and pressed, it opens the task
+// dialog rather than the event dialog. It is never picked out with the events: the selection is the calendar's, and
+// what it acts on is events. A task done stays where it was planned, faded.
 
 export function EventEntry({
     event,
@@ -118,6 +125,141 @@ export function EventEntry({
                 <span className="flex items-center gap-1 text-xs text-accent-deep">
                     <Icon name="open_in_new" className="size-icon-xs" />
                     {translate('calendar.fromMail')}
+                </span>
+            )}
+        </li>
+    );
+}
+
+/** One thing a view draws for a day, an event or a task, with what the screen does with either. */
+export function DayEntryView({
+    entry,
+    shape,
+    acts,
+}: {
+    readonly entry: DayEntry;
+    readonly shape: EventShape;
+    readonly acts: EventActs;
+}) {
+    if (entry.event === undefined) {
+        const { task } = entry.task;
+
+        return (
+            <TaskEntry
+                entry={entry.task}
+                shape={shape}
+                clashes={acts.clashes(task)}
+                onOpen={() => {
+                    acts.onOpenTask(task);
+                }}
+                onPress={(at) => {
+                    acts.onPressTask(task, at);
+                }}
+            />
+        );
+    }
+
+    const { event } = entry;
+
+    return (
+        <EventEntry
+            event={event}
+            shape={shape}
+            selected={acts.selected.includes(event.id)}
+            picking={acts.selected.length > 0}
+            onOpen={() => {
+                acts.onOpen(event);
+            }}
+            onToggle={() => {
+                acts.onToggle(event);
+            }}
+            onPress={(at) => {
+                acts.onPress(event, at);
+            }}
+        />
+    );
+}
+
+export function TaskEntry({
+    entry,
+    shape,
+    clashes,
+    onOpen,
+    onPress,
+}: {
+    readonly entry: CalendarTask;
+    readonly shape: EventShape;
+
+    /** Whether it is planned over a meeting. */
+    readonly clashes: boolean;
+
+    readonly onOpen: () => void;
+
+    /** Opens this task's own menu at the point the gesture happened. */
+    readonly onPress: (at: MenuPoint) => void;
+}) {
+    const { locale, translate } = useLocalization();
+    const timeZone = useReadingZone();
+    const press = useRowPress(onPress);
+    const { task, kind } = entry;
+    const tone: TaskTone = kind === 'due' ? 'due' : clashes ? 'clash' : 'planned';
+    const agenda = shape === 'agenda';
+
+    const planned =
+        task.plan === null
+            ? null
+            : wordInstantRange(
+                  task.plan.startAt,
+                  new Date(Date.parse(task.plan.startAt) + task.plan.minutes * 60_000).toISOString(),
+                  locale,
+                  'time',
+                  timeZone,
+              );
+    const when = kind === 'due' ? translate('calendar.taskDue') : translate('calendar.taskAt', { time: planned ?? '' });
+    const thread = task.anchor?.kind === 'Thread' ? task.anchor.label : null;
+
+    return (
+        <li
+            role="option"
+            tabIndex={0}
+            className={`${eventShapes[shape].shape} ${agenda ? 'border-transparent hover:bg-hover' : taskTones[tone]} ${
+                task.completed ? 'opacity-55' : ''
+            }`}
+            onContextMenu={press.onContextMenu}
+            onPointerDown={press.onPointerDown}
+            onPointerMove={press.onPointerMove}
+            onPointerUp={press.onPointerUp}
+            onPointerCancel={press.onPointerCancel}
+            onClick={() => {
+                if (!press.tapSuppressed()) {
+                    onOpen();
+                }
+            }}
+            onKeyDown={(typing: KeyboardEvent) => {
+                if (typing.key === 'Enter' || typing.key === ' ') {
+                    typing.preventDefault();
+                    onOpen();
+                }
+            }}
+        >
+            {/* A cell has room for the line alone, so what kind of task it is is said to whoever is listening. */}
+            {timeShown(shape) ? (
+                <span className="flex items-center gap-1.75 text-xs text-muted">
+                    {agenda ? (
+                        <span aria-hidden="true" className={`size-2 shrink-0 rounded-xs ${taskMarks[tone]}`} />
+                    ) : null}
+                    {when}
+                </span>
+            ) : (
+                <span className="sr-only">{when}</span>
+            )}
+
+            <span className={`truncate ${shape === 'cell' ? 'text-xs' : 'text-sm'} text-pretty`}>{task.title}</span>
+
+            {thread === null || (shape !== 'column' && shape !== 'hour') ? null : (
+                <span className="flex min-w-0 items-center gap-1 text-xs text-accent-deep">
+                    <Icon name="open_in_new" className="size-icon-xs shrink-0" />
+                    <span className="truncate">{thread}</span>
                 </span>
             )}
         </li>

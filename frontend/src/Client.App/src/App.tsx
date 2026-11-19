@@ -22,7 +22,7 @@ import {
 } from '@mailfathom/client-backend';
 import { BlockingOverlay } from './blocking/BlockingOverlay';
 import { BlockingContext, type BlockingOperation } from './blocking/useBlocking';
-import { CalendarSpace } from './calendar/CalendarSpace';
+import { CalendarSpace, type EventAsked } from './calendar/CalendarSpace';
 import { Composer } from './composer/Composer';
 import {
     ContactPhotoContext,
@@ -496,6 +496,22 @@ export function App({
         setHandedToAgent(handOver);
         window.location.hash = addressOf('agent');
     }, []);
+
+    // What the calendar and Tasks ask of each other: the calendar's *Plan my day* opens Tasks with the day being laid
+    // out, which stands until somebody leaves Tasks again, and an event a task belongs to is opened in the calendar —
+    // every ask a value of its own, so the same event asked for twice is opened twice.
+    const [layoutOffered, setLayoutOffered] = useState(false);
+    const [eventAsked, setEventAsked] = useState<EventAsked | null>(null);
+    const [spaceSeen, setSpaceSeen] = useState(space);
+
+    if (space !== spaceSeen) {
+        setSpaceSeen(space);
+
+        if (space !== 'tasks') {
+            setLayoutOffered(false);
+        }
+    }
+
     const draftsReplies = useDraftsReplies(session, deploymentSession, readMail);
 
     // How a message's raw source is read by the control on its head and in the toolbar, several components below.
@@ -1784,6 +1800,32 @@ export function App({
                                                                                                                         readsCalendar={
                                                                                                                             readsCalendar
                                                                                                                         }
+                                                                                                                        openLayoutOffer={
+                                                                                                                            layoutOffered
+                                                                                                                        }
+                                                                                                                        onOpenEvent={
+                                                                                                                            !offeredSpaces.includes(
+                                                                                                                                'calendar',
+                                                                                                                            )
+                                                                                                                                ? undefined
+                                                                                                                                : (
+                                                                                                                                      eventId,
+                                                                                                                                  ) => {
+                                                                                                                                      // What a task belongs to is
+                                                                                                                                      // opened where it lives, so
+                                                                                                                                      // an event is opened in the
+                                                                                                                                      // calendar.
+                                                                                                                                      setEventAsked(
+                                                                                                                                          {
+                                                                                                                                              eventId,
+                                                                                                                                          },
+                                                                                                                                      );
+                                                                                                                                      window.location.hash =
+                                                                                                                                          addressOf(
+                                                                                                                                              'calendar',
+                                                                                                                                          );
+                                                                                                                                  }
+                                                                                                                        }
                                                                                                                         onOpenMessage={
                                                                                                                             !readsMail
                                                                                                                                 ? undefined
@@ -1905,6 +1947,33 @@ export function App({
                                                                                                                         }
                                                                                                                         transport={
                                                                                                                             readMail
+                                                                                                                        }
+                                                                                                                        readsTasks={offeredSpaces.includes(
+                                                                                                                            'tasks',
+                                                                                                                        )}
+                                                                                                                        onPlanDay={
+                                                                                                                            !offeredSpaces.includes(
+                                                                                                                                'tasks',
+                                                                                                                            ) ||
+                                                                                                                            !asksMail ||
+                                                                                                                            !readsCalendar
+                                                                                                                                ? undefined
+                                                                                                                                : () => {
+                                                                                                                                      // Tasks lays the day out under
+                                                                                                                                      // the same two questions its
+                                                                                                                                      // own control is reached
+                                                                                                                                      // under.
+                                                                                                                                      setLayoutOffered(
+                                                                                                                                          true,
+                                                                                                                                      );
+                                                                                                                                      window.location.hash =
+                                                                                                                                          addressOf(
+                                                                                                                                              'tasks',
+                                                                                                                                          );
+                                                                                                                                  }
+                                                                                                                        }
+                                                                                                                        eventAsked={
+                                                                                                                            eventAsked
                                                                                                                         }
                                                                                                                         onOpenMessage={
                                                                                                                             !readsMail

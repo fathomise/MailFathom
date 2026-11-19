@@ -979,7 +979,7 @@ export class FakeDeployment {
         return this.presence;
     }
 
-    /** Amending and deleting one event, whether the corpus stated it or a write here did. */
+    /** Reading, amending and deleting one event, whether the corpus stated it or a write here did. */
     private eventAnswer({ method, body }: IssuedRequest, segments: readonly string[]): FakeAnswer | null {
         const [space, id = '', part] = segments;
 
@@ -988,6 +988,10 @@ export class FakeDeployment {
         }
 
         const standing = this.eventsGone.has(id) ? undefined : (this.eventsWritten.get(id) ?? corpusEvent(id));
+
+        if (method === 'GET') {
+            return standing === undefined ? { status: 404, body: '' } : answering(standing);
+        }
 
         if (method === 'PUT') {
             return standing === undefined
@@ -1069,6 +1073,20 @@ export class FakeDeployment {
             half?.splice(at, 1);
 
             return answering({ id, erased: standing !== undefined });
+        }
+
+        // Taking a proposal on moves it to the committed half, as one the person asserted.
+        if (method === 'POST' && part === 'acceptance') {
+            if (half !== lists.proposed || standing === undefined) {
+                return { status: 404, body: '' };
+            }
+
+            const accepted = { ...standing, origin: 'Asserted' };
+
+            half.splice(at, 1);
+            lists.committed.push(accepted);
+
+            return answering(accepted);
         }
 
         return null;

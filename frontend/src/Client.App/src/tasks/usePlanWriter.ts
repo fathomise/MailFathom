@@ -13,11 +13,13 @@ import {
     type TaskPlan,
 } from '@mailfathom/client-backend';
 
-// The one writer of a task's plan on the Tasks screen. A plan is written as the whole record with the plan beside it,
-// so two writers restating what each read would erase each other's plan: this one keeps a single write out per task,
-// writes the latest plan pressed once that one answers, and holds every plan pressed over the list until the list read
-// after the writes has answered — so a row, the day beside the list, and a dialog opened meanwhile all draw and restate
-// the plan just pressed rather than the one last read.
+// The writer of a plan pressed outside the task dialog — on the Tasks screen, and over a task opened from another
+// screen. The task dialog's own chips are the other writer, queuing its *Plan* or *Move* behind its other writes. A plan
+// is written as the whole record with the plan beside it, so two writes restating what each read would erase each
+// other's plan: this one keeps a single write out per task, writes the latest plan pressed once that one answers — with
+// the task as that press read it — and holds every plan pressed over the list until the list read after the writes has
+// answered, so a row, the day beside the list, and a dialog opened meanwhile all draw and restate the plan just pressed
+// rather than the one last read.
 
 /** What planning a task presses: where it stands in the day, and how long it is now thought to take. */
 export interface PressedPlan {
@@ -71,12 +73,14 @@ export function usePlanWriter(
 ): PlanWriter {
     const [pressed, setPressed] = useState<ReadonlyMap<string, PressedPlan>>(new Map());
 
-    // The latest plan pressed for each task whose write is out, every answer since nothing was out, and what says so.
-    const out = useRef(new Map<string, PressedPlan>());
+    // The latest press for each task whose write is out, every answer since nothing was out, and what says so.
+    const out = useRef(new Map<string, PlanPress>());
     const answers = useRef<ClientResult<PersonalTask>[]>([]);
     const saying = useRef<((answers: readonly ClientResult<PersonalTask>[]) => Promise<void>) | null>(null);
 
-    function write(asking: ClientSession, task: PersonalTask, written: PressedPlan): Promise<void> {
+    function write(asking: ClientSession, press: PlanPress): Promise<void> {
+        const [task, written] = press;
+
         return reviseTask(asking, transport, task.id, {
             title: task.title,
             dueOn: task.dueOn,
@@ -91,8 +95,8 @@ export function usePlanWriter(
         }).then(async (answer) => {
             const latest = out.current.get(task.id);
 
-            if (answer.outcome === 'read' && latest !== undefined && latest !== written) {
-                return write(asking, task, latest);
+            if (answer.outcome === 'read' && latest !== undefined && latest !== press) {
+                return write(asking, latest);
             }
 
             out.current.delete(task.id);
@@ -126,13 +130,13 @@ export function usePlanWriter(
 
             setPressed((held) => new Map([...held, ...plans.map(([task, plan]) => [task.id, plan] as const)]));
 
-            for (const [task, plan] of plans) {
-                const writing = out.current.has(task.id);
+            for (const press of plans) {
+                const writing = out.current.has(press[0].id);
 
-                out.current.set(task.id, plan);
+                out.current.set(press[0].id, press);
 
                 if (!writing) {
-                    void write(session, task, plan);
+                    void write(session, press);
                 }
             }
         },

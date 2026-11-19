@@ -4,9 +4,9 @@
 
 import type { CalendarEvent } from '@mailfathom/client-backend';
 import { useLocalization } from '../localization/useLocalization';
-import { eventsInHour, eventsOn, hoursOfDay, inTimeOrder, type CalendarSpan } from './calendarSpan';
+import { entriesInHour, entriesOn, entryKey, hoursOfDay, type CalendarSpan, type CalendarTask } from './calendarSpan';
 import { wordHour } from './calendarWording';
-import { EventEntry } from './EventEntry';
+import { DayEntryView } from './EventEntry';
 import type { EventActs } from './eventActs';
 
 // One day down its own hours, which is the view the design draws for a reader who has stopped on a day rather
@@ -20,18 +20,36 @@ import type { EventActs } from './eventActs';
 export function DayView({
     span,
     events,
+    tasks,
     acts,
 }: {
     readonly span: CalendarSpan;
     readonly events: readonly CalendarEvent[];
+
+    /** The tasks the span holds: those due on the day stand above its hours, those planned in the hour they begin. */
+    readonly tasks: readonly CalendarTask[];
+
     readonly acts: EventActs;
 }) {
     const { locale, translate } = useLocalization();
 
-    const ofTheDay = inTimeOrder(eventsOn(events, span.from));
+    const ofTheDay = entriesOn(events, tasks, span.from);
+    const due = ofTheDay.filter((entry) => entry.task?.kind === 'due');
 
     return (
         <div className="flex min-w-0 flex-1 flex-col px-4 py-2.75 desktop:min-h-0 desktop:overflow-y-auto workspace:px-6">
+            {due.length === 0 ? null : (
+                <ul
+                    role="listbox"
+                    aria-label={translate('calendar.dueOnTheDay')}
+                    className="flex min-w-0 flex-col gap-1.5 pb-1.75 ps-16.5"
+                >
+                    {due.map((entry) => (
+                        <DayEntryView key={entryKey(entry)} entry={entry} shape="hour" acts={acts} />
+                    ))}
+                </ul>
+            )}
+
             {hoursOfDay(span.from).map((hour) => (
                 <div
                     key={hour.getTime()}
@@ -45,23 +63,8 @@ export function DayView({
                         aria-label={translate('calendar.hourEvents', { hour: wordHour(hour, locale) })}
                         className="flex min-w-0 flex-1 flex-col gap-1.5"
                     >
-                        {eventsInHour(ofTheDay, hour).map((event) => (
-                            <EventEntry
-                                key={event.id}
-                                event={event}
-                                shape="hour"
-                                selected={acts.selected.includes(event.id)}
-                                picking={acts.selected.length > 0}
-                                onOpen={() => {
-                                    acts.onOpen(event);
-                                }}
-                                onToggle={() => {
-                                    acts.onToggle(event);
-                                }}
-                                onPress={(at) => {
-                                    acts.onPress(event, at);
-                                }}
-                            />
+                        {entriesInHour(ofTheDay, hour).map((entry) => (
+                            <DayEntryView key={entryKey(entry)} entry={entry} shape="hour" acts={acts} />
                         ))}
                     </ul>
                 </div>

@@ -16,6 +16,8 @@ import { useReadingZone } from '../localization/useReadingZone';
 import { ReminderPanel } from '../reminders/ReminderPanel';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { wordReminderCount } from '../reminders/reminderWords';
+import { TaskChips } from '../tasks/TaskChips';
+import type { TasksWhere } from '../tasks/useTasksWhere';
 import { EventFields } from './EventFields';
 import { draftOf, recordOf, type EventDraft } from './eventDraft';
 
@@ -27,6 +29,10 @@ import { draftOf, recordOf, type EventDraft } from './eventDraft';
 // where the event came from; MailFathom writes none, so the mark saying the event was read out of mail is what is left
 // of it. What announces the event is the deployment's own, and the panel #1610 built is what edits it — opened from
 // here rather than reproduced, and answered with the whole set, which is why a change is written at once.
+//
+// **The tasks that belong to the event stand under what announces it**, each opening its task, with *Add a task* to write
+// one down belonging to the event and due on its day. They are read by the screen, which reads them again after a task
+// is written anywhere on it, and drawn only where this credential keeps tasks.
 //
 // The dialog is the platform's own, so the page behind it is inert, focus moves into it and is held there, Escape
 // leaves it, and leaving it puts focus back on the entry that opened it. Whether it is open is therefore the element's
@@ -43,11 +49,15 @@ export function EventDialog({
     event,
     asked,
     said,
+    saidNames,
     onAmend,
     onAskDeletion,
     onOpenSource,
     onLeft,
     remindersAsked = false,
+    tasks = null,
+    onOpenTask,
+    onAddTask,
 }: {
     readonly event: CalendarEvent;
 
@@ -56,6 +66,9 @@ export function EventDialog({
 
     /** What the last write about this event said, or `null` where none has been made. */
     readonly said: MessageKey | null;
+
+    /** The values that sentence names, where it names any. */
+    readonly saidNames?: Readonly<Record<string, string>> | undefined;
 
     readonly onAmend: (amendment: CalendarEventAmendment) => void;
 
@@ -73,6 +86,15 @@ export function EventDialog({
 
     /** Whether what opened the event asked for its reminders, which the menu's own item does. */
     readonly remindersAsked?: boolean;
+
+    /** The tasks that belong to the event, or `null` where this credential keeps no tasks. */
+    readonly tasks?: TasksWhere | null;
+
+    /** Opens one of the event's tasks, by its identity. */
+    readonly onOpenTask?: (taskId: string) => void;
+
+    /** Opens the new-task dialog belonging to the event. */
+    readonly onAddTask?: () => void;
 }) {
     const { locale, translate } = useLocalization();
     const closesOnBack = useTopLayerSurface();
@@ -114,6 +136,48 @@ export function EventDialog({
         if (written !== null) {
             onAmend(written);
         }
+    }
+
+    // The event's tasks: each opening its task, what *Add a task* does where there are none, and the read itself — its
+    // wait and its failure said where the tasks would be.
+    function eventTasks(where: TasksWhere) {
+        return (
+            <section
+                aria-label={translate('calendar.eventTasks')}
+                className="flex flex-col gap-1.5 rounded-md border border-line bg-sunken px-3.25 py-2.75"
+            >
+                <div className="flex items-center gap-2.25">
+                    <Icon name="task_alt" className="size-icon-md shrink-0 text-muted" />
+                    <h3 className="min-w-0 flex-1 text-sm font-semibold">{translate('calendar.eventTasks')}</h3>
+                    {onAddTask === undefined ? null : (
+                        <button type="button" className="text-xs text-accent-deep hover:underline" onClick={onAddTask}>
+                            {translate('calendar.addEventTask')}
+                        </button>
+                    )}
+                </div>
+
+                {where.failure !== null ? (
+                    <div className="flex flex-col items-start gap-1.5">
+                        <p role="alert" className="text-xs text-warning text-pretty">
+                            {translate('calendar.eventTasksFailed')}
+                        </p>
+                        <SecondaryButton
+                            label={translate('calendar.readAgain')}
+                            shape="compact"
+                            onActivate={where.readAgain}
+                        />
+                    </div>
+                ) : where.reading ? (
+                    <p role="status" className="text-xs text-muted">
+                        {translate('calendar.eventTasksReading')}
+                    </p>
+                ) : where.tasks.length === 0 ? (
+                    <p className="text-xs text-muted text-pretty">{translate('calendar.noEventTasks')}</p>
+                ) : (
+                    <TaskChips tasks={where.tasks} stacked onOpen={(taskId) => onOpenTask?.(taskId)} />
+                )}
+            </section>
+        );
     }
 
     return (
@@ -197,12 +261,14 @@ export function EventDialog({
                                 {translate('calendar.openSource')}
                             </button>
                         )}
+
+                        {tasks === null ? null : eventTasks(tasks)}
                     </>
                 )}
 
                 {said === null ? null : (
                     <p role="status" className="text-sm text-muted text-pretty">
-                        {translate(said)}
+                        {translate(said, saidNames)}
                     </p>
                 )}
 

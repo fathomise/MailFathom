@@ -518,3 +518,162 @@ describe('CalendarSpace', () => {
         expect(screen.getByText('Your mail has proposed nothing.')).toBeDefined();
     });
 });
+
+// A task as the task routes answer it, owed and open unless a test says otherwise.
+function taskCalled(id: string, title: string, held: Record<string, unknown> = {}): unknown {
+    return {
+        id,
+        title,
+        dueOn: null,
+        reminders: [],
+        remindsAt: [],
+        origin: 'Asserted',
+        completed: false,
+        sourceMessageId: null,
+        direction: 'Owed',
+        estimatedMinutes: 45,
+        plan: null,
+        anchor: null,
+        counterpart: null,
+        answer: null,
+        ...held,
+    };
+}
+
+const plannedTask = taskCalled('task-tender', 'Send the counter-proposal', {
+    dueOn: '2026-09-25',
+    plan: { startAt: '2026-09-24T11:00:00+02:00', minutes: 45 },
+});
+
+const proposedTask = taskCalled('task-baseline', 'Ask Marta for the baseline', {
+    origin: 'Proposed',
+    dueOn: '2026-09-25',
+});
+
+// The same deployment with the task routes behind it: the window's tasks, the proposals, the tasks an event carries,
+// and every task write answered with the task it names.
+function withTasks({
+    own = [plannedTask],
+    proposed = [proposedTask],
+    ofTheEvent = [],
+}: { own?: readonly unknown[]; proposed?: readonly unknown[]; ofTheEvent?: readonly unknown[] } = {}) {
+    const calendar = deployment();
+
+    const transport: MailFathomTransport = (request) => {
+        if (!request.path.includes('/tasks')) {
+            return calendar.transport(request);
+        }
+
+        const page = request.path.includes('/tasks/proposed')
+            ? proposed
+            : request.path.includes('eventId=')
+              ? ofTheEvent
+              : own;
+
+        return Promise.resolve(
+            request.method === 'GET'
+                ? { ...answered, body: JSON.stringify({ tasks: page, nextCursor: null }) }
+                : { ...answered, body: JSON.stringify(proposedTask) },
+        );
+    };
+
+    const sent: ClientRequest[] = [];
+
+    return {
+        sent: () => sent,
+        transport: (request: ClientRequest) => {
+            sent.push(request);
+
+            return transport(request);
+        },
+    };
+}
+
+function drawSpaceWithTasks(transport: MailFathomTransport, onPlanDay = vi.fn()): void {
+    render(
+        <LocalizationProvider>
+            <CalendarSpace
+                session={session}
+                transport={transport}
+                now={() => standing}
+                onOpenMessage={vi.fn()}
+                readsTasks
+                onPlanDay={onPlanDay}
+            />
+        </LocalizationProvider>,
+    );
+}
+
+describe('CalendarSpace with tasks', () => {
+    it('draws a planned task at its time and a due marker on its day, and a task opens the task dialog', async () => {
+        const { transport } = withTasks();
+        drawSpaceWithTasks(transport);
+
+        const planned = await screen.findByRole('option', { name: /^Task · .*Send the counter-proposal/u });
+        expect(screen.getByRole('option', { name: /^Due · taskSend the counter-proposal/u })).toBeDefined();
+
+        fireEvent.click(planned);
+
+        expect(await screen.findByRole('dialog', { name: 'Task' })).toBeDefined();
+        expect(screen.queryByRole('dialog', { name: 'Send the counter-proposal' })).toBeNull();
+    });
+
+    it('accepts a proposed task from the column beside the views', async () => {
+        const { transport, sent } = withTasks();
+        drawSpaceWithTasks(transport);
+
+        const proposals = await screen.findByRole('region', { name: 'Proposed tasks' });
+        fireEvent.click(await within(proposals).findByRole('button', { name: 'Accept' }));
+
+        expect(await screen.findByText('No proposals left. Tasks keeps every one you accepted.')).toBeDefined();
+        expect(
+            sent().some(
+                (request) => request.method === 'POST' && request.path.endsWith('/tasks/task-baseline/acceptance'),
+            ),
+        ).toBe(true);
+    });
+
+    it('offers "Plan my day" over the proposed tasks', async () => {
+        const onPlanDay = vi.fn();
+        const { transport } = withTasks();
+        drawSpaceWithTasks(transport, onPlanDay);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Plan my day' }));
+
+        expect(onPlanDay).toHaveBeenCalledOnce();
+    });
+
+    it('shows the tasks an event carries, and adds one prepared for it and due on its day', async () => {
+        const { transport, sent } = withTasks({ ofTheEvent: [] });
+        drawSpaceWithTasks(transport);
+
+        fireEvent.click(await screen.findByRole('option', { name: /Review with Anna/u }));
+
+        const opened = within(await screen.findByRole('region', { name: 'Tasks for this event' }));
+        expect(
+            await opened.findByText(
+                'Nothing to prepare yet. A task added here belongs to this event and is due on its day.',
+            ),
+        ).toBeDefined();
+        expect(sent().some((request) => request.path.includes('eventId=review'))).toBe(true);
+
+        fireEvent.click(opened.getByRole('button', { name: 'Add a task' }));
+
+        const writing = within(screen.getByRole('dialog', { name: 'New task' }));
+        expect(writing.getByLabelText<HTMLInputElement>('Task description').value).toBe('Prepare for Review with Anna');
+        expect(writing.getByLabelText<HTMLInputElement>('Due date').value).toBe('2026-09-24');
+
+        fireEvent.click(writing.getByRole('button', { name: 'Add task' }));
+
+        await waitFor(() => {
+            expect(sent().some((request) => request.method === 'POST' && request.path.endsWith('/tasks'))).toBe(true);
+        });
+
+        const recorded = sent().find((request) => request.method === 'POST' && request.path.endsWith('/tasks'));
+        expect(JSON.parse(recorded?.body ?? '{}')).toMatchObject({
+            title: 'Prepare for Review with Anna',
+            dueOn: '2026-09-24',
+            anchor: { kind: 'Event', id: 'review', label: 'Review with Anna' },
+        });
+    });
+});

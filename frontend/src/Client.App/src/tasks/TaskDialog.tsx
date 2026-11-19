@@ -228,7 +228,9 @@ export function TaskDialog({
     const awaited = chosen.direction === 'Awaited';
     const replied =
         task.answer === null ? null : wordReply(task.answer.arrivedAt, task.counterpart, locale, timeZone, translate);
-    const clash = clashOf({ ...task, plan: chosen.plan }, events);
+    // Read against every day the plan dialog offers as well as the caller's own, since a plan chosen there may stand on
+    // any of them.
+    const clash = clashOf({ ...task, plan: chosen.plan }, [...planningEvents, ...events]);
     const plan = chosen.plan === null ? null : wordPlan(chosen.plan, locale, now, timeZone, translate);
 
     // One write of the whole record, with what was chosen laid over it, and never two at once. A chip pressed while a

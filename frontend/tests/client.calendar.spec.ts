@@ -5,6 +5,7 @@
 import { expect, type Page } from '@playwright/test';
 
 import { holdTheDay, openSignedInAsDeveloper, test } from './client.harness';
+import { corpusEventId } from './fixtures/calendar';
 
 // An event written, amended, and deleted through the calendar, and each of the four views read after every act. A
 // view reads its own span again rather than correcting what another one held, so what each draws is what the next read
@@ -156,4 +157,117 @@ test('draws an event it wrote, amended, and deleted the same in the week, the da
     expect(deployment.issued.filter(({ method }) => method === 'DELETE').map(({ route }) => route)).toStrictEqual([
         amendment?.route,
     ]);
+});
+
+// The tasks the corpus holds for the reader's day: one planned at eleven over three quarters of an hour, and one due
+// today and planned nowhere, which the calendar draws as a mark at the top of the day.
+const plannedToday = /^Task · 11:00.*Send the 5% CPI cap counter-proposal/u;
+const dueToday = /^Due · task\s?Book the meeting room for the Fabrikam review/u;
+
+test('planned tasks appear in the week, day, month and agenda views', async ({ page, deployment }) => {
+    const day = await holdTheDay(page, deployment);
+
+    await openSignedInAsDeveloper(page, '/#/calendar');
+
+    for (const view of views) {
+        const drawn = await viewOfToday(page, day, view, 11);
+
+        await expect(drawn.getByRole('option', { name: plannedToday })).toBeVisible();
+
+        // The day view stands a task due that day above its hours rather than in any one of them.
+        const dueIn = view === 'Day' ? page.getByRole('listbox', { name: 'Due on this day' }) : drawn;
+
+        await expect(dueIn.getByRole('option', { name: dueToday })).toBeVisible();
+    }
+
+    // Pressed, a task opens the task dialog rather than the event dialog.
+    await (await viewOfToday(page, day, 'Week', 11)).getByRole('option', { name: plannedToday }).click();
+
+    await expect(page.getByRole('dialog', { name: 'Task' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Task' }).getByRole('textbox')).toHaveValue(
+        'Send the 5% CPI cap counter-proposal',
+    );
+});
+
+test('accepting a proposed task from the calendar makes it a task', async ({ page, deployment }) => {
+    const day = await holdTheDay(page, deployment);
+
+    await openSignedInAsDeveloper(page, '/#/calendar');
+
+    const proposed = page.getByRole('region', { name: 'Proposed tasks' });
+    const card = proposed
+        .getByRole('listitem')
+        .filter({ hasText: 'Send Piotr the rollout risks before the status call' });
+
+    await expect(card).toContainText('From mail · Re: rollout schedule');
+    await card.getByRole('button', { name: 'Accept' }).click();
+
+    await expect(page.getByRole('status').filter({ hasText: 'Added to your tasks.' })).toBeVisible();
+    await expect(card).toHaveCount(0);
+    expect(deployment.requests('POST', '/tasks/task-signatures/acceptance')).toHaveLength(1);
+
+    // Accepted, it stands on its day as a task due there.
+    await expect(
+        (await viewOfToday(page, day, 'Week', 11)).getByRole('option', {
+            name: /^Due · task\s?Send Piotr the rollout risks before the status call/u,
+        }),
+    ).toBeVisible();
+});
+
+test('"Plan my day" opens the laid-out day in Tasks', async ({ page, deployment }) => {
+    await holdTheDay(page, deployment);
+    await openSignedInAsDeveloper(page, '/#/calendar');
+
+    await page.getByRole('button', { name: 'Plan my day' }).click();
+
+    await expect(page).toHaveURL(/#\/tasks/u);
+    await expect(page.getByRole('radio', { name: /^Today/u })).toBeChecked();
+    await expect(page.getByRole('region', { name: 'Day capacity' })).toContainText(
+        'Here is a way to fit the rest of today',
+    );
+});
+
+test('an event shows its tasks and adds one prepared for it', async ({ page, deployment }) => {
+    const day = await holdTheDay(page, deployment);
+
+    await openSignedInAsDeveloper(page, '/#/calendar');
+
+    // The corpus places its first entry on the first day of the week asked for, at nine.
+    const monday = new Date(day);
+
+    monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+
+    await page
+        .getByRole('option', { name: /Warehouse handover$/u })
+        .first()
+        .click();
+
+    const opened = page.getByRole('dialog', { name: 'Warehouse handover' });
+    const carried = opened.getByRole('region', { name: 'Tasks for this event' });
+
+    await expect(carried).toContainText(
+        'Nothing to prepare yet. A task added here belongs to this event and is due on its day.',
+    );
+
+    await carried.getByRole('button', { name: 'Add a task' }).click();
+
+    const writing = page.getByRole('dialog', { name: 'New task' });
+
+    await expect(writing.getByLabel('Task description')).toHaveValue('Prepare for Warehouse handover');
+    await expect(writing.getByLabel('Due date')).toHaveValue(today(monday));
+    await writing.getByRole('button', { name: 'Add task' }).click();
+
+    await expect(carried.getByRole('button', { name: /^Prepare for Warehouse handover/u })).toBeVisible();
+    expect(deployment.requests('POST', '/tasks').map(({ body }) => body)).toMatchObject([
+        {
+            title: 'Prepare for Warehouse handover',
+            dueOn: today(monday),
+            anchor: { kind: 'Event', id: corpusEventId(0), label: 'Warehouse handover' },
+        },
+    ]);
+
+    // Each task the event carries opens its task.
+    await carried.getByRole('button', { name: /^Prepare for Warehouse handover/u }).click();
+
+    await expect(page.getByRole('dialog', { name: 'Task' })).toBeVisible();
 });

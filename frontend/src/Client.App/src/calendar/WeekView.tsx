@@ -4,9 +4,9 @@
 
 import type { CalendarEvent } from '@mailfathom/client-backend';
 import { useLocalization } from '../localization/useLocalization';
-import { daysOf, eventsOn, inTimeOrder, sameDay, type CalendarSpan } from './calendarSpan';
+import { daysOf, entriesOn, entryKey, sameDay, type CalendarSpan, type CalendarTask } from './calendarSpan';
 import { wordDay, wordDayOfMonth, wordWeekday } from './calendarWording';
-import { EventEntry } from './EventEntry';
+import { DayEntryView } from './EventEntry';
 import type { EventActs } from './eventActs';
 
 // The week as the design draws it: seven columns side by side, each headed by its weekday and its date, with
@@ -20,11 +20,15 @@ import type { EventActs } from './eventActs';
 export function WeekView({
     span,
     events,
+    tasks,
     today,
     acts,
 }: {
     readonly span: CalendarSpan;
     readonly events: readonly CalendarEvent[];
+
+    /** The tasks the span holds, drawn beside the events. */
+    readonly tasks: readonly CalendarTask[];
 
     /** The day the reader is standing on, which the column for it is drawn apart from the others. */
     readonly today: Date;
@@ -64,23 +68,8 @@ export function WeekView({
                             aria-label={translate('calendar.dayEvents', { day: wordDay(day, locale) })}
                             className="flex min-w-0 flex-col gap-1.75"
                         >
-                            {inTimeOrder(eventsOn(events, day)).map((event) => (
-                                <EventEntry
-                                    key={event.id}
-                                    event={event}
-                                    shape="column"
-                                    selected={acts.selected.includes(event.id)}
-                                    picking={acts.selected.length > 0}
-                                    onOpen={() => {
-                                        acts.onOpen(event);
-                                    }}
-                                    onToggle={() => {
-                                        acts.onToggle(event);
-                                    }}
-                                    onPress={(at) => {
-                                        acts.onPress(event, at);
-                                    }}
-                                />
+                            {entriesOn(events, tasks, day).map((entry) => (
+                                <DayEntryView key={entryKey(entry)} entry={entry} shape="column" acts={acts} />
                             ))}
                         </ul>
                     </div>

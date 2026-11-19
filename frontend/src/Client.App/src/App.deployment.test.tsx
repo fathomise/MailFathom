@@ -49,6 +49,19 @@ function calendarWindowAt(deployment: string): unknown {
 }
 
 /**
+ * What the Calendar space reads of the task list beside the window: the tasks due in it or planned into it, every page
+ * of them, and the tasks proposed to the reader, which the column beside the views offers.
+ */
+function calendarTasksAt(deployment: string): readonly unknown[] {
+    const origin = deployment.replaceAll('.', '\\.');
+
+    return [
+        expect.stringMatching(new RegExp(`^${origin}/api/client/tasks\\?pageSize=200&from=[^&]+&until=[^&]+$`, 'u')),
+        `${deployment}/api/client/tasks/proposed?pageSize=200`,
+    ];
+}
+
+/**
  * Waits until the sign-in screen has asked a typed deployment what it offers.
  *
  * That pair of reads is behind a timer rather than a render — the screen waits for the typing to settle — and pressing
@@ -92,6 +105,7 @@ describe('App deployment', () => {
                 ),
                 'https://elsewhere.example.invalid/api/client/tasks/today/layout',
                 calendarWindowAt('https://elsewhere.example.invalid'),
+                ...calendarTasksAt('https://elsewhere.example.invalid'),
                 'https://elsewhere.example.invalid/api/client/calendar/drafts',
                 'https://elsewhere.example.invalid/api/client/replies/drafting',
                 'https://elsewhere.example.invalid/api/client/preferences',
@@ -193,6 +207,7 @@ describe('App deployment', () => {
                 ),
                 'https://mail.example.test/api/client/tasks/today/layout',
                 calendarWindowAt('https://mail.example.test'),
+                ...calendarTasksAt('https://mail.example.test'),
                 'https://mail.example.test/api/client/calendar/drafts',
                 'https://mail.example.test/api/client/replies/drafting',
                 'https://mail.example.test/api/client/preferences',
@@ -389,6 +404,7 @@ describe('App deployment', () => {
                 ),
                 'https://first.example.invalid/api/client/tasks/today/layout',
                 calendarWindowAt('https://first.example.invalid'),
+                ...calendarTasksAt('https://first.example.invalid'),
                 'https://first.example.invalid/api/client/calendar/drafts',
                 'https://first.example.invalid/api/client/replies/drafting',
                 'https://first.example.invalid/api/client/preferences',
@@ -420,6 +436,7 @@ describe('App deployment', () => {
                 ),
                 'https://second.example.invalid/api/client/tasks/today/layout',
                 calendarWindowAt('https://second.example.invalid'),
+                ...calendarTasksAt('https://second.example.invalid'),
                 'https://second.example.invalid/api/client/calendar/drafts',
                 'https://second.example.invalid/api/client/replies/drafting',
                 'https://second.example.invalid/api/client/preferences',

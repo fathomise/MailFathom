@@ -39,8 +39,9 @@ export interface TodayCalendarInForce {
     readonly readAgain: () => void;
 }
 
-// How many of a day's events the panel asks for. Far above anything a person's day holds and far below the bound the
-// route enforces: what it guards against is an answer that was never one day.
+// How many events the window asks for, whether it is the one day beside the list or the few days a plan dialog offers.
+// Far above anything a person's working week holds and far below the bound the route enforces: what it guards against
+// is an answer that was never those days.
 const eventsInADay = 100;
 
 interface HeldDay {

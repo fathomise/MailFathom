@@ -146,6 +146,13 @@ export function daysOffered(today: string): readonly string[] {
     return [today, dayFrom(today, 1), ...workingDaysAfterTomorrow(today, workingDaysOffered)];
 }
 
+/** How many days, from today, the days a plan dialog offers span — what the calendar is read across while one is open. */
+export function daysSpanned(today: string): number {
+    const last = daysOffered(today).at(-1) ?? today;
+
+    return Math.round((Date.parse(last) - Date.parse(today)) / 86_400_000) + 1;
+}
+
 /** What a day chip says: *No day*, *Today*, *Tomorrow*, or the weekday with the day and the month. */
 export function wordDayChoice(
     day: string | null,

@@ -54,6 +54,9 @@ export interface TaskContext {
 
     /** The line the form starts with, which the person may change. */
     readonly title?: string;
+
+    /** The day the form starts with as `yyyy-mm-dd`, which the person may change — an event's own day, say. */
+    readonly dueOn?: string;
 }
 
 /** What a person has typed into the form, which is the whole of what a task this client writes carries. */
@@ -72,11 +75,11 @@ export interface TaskDraft {
     readonly counterpart: TaskCounterpart | null;
 }
 
-// What has been typed so far. The line is `null` until somebody types, so the context's own line shows until then,
+// What has been typed so far. The line and the day are `null` until somebody types, so the context's own show until then,
 // and the context is let go of rather than copied, so what the opener handed in stays the opener's.
 interface Typed {
     readonly title: string | null;
-    readonly dueOn: string;
+    readonly dueOn: string | null;
     readonly direction: TaskDirection;
     readonly minutes: string;
     readonly anchorLetGo: boolean;
@@ -85,7 +88,7 @@ interface Typed {
 
 const nothingTyped: Typed = {
     title: null,
-    dueOn: '',
+    dueOn: null,
     direction: 'Owed',
     minutes: '',
     anchorLetGo: false,
@@ -134,6 +137,7 @@ export function NewTask({
     const [draft, setDraft] = useState<Typed>(nothingTyped);
 
     const title = draft.title ?? context?.title ?? '';
+    const dueOn = draft.dueOn ?? context?.dueOn ?? '';
     const line = title.trim();
     const minutes = minutesIn(draft.minutes);
     const anchor = draft.anchorLetGo ? null : (context?.anchor ?? null);
@@ -180,7 +184,7 @@ export function NewTask({
                 if (answer === 'save' && refused === null && savable) {
                     onSave({
                         title: line,
-                        dueOn: draft.dueOn,
+                        dueOn,
                         direction: draft.direction,
                         estimatedMinutes: minutes ?? null,
                         anchor,
@@ -293,7 +297,7 @@ export function NewTask({
                         <input
                             id={days}
                             type="date"
-                            value={draft.dueOn}
+                            value={dueOn}
                             className={dialogField}
                             onChange={(typing) => {
                                 setDraft({ ...draft, dueOn: typing.target.value });

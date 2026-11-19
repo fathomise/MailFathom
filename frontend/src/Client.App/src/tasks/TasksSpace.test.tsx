@@ -646,6 +646,37 @@ describe('TasksSpace', () => {
         });
     });
 
+    // Every space stays mounted while it is aside, so the calendar's *Plan my day* reaches a screen already standing.
+    it('lays the day out on Today when a screen already standing is asked to', async () => {
+        const { transport, sent } = deployment();
+        const drawn = (openLayoutOffer: boolean) => (
+            <LocalizationProvider>
+                <ConnectionStatusContext value={serverAnswering}>
+                    <TasksSpace
+                        session={session}
+                        transport={transport}
+                        asksDeployment
+                        readsCalendar
+                        onOpenMessage={undefined}
+                        openLayoutOffer={openLayoutOffer}
+                    />
+                </ConnectionStatusContext>
+            </LocalizationProvider>
+        );
+
+        const { rerender } = render(drawn(false));
+
+        fireEvent.click(await screen.findByRole('radio', { name: /^Upcoming/u }));
+        expect(pathsSent(sent(), 'POST').some((path) => path.endsWith('/tasks/today/layout'))).toBe(false);
+
+        rerender(drawn(true));
+
+        await waitFor(() => {
+            expect(pathsSent(sent(), 'POST').some((path) => path.endsWith('/tasks/today/layout'))).toBe(true);
+        });
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: /^Today/u }).checked).toBe(true);
+    });
+
     it('dropping a task on 14:00 plans it from 14:00 for its estimate', async () => {
         vi.useFakeTimers({ toFake: ['Date'] });
         vi.setSystemTime(new Date('2026-09-24T06:00:00Z'));

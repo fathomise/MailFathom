@@ -54,3 +54,22 @@ export const eventShapes: Readonly<Record<EventShape, EventLook>> = {
 export function timeShown(shape: EventShape): boolean {
     return shape !== 'cell';
 }
+
+// A task beside the events, in the design's three tones: planned work on a dashed accent border, the same on a dashed
+// error border where it clashes with a meeting, and a task due that day and planned nowhere on the accent's soft tint.
+// They are the border and the ground only; the shape is the event's for the view, so a task sits in a column, an hour,
+// a cell or an agenda row exactly as an event does there.
+export type TaskTone = 'planned' | 'clash' | 'due';
+
+export const taskTones: Readonly<Record<TaskTone, string>> = {
+    planned: 'border-dashed border-accent bg-panel',
+    clash: 'border-dashed border-error bg-panel',
+    due: 'border-accent-line bg-accent-soft',
+};
+
+/** The mark an agenda row draws a task with where an event's row draws none: a dashed square, or a filled one. */
+export const taskMarks: Readonly<Record<TaskTone, string>> = {
+    planned: 'border border-dashed border-accent',
+    clash: 'border border-dashed border-error',
+    due: 'border border-accent bg-accent-soft',
+};

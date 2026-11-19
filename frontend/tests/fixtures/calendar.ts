@@ -34,7 +34,7 @@ export function calendarWindow(from: string, until: string): { events: readonly 
 
     return {
         events: placed.map((entry, at) => ({
-            id: `calendar-${String(at + 1)}`,
+            id: corpusEventId(at),
             title: entry.title,
             start: startingOn(opens, entry.day % days, entry.hour),
             end: entry.hours === null ? null : startingOn(opens, entry.day % days, entry.hour + entry.hours),
@@ -98,6 +98,14 @@ const placed = [
     { title: 'Site visit in Gdańsk', day: 4, hour: 8, hours: 6, reminds: [], origin: 'Proposed' },
     { title: 'Retro', day: 4, hour: 16, hours: 1, reminds: [], origin: 'Asserted' },
 ] as const;
+
+/**
+ * The identity the corpus gives its entry at that place, shaped as the deployment's own identities are, so a task can
+ * belong to one: an anchor names an event by an identity of that shape and by nothing else.
+ */
+export function corpusEventId(at: number): string {
+    return `00000000-0000-4000-8000-0000000000c${String(at + 1)}`;
+}
 
 function startingOn(opens: Date, day: number, hour: number): string {
     return new Date(opens.getFullYear(), opens.getMonth(), opens.getDate() + day, hour).toISOString();
