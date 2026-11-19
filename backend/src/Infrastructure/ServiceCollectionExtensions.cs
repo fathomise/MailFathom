@@ -553,6 +553,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<OwnAutomaticReply>();
         services.AddSingleton<IArrivedMailEnvelopeReader, MimeKitArrivedMailEnvelopeReader>();
         services.AddScoped<AutomaticReplyResponder>();
+        services.AddScoped<AwaitedReplies>();
         // The footer a user's message carries: their own per account, an organization's template over it, and what puts
         // either into a message as the outbox writes it down.
         services.AddScoped<IMailFooterStore, MailFooterStore>();

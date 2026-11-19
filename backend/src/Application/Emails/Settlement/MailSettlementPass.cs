@@ -6,6 +6,7 @@ using MailFathom.Application.AutomaticReplies;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Spam.Gating;
+using MailFathom.Application.Tasks;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 
@@ -26,7 +27,8 @@ namespace MailFathom.Application.Emails.Settlement;
 /// </para>
 /// <para>
 /// It is also where an automatic reply answers: a message settled here is answered once announced, on the same terms
-/// as the announcement — only by the replica that settled it, and not again if answering it failed.
+/// as the announcement — only by the replica that settled it, and not again if answering it failed. A reply a person
+/// was waiting on is recognised here as well, and closes that wait.
 /// </para>
 /// <para>
 /// Nothing is held forever. A message waits at most the verdict's own wait and then
@@ -54,6 +56,7 @@ public sealed class MailSettlementPass
     private readonly SynchronizationNotifications notifications;
     private readonly IMailSettlementTelemetry telemetry;
     private readonly AutomaticReplyResponder responder;
+    private readonly AwaitedReplies awaitedReplies;
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the pass.</summary>
@@ -63,6 +66,7 @@ public sealed class MailSettlementPass
     /// <param name="notifications">Tells the account's users about mail that reached them.</param>
     /// <param name="telemetry">Counts how messages settled.</param>
     /// <param name="responder">Answers what settled while the account's user's automatic reply runs.</param>
+    /// <param name="awaitedReplies">Closes the waits a person kept on a thread when its reply settled.</param>
     /// <param name="timeProvider">Reads the instant the waits are measured against and the settlement is written at.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailSettlementPass(
@@ -72,6 +76,7 @@ public sealed class MailSettlementPass
         SynchronizationNotifications notifications,
         IMailSettlementTelemetry telemetry,
         AutomaticReplyResponder responder,
+        AwaitedReplies awaitedReplies,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -80,6 +85,7 @@ public sealed class MailSettlementPass
         ArgumentNullException.ThrowIfNull(notifications);
         ArgumentNullException.ThrowIfNull(telemetry);
         ArgumentNullException.ThrowIfNull(responder);
+        ArgumentNullException.ThrowIfNull(awaitedReplies);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.store = store;
@@ -88,6 +94,7 @@ public sealed class MailSettlementPass
         this.notifications = notifications;
         this.telemetry = telemetry;
         this.responder = responder;
+        this.awaitedReplies = awaitedReplies;
         this.timeProvider = timeProvider;
     }
 
@@ -124,10 +131,11 @@ public sealed class MailSettlementPass
             stillSettlingCount += decided.Length - settling.Length;
             settledCount += settled.Length;
             announcedCount += await this.AnnounceAsync(account, settled, cancellationToken);
-            await this.responder.AnswerAsync(
-                account,
-                [.. settled.Where(static email => email.IsAnswerable()).Select(static email => email.Id)],
-                cancellationToken);
+
+            StoredEmailId[] answerable = [.. settled.Where(static email => email.IsAnswerable()).Select(static email => email.Id)];
+
+            await this.responder.AnswerAsync(account, answerable, cancellationToken);
+            await this.awaitedReplies.AnswerAsync(account, answerable, cancellationToken);
 
             if (batch.Count < BatchSize)
             {

@@ -7,11 +7,14 @@ using MailFathom.Application.Emails.Settlement;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Spam;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Spam.Gating;
+using MailFathom.Application.Tasks;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Tasks;
 using MailFathom.Domain.Spam;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
@@ -226,6 +229,45 @@ public sealed class MailSettlementPassTests
         Assert.Empty(world.Outgoing.OpenRequests);
     }
 
+    /// <summary>A reply the user was waiting on closes the wait as it settles, from the same arrivals the automatic reply sees.</summary>
+    [Fact]
+    public async Task RunAsync_AReplySettlesInAThreadAWaitIsAnchoredTo_ClosesTheWait()
+    {
+        // Arrange
+        var thread = EmailThreadId.Create(new Guid("0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a92"));
+        var inbox = Email(1);
+        var summaries = new InMemoryStoredEmailSummaries().With(
+            SyntheticEmailSummaries.Create(
+                receivedAt: Now,
+                storedEmailId: inbox.Id.Value,
+                accountId: Account.Value,
+                senderAddress: "buyer@example.test",
+                threadId: thread.Value));
+        var tasks = new InMemoryPersonalTaskStore();
+        var wait = PersonalTask.Compose(
+            PersonalTaskId.Create(Guid.CreateVersion7(Now)),
+            SyntheticUser.Deployment,
+            "Hear back about the tender",
+            dueOn: null,
+            TaskAnnouncement.Silent,
+            PersonalTaskOrigin.Asserted,
+            sourceMessage: null,
+            new TaskCommitment(PersonalTaskDirection.Awaited, null, null, TaskAnchor.Thread(thread, "Tender"), null));
+        await tasks.AddAsync(wait, TestContext.Current.CancellationToken);
+        this.store.Holding(inbox);
+        await using var signals = new ClientSignals([this.channel], this.clock);
+        var identities = Substitute.For<IOutgoingSenderIdentityReader>();
+        identities.FindSenderIdentity(Account).Returns(
+            OutgoingSenderIdentity.Create(Account, AutomaticReplyWorld.Address(AutomaticReplyWorld.OwnAddress)));
+
+        // Act
+        await this.CreatePass(signals, awaitedReplies: new AwaitedReplies(summaries, tasks, identities, signals, this.clock))
+            .RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(inbox.Id, Assert.Single(tasks.Held).Answer?.Message);
+    }
+
     private static SettlingEmail Email(int number, SpamVerdict? verdict = SpamVerdict.NotSpam) =>
         new(
             StoredEmailId.Create(Guid.Parse($"0199a0c0-0000-7000-8000-{number:D12}")),
@@ -241,7 +283,7 @@ public sealed class MailSettlementPassTests
             ArrivedInInbox: true,
             MailFolderSpecialUse.Inbox);
 
-    private MailSettlementPass CreatePass(ClientSignals signals, AutomaticReplyResponder? responder = null) =>
+    private MailSettlementPass CreatePass(ClientSignals signals, AutomaticReplyResponder? responder = null, AwaitedReplies? awaitedReplies = null) =>
         new(
             this.store,
             new DerivedWorkGate(
@@ -256,6 +298,15 @@ public sealed class MailSettlementPassTests
                 this.clock),
             this.telemetry,
             responder ?? new AutomaticReplyWorld(this.clock).Responder,
+            awaitedReplies ?? this.NoAwaitedReplies(signals),
+            this.clock);
+
+    private AwaitedReplies NoAwaitedReplies(ClientSignals signals) =>
+        new(
+            new InMemoryStoredEmailSummaries(),
+            new InMemoryPersonalTaskStore(),
+            Substitute.For<IOutgoingSenderIdentityReader>(),
+            signals,
             this.clock);
 
     private async Task DrainAsync(ClientSignals signals)
