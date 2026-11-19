@@ -218,6 +218,7 @@ public sealed class PersonalTaskModelTests
     [InlineData(PersistenceConstraintNames.PersonalTaskSingleAnchorCheckConstraintName, "\"AnchorThreadId\" IS NULL OR \"AnchorEventId\" IS NULL", "\"AnchorThreadId\"")]
     [InlineData(PersistenceConstraintNames.PersonalTaskAnchorLabelledCheckConstraintName, "\"AnchorLabel\" IS NULL", "\"AnchorEventId\" IS NULL")]
     [InlineData(PersistenceConstraintNames.PersonalTaskCounterpartCompleteCheckConstraintName, "\"CounterpartAddress\" IS NULL", "\"CounterpartNormalizedAddress\" IS NULL")]
+    [InlineData(PersistenceConstraintNames.PersonalTaskAnswerClosesAWaitCheckConstraintName, "\"AnswerStoredEmailId\" IS NULL OR", "\"Direction\" = 'Awaited' AND \"IsCompleted\"")]
     [InlineData(PersistenceConstraintNames.PersonalTaskAnswerCompleteCheckConstraintName, "\"AnswerStoredEmailId\" IS NULL", "\"AnsweredAt\" IS NULL")]
     public void Model_EachWholeValue_IsCheckedByTheTable(string name, string firstHalf, string secondHalf)
     {

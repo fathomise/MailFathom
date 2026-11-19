@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261119115026_AddTaskCommitments")]
+    [Migration("20261119120951_AddTaskCommitments")]
     partial class AddTaskCommitments
     {
         /// <inheritdoc />
@@ -4185,6 +4185,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("tasks", null, t =>
                         {
                             t.HasCheckConstraint("ck_tasks_anchor_labelled", "(\"AnchorLabel\" IS NULL) = (\"AnchorThreadId\" IS NULL AND \"AnchorEventId\" IS NULL)");
+
+                            t.HasCheckConstraint("ck_tasks_answer_closes_a_wait", "\"AnswerStoredEmailId\" IS NULL OR (\"Direction\" = 'Awaited' AND \"IsCompleted\")");
 
                             t.HasCheckConstraint("ck_tasks_answer_complete", "(\"AnswerStoredEmailId\" IS NULL) = (\"AnsweredAt\" IS NULL)");
 

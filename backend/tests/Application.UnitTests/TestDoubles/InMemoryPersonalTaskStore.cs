@@ -134,7 +134,7 @@ internal sealed class InMemoryPersonalTaskStore : IPersonalTaskStore
                 held.SourceMessage,
                 isCompleted,
                 held.Commitment,
-                held.Answer)));
+                isCompleted ? held.Answer : null)));
 
     /// <summary>Restates what announces a held task, which a state change keeps rather than rewrites.</summary>
     private static TaskAnnouncement Announcing(PersonalTask task) => task.DueDayOffset is { } offset

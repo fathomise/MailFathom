@@ -887,7 +887,7 @@ board: no column assigns work to anybody but the person whose list it is.
 | `CounterpartNormalizedAddress` | The comparison form of that address, which is what a person's page matches and indexes on, so an address written in another case still finds the task. `ck_tasks_counterpart_complete` holds the two present together |
 | `CounterpartDisplayName` | The name that person is drawn with, bounded at 200 characters |
 | `AnswerStoredEmailId` | The reply that closed a wait, as a plain value for the reason the source message is one |
-| `AnsweredAt` | When that reply arrived. `ck_tasks_answer_complete` holds it present exactly when `AnswerStoredEmailId` is |
+| `AnsweredAt` | When that reply arrived. `ck_tasks_answer_complete` holds it present exactly when `AnswerStoredEmailId` is, and `ck_tasks_answer_closes_a_wait` holds an answer only on a completed `Awaited` task, which is the one row the domain restores one on. Reopening a wait clears its answer |
 
 **Accepting a proposal moves `Origin` and writes no second row.** That is what keeps a commitment and the suggestion it
 came from one task: whatever already points at the row — a reminder, a citation — still points at it afterwards, and a
@@ -906,8 +906,9 @@ does carry.
 
 **A wait is closed by the reply it waits for, and the answer is decided inside the write.** Settling a reply asks
 which open waits its thread answers across every user, following each merge that ends at that thread through
-`email_threads`, and then answers each one in its own transaction that reads the row again — so a wait the person
-completed by hand in between, or one a second replica answered first, is left as it stands rather than answered twice.
+`email_threads`, and then answers each one with a single conditional update whose `WHERE` names the wait still being
+open — so a wait the person completed by hand in between, or one a second replica answered first, matches no row and
+is left as it stands rather than answered twice.
 
 **Completing a task and erasing one are each a single state change.** Completion moves one column, and an erasure takes
 the row rather than marking it gone: a task nobody owes any more is not a record anything is owed about, and keeping

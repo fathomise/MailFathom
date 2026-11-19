@@ -1098,6 +1098,9 @@ internal static class PersistenceConstraintNames
     /// <summary>The rule that a counterpart's address is stored with its comparison form, or neither is.</summary>
     internal const string PersonalTaskCounterpartCompleteCheckConstraintName = "ck_tasks_counterpart_complete";
 
+    /// <summary>The rule that only a completed wait carries an answer, which is what a task is restored under.</summary>
+    internal const string PersonalTaskAnswerClosesAWaitCheckConstraintName = "ck_tasks_answer_closes_a_wait";
+
     /// <summary>The rule that an answered wait names both the reply and when it arrived.</summary>
     internal const string PersonalTaskAnswerCompleteCheckConstraintName = "ck_tasks_answer_complete";
 

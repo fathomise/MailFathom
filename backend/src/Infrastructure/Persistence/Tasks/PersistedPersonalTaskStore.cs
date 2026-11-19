@@ -24,11 +24,12 @@ namespace MailFathom.Infrastructure.Persistence.Tasks;
 /// task into that run's transaction would make a suggestion able to fail mail that was already committed.
 /// </para>
 /// <para>
-/// The three state changes run under the ordinary commit policy, so the read that finds the row and the write that
-/// moves it are one transaction and a writer that got there first is a retry rather than a failure. None of them can
-/// collide on a constraint: a task has no natural key, so two replicas moving one row converge on the same state
-/// rather than racing for it. The erasure uses neither, being a set-based delete that composes with nothing a caller
-/// is holding.
+/// The state changes a person makes run under the ordinary commit policy, so the read that finds the row and the
+/// write that moves it are one transaction and a writer that got there first is a retry rather than a failure. None of
+/// them can collide on a constraint: a task has no natural key, so two replicas moving one row converge on the same
+/// state rather than racing for it. Answering a wait is the exception, because two replicas settling one reply must
+/// not both report closing it, so it is one conditional update instead. The erasure uses neither, being a set-based
+/// delete that composes with nothing a caller is holding.
 /// </para>
 /// </remarks>
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "The dependency injection container materializes this store.")]
@@ -174,7 +175,8 @@ internal sealed class PersistedPersonalTaskStore(
     /// <inheritdoc />
     /// <remarks>
     /// The user is part of the lookup rather than a check after it, which is what makes another person's task answer
-    /// as one that does not exist.
+    /// as one that does not exist. Reopening a wait a reply answered clears that answer, because an open wait is one
+    /// nothing has answered yet: the next reply settled in its thread answers it again.
     /// </remarks>
     public Task<PersonalTaskChangeOutcome> SetCompletionAsync(
         UserId user,
@@ -186,7 +188,16 @@ internal sealed class PersistedPersonalTaskStore(
                 session,
                 user,
                 task,
-                (_, stored) => stored.IsCompleted = isCompleted,
+                (_, stored) =>
+                {
+                    stored.IsCompleted = isCompleted;
+
+                    if (!isCompleted)
+                    {
+                        stored.AnswerStoredEmailId = null;
+                        stored.AnsweredAt = null;
+                    }
+                },
                 token),
             cancellationToken);
 
@@ -219,11 +230,12 @@ internal sealed class PersistedPersonalTaskStore(
 
     /// <inheritdoc />
     /// <remarks>
-    /// The condition is read inside the same transaction as the write, so a wait completed by hand between the read
-    /// that found it and this call is left as it stands, and two replicas settling one reply converge: the second finds
-    /// the wait already closed and reports nothing to answer.
+    /// One conditional update rather than a read and a write: the condition that the task is still an open wait is part
+    /// of the statement, so PostgreSQL decides it under the row's lock. Two replicas settling one reply therefore write
+    /// it once — the second matches no row and reports nothing to answer — and a wait the person completed by hand a
+    /// moment earlier is left without an answer it never had.
     /// </remarks>
-    public Task<PersonalTaskChangeOutcome> AnswerAsync(
+    public async Task<PersonalTaskChangeOutcome> AnswerAsync(
         UserId user,
         PersonalTaskId task,
         TaskAnswer answer,
@@ -231,32 +243,24 @@ internal sealed class PersistedPersonalTaskStore(
     {
         ArgumentNullException.ThrowIfNull(answer);
 
-        return commitPolicy.CommitAsync(
-            async (session, token) =>
-            {
-                var applied = PersonalTaskChangeOutcome.NotFound;
+        var userValue = user.Value;
+        var identifier = task.Value;
+        var message = answer.Message.Value;
+        var arrivedAt = answer.ArrivedAt.ToUniversalTime();
 
-                await StageAsync(
-                    session,
-                    user,
-                    task,
-                    (_, stored) =>
-                    {
-                        if (stored.Direction != PersonalTaskDirection.Awaited || stored.IsCompleted)
-                        {
-                            return;
-                        }
+        var answered = await readContext.PersonalTasks
+            .Where(candidate => candidate.UserId == userValue
+                && candidate.Id == identifier
+                && candidate.Direction == PersonalTaskDirection.Awaited
+                && !candidate.IsCompleted)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(candidate => candidate.IsCompleted, true)
+                    .SetProperty(candidate => candidate.AnswerStoredEmailId, message)
+                    .SetProperty(candidate => candidate.AnsweredAt, arrivedAt),
+                cancellationToken);
 
-                        stored.IsCompleted = true;
-                        stored.AnswerStoredEmailId = answer.Message.Value;
-                        stored.AnsweredAt = answer.ArrivedAt.ToUniversalTime();
-                        applied = PersonalTaskChangeOutcome.Applied;
-                    },
-                    token);
-
-                return applied;
-            },
-            cancellationToken);
+        return answered > 0 ? PersonalTaskChangeOutcome.Applied : PersonalTaskChangeOutcome.NotFound;
     }
 
     /// <inheritdoc />

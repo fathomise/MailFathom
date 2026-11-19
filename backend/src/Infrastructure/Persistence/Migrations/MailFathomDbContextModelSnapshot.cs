@@ -4183,6 +4183,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_tasks_anchor_labelled", "(\"AnchorLabel\" IS NULL) = (\"AnchorThreadId\" IS NULL AND \"AnchorEventId\" IS NULL)");
 
+                            t.HasCheckConstraint("ck_tasks_answer_closes_a_wait", "\"AnswerStoredEmailId\" IS NULL OR (\"Direction\" = 'Awaited' AND \"IsCompleted\")");
+
                             t.HasCheckConstraint("ck_tasks_answer_complete", "(\"AnswerStoredEmailId\" IS NULL) = (\"AnsweredAt\" IS NULL)");
 
                             t.HasCheckConstraint("ck_tasks_counterpart_complete", "(\"CounterpartAddress\" IS NULL) = (\"CounterpartNormalizedAddress\" IS NULL)");

@@ -125,6 +125,11 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                 sql: "(\"AnchorLabel\" IS NULL) = (\"AnchorThreadId\" IS NULL AND \"AnchorEventId\" IS NULL)");
 
             migrationBuilder.AddCheckConstraint(
+                name: "ck_tasks_answer_closes_a_wait",
+                table: "tasks",
+                sql: "\"AnswerStoredEmailId\" IS NULL OR (\"Direction\" = 'Awaited' AND \"IsCompleted\")");
+
+            migrationBuilder.AddCheckConstraint(
                 name: "ck_tasks_answer_complete",
                 table: "tasks",
                 sql: "(\"AnswerStoredEmailId\" IS NULL) = (\"AnsweredAt\" IS NULL)");
@@ -170,6 +175,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
             migrationBuilder.DropCheckConstraint(
                 name: "ck_tasks_anchor_labelled",
+                table: "tasks");
+
+            migrationBuilder.DropCheckConstraint(
+                name: "ck_tasks_answer_closes_a_wait",
                 table: "tasks");
 
             migrationBuilder.DropCheckConstraint(

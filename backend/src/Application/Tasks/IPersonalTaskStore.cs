@@ -108,7 +108,7 @@ public interface IPersonalTaskStore
     /// <remarks>
     /// The user is part of the addressing rather than a filter applied after a lookup, so a task another person holds
     /// is not found rather than found and refused — which is what keeps the answer identical for one that does not
-    /// exist at all.
+    /// exist at all. Reopening a wait a reply answered clears that answer, since a reply closes only an open wait.
     /// </remarks>
     Task<PersonalTaskChangeOutcome> SetCompletionAsync(
         UserId user,
@@ -127,9 +127,9 @@ public interface IPersonalTaskStore
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="answer" /> is <see langword="null" />.</exception>
     /// <remarks>
-    /// The task is read again inside the write, so a wait the person completed by hand, or one a second replica
-    /// answered first, is left as it stands and reported as nothing to answer. That is what lets the caller tell the
-    /// person only about the waits it actually closed.
+    /// Whether the task is still an open wait is decided by the write itself, so a wait the person completed by hand,
+    /// or one a second replica answered first, is left as it stands and reported as nothing to answer. That is what
+    /// lets the caller tell the person only about the waits it actually closed.
     /// </remarks>
     Task<PersonalTaskChangeOutcome> AnswerAsync(
         UserId user,

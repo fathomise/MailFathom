@@ -9,7 +9,9 @@ using MailFathom.Domain.Tasks;
 using MailFathom.Infrastructure.Persistence;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.IntegrationTests.Orchestration;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Xunit;
 
 namespace MailFathom.IntegrationTests.Persistence;
@@ -294,6 +296,105 @@ public sealed class OrchestratedPersonalTaskStoreTests(MailFathomOrchestrationFi
         Assert.NotNull(read);
         Assert.True(read.IsCompleted);
         Assert.Equal(reply, read.Answer);
+    }
+
+    [Fact]
+    public async Task AnswerAsync_TheSameWaitAnsweredTwice_ClosesItOnce()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var waiting = Awaiting(services, Guid.NewGuid());
+        var first = new TaskAnswer(StoredEmailId.Create(Guid.NewGuid()), new DateTimeOffset(2031, 5, 4, 9, 0, 0, Warsaw));
+        var second = new TaskAnswer(StoredEmailId.Create(Guid.NewGuid()), new DateTimeOffset(2031, 5, 4, 10, 0, 0, Warsaw));
+
+        // Act
+        var (outcomes, read) = await InStoreAsync(
+            services,
+            async (store, token) =>
+            {
+                await store.AddAsync(waiting, token);
+
+                PersonalTaskChangeOutcome[] answered =
+                [
+                    await store.AnswerAsync(services.ServedUser, waiting.Id, first, token),
+                    await store.AnswerAsync(services.ServedUser, waiting.Id, second, token),
+                ];
+
+                return (answered, await store.FindAsync(services.ServedUser, waiting.Id, token));
+            },
+            cancellationToken);
+
+        // Assert
+        Assert.Equal([PersonalTaskChangeOutcome.Applied, PersonalTaskChangeOutcome.NotFound], outcomes);
+        Assert.Equal(first, read?.Answer);
+    }
+
+    [Fact]
+    public async Task SetCompletionAsync_ReopeningAnAnsweredWait_ClearsTheAnswerAndTheListStillReads()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var thread = Guid.NewGuid();
+        var waiting = Awaiting(services, thread);
+        var reply = new TaskAnswer(StoredEmailId.Create(Guid.NewGuid()), new DateTimeOffset(2031, 5, 5, 9, 0, 0, Warsaw));
+
+        // Act
+        var (read, awaiting) = await InStoreAsync(
+            services,
+            async (store, token) =>
+            {
+                await store.AddAsync(waiting, token);
+                await store.AnswerAsync(services.ServedUser, waiting.Id, reply, token);
+                Assert.Equal(
+                    PersonalTaskChangeOutcome.Applied,
+                    await store.SetCompletionAsync(services.ServedUser, waiting.Id, isCompleted: false, token));
+
+                return (
+                    await store.FindAsync(services.ServedUser, waiting.Id, token),
+                    await store.ReadAwaitingAnswerAsync(EmailThreadId.Create(thread), token));
+            },
+            cancellationToken);
+
+        // Assert
+        Assert.NotNull(read);
+        Assert.False(read.IsCompleted);
+        Assert.Null(read.Answer);
+        Assert.Equal([waiting.Id], awaiting.Select(task => task.Id));
+    }
+
+    [Fact]
+    public async Task Table_AnAnswerOnAWaitStillOpen_IsRefused()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var waiting = Awaiting(services, Guid.NewGuid());
+        await InStoreAsync(
+            services,
+            async (store, token) =>
+            {
+                await store.AddAsync(waiting, token);
+
+                return true;
+            },
+            cancellationToken);
+
+        // Act
+        var refusal = await services.InScopeAsync(
+            (scope, token) => Assert.ThrowsAsync<PostgresException>(() => scope.GetRequiredService<MailFathomDbContext>()
+                .PersonalTasks
+                .Where(task => task.Id == waiting.Id.Value)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(task => task.AnswerStoredEmailId, Guid.NewGuid())
+                        .SetProperty(task => task.AnsweredAt, new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero)),
+                    token)),
+            cancellationToken);
+
+        // Assert
+        Assert.Equal(PersistenceConstraintNames.PersonalTaskAnswerClosesAWaitCheckConstraintName, refusal.ConstraintName);
     }
 
     private static Task<IReadOnlyList<PersonalTask>> AddAndReadAsync(

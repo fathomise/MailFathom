@@ -54,6 +54,11 @@ internal sealed class PersonalTaskConfiguration : IEntityTypeConfiguration<Perso
                 table.HasCheckConstraint(
                     PersistenceConstraintNames.PersonalTaskCounterpartCompleteCheckConstraintName,
                     $"(\"{nameof(PersonalTaskEntity.CounterpartAddress)}\" IS NULL) = (\"{nameof(PersonalTaskEntity.CounterpartNormalizedAddress)}\" IS NULL)");
+                // The domain refuses to restore an answer on anything but a completed wait, so a row breaking that rule
+                // would fail every later read of the person's list rather than only the write that produced it.
+                table.HasCheckConstraint(
+                    PersistenceConstraintNames.PersonalTaskAnswerClosesAWaitCheckConstraintName,
+                    $"\"{nameof(PersonalTaskEntity.AnswerStoredEmailId)}\" IS NULL OR (\"{nameof(PersonalTaskEntity.Direction)}\" = '{nameof(PersonalTaskDirection.Awaited)}' AND \"{nameof(PersonalTaskEntity.IsCompleted)}\")");
                 table.HasCheckConstraint(
                     PersistenceConstraintNames.PersonalTaskAnswerCompleteCheckConstraintName,
                     $"(\"{nameof(PersonalTaskEntity.AnswerStoredEmailId)}\" IS NULL) = (\"{nameof(PersonalTaskEntity.AnsweredAt)}\" IS NULL)");
