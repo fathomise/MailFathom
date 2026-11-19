@@ -15,7 +15,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     calendarBriefing: CALENDAR_BRIEFING, eventFromThread: EVENT_FROM_THREAD, taskCapacity: TASK_CAPACITY,
     starterChips: STARTER_CHIPS, anotherTimeReply: ANOTHER_TIME, agentScheduledEvents: AGENT_SCHEDULED,
     plans: PLANS,
-    calendarDays: CAL_DAYS, proposedEvents: CAL_PROPOSED, focusBlocks: CAL_FOCUS, weekdayDates: DOW_DAY, tasks: TASKS,
+    calendarDays: CAL_DAYS, weekdayDates: DOW_DAY, tasks: TASKS, taskFromThread: TASK_FROM_THREAD, composeFollowUp: COMPOSE_FOLLOW_UP,
     timelineToday: BK_TIMELINE_TODAY, draftContoso: BK_DRAFT_CONTOSO, demoConversationId: DEMO_CONV_ID, demoScript: DEMO_SCRIPT,
     nextDefault: NEXT_DEFAULT, seedConversations: SEED_CONVS, agentReplies: AGENT_REPLIES, agentFallback: AGENT_FALLBACK,
     agentDraftHtml: AGENT_DRAFT_HTML, draftRewrites: DRAFT_REWRITES, rewritePresets: REWRITE_PRESETS,
@@ -1342,7 +1342,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        `compose`) follows it 240 ms late; a per-surface snapshot is the upgrade if that ever shows. */
     static MOTION_HELD = ["threadSheet", "more", "ctxMenu", "userMenu", "statusMenu", "sideDrawer", "compose", "settings",
       "aiSum", "moveFor", "newFolder", "remFor", "event", "agentReturn", "msgLoading", "replyDock", "replyChooser",
-      "newTask", "newEvent", "newContact", "filtersOpen",
+      "newTask", "newEvent", "newContact", "filtersOpen", "taskOpen", "taskPlanFor",
       "delFolder", "htmlAsk", "closeAsk", "sendAsk", "deleteConvAsk", "closeAllAsk", "confirmDel", "cancelAsk", "spamAsk", "notSpamAsk", "senderMark", "receiptPop", "sendLaterAsk", "linkAsk", "source"];
     static MOTION_PANES = ["mailPane", "peoplePane"];
     static MOTION_EXIT_MS = 240;
@@ -2094,7 +2094,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const r = e && e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
       const coarse = this.state.coarse;
       const W = (coarse ? 352 : 336) + 14;
-      const H = 46 + 8 * (coarse ? 50 : 38) + 2 * 30 + 40;
+      const H = 46 + 11 * (coarse ? 50 : 38) + 3 * 30 + 40;
       const p = this.localPt(r ? r.right - W : 0, r ? r.top - H - 4 : 0);
       const turn = (k) => () => this.setState(s => ({ composeReceipts: Object.assign({}, s.composeReceipts, { [k]: !(s.composeReceipts || {})[k] }) }));
       const chosen = () => this.state.composeSendAt || null;
@@ -2122,6 +2122,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               run: () => this.setState({ composeSendAt: { date: pr.date, time: pr.time, preset: pr.key } }),
             })),
             { icon: "edit_calendar", label: "Pick a date and time…", hint: custom, radio: true, checked: () => !!chosen() && !chosen().preset, run: () => this.openSendLater() },
+            /* A message that wants an answer can wait for one: sent with a day here, it becomes a *Waiting for* task
+               that closes itself when the reply arrives. Picking the chosen day again takes it off. */
+            ...COMPOSE_FOLLOW_UP.map((f, i) => ({
+              group: i === 0 ? "If nobody replies" : "", icon: "hourglass_top", label: f.label, hint: f.hint, radio: true,
+              checked: () => ((this.state.composeFollow || {}).on === f.on),
+              run: () => this.setState(s => ({ composeFollow: (s.composeFollow || {}).on === f.on ? null : f })),
+            })),
           ],
         },
       });
@@ -2293,6 +2300,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     remNumEventRef = React.createRef();
     remNumModalRef = React.createRef();
     tkTitleRef = React.createRef();
+    taskDlgTitleRef = React.createRef();
+
+    /* The new-task dialog, empty from Tasks, or starting from what it was opened on: `ctx` carries the anchor, the
+       proposed title, the direction and the person. */
+    openNewTaskWith = (ctx) => { this.remSet("new:task", REM_DEFAULT); this.setState({ newTask: true, newTaskCtx: ctx || null, event: null, taskOpen: null }); };
     tkDueRef = React.createRef();
     tkEstRef = React.createRef();
 
@@ -2800,6 +2812,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         if (d) this.openDraft(Object.assign({ acc: n.go.acc, noServerCopy: true }, d));
         return;
       }
+      /* A task's notification opens that task, over Tasks, rather than the list it is somewhere in. */
+      if (n.go.task) { this.goScreen("tasks", { taskOpen: n.go.task, taskAnchorPick: false }); return; }
       if (n.go.thread) this.goScreen("mail", Object.assign(this.leaveOutbox(), { mailPane: "thread", threadOpen: true, threadId: n.go.thread, cameFrom: false, sel: [] }));
       else this.goScreen(n.go.screen, n.go.screen === "mail" ? { mailPane: "list" } : {});
     };
@@ -3569,22 +3583,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }
       convs[i] = conv;
       return { convs, convId: id };
-    };
-
-    autoSchedule = () => {
-      this.setState(s2 => {
-        const todo = TASKS.concat(s2.extraTasks || []).filter(t2 => t2.group === "Today" && (s2.taskDone || []).indexOf(t2.id) < 0 && (s2.taskSched || []).indexOf(t2.id) < 0);
-        let h = 11;
-        const blocks = todo.map(t2 => {
-          const slot = { day: "27", time: (h < 10 ? "0" : "") + h + ":00", h, t: t2.t, kind: "meeting", src: "task" };
-          h += 2;
-          return slot;
-        });
-        return {
-          taskSched: (s2.taskSched || []).concat(todo.map(t2 => t2.id)),
-          calAdded: (s2.calAdded || []).concat(blocks),
-        };
-      });
     };
 
     /* Real-time playback of the scripted example. One timer at a time so the run can be skipped
@@ -5863,9 +5861,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const isMemberName = (name) => memberContacts.find(m => m.name === name) || null;
       const myPresence = st.myPresence || "active";
       const allTasks = TASKS.concat(st.extraTasks || []).filter(t2 => !hid("tasks", t2.id));
-      const openTodayTasks = allTasks.filter(t2 => t2.group === "Today" && (st.taskDone || []).indexOf(t2.id) < 0);
-      const openToday = openTodayTasks.length;
-      const estToday = openTodayTasks.reduce((a, t2) => a + (parseInt(t2.est, 10) || 30), 0) + " min";
       const convList = st.convs || [];
       const activeConv = convList.find(c => c.id === st.convId) || null;
       const convMsgs = activeConv ? activeConv.msgs : [];
@@ -5979,7 +5974,34 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         : kind === "mail"
         ? "var(--line);background:var(--sub);"
         : "var(--line);background:var(--panel);box-shadow:0 1px 2px var(--sh-1);");
-      const calAllDays = CAL_DAYS.map(d => Object.assign({}, d, { ev: d.ev.concat((st.calAdded || []).filter(x => x.day === d.d)) }));
+      const calBaseDays = CAL_DAYS.map(d => Object.assign({}, d, { ev: d.ev.concat((st.calAdded || []).filter(x => x.day === d.d)) }));
+      /* Tasks in the calendar: due-and-unplanned ones open a day, planned ones stand at their time beside the events. */
+      const TK = MailFathomDesign.tasksLogic.commitments(this, { st, touch, hid, calAllDays: calBaseDays });
+      const calTimeOf = (e) => { const mm = /^(\d{1,2}):(\d{2})/.exec(e.time || ""); return mm ? +mm[1] * 60 + +mm[2] : -1; };
+      const calAllDays = calBaseDays.map(d => Object.assign({}, d, { ev: d.ev.concat(TK.calItems(d.d)).sort((a, b) => calTimeOf(a) - calTimeOf(b)) }));
+      const calTask = (e, variant, obj) => {
+        if (!e.taskId) return obj;
+        const id = e.taskId;
+        const tone = e.kind === "due"
+          ? "border:1px solid var(--accent-line);background:var(--accent-soft);"
+          : "border:1px dashed " + (e.clash ? "var(--err)" : "var(--accent)") + ";background:var(--panel);";
+        const fade = e.done ? "opacity:0.55;" : "";
+        return Object.assign(obj, {
+          time: e.kind === "due" ? "Due · task" : "Task · " + e.time,
+          hasSrc: variant === "week" || variant === "day" ? !!e.src : obj.hasSrc,
+          open: () => TK.openTask(id),
+          press: this.pressFor("tasks", id, e.t, [
+            { icon: "open_in_full", label: "Open task", run: () => TK.openTask(id) },
+            { icon: e.done ? "radio_button_unchecked" : "check_circle", label: e.done ? "Mark as not done" : "Mark as done", run: () => this.setState(s3 => ({ taskDone: e.done ? (s3.taskDone || []).filter(x => x !== id) : (s3.taskDone || []).concat([id]) })) },
+            { icon: "calendar_add_on", label: e.kind === "due" ? "Plan a time" : "Move", run: () => TK.openPlan(id) },
+          ]),
+          style: variant === "dot"
+            ? "font-size:11px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:4px;padding:1px 5px;color:var(--text2);" + tone + fade
+            : variant === "agenda" ? obj.style
+            : "display:flex;flex-direction:column;gap:3px;border-radius:" + (variant === "monthday" ? 12 : 8) + "px;padding:" + (variant === "monthday" ? "11px 13px" : "8px 10px") + ";" + tone + fade,
+          dotStyle: variant === "agenda" ? "width:8px;height:8px;flex:0 0 8px;border-radius:2px;" + (e.kind === "due" ? "background:var(--accent-soft);border:1px solid var(--accent);" : "border:1.5px dashed var(--accent);") : obj.dotStyle,
+        });
+      };
       const calToday = calAllDays.find(d => d.today) || calAllDays[0];
       const monthCells = [];
       for (let i = 0; i < 5; i++) monthCells.push({ blank: true, n: "", ev: [] });
@@ -6684,8 +6706,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               (touch ? ";min-height:44px;padding:0 12px;font-size:13px" : ";min-height:32px;padding:0 10px;font-size:13px"),
           });
           if (kind === "tasks") return [
-            mk("check_circle", "Zrobione", () => this.setState(s3 => ({ taskDone: (s3.taskDone || []).concat(ids), selBy: Object.assign({}, s3.selBy || {}, { tasks: [] }) }))),
-            mk("calendar_month", "Schedule", () => this.setState(s3 => ({ taskSched: (s3.taskSched || []).concat(ids), selBy: Object.assign({}, s3.selBy || {}, { tasks: [] }) }))),
+            mk("check_circle", "Mark done", () => this.setState(s3 => ({ taskDone: (s3.taskDone || []).concat(ids), selBy: Object.assign({}, s3.selBy || {}, { tasks: [] }) }))),
             mk("delete", "Delete", () => this.askHide("tasks", ids, "Delete tasks?", ids.length + " tasks will disappear from the list."), true),
           ].map(st2);
           if (kind === "notifs") return [
@@ -6777,88 +6798,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         railTasksStyle: (isMobile ? "display:none;" : railBase + (st.screen === "tasks" ? activeStyle : idleColor)),
         railNotifStyle: railBase + (st.notifCenter ? activeStyle : idleColor),
         notifDotStyle: "position:absolute;top:-5px;right:-9px;min-width:17px;height:17px;box-sizing:border-box;padding:0 4px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--err);color:#fff;font-size:11px;font-weight:700;border:1.5px solid var(--rail)",
-        tbTaskLabel: tbFull ? "New task" : "",
-        taskActions: [
-          { icon: "search", label: "Find in mail", run: () => this.setState({ screen: "agent" }) },
-          { icon: "event", label: "Lay out the day", run: () => this.autoSchedule() },
-          { icon: "check_circle", label: "Show done", run: () => this.setState(s2 => ({ showDone: !s2.showDone })) },
-          { icon: "download", label: "Export", run: () => {} },
-        ].map(a => ({ icon: a.icon, label: tbFull ? a.label : "", run: a.run, style: tbFull ? tbBtn : tbIcon + ";flex:0 0 auto" })),
-        tasksBodyStyle: isMobile || compact
-          ? "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:16px;padding:14px"
-          : "flex:1;min-height:0;display:flex;gap:0",
-        tasksMainStyle: isMobile || compact
-          ? "display:flex;flex-direction:column;gap:18px"
-          : "flex:1;min-width:0;overflow:auto;display:flex;flex-direction:column;gap:20px;padding:20px max(26px, calc((100% - 310px - 1160px) / 2))",
-        tasksSideStyle: isMobile || compact
-          ? "display:flex;flex-direction:column;gap:10px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:14px"
-          : "width:310px;flex:0 0 310px;overflow:auto;display:flex;flex-direction:column;gap:10px;background:var(--sub);border-left:1px solid var(--line);padding:18px",
-        taskGroups: ["Today", "This week", "Later"].map(g => {
-          const items = allTasks.filter(t2 => t2.group === g && (st.showDone || (st.taskDone || []).indexOf(t2.id) < 0));
-          return {
-            label: g,
-            count: items.length,
-            items: items.map(t2 => {
-              const done = (st.taskDone || []).indexOf(t2.id) >= 0;
-              const sched = (st.taskSched || []).indexOf(t2.id) >= 0;
-              const remN = this.remList(t2.id).length;
-              return {
-                t: t2.t, est: t2.est, when: t2.when, src: t2.src, ai: !!t2.ai,
-          dueStyle: "font-size:13px;color:var(--text2);white-space:nowrap",
-                press: this.pressFor("tasks", t2.id, t2.t, [
-                  { icon: "check_box", label: "Select tasks", run: () => this.selStart("tasks", t2.id) },
-                  { icon: done ? "radio_button_unchecked" : "check_circle", label: done ? "Mark as not done" : "Mark as done", run: () => this.setState(s3 => ({ taskDone: done ? (s3.taskDone || []).filter(x => x !== t2.id) : (s3.taskDone || []).concat([t2.id]) })) },
-                  { icon: "notifications_active", label: "Reminders", run: () => this.setState({ remFor: { key: t2.id, title: t2.t, timed: false, kind: "task", hint: "before 09:00 \u00b7 " + t2.when, src: "Tasks" } }) },
-                  { icon: "calendar_month", label: "Schedule in the calendar", run: () => this.setState(s3 => ({ taskSched: (s3.taskSched || []).concat([t2.id]), calAdded: (s3.calAdded || []).concat([{ day: t2.day || "27", time: "11:00", h: 11, t: t2.t, kind: "meeting", src: "zadanie" }]) })) },
-                  { icon: "open_in_new", label: "Open source thread", run: () => this.setState({ screen: "mail", threadId: t2.tid || "contoso", mailPane: "thread", threadOpen: true, cameFrom: false }) },
-                  { icon: "delete", label: "Delete task", danger: true, run: () => this.askHide("tasks", [t2.id], "Delete task?", t2.t + " will disappear from the task list.") },
-                ]),
-                tap: this.rowTap("tasks", t2.id, () => {}),
-                selected: isSel("tasks", t2.id),
-                remCount: remN > 1 ? String(remN) : "",
-                remIcon: remN ? "notifications_active" : "notifications",
-                remTitle: remN ? "Reminders: " + remN : "Add a reminder",
-                remStyle: "display:flex;align-items:center;gap:4px;border-radius:8px;font-weight:600;border:1px solid " +
-                  (touch ? "" : "") + (remN ? "var(--accent-line);background:var(--accent-soft);color:var(--accent-d);" : "var(--line);background:var(--sub);color:var(--muted);") +
-                  (touch ? "height:44px;padding:0 14px;font-size:12px;" : "height:28px;padding:0 9px;font-size:11px;"),
-                remIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:" + (touch ? 20 : 16) + "px",
-                openRem: () => this.setState({ remFor: { key: t2.id, title: t2.t, timed: false, kind: "task", hint: "before 09:00 · " + t2.when, src: "Tasks" } }),
-                check: done ? "check" : "",
-                toggle: () => this.setState(s2 => ({
-                  taskDone: (s2.taskDone || []).indexOf(t2.id) >= 0
-                    ? (s2.taskDone || []).filter(x => x !== t2.id)
-                    : (s2.taskDone || []).concat([t2.id]),
-                })),
-                openSrc: () => this.setState({ screen: "mail", threadId: t2.tid || "contoso", mailPane: "thread", threadOpen: true, cameFrom: false }),
-                schedule: () => this.setState(s2 => sched ? {} : ({
-                  taskSched: (s2.taskSched || []).concat([t2.id]),
-                  calAdded: (s2.calAdded || []).concat([{ day: t2.day || "27", time: "11:00", h: 11, t: t2.t, kind: "meeting", src: "task" }]),
-                })),
-                schedLabel: sched ? "in the calendar" : "Schedule",
-                schedStyle: "border-radius:12px;white-space:nowrap;" + (touch ? "font-size:13px;padding:9px 14px;" : "font-size:11px;padding:5px 10px;") + (sched
-                  ? "color:var(--muted);background:var(--rail);border:1px solid var(--line);"
-                  : "color:var(--onaccent);background:var(--accent);"),
-                rowStyle: (touch
-                  ? "display:flex;flex-direction:column;align-items:stretch;gap:11px;padding:13px 14px;"
-                  : "display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 14px;") +
-                  "background:var(--panel);border:1px solid var(--line);border-radius:12px;" + (done ? "opacity:0.55;" : "") + selMark("tasks", t2.id),
-                mainStyle: "display:flex;align-items:" + (touch ? "flex-start" : "center") + ";gap:12px;flex:1;min-width:0",
-                metaStyle: touch
-                  ? "display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-left:38px"
-                  : "display:flex;align-items:center;gap:10px;flex-wrap:wrap",
-                boxStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;" +
-                  (touch ? "width:26px;height:26px;font-size:18px;" : "width:20px;height:20px;font-size:14px;") +
-                  "border:1px solid " + (done ? "var(--accent);background:var(--accent);color:var(--onaccent);" : "var(--border2);color:transparent;"),
-                titleStyle: "line-height:1.4;text-wrap:pretty;font-size:" + (touch ? 15 : 14) + "px;" + (done ? "text-decoration:line-through;color:var(--muted);" : ""),
-              };
-            }),
-          };
-        }),
-        taskAgenda: (calAllDays.find(d => d.today) || { ev: [] }).ev.map(e => ({ time: e.time, t: e.t })),
-        capacityText: "Today you have " + openToday + " tasks (≈ " + estToday + ") and " + TASK_CAPACITY.meetings + ". " + TASK_CAPACITY.advice,
-        autoSchedule: () => this.autoSchedule(),
+        ...MailFathomDesign.tasksLogic.props(this, { st, touch, isMobile, compact, tbFull, tbBtn, tbIcon, isSel, selMark, hid, calAllDays }),
         newTaskOpen: !!st.newTask,
-        openNewTask: () => { this.remSet("new:task", REM_DEFAULT); this.setState({ newTask: true }); },
+        openNewTask: () => this.openNewTaskWith(null),
         tkRem: this.remBlock("new:task", { timed: false, numRef: this.remNumTaskRef, hint: "09:00 on the day it is due" }),
         remModalOpen: !!st.remFor,
         remModalSubtitle: st.remFor ? st.remFor.title + (st.remFor.hint ? " - " + st.remFor.hint : "") : "",
@@ -6869,11 +6811,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         }),
         closeRemModal: () => {
           const f = st.remFor;
-          if (f) this.remFire(f.title, this.remList(f.key), f.kind === "task" ? "task" : "cal", f.src || "Calendar", { screen: f.kind === "task" ? "tasks" : "cal" });
+          if (f) this.remFire(f.title, this.remList(f.key), f.kind === "task" ? "task" : "cal", f.src || "Calendar", f.kind === "task" ? { screen: "tasks", task: f.key } : { screen: "cal" });
           this.setState({ remFor: null });
         },
         remModalClear: () => { if (st.remFor) this.remSet(st.remFor.key, []); },
-        closeNewTask: () => this.setState({ newTask: false }),
+        closeNewTask: () => this.setState({ newTask: false, newTaskCtx: null }),
         tkPromptRef: this.tkPromptRef, tkTitleRef: this.tkTitleRef, tkDueRef: this.tkDueRef, tkEstRef: this.tkEstRef,
         tkParse: () => {
           const raw = ((this.tkPromptRef.current || {}).value || "").trim();
@@ -6883,23 +6825,28 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           if (this.tkDueRef.current) this.tkDueRef.current.value = p.day + ".09";
           if (this.tkEstRef.current) this.tkEstRef.current.value = est;
         },
+        /* A task made from a thread, a person or an event belongs to it from the start; one made in Tasks belongs to
+           nothing until the person links it. */
         saveTask: () => {
           const t2 = (this.tkTitleRef.current || {}).value || "New task";
-          const when = (this.tkDueRef.current || {}).value || "no due date";
+          const raw = ((this.tkDueRef.current || {}).value || "").trim().toLowerCase();
+          const dm = /^(\d{1,2})\.(\d{1,2})/.exec(raw);
+          const on = raw === "today" ? "08-27" : raw === "tomorrow" ? "08-28" : dm ? dm[2].padStart(2, "0") + "-" + dm[1].padStart(2, "0") : null;
+          const when = on === "08-27" ? "today" : on === "08-28" ? "tomorrow" : on ? on.slice(3) + "." + on.slice(0, 2) : "";
           const est = (this.tkEstRef.current || {}).value || "30 min";
+          const ctx = st.newTaskCtx || {};
           const rem = this.remList("new:task");
           const id = "tk" + Date.now();
           this.setState(s2 => ({
-            newTask: false,
+            newTask: false, newTaskCtx: null,
             remMap: Object.assign({}, s2.remMap || {}, { [id]: rem.slice() }),
             extraTasks: (s2.extraTasks || []).concat([{
-              id: id, t: t2, when, day: (when.match(/^(\d{1,2})/) || [])[1] || "28",
-              group: when === "today" ? "Today" : "This week", src: "added manually", tid: "contoso", ai: false, est,
+              id, t: t2, dir: ctx.dir || "owe", on, when, est, mins: parseInt(est, 10) * (/h/.test(est) ? 60 : 1) || 30,
+              anchor: ctx.anchor || null, person: ctx.person || null,
             }]),
           }));
-          this.notify(rem.length
-            ? "Due " + when + " · " + (rem.length === 1 ? remLabel(rem[0], "on the day") : rem.length + " reminders")
-            : "Due " + when + " · no reminder", { kind: "success", title: "Task added" });
+          this.notify((ctx.dir === "wait" ? "Waiting" : "Due " + (when || "no day")) + (ctx.anchor ? " · belongs to " + ctx.anchor.label : "") +
+            (rem.length ? " · " + (rem.length === 1 ? remLabel(rem[0], "on the day") : rem.length + " reminders") : ""), { kind: "success", title: "Task added" });
           this.remFire(t2, rem, "task", "Tasks", { screen: "tasks" });
         },
         isAgent: st.screen === "agent" && !emptyApp,
@@ -7176,6 +7123,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             composeReceiptsLineStyle: "display:flex;align-items:flex-start;gap:8px;padding:" + (touch ? "6px 15px" : "7px 15px") + ";" + (touch ? "min-height:44px;box-sizing:border-box;" : "") +
               "border-top:1px solid var(--line);background:var(--panel);font-size:13px;line-height:1.45;color:var(--text2);text-wrap:pretty",
             composeSendAtOn: !!at,
+            composeFollowOn: !!st.composeFollow,
+            composeFollowText: st.composeFollow ? "If nobody replies by " + st.composeFollow.hint + ", this waits in Tasks and reminds you that day." : "",
+            clearComposeFollow: (e) => { if (e && e.type === "keydown") { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); } this.setState({ composeFollow: null }); },
             composeSendLabel: at ? "Send " + said.short : "Send",
             composeSendGlyphShown: !!at,
             composeSendAtText: at ? "This message leaves " + said.long + ", not when you press Send." : "",
@@ -7875,6 +7825,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         eventNote: st.event && st.event.kind === "deadline"
           ? "Deadline detected in the correspondence - changing the date in the thread updates this entry."
           : "Event linked to a thread; attendees come from the thread.",
+        eventTasks: st.event ? TK.forEvent(st.event.t) : [],
+        eventTasksNone: !!(st.event && !TK.forEvent(st.event.t).length),
+        eventAddTask: () => {
+          const e = st.event;
+          if (!e) return;
+          this.openNewTaskWith({ anchor: { kind: "event", label: e.t, day: e.day, time: e.time }, when: e.day ? e.day + ".08" : "", title: "Prepare for " + e.t });
+        },
         closeEvent: () => this.setState({ event: null }),
         eventOpenThread: () => this.setState({ event: null, screen: "mail", mailPane: "thread", threadOpen: true }),
         eventDelete: () => this.askDel({
@@ -7926,7 +7883,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : "flex:1;min-width:0;overflow:auto;display:flex;flex-direction:column;padding:8px 24px 20px 24px",
         calHours: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17].map(h => ({
           label: (h < 10 ? "0" : "") + h + ":00",
-          ev: calToday.ev.filter(e => (e.h || 0) === h).map(e => ({
+          ev: calToday.ev.filter(e => (e.h || 0) === h).map(e => calTask(e, "day", {
             t: e.t, time: e.time, src: e.src || "", hasSrc: !!e.src,
             style: evStyle(e.kind) + (isSel("events", calToday.d + "|" + e.time + "|" + e.t) ? "background:var(--accent-soft);border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent);" : ""),
             press: this.pressFor("events", (calToday.d) + "|" + e.time + "|" + e.t, e.t, [
@@ -7970,7 +7927,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               ? "width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--accent);color:var(--onaccent);font-size:14px;font-weight:600"
               : "font-size:14px;color:var(--text2)")
             : (c.today ? "font-size:12px;font-weight:600;color:var(--accent-d)" : "font-size:12px;color:var(--muted)"),
-          dots: (isMobile ? [] : c.ev).map(e => ({
+          dots: (isMobile ? [] : c.ev).map(e => calTask(e, "dot", {
             t: e.t, open: () => this.setState({ event: Object.assign({ day: c.n }, e) }),
             style: "font-size:11px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:4px;padding:2px 5px;" +
               (e.kind === "deadline" ? "background:var(--hl);color:var(--text);" : "background:var(--rail);color:var(--text2);"),
@@ -7984,7 +7941,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           return n === 0 ? "" : n === 1 ? "1 event" : n + " events";
         })(),
         calMonthDayEmpty: !((calAllDays.find(x => x.d === (st.calSelDay || "27")) || { ev: [] }).ev.length),
-        calMonthDayEvents: ((calAllDays.find(x => x.d === (st.calSelDay || "27")) || { ev: [] }).ev).map(e => ({
+        calMonthDayEvents: ((calAllDays.find(x => x.d === (st.calSelDay || "27")) || { ev: [] }).ev).map(e => calTask(e, "monthday", {
           t: e.t, time: e.time,
           open: () => this.setState({ event: Object.assign({ day: st.calSelDay || "27" }, e) }),
           style: "display:flex;flex-direction:column;gap:3px;border-radius:12px;padding:11px 13px;border:1px solid " +
@@ -8012,7 +7969,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           day: d.d + ".08",
           dow: d.dow,
           dayStyle: "font-weight:600;font-size:" + (isMobile ? 14 : 15) + "px;" + (d.today ? "color:var(--accent-d);" : ""),
-          ev: d.ev.map(e => ({
+          ev: d.ev.map(e => calTask(e, "agenda", {
             t: e.t, time: e.time, src: e.src || "", hasSrc: !!e.src,
             press: this.pressFor("events", (d.d) + "|" + e.time + "|" + e.t, e.t, [
               { icon: "check_box", label: "Select events", run: () => this.selStart("events", (d.d) + "|" + e.time + "|" + e.t) },
@@ -8025,14 +7982,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             dotStyle: "width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:" + (isSel("events", d.d + "|" + e.time + "|" + e.t) ? "var(--accent)" : e.kind === "deadline" ? "var(--hl-line)" : e.kind === "mail" ? "var(--border2)" : "var(--accent)"),
             rowStyle: "display:flex;flex-direction:column;gap:3px;border-radius:8px;padding:6px 8px;margin:0 -8px;" + (isSel("events", d.d + "|" + e.time + "|" + e.t) ? "background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);" : ""),
           })),
-        })),
-        calFocus: CAL_FOCUS.filter(f => (st.calDone || []).indexOf(f.t) < 0).map(f => ({
-          t: f.t, why: f.why, slot: f.day + ".08, " + f.time + " · " + f.len,
-          add: () => this.setState(s2 => ({
-            calDone: (s2.calDone || []).concat([f.t]),
-            calAdded: (s2.calAdded || []).concat([{ day: f.day, time: f.time, h: parseInt(f.time, 10), t: f.t, kind: "meeting", src: "blok od AI" }]),
-          })),
-          skip: () => this.setState(s2 => ({ calDone: (s2.calDone || []).concat([f.t]) })),
         })),
         calHeadStyle: isMobile
           ? "display:flex;flex-direction:column;gap:5px;background:var(--sub);border-bottom:1px solid var(--line);padding:13px 14px"
@@ -8057,7 +8006,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           numStyle: d.today
             ? "font-size:16px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center"
             : "font-size:16px;font-weight:600",
-          ev: (d.ev.concat((st.calAdded || []).filter(x => x.day === d.d))).map(e => ({
+          ev: calAllDays[i].ev.map(e => calTask(e, "week", {
             time: e.time, t: e.t, src: e.src || "", hasSrc: !!e.src,
             press: this.pressFor("events", (d.d) + "|" + e.time + "|" + e.t, e.t, [
               { icon: "check_box", label: "Select events", run: () => this.selStart("events", (d.d) + "|" + e.time + "|" + e.t) },
@@ -8078,15 +8027,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         calSideStyle: touch || narrow
           ? "flex:0 0 auto;display:flex;flex-direction:column;gap:11px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:14px"
           : "width:312px;flex:0 0 312px;display:flex;flex-direction:column;gap:11px;overflow:auto;background:var(--sub);border-left:1px solid var(--line);padding:16px 18px",
-        calProposed: CAL_PROPOSED.filter(p => (st.calDone || []).indexOf(p.id) < 0).map(p => ({
-          t: p.t, when: p.when, src: p.src,
-          add: () => this.setState(s2 => ({
-            calDone: (s2.calDone || []).concat([p.id]),
-            calAdded: (s2.calAdded || []).concat([{ day: p.when.slice(0, 2), time: "all day", t: p.t, kind: "deadline" }]),
-          })),
-          skip: () => this.setState(s2 => ({ calDone: (s2.calDone || []).concat([p.id]) })),
-        })),
-        calNoProposals: CAL_PROPOSED.every(p => (st.calDone || []).indexOf(p.id) >= 0),
+        /* The calendar's side holds the same proposals Tasks › Proposed does: one list, answered from either place. */
+        calProposed: TK.proposals,
+        calNoProposals: !TK.proposals.length,
+        calPlanDay: () => this.goScreen("tasks", { taskView: "today", layoutOffer: true }),
 
         showPeopleList: !isMobile || st.peoplePane !== "detail",
         showPersonDetail: !isMobile || st.peoplePane === "detail",
@@ -8284,6 +8228,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         })() : [],
         personReports: personIsMember ? memberContacts.filter(m => m.manager === person.id).sort((a, b) => a.name.localeCompare(b.name)).map(m => orgPersonRow(m, 0, false)) : [],
         personNoReports: personIsMember && !memberContacts.some(m => m.manager === person.id),
+        /* What I owe this person and what they owe me, both ways from the same tasks. */
+        personOwe: TK.owedTo(person.id),
+        personOwed: TK.owedBy(person.id),
+        personOweNone: !TK.owedTo(person.id).length,
+        personOwedNone: !TK.owedBy(person.id).length,
+        personOweLabel: "You owe " + person.name.split(" ")[0],
+        personOwedLabel: person.name.split(" ")[0] + " owes you",
+        personAddTask: () => this.openNewTaskWith({ anchor: { kind: "person", label: person.name, pid: person.id }, person: person.id }),
+        personAddTaskStyle: "margin-left:auto;display:flex;align-items:center;gap:6px;border-radius:8px;font-size:12px;color:var(--accent-d);border:1px solid var(--accent-line);background:var(--accent-soft);" +
+          (touch ? "min-height:44px;padding:0 12px;" : "padding:5px 10px;"),
         personThreads: person.threads.map(t3 => ({
           label: t3.label, meta: t3.meta,
           open: () => this.setState({ screen: "mail", threadId: t3.id, mailPane: "thread", threadOpen: true, cameFrom: false }),
@@ -8340,6 +8294,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { icon: "reply", label: "Reply", title: "Reply", run: () => this.startReply("reply", [thread.id]) },
           { icon: "forward", label: "Forward", title: "Forward", run: () => this.startReply("fwd", [thread.id]) },
           { icon: "flag", label: flagOn ? "Unflag" : "Flag", title: flagOn ? "Remove flag" : "Flag", run: () => this.toggleFlagThreads([thread.id]) },
+          { icon: "add_task", label: "Make a task", title: "Make a task", run: () => this.openNewTaskWith({ anchor: { kind: "thread", label: thread.subject, tid: thread.id }, title: TASK_FROM_THREAD[thread.id] || "", person: ((CONTACTS.find(c => c.name === thread.from) || {}).id) || null }) },
           { icon: "report", label: "Mark spam", title: "Mark spam", run: () => this.toggleSpam([thread.id]) },
           { icon: "more_vert", label: "More actions", title: "More actions", glyph: true, run: (e) => this.openMoreMenu(thread.id, e) },
         /* Two panes under a finger carry these in the toolbar above already, so the header keeps *Ask* alone and
@@ -8352,6 +8307,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             ? "width:" + (isMobile ? 48 : touch ? 44 : 34) + "px;height:" + (isMobile ? 48 : touch ? 44 : 34) + "px;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : a.icon === "report" ? "--err-text" : "--text2") + ");font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1"
             : "display:flex;align-items:center;padding:5px 8px;border-radius:8px;font-size:13px;color:var(" + (a.icon === "flag" && flagOn ? "--warn" : a.icon === "report" ? "--err-text" : a.icon === "report_off" ? "--text2" : "--muted") + ")",
         })),
+        /* The commitments the open thread carries, under its address line: each opens its task. */
+        threadTasks: thread ? TK.forThread(thread.id).map(x => Object.assign(x, {
+          chipStyle: "display:inline-flex;align-items:center;gap:7px;min-width:0;max-width:100%;box-sizing:border-box;border:1px solid var(--line);background:var(--sub);border-radius:999px;font-size:12px;color:var(--text2);" +
+            (touch ? "min-height:44px;padding:0 14px;" : "padding:4px 11px;"),
+        })) : [],
+        threadTasksShown: !!(thread && TK.forThread(thread.id).length),
+        threadTasksRowStyle: "display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px " + (singlePane ? "27px" : "22px"),
         backToList: () => this.setState({ mailPane: "list", replyDock: null, replyChooser: null }),
         threadListStyle: "position:relative;" + (singlePane
           ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0"
@@ -9001,6 +8963,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
              in 700 and the full text colour, a read row in 400 and the secondary one. 600 against 400 alone read as
              the same row at a glance. No dot. */
           fromStyle: (isMobile ? "flex:0 1 auto;min-width:0;font-size:15px;" : listCompact ? "flex:0 1 auto;min-width:0;font-size:14px;" : "flex:0 1 auto;min-width:0;max-width:60%;font-size:14px;") + "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
+          taskMark: TK.threadHasTask(t.id),
+          taskMarkStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1.3;color:var(--accent-d)",
           subjStyle: "flex:1 1 auto;min-width:0;" + (isMobile ? "font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "font-size:14px") + (unreadMap[t.id] ? ";font-weight:700;color:var(--text)" : ";font-weight:400;color:var(--text2)"),
           orgStyle: isMobile || compact ? "display:none" : "flex:0 100 auto;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
           showAi: aiHints && !!t.ai && !convMail,
@@ -9139,8 +9103,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             this.openOutbox(acc);
             this.pickOutboxEntry(entry.id);
           };
+          const follow = st.composeFollow;
           finishCompose();
           this.setOutbox(acc, [entry].concat(this.outboxOf(acc)));
+          if (follow) {
+            const who = composeTo[0] || "the recipient";
+            const tid = st.replyThreadId;
+            const th = THREADS.find(t => t.id === tid);
+            this.setState(s2 => ({ composeFollow: null, extraTasks: (s2.extraTasks || []).concat([{
+              id: "tw" + Date.now(), t: "Reply from " + who, dir: "wait", on: follow.on, when: follow.when, since: "sent today",
+              anchor: th ? { kind: "thread", label: th.subject, tid } : null, person: ((CONTACTS.find(c => c.name === who) || {}).id) || null,
+            }]) }));
+          }
           if (at) {
             const tid = this.notify("It leaves " + said.long + ". Until then it waits in the Outbox, where it can still be cancelled.", {
               kind: "success", title: "Message scheduled", actionLabel: "Show in Outbox", onAction: () => { this.dismissToast(tid); showEntry(); }, ms: 8000 });
