@@ -857,6 +857,8 @@ export class FakeDeployment {
                 return answering(this.taskWritten(request.body));
             case 'GET /tasks/today/layout':
                 return answering(tasks.daysArranged);
+            case 'POST /tasks/today/layout':
+                return answering(tasks.dayArrangement(dayIn(this.timeZone.timeZone, this.heldInstant ?? new Date())));
             case 'GET /calendar':
                 return answering(this.calendarWindow(request.query));
             case 'POST /calendar':

@@ -370,3 +370,127 @@ test('moves a task it wrote, finished, and deleted between the groups, and the d
         completion?.route.replace(/\/completion$/u, ''),
     ]);
 });
+
+/** The hour of the day beside the list a task is dropped on, named by the clock time it opens at. */
+function hourOfTheDay(page: Page, label: string) {
+    return page
+        .getByRole('complementary')
+        .getByRole('listitem')
+        .filter({ hasText: new RegExp(`^${label}`, 'u') });
+}
+
+test('a task planned from its dialog is still planned after reload', async ({ page, deployment }) => {
+    const today = (await holdTheDay(page, deployment)).toISOString().slice(0, 10);
+
+    await openSignedInAsDeveloper(page, '/#/tasks');
+    await openTask(page, 'Book the meeting room for the Fabrikam review');
+
+    const dialog = page.getByRole('dialog', { name: 'Task' });
+
+    await expect(dialog).toContainText('Not planned');
+    await dialog.getByRole('button', { name: 'Plan', exact: true }).click();
+
+    const planning = page.getByRole('dialog', { name: 'Plan a time' });
+
+    await planning.getByRole('button', { name: /^2:00 PM/u }).click();
+    await expect(planning).toContainText(/Planned today, 2:00/u);
+    await planning.getByRole('button', { name: 'Plan', exact: true }).click();
+
+    await expect(planning).toHaveCount(0);
+    await expect(dialog).toContainText(/2:00\s?–\s?2:10\sPM today/u);
+    await expect.poll(() => deployment.requests('PUT', '/tasks/task-room').length).toBe(1);
+    expect(deployment.requests('PUT', '/tasks/task-room')[0]?.body).toMatchObject({
+        title: 'Book the meeting room for the Fabrikam review',
+        estimatedMinutes: 10,
+        plan: { startAt: `${today}T14:00:00.000Z`, minutes: 10 },
+    });
+
+    await dialog.getByRole('button', { name: 'Close' }).click();
+    await reloadTasks(page);
+
+    await expect(titlesIn(page, 'Planned')).toHaveText([
+        /^Send the 5% CPI cap counter-proposal/u,
+        /^Book the meeting room for the Fabrikam review/u,
+        /^Reply to Marta about the calculation/u,
+    ]);
+    await expect(page.getByRole('region', { name: 'Due today, not planned' })).toHaveCount(0);
+});
+
+test('dragging a task onto an hour plans it there', async ({ page, deployment }) => {
+    const today = (await holdTheDay(page, deployment)).toISOString().slice(0, 10);
+
+    await openSignedInAsDeveloper(page, '/#/tasks');
+
+    await expect(page.getByText('Drag a task onto an hour to plan it.')).toBeVisible();
+    await titlesIn(page, 'Due today, not planned').first().dragTo(hourOfTheDay(page, '2:00 PM'));
+
+    await expect(page.getByRole('status').filter({ hasText: /planned at 2:00 PM/u })).toBeVisible();
+    expect(deployment.requests('PUT', '/tasks/task-room').map(({ body }) => body)).toMatchObject([
+        { plan: { startAt: `${today}T14:00:00.000Z`, minutes: 10 } },
+    ]);
+    await expect(hourOfTheDay(page, '2:00 PM')).toContainText('Book the meeting room for the Fabrikam review');
+    await expect(titlesIn(page, 'Planned')).toContainText([/^Book the meeting room for the Fabrikam review/u]);
+});
+
+test('"Plan these" plans each proposed placement and "Not now" plans nothing', async ({ page, deployment }) => {
+    const today = (await holdTheDay(page, deployment)).toISOString().slice(0, 10);
+
+    await openSignedInAsDeveloper(page, '/#/tasks');
+
+    const capacity = page.getByRole('region', { name: 'Day capacity' });
+
+    await capacity.getByRole('button', { name: 'Lay out today' }).click();
+    await expect(capacity).toContainText('Here is a way to fit the rest of today');
+    await expect(capacity).toContainText('Book the meeting room for the Fabrikam review');
+    await expect(capacity).toContainText(/moved from 3:00 PM: it clashed with /u);
+    await expect(capacity).toContainText('One task did not fit today: Prepare the IT contract list for audit.');
+
+    await capacity.getByRole('button', { name: 'Not now' }).click();
+
+    await expect(capacity.getByRole('button', { name: 'Plan these' })).toHaveCount(0);
+    expect(deployment.requests('PUT', '/tasks/task-room')).toHaveLength(0);
+    expect(deployment.requests('PUT', '/tasks/task-calculation')).toHaveLength(0);
+
+    await capacity.getByRole('button', { name: 'Lay out today' }).click();
+    await capacity.getByRole('button', { name: 'Plan these' }).click();
+
+    await expect(page.getByRole('status').filter({ hasText: '2 tasks planned into today.' })).toBeVisible();
+    expect(deployment.requests('PUT', '/tasks/task-room').map(({ body }) => body)).toMatchObject([
+        { plan: { startAt: `${today}T10:00:00+00:00`, minutes: 10 } },
+    ]);
+    expect(deployment.requests('PUT', '/tasks/task-calculation').map(({ body }) => body)).toMatchObject([
+        { plan: { startAt: `${today}T16:00:00+00:00`, minutes: 20 } },
+    ]);
+    expect(deployment.requests('POST', '/calendar')).toHaveLength(0);
+    await expect(titlesIn(page, 'Planned')).toContainText([/^Book the meeting room for the Fabrikam review/u]);
+});
+
+test.describe('driven by a finger', () => {
+    test.use({ hasTouch: true });
+
+    test('on a touch screen a task is planned from "Plan…" instead of dragging', async ({ page, deployment }) => {
+        const today = (await holdTheDay(page, deployment)).toISOString().slice(0, 10);
+
+        await openSignedInAsDeveloper(page, '/#/tasks');
+
+        const row = titlesIn(page, 'Due today, not planned').first();
+
+        await expect(page.getByText('Plan a task from its own Plan.')).toBeVisible();
+        await expect(page.getByText('Drag a task onto an hour to plan it.')).toBeHidden();
+        await expect(row).not.toHaveAttribute('draggable', 'true');
+
+        await row.getByRole('button', { name: 'Plan', exact: true }).tap();
+
+        const planning = page.getByRole('dialog', { name: 'Plan a time' });
+
+        await planning.getByRole('button', { name: /^9:00 AM/u }).tap();
+        await planning.getByRole('button', { name: 'Plan', exact: true }).tap();
+
+        await expect(planning).toHaveCount(0);
+        await expect.poll(() => deployment.requests('PUT', '/tasks/task-room').length).toBe(1);
+        expect(deployment.requests('PUT', '/tasks/task-room')[0]?.body).toMatchObject({
+            plan: { startAt: `${today}T09:00:00.000Z`, minutes: 10 },
+        });
+        await expect(titlesIn(page, 'Planned')).toContainText([/^Book the meeting room for the Fabrikam review/u]);
+    });
+});

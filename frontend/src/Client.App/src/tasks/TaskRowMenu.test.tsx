@@ -37,7 +37,7 @@ function menuOver({
     onAccept,
     onOpenSource,
     onReminders,
-    onSchedule = vi.fn(),
+    onPlan = vi.fn(),
     onAskErasure = vi.fn(),
     onDismiss = vi.fn(),
 }: {
@@ -49,7 +49,7 @@ function menuOver({
     onAccept?: (() => void) | undefined;
     onOpenSource?: (() => void) | undefined;
     onReminders?: (() => void) | undefined;
-    onSchedule?: () => void;
+    onPlan?: (() => void) | undefined;
     onAskErasure?: () => void;
     onDismiss?: () => void;
 } = {}): void {
@@ -65,7 +65,7 @@ function menuOver({
                 onAccept={onAccept}
                 onOpenSource={onOpenSource}
                 onReminders={onReminders}
-                onSchedule={onSchedule}
+                onPlan={onPlan}
                 onAskErasure={onAskErasure}
                 onDismiss={onDismiss}
                 onClose={vi.fn()}
@@ -84,7 +84,7 @@ describe('TaskRowMenu', () => {
 
         expect(drawn()).toStrictEqual([
             'Mark as done',
-            'Schedule in the calendar',
+            'Plan in the calendar',
             'Reminders',
             'Open source thread',
             'Select tasks',
@@ -134,10 +134,16 @@ describe('TaskRowMenu', () => {
         expect(drawn()).toContain('Mark as not done');
     });
 
-    it('offers nothing to schedule for a task with no day to put it on', () => {
-        menuOver({ task: taskOf({ dueOn: null }) });
+    it('moves a task already planned', () => {
+        menuOver({ task: taskOf({ plan: { startAt: '2026-09-24T09:00:00+00:00', minutes: 30 } }) });
 
-        expect(drawn()).not.toContain('Schedule in the calendar');
+        expect(drawn()).toContain('Move in the calendar');
+    });
+
+    it('offers no plan for a task waited on', () => {
+        menuOver({ task: taskOf({ direction: 'Awaited' }) });
+
+        expect(drawn()).not.toContain('Plan in the calendar');
     });
 
     it('offers nothing to announce for a task nobody dated, a lead having no day to be measured back from', () => {

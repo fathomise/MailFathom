@@ -12,6 +12,7 @@ import {
     wordLasting,
 } from '../localization/instants';
 import type { Locale } from '../localization/locale';
+import type { MessageKey } from '../localization/en';
 import type { Translate } from '../localization/useLocalization';
 import { endAfter } from './dayInstants';
 
@@ -111,4 +112,45 @@ export function wordReply(
     return counterpart === null
         ? translate('tasks.repliedAt', { time })
         : translate('tasks.personRepliedAt', { name: wordCounterpart(counterpart), time });
+}
+
+/**
+ * The working days after tomorrow, as many as asked for, which the design offers as day chips beside *Today* and
+ * *Tomorrow* — walked over the calendar, so a weekend is stepped over rather than counted.
+ */
+export function workingDaysAfterTomorrow(today: string, count: number): readonly string[] {
+    const later: string[] = [];
+
+    for (let ahead = 2; later.length < count; ahead += 1) {
+        const day = dayFrom(today, ahead);
+        const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();
+
+        if (weekday !== 0 && weekday !== 6) {
+            later.push(day);
+        }
+    }
+
+    return later;
+}
+
+/** What a day chip says: *No day*, *Today*, *Tomorrow*, or the weekday with the day and the month. */
+export function wordDayChoice(
+    day: string | null,
+    today: string,
+    locale: Locale,
+    translate: (key: MessageKey) => string,
+): string {
+    if (day === null) {
+        return translate('tasks.noDay');
+    }
+
+    if (day === today) {
+        return translate('tasks.dayToday');
+    }
+
+    return day === dayFrom(today, 1)
+        ? translate('tasks.dayTomorrow')
+        : new Intl.DateTimeFormat(locale, { weekday: 'short', day: '2-digit', month: '2-digit' }).format(
+              new Date(`${day}T00:00:00`),
+          );
 }

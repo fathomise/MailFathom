@@ -48,7 +48,6 @@ function drawList({
     failure = null,
     everythingDone = false,
     selected = [],
-    scheduled = [],
     onSelected = vi.fn(),
     onReadMore = vi.fn(),
     onReadAgain = vi.fn(),
@@ -61,7 +60,6 @@ function drawList({
     failure?: ClientFailureReason | null;
     everythingDone?: boolean;
     selected?: readonly string[];
-    scheduled?: readonly string[];
     onSelected?: (selected: readonly string[]) => void;
     onReadMore?: () => void;
     onReadAgain?: () => void;
@@ -85,7 +83,6 @@ function drawList({
                 everythingDone={everythingDone}
                 now={readingAt}
                 selected={selected}
-                scheduled={scheduled}
                 onSelected={onSelected}
                 onToggleCompleted={vi.fn()}
                 onOpen={onOpen}
@@ -93,7 +90,7 @@ function drawList({
                 onAccept={vi.fn()}
                 onOpenSource={vi.fn()}
                 onReminders={vi.fn()}
-                onSchedule={vi.fn()}
+                onPlan={vi.fn()}
                 onAskErasure={vi.fn()}
                 onDismiss={vi.fn()}
                 onReadMore={onReadMore}

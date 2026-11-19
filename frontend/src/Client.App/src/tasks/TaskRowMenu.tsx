@@ -17,7 +17,8 @@ import { useWriteRefusal } from '../shell/useWriteRefusal';
 //
 // **An item the client cannot yet perform is left out rather than drawn inert**, which is the rule
 // `messageRows/MessageRowMenu.tsx` states: *reminders* on a task nobody dated, a lead having no day to be measured
-// back from; *schedule in the calendar* on the same row; what it belongs to where that cannot be reached from here;
+// back from; *Plan in the calendar* or *Move in the calendar* on a task that is done or waited on; what it belongs to where that
+// cannot be reached from here;
 // and *Follow up*, which opens a reply and arrives with the composer's change.
 //
 // **Nothing here performs the erasure.** The question it stands behind outlives the menu — the menu is gone the moment
@@ -32,7 +33,7 @@ export function TaskRowMenu({
     onOpenAnchor,
     onAccept,
     onReminders,
-    onSchedule,
+    onPlan,
     onOpenSource,
     onAskErasure,
     onDismiss,
@@ -58,8 +59,8 @@ export function TaskRowMenu({
     /** Opens what announces this task, or `undefined` for one nobody dated, which can announce nothing. */
     readonly onReminders: (() => void) | undefined;
 
-    /** Puts this task in the calendar, or `undefined` where this credential may not change one. */
-    readonly onSchedule: (() => void) | undefined;
+    /** Opens the plan dialog for this task, or `undefined` where it cannot be planned from here. */
+    readonly onPlan?: (() => void) | undefined;
 
     /** Opens the message this task cites, or `undefined` where it cites none. */
     readonly onOpenSource: (() => void) | undefined;
@@ -107,8 +108,14 @@ export function TaskRowMenu({
         ),
     );
 
-    if (task.direction === 'Owed' && task.dueOn !== null && onSchedule !== undefined) {
-        items.push(writing('calendar_month', translate('tasks.scheduleInCalendar'), onSchedule));
+    if (task.direction === 'Owed' && !task.completed && onPlan !== undefined) {
+        items.push(
+            writing(
+                'schedule',
+                translate(task.plan === null ? 'tasks.planInCalendar' : 'tasks.moveInCalendar'),
+                onPlan,
+            ),
+        );
     }
 
     if (onReminders !== undefined && task.answer === null) {

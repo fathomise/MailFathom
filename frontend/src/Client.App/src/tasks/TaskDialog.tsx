@@ -16,9 +16,11 @@ import {
     type TaskAnchor,
     type TaskCounterpart,
     type TaskDirection,
+    type TaskPlan,
 } from '@mailfathom/client-backend';
 import { mannerDrawn } from '../confirmation/wayOutShapes';
 import { ChoiceSegment } from '../controls/ChoiceSegment';
+import { Control } from '../controls/Control';
 import { dialogField } from '../controls/chrome';
 import { Icon } from '../controls/Icon';
 import type { IconName } from '../controls/icons';
@@ -26,14 +28,14 @@ import { SurfaceControl } from '../controls/SurfaceControl';
 import { SymbolControl } from '../controls/SymbolControl';
 import type { MessageKey } from '../localization/en';
 import { calendarDayIn, dayFrom, wordInstant } from '../localization/instants';
-import type { Locale } from '../localization/locale';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { wordReminderCount } from '../reminders/reminderWords';
 import { useTopLayerSurface } from '../shell/screenLayers';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
+import { PlanDialog } from './PlanDialog';
 import { clashOf } from './taskViews';
-import { wordCounterpart, wordPlan, wordReply } from './taskWording';
+import { wordCounterpart, wordDayChoice, wordPlan, wordReply, workingDaysAfterTomorrow } from './taskWording';
 
 // One task opened, which is where it is read and where it is changed: its line, which way it runs, the day it is due
 // or followed up on, where it is planned, what it belongs to — the thread or event, or the person where it has neither
@@ -56,10 +58,13 @@ import { wordCounterpart, wordPlan, wordReply } from './taskWording';
 // opens. So an answer arriving after this dialog was left only tells the screen what the write did; it never closes
 // or speaks in whatever dialog is open by then.
 //
-// **Four things the design draws here are not drawn yet, each the change of a later task.** *Plan* and *Move* open the
-// plan dialog; *Change* beside *Belongs to* chooses among recent threads and events, which no route lists; *Follow up*
-// opens a reply in the thread, which is the composer's; and *Open* on the person is the person page's. What is drawn
-// in their place is what the task holds, never a control that would do nothing.
+// **Where it is planned is one more choice.** *Plan* or *Move* opens the plan dialog over this one, and the plan it hands
+// back is written exactly as a chip is — queued behind any write already out, the latest choice winning.
+//
+// **Three things the design draws here are not drawn yet, each the change of a later task.** *Change* beside *Belongs
+// to* chooses among recent threads and events, which no route lists; *Follow up* opens a reply in the thread, which is
+// the composer's; and *Open* on the person is the person page's. What is drawn in their place is what the task holds,
+// never a control that would do nothing.
 //
 // The dialog is the platform's own, so the page behind it is inert, focus moves into it and is held there, Escape
 // leaves it, and leaving it puts focus back on what opened it — which is why the caller holds the reference.
@@ -76,36 +81,9 @@ const workingDaysOffered = 3;
 // The days offered as chips: none, today, tomorrow and the next working days after it — and the day the task is
 // already due on where it is none of those, so the chip that says what is held is always drawn.
 function dayChoices(today: string, held: string | null): readonly (string | null)[] {
-    const later: string[] = [];
-
-    for (let ahead = 2; later.length < workingDaysOffered; ahead += 1) {
-        const day = dayFrom(today, ahead);
-        const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();
-
-        if (weekday !== 0 && weekday !== 6) {
-            later.push(day);
-        }
-    }
-
-    const offered = [null, today, dayFrom(today, 1), ...later];
+    const offered = [null, today, dayFrom(today, 1), ...workingDaysAfterTomorrow(today, workingDaysOffered)];
 
     return held === null || offered.includes(held) ? offered : [...offered, held];
-}
-
-function wordDayChoice(day: string | null, today: string, locale: Locale, translate: (key: MessageKey) => string) {
-    if (day === null) {
-        return translate('tasks.noDay');
-    }
-
-    if (day === today) {
-        return translate('tasks.dayToday');
-    }
-
-    return day === dayFrom(today, 1)
-        ? translate('tasks.dayTomorrow')
-        : new Intl.DateTimeFormat(locale, { weekday: 'short', day: '2-digit', month: '2-digit' }).format(
-              new Date(`${day}T00:00:00`),
-          );
 }
 
 /** What a write refused said, as the sentence the dialog shows, or `'gone'` where the task is no longer there. */
@@ -128,6 +106,7 @@ interface TaskChoices {
     readonly direction: TaskDirection;
     readonly anchor: TaskAnchor | null;
     readonly counterpart: TaskCounterpart | null;
+    readonly plan: TaskPlan | null;
 }
 
 // What chips laid over the task, and — beside reminders a chip cleared — the reminders the task held then, so a
@@ -147,6 +126,7 @@ export function TaskDialog({
     task,
     asked,
     events,
+    tasks = [],
     onWritten,
     onToggleCompleted,
     onAskErasure,
@@ -163,6 +143,9 @@ export function TaskDialog({
 
     /** The calendar events the plan is read against for a clash, which is the day the caller has read. */
     readonly events: readonly CalendarEvent[];
+
+    /** The other tasks the screen holds, which the plan dialog draws in the hours they are planned into. */
+    readonly tasks?: readonly PersonalTask[];
 
     /** Says what a write left behind once the dialog has closed on it, so the screen reads the list again. */
     readonly onWritten: (said: MessageKey) => void;
@@ -202,6 +185,7 @@ export function TaskDialog({
     const sending = useRef(false);
     const [said, setSaid] = useState<MessageKey | null>(null);
     const [writing, setWriting] = useState<'save' | 'chip' | null>(null);
+    const [planning, setPlanning] = useState(false);
     // Whether this dialog still stands, and how many times it has been left: an answer acts here only where neither
     // moved since its write went out, since a dialog left and opened again on the same task is a different question.
     const here = useRef(true);
@@ -220,6 +204,7 @@ export function TaskDialog({
         direction: task.direction,
         anchor: task.anchor,
         counterpart: task.counterpart,
+        plan: task.plan,
         ...over,
         reminders:
             over.reminders !== undefined && remindersOver !== undefined && sameLeads(remindersOver, task.reminders)
@@ -235,8 +220,8 @@ export function TaskDialog({
     const awaited = chosen.direction === 'Awaited';
     const replied =
         task.answer === null ? null : wordReply(task.answer.arrivedAt, task.counterpart, locale, timeZone, translate);
-    const clash = clashOf(task, events);
-    const plan = task.plan === null ? null : wordPlan(task.plan, locale, now, timeZone, translate);
+    const clash = clashOf({ ...task, plan: chosen.plan }, events);
+    const plan = chosen.plan === null ? null : wordPlan(chosen.plan, locale, now, timeZone, translate);
 
     // One write of the whole record, with what was chosen laid over it, and never two at once. A chip pressed while a
     // write is out is laid over the dialog at once and written when that write answers, the latest press winning; a
@@ -263,7 +248,7 @@ export function TaskDialog({
             sourceMessageId: task.sourceMessageId,
             direction: next.direction,
             estimatedMinutes: task.estimatedMinutes,
-            plan: task.plan,
+            plan: next.plan,
             anchor: next.anchor,
             counterpart: next.counterpart,
         }).then((answer) => {
@@ -470,11 +455,20 @@ export function TaskDialog({
                                 <span className="min-w-0 flex-1 text-base text-text-soft">
                                     {plan === null
                                         ? translate('tasks.notPlanned')
-                                        : task.plan !== null &&
-                                            calendarDayIn(Date.parse(task.plan.startAt), timeZone) === today
+                                        : chosen.plan !== null &&
+                                            calendarDayIn(Date.parse(chosen.plan.startAt), timeZone) === today
                                           ? translate('tasks.plannedToday', { time: plan })
                                           : plan}
                                 </span>
+                                <Control
+                                    label={translate(chosen.plan === null ? 'tasks.plan' : 'tasks.move')}
+                                    shape="accentPill"
+                                    {...(refused === null ? {} : { held: true, hint: refused })}
+                                    onPress={() => {
+                                        setSaid(null);
+                                        setPlanning(true);
+                                    }}
+                                />
                             </div>
                             {clash === null ? null : (
                                 <p className="flex items-center gap-1.5 text-sm text-error-text">
@@ -604,6 +598,21 @@ export function TaskDialog({
                     </button>
                 </div>
             </form>
+
+            {/* The plan dialog stands over this one, inside it so that what is chosen there is this dialog's. */}
+            {planning ? (
+                <PlanDialog
+                    task={{ ...task, ...chosen }}
+                    events={events}
+                    tasks={tasks}
+                    onPlan={(chosenPlan) => {
+                        apply({ plan: chosenPlan });
+                    }}
+                    onLeft={() => {
+                        setPlanning(false);
+                    }}
+                />
+            ) : null}
         </dialog>
     );
 }

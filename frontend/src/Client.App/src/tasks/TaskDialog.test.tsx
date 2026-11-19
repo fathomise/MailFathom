@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useRef } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
     dueDayOffsetMinutes,
@@ -421,5 +421,28 @@ describe('TaskDialog', () => {
         expect(screen.getByText('Contract addendum - signatures')).toBeDefined();
         expect(screen.queryByText('Anna Kowalska')).toBeNull();
         expect(screen.getByText('Planned')).toBeDefined();
+    });
+
+    it('plans the task from the plan dialog it opens, as one more choice, and stays open on it', async () => {
+        const { sent } = drawDialog({ task: { ...held, plan: null } });
+
+        fireEvent.click(within(dialog()).getByRole('button', { name: 'Plan' }));
+
+        const planning = screen.getByRole('dialog', { name: 'Plan a time' });
+
+        fireEvent.click(within(planning).getByRole('button', { name: /^2:00 PM/u }));
+        fireEvent.click(within(planning).getByRole('button', { name: 'Plan' }));
+
+        await waitFor(() => {
+            expect(revisions(sent)).toHaveLength(1);
+        });
+
+        expect(revisions(sent)[0]).toMatchObject({
+            title: 'Send the counter-proposal',
+            estimatedMinutes: 45,
+            plan: { minutes: 45 },
+        });
+        expect(screen.queryByRole('dialog', { name: 'Plan a time' })).toBeNull();
+        expect(dialog().open).toBe(true);
     });
 });

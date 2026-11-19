@@ -44,7 +44,6 @@ function drawRow({
     completed = task.completed,
     selected = false,
     selecting = false,
-    scheduled = false,
     onToggleSelected = vi.fn(),
     onToggleCompleted = vi.fn(),
     onOpen,
@@ -53,7 +52,8 @@ function drawRow({
     onAccept,
     onOpenSource,
     onReminders,
-    onSchedule = vi.fn(),
+    onPlan = vi.fn(),
+    dragsToPlan = false,
     onPress = vi.fn(),
     onElement = vi.fn(),
 }: {
@@ -61,7 +61,6 @@ function drawRow({
     completed?: boolean;
     selected?: boolean;
     selecting?: boolean;
-    scheduled?: boolean;
     onToggleSelected?: () => void;
     onToggleCompleted?: () => void;
     onOpen?: (() => void) | undefined;
@@ -70,7 +69,8 @@ function drawRow({
     onAccept?: (() => void) | undefined;
     onOpenSource?: (() => void) | undefined;
     onReminders?: (() => void) | undefined;
-    onSchedule?: () => void;
+    onPlan?: (() => void) | undefined;
+    dragsToPlan?: boolean;
     onPress?: (at: { readonly x: number; readonly y: number }) => void;
     onElement?: (element: HTMLLIElement | null) => void;
 } = {}): void {
@@ -85,7 +85,6 @@ function drawRow({
                     now={readingAt}
                     selected={selected}
                     selecting={selecting}
-                    scheduled={scheduled}
                     onToggleSelected={onToggleSelected}
                     onToggleCompleted={onToggleCompleted}
                     onOpen={onOpen}
@@ -94,33 +93,14 @@ function drawRow({
                     onAccept={onAccept}
                     onOpenSource={onOpenSource}
                     onReminders={onReminders}
-                    onSchedule={onSchedule}
+                    onPlan={onPlan}
+                    dragsToPlan={dragsToPlan}
                     onPress={onPress}
                     onElement={onElement}
                 />
             </ul>
         </LocalizationProvider>,
     );
-}
-
-// The props a row is drawn with, for the two cases that have to rerender the same row rather than render a second
-// one: `drawRow` renders and returns nothing, which is all every other case here needs.
-function rowShown({ scheduled }: { readonly scheduled: boolean }) {
-    return {
-        task: taskOf(),
-        now: readingAt,
-        selected: false,
-        selecting: false,
-        scheduled,
-        onToggleSelected: vi.fn(),
-        onToggleCompleted: vi.fn(),
-        onAccept: undefined,
-        onOpenSource: undefined,
-        onReminders: vi.fn(),
-        onSchedule: vi.fn(),
-        onPress: vi.fn(),
-        onElement: vi.fn(),
-    };
 }
 
 describe('TaskRow', () => {
@@ -201,83 +181,66 @@ describe('TaskRow', () => {
             true,
         );
         expect(screen.getByText('Answer the tender').className).toContain('line-through');
-        expect(screen.queryByRole('button', { name: 'Schedule' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Plan' })).toBeNull();
     });
 
-    it('offers to put a dated task in the day, and says it is already there once it is', () => {
-        const onSchedule = vi.fn();
+    it('offers to plan an owed task with no time', () => {
+        const onPlan = vi.fn();
 
-        drawRow({ onSchedule });
+        drawRow({ onPlan });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Schedule' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
 
-        expect(onSchedule).toHaveBeenCalledOnce();
+        expect(onPlan).toHaveBeenCalledOnce();
     });
 
-    it('draws the chip rather than the act for a task this screen has already put in the day', () => {
-        drawRow({ scheduled: true });
+    it('moves a planned task from its planned time, which says so', () => {
+        const onPlan = vi.fn();
 
-        expect(screen.getByText('In the calendar')).toBeDefined();
-        expect(screen.queryByRole('button', { name: 'Schedule' })).toBeNull();
+        drawRow({
+            task: taskOf({ plan: { startAt: '2026-09-24T09:00:00+00:00', minutes: 45 } }),
+            onPlan,
+        });
+
+        const time = screen.getByRole('button', { name: /11:00/u });
+
+        expect(screen.queryByRole('button', { name: 'Plan' })).toBeNull();
+        expect(time.getAttribute('aria-describedby')).not.toBeNull();
+        expect(screen.getByText('Move in the calendar')).toBeDefined();
+
+        fireEvent.click(time);
+
+        expect(onPlan).toHaveBeenCalledOnce();
     });
 
-    // The act and the chip that replaces it are the same place on the row, so the press removes the control that
-    // holds focus. Left alone it falls to the document body and somebody reading with a keyboard is nowhere.
-    it('moves focus to the chip when this row’s own act is replaced by it', () => {
-        process.env['TZ'] = 'Europe/Warsaw';
+    it('carries the task it is when it is dragged, and drags only where asked to', () => {
+        drawRow({ dragsToPlan: true });
 
-        const { rerender } = render(
-            <LocalizationProvider>
-                <ul>
-                    <TaskRow {...rowShown({ scheduled: false })} />
-                </ul>
-            </LocalizationProvider>,
-        );
+        const row = screen.getByRole('listitem');
+        const carried = new Map<string, string>();
 
-        const act = screen.getByRole('button', { name: 'Schedule' });
+        expect(row.getAttribute('draggable')).toBe('true');
 
-        act.focus();
-        fireEvent.click(act);
+        fireEvent.dragStart(row, {
+            dataTransfer: {
+                setData: (type: string, value: string) => carried.set(type, value),
+                effectAllowed: 'none',
+            },
+        });
 
-        rerender(
-            <LocalizationProvider>
-                <ul>
-                    <TaskRow {...rowShown({ scheduled: true })} />
-                </ul>
-            </LocalizationProvider>,
-        );
-
-        expect(document.activeElement).toBe(screen.getByText('In the calendar'));
+        expect(carried.get('application/x-mailfathom-task')).toBe(taskOf().id);
     });
 
-    // A row scheduled over the whole selection held no focus of its own, so nothing here takes it from wherever the
-    // selection bar left it.
-    it('takes no focus for a row the selection bar scheduled', () => {
-        process.env['TZ'] = 'Europe/Warsaw';
+    it('is not dragged where it is not to be planned by dragging', () => {
+        drawRow();
 
-        const { rerender } = render(
-            <LocalizationProvider>
-                <ul>
-                    <TaskRow {...rowShown({ scheduled: false })} />
-                </ul>
-            </LocalizationProvider>,
-        );
-
-        rerender(
-            <LocalizationProvider>
-                <ul>
-                    <TaskRow {...rowShown({ scheduled: true })} />
-                </ul>
-            </LocalizationProvider>,
-        );
-
-        expect(document.activeElement).toBe(document.body);
+        expect(screen.getByRole('listitem').getAttribute('draggable')).toBe('false');
     });
 
-    it('offers nothing to schedule for a task with no day to put it on', () => {
-        drawRow({ task: taskOf({ dueOn: null }) });
+    it('offers no Plan for a task waited on', () => {
+        drawRow({ task: taskOf({ direction: 'Awaited' }) });
 
-        expect(screen.queryByRole('button', { name: 'Schedule' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Plan' })).toBeNull();
     });
 
     // The three shapes the design gives the pill, each named by what somebody listening is told rather than by the

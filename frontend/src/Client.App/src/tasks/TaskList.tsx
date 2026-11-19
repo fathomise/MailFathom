@@ -75,7 +75,6 @@ export function TaskList({
     everythingDone,
     now,
     selected,
-    scheduled,
     pressedInto = nothingPressed,
     onSelected,
     onToggleCompleted,
@@ -84,7 +83,8 @@ export function TaskList({
     onAccept,
     onOpenSource,
     onReminders,
-    onSchedule,
+    onPlan,
+    dragsToPlan = false,
     onAskErasure,
     onDismiss,
     onReadMore,
@@ -117,9 +117,6 @@ export function TaskList({
     /** Which tasks are picked out, in the order this list draws them. The selection is this list's own. */
     readonly selected: readonly string[];
 
-    /** Which tasks this screen has already put in the day. */
-    readonly scheduled: readonly string[];
-
     /** The state each box was pressed into, by task, while the write and the read after it are on their way. */
     readonly pressedInto?: ReadonlyMap<string, boolean>;
 
@@ -143,8 +140,11 @@ export function TaskList({
     /** Opens what announces one task, which the screen holds the panel for. */
     readonly onReminders: (task: PersonalTask) => void;
 
-    /** Puts tasks in the calendar, or `undefined` where this credential may not change one. */
-    readonly onSchedule: ((tasks: readonly PersonalTask[]) => void) | undefined;
+    /** Opens the plan dialog for one task. */
+    readonly onPlan?: ((task: PersonalTask) => void) | undefined;
+
+    /** Whether a row is dragged onto an hour of the day beside the list to plan it. */
+    readonly dragsToPlan?: boolean;
 
     /** Raises the question an erasure stands behind, over the tasks it is about. */
     readonly onAskErasure: (tasks: readonly PersonalTask[]) => void;
@@ -206,11 +206,11 @@ export function TaskList({
                     : () => {
                           onReminders(task);
                       },
-            onSchedule:
-                onSchedule === undefined
+            onPlan:
+                onPlan === undefined || proposal || task.direction !== 'Owed' || task.completed
                     ? undefined
                     : () => {
-                          onSchedule([task]);
+                          onPlan(task);
                       },
         };
     }
@@ -256,7 +256,12 @@ export function TaskList({
                                 }
                                 selected={selected.includes(task.id)}
                                 selecting={selected.length > 0}
-                                scheduled={scheduled.includes(task.id)}
+                                dragsToPlan={
+                                    dragsToPlan &&
+                                    task.origin !== 'Proposed' &&
+                                    task.direction === 'Owed' &&
+                                    !task.completed
+                                }
                                 completed={pressedInto.get(task.id) ?? task.completed}
                                 onToggleSelected={() => {
                                     onSelected(withToggled(selected, task.id));

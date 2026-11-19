@@ -9,7 +9,6 @@ import {
     dueDayOffsetMinutes,
     recordCalendarEvent,
     eraseTask,
-    layOutToday,
     readMailThread,
     recordTask,
     reviseTask,
@@ -19,32 +18,35 @@ import {
     type ClientFailureReason,
     type ClientResult,
     type ClientSession,
-    type DayLayout,
     type MailFathomTransport,
     type PersonalTask,
     type PersonalTaskErasure,
     type TaskAnchor,
+    type TaskPlan,
 } from '@mailfathom/client-backend';
 import { Confirmation } from '../confirmation/Confirmation';
 import { Control } from '../controls/Control';
 import { useTabSwipe } from '../controls/useTabSwipe';
 import type { MessageKey } from '../localization/en';
-import { calendarDayIn } from '../localization/instants';
+import { calendarDayIn, wordInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { ReminderPanel } from '../reminders/ReminderPanel';
 import { Departing } from '../shell/Departing';
-import { useWideWorkspace } from '../shell/useWideWorkspace';
+import { useCoarsePointer, useWideWorkspace } from '../shell/useWideWorkspace';
 import { DayCapacity } from './DayCapacity';
+import { DayPlan } from './DayPlan';
+import { LayoutOffer, type ProposedPlan } from './LayoutOffer';
 import { NewTask, type TaskDraft } from './NewTask';
+import { PlanDialog } from './PlanDialog';
 import { TaskDialog } from './TaskDialog';
 import { TaskList } from './TaskList';
 import { TaskSelectionBar } from './TaskSelectionBar';
 import { TasksHead } from './TasksHead';
-import { TodayCalendar } from './TodayCalendar';
-import { dayAround, endAfter, startOfDay } from './dayInstants';
+import { startOfDay } from './dayInstants';
 import { reachedTheRowsRead } from './rowsRead';
 import { clashOf, openIn, openOwedToday, plannedDay, taskViews, tasksIn, type TaskView } from './taskViews';
+import { wordTaskDay } from './taskWording';
 import { useTasks } from './useTasks';
 import { useTodayCalendar } from './useTodayCalendar';
 
@@ -70,10 +72,12 @@ import { useTodayCalendar } from './useTodayCalendar';
 // has none and for the same reason. Each is left out rather than drawn as a control that would do nothing, which is a
 // correction owed to the design rather than a toolbar to fill.
 //
-// **Putting a task in the calendar and arranging the day are two different acts.** A task states a day and not a time,
-// so *schedule in the calendar* writes the day it is due — an event with no hours claimed — and nothing here invents a
-// time for it. *Lay out today* is the other one: the deployment composes where each thing could go, this draws the
-// offer, and the calendar is written only once somebody accepts it.
+// **A task is planned into the day rather than written into the calendar.** Its plan is part of the task, so planning
+// one — from its row's *Plan*, by dragging its row onto an hour of the day beside the list, or from the laid-out day's
+// *Plan these* — revises the task with the whole record restated and its plan beside it, and the calendar draws it from
+// there. One write is out per task at a time and the latest plan pressed for it wins. *Lay out today* is an offer the
+// deployment composes, and nothing is planned until somebody accepts it. The selection bar's *schedule in the calendar*
+// is the one act left that writes an event: the day a task is due, with no hours claimed.
 
 // What one write said, worded as what happened rather than as an outcome name.
 interface WriteSaid {
@@ -91,6 +95,18 @@ const refusedCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     many: 'tasks.someRefused.many',
     other: 'tasks.someRefused.other',
 };
+
+const plannedIntoToday: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
+    zero: 'tasks.plannedIntoToday.other',
+    one: 'tasks.plannedIntoToday.one',
+    two: 'tasks.plannedIntoToday.other',
+    few: 'tasks.plannedIntoToday.few',
+    many: 'tasks.plannedIntoToday.many',
+    other: 'tasks.plannedIntoToday.other',
+};
+
+// How long a task nobody said the length of is planned for, which is the design's.
+const defaultPlanMinutes = 30;
 
 const erasureQuestions: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     zero: 'tasks.eraseQuestion.other',
@@ -161,6 +177,7 @@ export function TasksSpace({
     writesCalendar,
     onOpenMessage,
     onOpenEvent,
+    openLayoutOffer = false,
 }: {
     /** Who is asking and where, or `null` where there is nothing to ask with. */
     readonly session: ClientSession | null;
@@ -187,10 +204,14 @@ export function TasksSpace({
 
     /** Opens one calendar event, which is the Calendar space's to draw, or `undefined` where the frame offers none. */
     readonly onOpenEvent?: ((eventId: string) => void) | undefined;
+
+    /** Whether the screen opens on *Today* with the day being laid out, which is how another screen asks for it. */
+    readonly openLayoutOffer?: boolean;
 }) {
     const { locale, translate } = useLocalization();
     const timeZone = useReadingZone();
     const wide = useWideWorkspace();
+    const coarse = useCoarsePointer();
 
     // Read once for the life of the screen, which is what `controls/ReceivedAt.tsx` does and for its reason: a heading
     // that recomputed on every render would move a task from *This week* to *Today* under a reader's cursor. Every act
@@ -200,7 +221,7 @@ export function TasksSpace({
     const [view, setView] = useState<TaskView>('today');
     const [openedId, setOpenedId] = useState<string | null>(null);
     const [selected, setSelected] = useState<readonly string[]>([]);
-    const [scheduled, setScheduled] = useState<readonly string[]>([]);
+    const [planningId, setPlanningId] = useState<string | null>(null);
     const [pressedInto, setPressedInto] = useState<ReadonlyMap<string, boolean>>(new Map());
     const [showDone, setShowDone] = useState(false);
     const [erasing, setErasing] = useState<readonly PersonalTask[]>([]);
@@ -210,9 +231,6 @@ export function TasksSpace({
         answered: false,
     });
     const [scheduling, setScheduling] = useState(false);
-    const [arranging, setArranging] = useState(false);
-    const [applying, setApplying] = useState(false);
-    const [layout, setLayout] = useState<DayLayout | null>(null);
 
     const [announcing, setAnnouncing] = useState<PersonalTask | null>(null);
 
@@ -224,6 +242,9 @@ export function TasksSpace({
     // Which thread read is the latest one asked for; an earlier read, or one answering after the screen went, opens
     // nothing, so a slow answer cannot take the reader to a thread they have since moved away from.
     const threadAsked = useRef(0);
+
+    // The latest plan pressed for each task whose plan write is still out, which is written once that one answers.
+    const plansOut = useRef(new Map<string, TaskPlan | null>());
 
     useEffect(
         () => () => {
@@ -283,9 +304,11 @@ export function TasksSpace({
     const dueToday = owedToday.length;
     const plannedToday = owedToday.filter((task) => plannedDay(task, timeZone) === today);
     const clashesToday = plannedToday.filter((task) => clashOf(task, day.events) !== null).length;
+    const eventsToday = day.events.filter((event) => calendarDayIn(Date.parse(event.start), timeZone) === today).length;
 
-    // The task open in its dialog, read back out of the list so the dialog draws what the last read says.
+    // The task open in its dialog, and the one being planned, read back out of the list so each draws the last read.
     const opened = openedId === null ? null : (reading.tasks.find((task) => task.id === openedId) ?? null);
+    const planningTask = planningId === null ? null : (reading.tasks.find((task) => task.id === planningId) ?? null);
 
     // The dialog is the platform's own, so opening it is an imperative call on an element that has to exist first —
     // which is the other thing an effect is for. A dialog already open is never opened again: `showModal` on one
@@ -340,9 +363,14 @@ export function TasksSpace({
     // What a batch of writes left behind, as one of four sentences rather than as a success and a generic failure:
     // every one went through, some of them did, every one was refused for one reason a person can act on, or every
     // one was refused with no single reason to name.
-    function saidAbout(refused: readonly TaskWrite[], asked: number, done: MessageKey): WriteSaid {
+    function saidAbout(
+        refused: readonly TaskWrite[],
+        asked: number,
+        done: MessageKey,
+        names?: Readonly<Record<string, string>>,
+    ): WriteSaid {
         if (refused.length === 0) {
-            return { said: done };
+            return names === undefined ? { said: done } : { said: done, names };
         }
 
         // A write nobody answered is not known to have failed, and the list read again after it is what says where it
@@ -365,12 +393,17 @@ export function TasksSpace({
             : { said: 'tasks.writeFailedBecause', names: { reason: translate(failureLabels[reason]) } };
     }
 
-    function after(answers: readonly TaskWrite[], done: MessageKey): Promise<void> {
+    function after(
+        answers: readonly TaskWrite[],
+        done: MessageKey,
+        names?: Readonly<Record<string, string>>,
+    ): Promise<void> {
         setSaid(
             saidAbout(
                 answers.filter((answer) => answer.failed),
                 answers.length,
                 done,
+                names,
             ),
         );
 
@@ -507,73 +540,93 @@ export function TasksSpace({
             }),
         ).then((answers) => {
             setScheduling(false);
-            setScheduled((standing) => [
-                ...standing,
-                ...answers.filter((answer) => !answer.failed).map((answer) => answer.id),
-            ]);
             setSelected([]);
             day.readAgain();
             void after(answers, 'tasks.scheduled');
         });
     }
 
-    function arrange(): void {
-        if (session === null || arranging) {
+    // Plans each task named — or takes it out of the calendar — as the whole record with its plan beside it, one write
+    // out per task at a time: a plan pressed while that task's write is out is written once it answers, the latest
+    // winning. What the batch did is said once, when every task named has settled.
+    function plan(
+        plans: readonly (readonly [PersonalTask, TaskPlan | null])[],
+        done: MessageKey,
+        names?: Readonly<Record<string, string>>,
+    ): void {
+        if (session === null) {
             return;
         }
 
-        const window = dayAround(Date.now());
-
-        setArranging(true);
         setSaid(null);
 
-        // From now rather than from this morning: what is being arranged is the rest of the day, and hours already
-        // past are not free time anybody can be given.
-        void layOutToday(session, transport, { from: new Date().toISOString(), until: window.until }).then((answer) => {
-            setArranging(false);
-            setLayout(answer.outcome === 'failed' ? null : answer.value);
+        const writes = plans.flatMap(([task, planned]) => {
+            const writing = plansOut.current.has(task.id);
 
-            if (answer.outcome === 'failed') {
-                setSaid({ said: 'tasks.arrangeFailed' });
+            plansOut.current.set(task.id, planned);
+
+            return writing ? [] : [writePlan(session, task, planned)];
+        });
+
+        if (writes.length > 0) {
+            void Promise.all(writes).then((answers) => after(answers, done, names));
+        }
+    }
+
+    function writePlan(asking: ClientSession, task: PersonalTask, planned: TaskPlan | null): Promise<TaskWrite> {
+        return reviseTask(asking, transport, task.id, {
+            title: task.title,
+            dueOn: task.dueOn,
+            reminders: task.reminders,
+            dueDayOffsetMinutes: dueDayOffsetMinutes(task.dueOn, timeZone),
+            sourceMessageId: task.sourceMessageId,
+            direction: task.direction,
+            estimatedMinutes: task.estimatedMinutes,
+            plan: planned,
+            anchor: task.anchor,
+            counterpart: task.counterpart,
+        }).then((answer) => {
+            const latest = plansOut.current.get(task.id);
+
+            if (answer.outcome === 'read' && latest !== undefined && latest !== planned) {
+                return writePlan(asking, task, latest);
             }
+
+            plansOut.current.delete(task.id);
+
+            return wrote(answer);
         });
     }
 
-    function apply(): void {
-        if (session === null || layout === null || applying) {
+    // A task dropped on an hour is planned from it for as long as it is thought to take, or half an hour.
+    function dropped(taskId: string, startAt: string): void {
+        const task = reading.tasks.find((held) => held.id === taskId);
+
+        if (task !== undefined) {
+            plan([[task, { startAt, minutes: task.estimatedMinutes ?? defaultPlanMinutes }]], 'tasks.plannedAt', {
+                title: task.title,
+                time: wordInstant(startAt, locale, 'time', timeZone) ?? '',
+            });
+        }
+    }
+
+    function planned(task: PersonalTask, chosen: TaskPlan | null): void {
+        if (chosen === null) {
+            plan([[task, null]], 'tasks.unplanned');
+
             return;
         }
 
-        const placements = layout.placements;
+        plan([[task, chosen]], 'tasks.plannedOn', {
+            title: task.title,
+            day: wordTaskDay(calendarDayIn(Date.parse(chosen.startAt), timeZone), locale, now, timeZone),
+            time: wordInstant(chosen.startAt, locale, 'time', timeZone) ?? '',
+        });
+    }
 
-        setApplying(true);
-
-        void Promise.all(
-            placements.map((placement) => {
-                const end = endAfter(placement.startAt, placement.minutes);
-                const task = reading.tasks.find((held) => held.id === placement.taskId);
-
-                return task === undefined || end === null
-                    ? Promise.resolve({ failed: true, reason: null, unanswered: false, id: placement.taskId })
-                    : recordCalendarEvent(session, transport, {
-                          title: task.title,
-                          start: placement.startAt,
-                          end,
-                          isAllDay: false,
-                          reminders: [],
-                          notes: null,
-                          sourceMessage: task.sourceMessageId,
-                      }).then((answer) => ({ ...wroteToTheCalendar(answer), id: placement.taskId }));
-            }),
-        ).then((answers) => {
-            setApplying(false);
-            setLayout(null);
-            setScheduled((standing) => [
-                ...standing,
-                ...answers.filter((answer) => !answer.failed).map((answer) => answer.id),
-            ]);
-            day.readAgain();
-            void after(answers, 'tasks.scheduled');
+    function laidOut(plans: readonly ProposedPlan[]): void {
+        plan(plans, plannedIntoToday[new Intl.PluralRules(locale).select(plans.length)], {
+            count: new Intl.NumberFormat(locale).format(plans.length),
         });
     }
 
@@ -719,7 +772,6 @@ export function TasksSpace({
                     everythingDone={everythingDone}
                     now={now}
                     selected={selected}
-                    scheduled={scheduled}
                     pressedInto={pressedInto}
                     onSelected={setSelected}
                     onToggleCompleted={toggleCompleted}
@@ -735,7 +787,11 @@ export function TasksSpace({
                         setAnnouncing(task);
                         panel.current?.showModal();
                     }}
-                    onSchedule={writesCalendar ? schedule : undefined}
+                    onPlan={(task) => {
+                        setSaid(null);
+                        setPlanningId(task.id);
+                    }}
+                    dragsToPlan={readsCalendar && !coarse}
                     onAskErasure={askErasure}
                     onDismiss={(dismissed) => {
                         setSaid(null);
@@ -747,27 +803,38 @@ export function TasksSpace({
                     }}
                 />
 
-                {/* Beside the list where there is room and under it where there is not, and reached by scrolling
-                    either way — a panel dropped at a narrow width would take the day off the screen entirely. It is
-                    the calendar's day, so a credential that reads no calendar meets the list alone. */}
+                {/* Beside the list where there is room; above it, in *Today* only, where there is not — the day being
+                    what a narrow screen plans against first. It is the calendar's day, so a credential that reads no
+                    calendar meets the list alone. */}
                 {!readsCalendar ? null : (
-                    <aside className="flex shrink-0 flex-col gap-3.5 border-line bg-sunken px-5 py-5 panes:w-tasks-side panes:overflow-y-auto panes:border-s">
-                        <TodayCalendar day={day} />
-
-                        <DayCapacity
-                            dueToday={dueToday}
-                            eventsToday={day.events.length}
-                            offered={arrangesThisDay}
-                            arranging={arranging}
-                            layout={layout}
-                            placed={reading.tasks}
-                            applying={applying}
-                            onArrange={arrange}
-                            onApply={apply}
-                            onPutDown={() => {
-                                setLayout(null);
+                    <aside
+                        className={`order-first mx-4 mt-4 shrink-0 flex-col gap-3.5 rounded-lg border border-line bg-sunken p-3.5 panes:order-none panes:m-0 panes:flex panes:w-tasks-side panes:overflow-y-auto panes:rounded-none panes:border-y-0 panes:border-e-0 panes:px-5 panes:py-5 ${
+                            view === 'today' ? 'flex' : 'hidden'
+                        }`}
+                    >
+                        <DayPlan
+                            now={now}
+                            day={day}
+                            tasks={committed}
+                            onDrop={dropped}
+                            onOpenTask={(task) => {
+                                setSaid(null);
+                                setOpenedId(task.id);
                             }}
+                            onOpenEvent={onOpenEvent}
                         />
+
+                        <DayCapacity dueToday={dueToday} eventsToday={eventsToday}>
+                            <LayoutOffer
+                                session={session}
+                                transport={transport}
+                                offered={arrangesThisDay}
+                                tasks={reading.tasks}
+                                events={day.events}
+                                startsArranging={openLayoutOffer && asksDeployment}
+                                onPlan={laidOut}
+                            />
+                        </DayCapacity>
                     </aside>
                 )}
             </div>
@@ -799,6 +866,7 @@ export function TasksSpace({
                         task={task}
                         asked={opening}
                         events={day.events}
+                        tasks={committed}
                         onWritten={(written) => {
                             setSaid({ said: written });
                             void reading.readAgain();
@@ -816,6 +884,23 @@ export function TasksSpace({
                         }}
                         onLeft={() => {
                             setOpenedId(null);
+                        }}
+                    />
+                )}
+            </Departing>
+
+            <Departing value={planningTask}>
+                {(task) => (
+                    <PlanDialog
+                        key={task.id}
+                        task={task}
+                        events={day.events}
+                        tasks={committed}
+                        onPlan={(chosen) => {
+                            planned(task, chosen);
+                        }}
+                        onLeft={() => {
+                            setPlanningId(null);
                         }}
                     />
                 )}

@@ -45,6 +45,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    vi.useRealTimers();
     process.env['TZ'] = machineZone;
 
     if (declaredMatchMedia === undefined) {
@@ -231,6 +232,19 @@ function showView(name: RegExp): void {
     fireEvent.click(screen.getByRole('radio', { name }));
 }
 
+// The first row of the list, which the hours of the day beside it are list items beside.
+function firstTaskRow(): Promise<HTMLElement> {
+    return waitFor(() => {
+        const row = screen.getAllByRole('listitem').find((item) => item.closest('aside') === null);
+
+        if (row === undefined) {
+            throw new Error('No task row is drawn.');
+        }
+
+        return row;
+    });
+}
+
 function pathsSent(sent: readonly ClientRequest[], method: string): string[] {
     return sent.filter((request) => request.method === method).map((request) => request.path);
 }
@@ -299,6 +313,9 @@ describe('TasksSpace', () => {
     });
 
     it('reads today’s events through the calendar’s own route and draws them beside the list', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-21T05:00:00Z'));
+
         const { transport, sent } = deployment({
             events: [
                 {
@@ -321,6 +338,7 @@ describe('TasksSpace', () => {
 
         expect(await screen.findByText('Standup')).toBeDefined();
         expect(pathsSent(sent(), 'GET').some((path) => path.includes('/calendar?from='))).toBe(true);
+        vi.useRealTimers();
     });
 
     // Through child 2's route, and the entry goes because the list is read again rather than corrected in place.
@@ -352,7 +370,7 @@ describe('TasksSpace', () => {
         drawSpace(transport);
         showView(/^Proposed/u);
 
-        fireEvent.keyDown(await screen.findByRole('listitem'), { key: 'ContextMenu' });
+        fireEvent.keyDown(await firstTaskRow(), { key: 'ContextMenu' });
         fireEvent.click(screen.getByRole('menuitem', { name: 'Dismiss task' }));
 
         await waitFor(() => {
@@ -465,7 +483,9 @@ describe('TasksSpace', () => {
 
         drawSpace(transport);
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Schedule' }));
+        fireEvent.keyDown(await firstTaskRow(), { key: 'ContextMenu' });
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Select tasks' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Schedule in the calendar' }));
 
         await waitFor(() => {
             expect(screen.getByRole('status').textContent).toBe('Put in the calendar.');
@@ -491,13 +511,14 @@ describe('TasksSpace', () => {
 
         drawSpace(transport);
 
-        const act = await screen.findByRole('button', { name: 'Schedule' });
+        fireEvent.keyDown(await firstTaskRow(), { key: 'ContextMenu' });
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Select tasks' }));
+
+        const act = screen.getByRole('button', { name: 'Schedule in the calendar' });
 
         fireEvent.click(act);
 
-        await waitFor(() => {
-            expect(screen.getByRole('status').textContent).toBe('Putting it in the calendar…');
-        });
+        expect(await screen.findByText('Putting it in the calendar…')).toBeDefined();
 
         fireEvent.click(act);
         fireEvent.click(act);
@@ -551,7 +572,7 @@ describe('TasksSpace', () => {
         expect(box.getAttribute('aria-disabled')).toBe('true');
 
         fireEvent.click(box);
-        fireEvent.keyDown(screen.getByRole('listitem'), { key: 'ContextMenu' });
+        fireEvent.keyDown(await firstTaskRow(), { key: 'ContextMenu' });
 
         const done = screen.getByRole('menuitem', { name: 'Mark as done - no connection to the MailFathom server.' });
 
@@ -569,7 +590,7 @@ describe('TasksSpace', () => {
         drawSpace(transport);
         showView(/^Upcoming/u);
 
-        fireEvent.keyDown(await screen.findByRole('listitem'), { key: 'ContextMenu' });
+        fireEvent.keyDown(await firstTaskRow(), { key: 'ContextMenu' });
         fireEvent.click(screen.getByRole('menuitem', { name: 'Select tasks' }));
         fireEvent.click(screen.getByRole('button', { name: 'Schedule in the calendar' }));
 
@@ -580,9 +601,42 @@ describe('TasksSpace', () => {
         });
     });
 
-    // The acceptance the screen exists for: the arrangement is an offer and the calendar is written by the control
-    // that says so.
-    it('draws the arrangement the deployment suggests and writes nothing until it is accepted', async () => {
+    // The acceptance the screen exists for: the arrangement is an offer, and a task is planned only by the control that
+    // says so — each placed task revised with its plan, and no calendar event of its own written for any of them.
+    it('plans each placement only once "Plan these" is pressed, and writes no calendar event for it', async () => {
+        const { transport, sent } = deployment({
+            committed: [taskCalled('a', 'Answer the tender', { estimatedMinutes: 30 })],
+            layout: {
+                arranged: true,
+                placements: [{ taskId: 'a', startAt: '2026-09-21T09:00:00+00:00', minutes: 45 }],
+                notToday: [],
+            },
+        });
+
+        drawSpace(transport);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Lay out today' }));
+
+        const accept = await screen.findByRole('button', { name: 'Plan these' });
+
+        expect(pathsSent(sent(), 'PUT')).toStrictEqual([]);
+
+        fireEvent.click(accept);
+
+        await waitFor(() => {
+            expect(screen.getByRole('status').textContent).toBe('1 task planned into today.');
+        });
+
+        expect(pathsSent(sent(), 'PUT')).toStrictEqual(['https://mail.example.invalid/api/client/tasks/a']);
+        expect(JSON.parse(sent().find((request) => request.method === 'PUT')?.body ?? 'null')).toMatchObject({
+            title: 'Answer the tender',
+            estimatedMinutes: 30,
+            plan: { startAt: '2026-09-21T09:00:00+00:00', minutes: 45 },
+        });
+        expect(pathsSent(sent(), 'POST').some((path) => path.endsWith('/calendar'))).toBe(false);
+    });
+
+    it('puts an arrangement down on "Not now" without planning any of it', async () => {
         const { transport, sent } = deployment({
             layout: {
                 arranged: true,
@@ -595,50 +649,146 @@ describe('TasksSpace', () => {
 
         fireEvent.click(await screen.findByRole('button', { name: 'Lay out today' }));
 
+        fireEvent.click(await screen.findByRole('button', { name: 'Not now' }));
+
+        expect(pathsSent(sent(), 'PUT')).toStrictEqual([]);
+        expect(screen.getByRole('button', { name: 'Lay out today' })).toBeDefined();
+    });
+
+    it('lays the day out at once where the screen was opened to lay it out', async () => {
+        const { transport, sent } = deployment();
+
+        render(
+            <LocalizationProvider>
+                <ConnectionStatusContext value={serverAnswering}>
+                    <TasksSpace
+                        session={session}
+                        transport={transport}
+                        asksDeployment
+                        readsCalendar
+                        writesCalendar
+                        onOpenMessage={undefined}
+                        openLayoutOffer
+                    />
+                </ConnectionStatusContext>
+            </LocalizationProvider>,
+        );
+
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Add to calendar' })).toBeDefined();
-        });
-
-        expect(sent().some((request) => request.method === 'POST' && request.path.endsWith('/calendar'))).toBe(false);
-
-        fireEvent.click(screen.getByRole('button', { name: 'Add to calendar' }));
-
-        await waitFor(() => {
-            expect(sent().some((request) => request.method === 'POST' && request.path.endsWith('/calendar'))).toBe(
-                true,
-            );
-        });
-
-        const written = sent().find((request) => request.method === 'POST' && request.path.endsWith('/calendar'));
-
-        expect(JSON.parse(written?.body ?? 'null')).toStrictEqual({
-            title: 'Answer the tender',
-            start: '2026-09-21T09:00:00+00:00',
-            end: '2026-09-21T09:45:00.000Z',
-            isAllDay: false,
-            reminders: [],
-            notes: null,
-            sourceMessage: null,
+            expect(pathsSent(sent(), 'POST').some((path) => path.endsWith('/tasks/today/layout'))).toBe(true);
         });
     });
 
-    it('puts an arrangement down without writing any of it', async () => {
-        const { transport, sent } = deployment({
-            layout: {
-                arranged: true,
-                placements: [{ taskId: 'a', startAt: '2026-09-21T09:00:00+00:00', minutes: 45 }],
-                notToday: [],
-            },
+    it('dropping a task on 14:00 plans it from 14:00 for its estimate', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-24T06:00:00Z'));
+
+        try {
+            const { transport, sent } = deployment({
+                committed: [taskCalled('a', 'Answer the tender', { estimatedMinutes: 45 })],
+            });
+
+            drawSpace(transport);
+
+            const row = (await screen.findByText('Answer the tender')).closest('li[draggable="true"]');
+            const hour = screen.getByText('2:00 PM', { exact: true }).closest('li');
+            const carried = new Map<string, string>();
+            const dataTransfer = {
+                effectAllowed: 'none',
+                get types() {
+                    return [...carried.keys()];
+                },
+                setData: (type: string, value: string) => carried.set(type, value),
+                getData: (type: string) => carried.get(type) ?? '',
+            };
+
+            expect(row).not.toBeNull();
+            expect(hour).not.toBeNull();
+
+            fireEvent.dragStart(row ?? document.body, { dataTransfer });
+            fireEvent.dragOver(hour ?? document.body, { dataTransfer });
+            fireEvent.drop(hour ?? document.body, { dataTransfer });
+
+            await waitFor(() => {
+                expect(pathsSent(sent(), 'PUT')).toStrictEqual(['https://mail.example.invalid/api/client/tasks/a']);
+            });
+
+            expect(JSON.parse(sent().find((request) => request.method === 'PUT')?.body ?? 'null')).toMatchObject({
+                title: 'Answer the tender',
+                plan: { startAt: '2026-09-24T12:00:00.000Z', minutes: 45 },
+            });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('plans a task for half an hour where nobody said how long it takes', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-24T06:00:00Z'));
+
+        try {
+            const { transport, sent } = deployment();
+
+            drawSpace(transport);
+
+            const row = (await screen.findByText('Answer the tender')).closest('li[draggable="true"]');
+            const hour = screen.getByText('9:00 AM', { exact: true }).closest('li');
+            const dataTransfer = {
+                types: ['application/x-mailfathom-task'],
+                setData: () => undefined,
+                getData: () => 'a',
+            };
+
+            fireEvent.dragStart(row ?? document.body, { dataTransfer });
+            fireEvent.drop(hour ?? document.body, { dataTransfer });
+
+            await waitFor(() => {
+                expect(pathsSent(sent(), 'PUT')).toHaveLength(1);
+            });
+
+            expect(JSON.parse(sent().find((request) => request.method === 'PUT')?.body ?? 'null')).toMatchObject({
+                plan: { startAt: '2026-09-24T07:00:00.000Z', minutes: 30 },
+            });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('plans a task from the Plan on its row, and lets no row be dragged under a finger', async () => {
+        const declared = window.matchMedia.bind(window);
+
+        Object.defineProperty(window, 'matchMedia', {
+            configurable: true,
+            value: (query: string) => ({
+                matches: query === '(pointer: coarse)' || declared(query).matches,
+                media: query,
+                addEventListener: () => undefined,
+                removeEventListener: () => undefined,
+            }),
         });
+
+        const { transport, sent } = deployment();
 
         drawSpace(transport);
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Lay out today' }));
+        const plan = await screen.findByRole('button', { name: 'Plan' });
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Leave it' }));
+        expect(screen.getByText('Answer the tender').closest('li')?.getAttribute('draggable')).not.toBe('true');
 
-        expect(sent().some((request) => request.method === 'POST' && request.path.endsWith('/calendar'))).toBe(false);
-        expect(screen.getByRole('button', { name: 'Lay out today' })).toBeDefined();
+        fireEvent.click(plan);
+
+        const dialog = screen.getByRole('dialog', { name: 'Plan a time' });
+
+        fireEvent.click(within(dialog).getByRole('button', { name: /^9:00 AM/u }));
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Plan' }));
+
+        await waitFor(() => {
+            expect(pathsSent(sent(), 'PUT')).toStrictEqual(['https://mail.example.invalid/api/client/tasks/a']);
+        });
+
+        expect(JSON.parse(sent().find((request) => request.method === 'PUT')?.body ?? 'null')).toMatchObject({
+            plan: { minutes: 30 },
+        });
     });
 
     it('offers no arrangement where the deployment arranges no day', async () => {
@@ -670,9 +820,7 @@ describe('TasksSpace', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Lay out today' }));
 
         await waitFor(() => {
-            expect(
-                screen.getByText('This server has used up its AI allowance for today. Try again tomorrow.'),
-            ).toBeDefined();
+            expect(screen.getByText('Laying out days is used up for now.')).toBeDefined();
         });
     });
 
@@ -681,7 +829,7 @@ describe('TasksSpace', () => {
 
         drawSpace(transport);
 
-        fireEvent.keyDown(await screen.findByRole('listitem'), { key: 'ContextMenu' });
+        fireEvent.keyDown(await firstTaskRow(), { key: 'ContextMenu' });
         fireEvent.click(screen.getByRole('menuitem', { name: 'Select tasks' }));
 
         expect(screen.getByRole('toolbar', { name: 'Acts over the tasks you picked out' })).toBeDefined();
@@ -861,7 +1009,7 @@ describe('TasksSpace', () => {
 
         drawSpace(transport);
 
-        const row = await screen.findByRole('listitem');
+        const row = await firstTaskRow();
 
         fireEvent.pointerDown(row, { pointerId: 1, pointerType: 'touch', clientX: 300, clientY: 200 });
         fireEvent.pointerMove(row, { pointerId: 1, pointerType: 'touch', clientX: 300 - swipeDistance, clientY: 200 });
@@ -931,7 +1079,7 @@ describe('TasksSpace', () => {
         drawSpace(transport, { readsCalendar: false, writesCalendar: false, asksDeployment: false });
 
         expect(await screen.findByText('Answer the tender')).toBeDefined();
-        expect(screen.queryByText("Today's calendar")).toBeNull();
+        expect(screen.queryByRole('heading', { name: /^Today · /u })).toBeNull();
         expect(sent().some((request) => request.path.includes('/calendar'))).toBe(false);
     });
 
@@ -979,7 +1127,7 @@ describe('TasksSpace', () => {
 
         await screen.findByText('Answer the tender');
 
-        expect(screen.getByRole('heading', { name: "Today's calendar" })).toBeDefined();
+        expect(screen.getByRole('heading', { name: /^Today · /u })).toBeDefined();
         expect(screen.getByRole('heading', { name: 'Day capacity' })).toBeDefined();
     });
 });

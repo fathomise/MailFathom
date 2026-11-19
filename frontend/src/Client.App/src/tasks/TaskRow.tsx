@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, type KeyboardEvent } from 'react';
+import type { KeyboardEvent } from 'react';
 import type { CalendarEvent, PersonalTask, TaskAnchor } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { useRowPress } from '../contextMenu/rowPress';
@@ -16,6 +16,7 @@ import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { wordReminderCount } from '../reminders/reminderWords';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
+import { carriedTaskType } from './dayHours';
 import { wordCounterpart, wordEstimate, wordPlan, wordReply, wordTaskDay } from './taskWording';
 
 const anchorGlyphs: Readonly<Record<TaskAnchor['kind'], IconName>> = { Thread: 'mail', Event: 'event' };
@@ -70,8 +71,11 @@ function AnchorChip({
 // no modifier key is being held is the menu's *Select tasks*, exactly as the design draws it.
 //
 // **Two things the design draws are not drawn here.** *sent Mon 24.08* on a waiting row names when the message went,
-// and the task record carries no such instant; and *Plan* and *Follow up* open the plan dialog and a reply, which are
-// later changes — *Schedule* stands where *Plan* will until then.
+// and the task record carries no such instant; and *Follow up* opens a reply, which is a later change.
+//
+// **A task is planned from its row.** *Plan* stands on an owed task with no time, the planned time is pressed to move
+// it, and the row is dragged onto an hour of the day beside the list — except under a finger, where nothing drags and
+// *Plan* is the way.
 //
 // **What announces a task is drawn where the design draws it**, first in the block at the end of the row, as the pill
 // the design gives it: the bell filled where something is set and outlined where nothing is, and the count beside it
@@ -85,13 +89,38 @@ function AnchorChip({
 // reader does not convey — so the sentence saying which day it is travels beside it for anybody listening rather than
 // being drawn for everybody.
 
+const planChip =
+    'flex items-center gap-1.25 rounded-full border border-dashed border-accent bg-panel px-2 py-0.5 text-xs whitespace-nowrap text-text-soft';
+
+// The planned time on a row, pressed to move it, saying so for a mouse, a key and a finger's hold.
+function PlanChip({
+    plan,
+    hint,
+    onMove,
+}: {
+    readonly plan: string;
+    readonly hint: string;
+    readonly onMove: () => void;
+}) {
+    const { anchor, tip } = useTip({ says: hint, describes: true, onPress: onMove, tapReveals: false });
+
+    return (
+        <>
+            <button type="button" {...anchor} className={`${planChip} hover:border-accent-deep`}>
+                <Icon name="schedule" className="size-icon-xs shrink-0 text-accent-deep" />
+                {plan}
+            </button>
+            {tip}
+        </>
+    );
+}
+
 export function TaskRow({
     task,
     now,
     clash = null,
     selected,
     selecting,
-    scheduled,
     completed = task.completed,
     onToggleSelected,
     onToggleCompleted,
@@ -101,7 +130,8 @@ export function TaskRow({
     onDismiss,
     onOpenSource,
     onReminders,
-    onSchedule,
+    onPlan,
+    dragsToPlan = false,
     onPress,
     onElement,
 }: {
@@ -118,9 +148,6 @@ export function TaskRow({
 
     /** Whether a selection is being held at all, which is what draws the mark as something to press. */
     readonly selecting: boolean;
-
-    /** Whether this screen has already put this task in the day, which is what the design draws in place of the act. */
-    readonly scheduled: boolean;
 
     /** What the box says, which is the state it was last pressed into until the list has read that write back. */
     readonly completed?: boolean;
@@ -148,8 +175,11 @@ export function TaskRow({
     /** Opens what announces this task, or `undefined` for one nobody dated, which can announce nothing. */
     readonly onReminders: (() => void) | undefined;
 
-    /** Puts this task in the calendar, or `undefined` where this credential may not change one. */
-    readonly onSchedule: (() => void) | undefined;
+    /** Opens the plan dialog for this task, or `undefined` where it cannot be planned from here. */
+    readonly onPlan?: (() => void) | undefined;
+
+    /** Whether the row is dragged onto an hour of the day to plan it, which a finger never does. */
+    readonly dragsToPlan?: boolean;
 
     /** Opens this row's own menu at the point the gesture happened. */
     readonly onPress: (at: MenuPoint) => void;
@@ -193,20 +223,6 @@ export function TaskRow({
     });
     const remindersRefused = writeRefused(remindersLabel);
 
-    // The act that puts a task in the day and the chip that says it is there are the same place on the row, so the
-    // press removes the control holding focus. Where the press came from this row, focus goes to the chip that took
-    // its place; where the row was scheduled from the selection bar over the whole selection, nothing here held focus
-    // and nothing is moved.
-    const askedFromHere = useRef(false);
-    const chip = useRef<HTMLSpanElement | null>(null);
-
-    useEffect(() => {
-        if (scheduled && askedFromHere.current) {
-            askedFromHere.current = false;
-            chip.current?.focus();
-        }
-    }, [scheduled]);
-
     function pressed(event: KeyboardEvent): void {
         // The two the platform itself offers for a row's menu, so nothing this row holds is reachable only by gesture:
         // the dedicated key where a keyboard has one, and the chord where it does not.
@@ -232,6 +248,12 @@ export function TaskRow({
                     ? 'border-accent-line bg-accent-soft'
                     : `${clash === null ? 'border-line' : 'border-error'} bg-panel hover:bg-hover`
             } ${completed ? 'opacity-60' : ''}`}
+            draggable={dragsToPlan}
+            onDragStart={(event) => {
+                // A type of this client's own rather than text, so a drop on a text field somewhere else pastes nothing.
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData(carriedTaskType, task.id);
+            }}
             onKeyDown={pressed}
             onContextMenu={press.onContextMenu}
             onPointerDown={press.onPointerDown}
@@ -390,11 +412,13 @@ export function TaskRow({
                     </span>
                 )}
 
-                {awaited || plan === null ? null : (
-                    <span className="flex items-center gap-1.25 rounded-full border border-dashed border-accent bg-panel px-2 py-0.5 text-xs whitespace-nowrap text-text-soft">
+                {awaited || plan === null ? null : onPlan === undefined || proposal || completed ? (
+                    <span className={planChip}>
                         <Icon name="schedule" className="size-icon-xs shrink-0 text-accent-deep" />
                         {plan}
                     </span>
+                ) : (
+                    <PlanChip plan={plan} hint={translate('tasks.moveInCalendar')} onMove={onPlan} />
                 )}
 
                 {dueWording()}
@@ -419,28 +443,12 @@ export function TaskRow({
                     />
                 )}
 
-                {proposal ||
-                awaited ||
-                task.dueOn === null ||
-                completed ||
-                onSchedule === undefined ? null : scheduled ? (
-                    <span
-                        ref={chip}
-                        tabIndex={-1}
-                        className="rounded-2xl border border-line bg-rail px-2.5 py-1 text-sm text-muted"
-                    >
-                        {translate('tasks.inTheCalendar')}
-                    </span>
-                ) : (
+                {proposal || awaited || completed || task.plan !== null || onPlan === undefined ? null : (
                     <Control
-                        label={translate('tasks.schedule')}
-                        icon="calendar_month"
+                        label={translate('tasks.plan')}
                         shape="accentPill"
-                        {...refusedAs(translate('tasks.schedule'))}
-                        onPress={() => {
-                            askedFromHere.current = true;
-                            onSchedule();
-                        }}
+                        {...refusedAs(translate('tasks.plan'))}
+                        onPress={onPlan}
                     />
                 )}
 
