@@ -69,7 +69,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        c_edit      3.1  event edited in place: All day, Starts / Ends, Save disabled with reason.
        t_layout    3.2  Lay out today: waiting, offer (Add to calendar / Leave it), nothing left, allowance spent,
                         unavailable (button hidden).
-       t_proposed  3.3a proposed task (AI tag, Accept, Dismiss task), “No day” group, status line, partly refused.
+       t_proposed  3.3a proposed task (provenance glyph, Accept, Dismiss task), “No day” group, status line, partly refused.
        t_states    3.3b empty list, everything done, reading, reading more, failed.
        p_none      3.4a “Open somebody to read their page.” (fold and wider); status line on a person's page.
        p_states    3.4b empty address books, reading, failed, conversations reading / failed / none.
@@ -346,8 +346,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     warnAuth: { glyph: "gpp_bad", word: "Suspicious", tone: "err", name: "Suspicious - sender authentication failed" },
     neutral: { glyph: "shield", word: "", tone: "plain", name: "Sender not recognized" },
   };
-  /* THE CATEGORIES — what sort of mail a message is (data/prototype/categories.js). The square label a spam kind and the
-     AI tag already use, in the quiet tone whatever the category, since none of them is a warning. A default that draws
+  /* THE CATEGORIES — what sort of mail a message is (data/prototype/categories.js). The square label a spam kind already
+     uses, in the quiet tone whatever the category, since none of them is a warning. A default that draws
      no label is left out here, so everything past this point has only names to draw. */
   const CATEGORY_LABEL = "display:block;box-sizing:border-box;min-width:0;font-size:12px;line-height:16px;border-radius:4px;padding:0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);border:1px solid var(--border2);";
   const orderedCategories = (keys) => Object.keys(CATEGORIES.names).filter(k => CATEGORIES.names[k] && keys.includes(k)).map(k => CATEGORIES.names[k]);
