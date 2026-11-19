@@ -7706,7 +7706,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         },
         rightNowResizable: rightNowDocked && !rightNowFolded,
         rightNowTabShown: !rightNowDocked && !rightNowDrawerOpen && !st.compose && !st.doc && !st.htmlDoc && !st.settings && !st.notifCenter && !st.more,
-        rightNowTabStyle: "position:fixed;z-index:87;right:0;top:calc(50% - 22px);width:44px;height:44px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:12px 0 0 12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-right:0;box-shadow:0 6px 18px var(--sh-2)",
+        rightNowTabStyle: "position:fixed;z-index:87;right:0;top:calc(50% - 22px);width:24px;height:44px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:10px 0 0 10px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-right:0;box-shadow:0 6px 18px var(--sh-2)",
         rightNowDrawerToggle: () => this.setState({ rightNowDrawer: !rightNowDrawerOpen }),
         rightNowFold: () => this.setState(rightNowDocked ? { rightNowFolded: !rightNowFolded } : { rightNowDrawer: false }),
         rightNowFoldIcon: rightNowDocked ? "right_panel_close" : "close",
@@ -7739,8 +7739,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         nowUpdated: HOME.now.updated,
         /* A source marker: a small number after the sentence it backs, which opens the conversation it was read from.
            Under a finger it stays small so the text keeps its lines: 22 px, below the touch target the rest of Start meets. */
-        nowCiteStyle: "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;margin:0 1px 0 4px;font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent-d);background:var(--accent-soft);border-radius:5px;cursor:pointer;" +
+        nowCiteStyle: "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;margin:0 1px 0 4px;font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent-d);background:var(--accent-soft);border-radius:5px;cursor:pointer;position:relative;" +
           (touch ? "min-width:22px;height:22px;padding:0 5px;vertical-align:1px;" : "min-width:17px;height:17px;padding:0 4px;vertical-align:2px;"),
+        /* Drawn at 22 px so the text keeps its lines; the 44 px target comes from the space around it. */
+        citeReachStyle: touch ? "position:absolute;inset:-13px" : "display:none",
         nowParaStyle: "font-size:" + (isMobile ? 15 : narrow ? 15.5 : 17) + "px;line-height:1.6;color:var(--text2);text-wrap:pretty",
         nowParas: HOME.now.paras.map(p => ({ runs: p.map(r => {
           const src = r.c ? HOME.now.sources.find(s => s.n === r.c) : null;
@@ -7754,7 +7756,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         rightNowGroupStyle: "display:flex;align-items:center;gap:8px;min-width:0;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;padding:0 6px;min-height:" + (touch ? 44 : 34) + "px",
         rightNowRowStyle: "display:flex;align-items:center;" + (rightNowSlim ? "flex-wrap:wrap;" : "") + "gap:12px;min-width:0;box-sizing:border-box;border-radius:8px;min-height:" + (touch ? 60 : 52) + "px;padding:7px 6px",
         /* On a phone a row is its title and one line, so the card stays short. */
-        rightNowNoteStyle: "font-size:12.5px;line-height:1.4;color:var(--muted);" + (isMobile ? "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "text-wrap:pretty"),
+        rightNowNoteStyle: "font-size:12.5px;line-height:1.4;color:var(--muted);text-wrap:pretty",
         /* The panel's foot holds what Fathom's button offers on this screen, as buttons of their own; the last one opens
            the Agent. Folded, the panel has no room for them, and Fathom's button comes back, standing on the strip. */
         /* The panel's last group, in the form of the three above it - a head with a glyph, a name and what it is for,
@@ -8192,7 +8194,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const facts = plan && plan.facts ? plan.facts : { cols: [], rows: [] };
           const tones = { "Open question": "var(--warn-text)", "Agreed": "var(--ok)", "Commitment": "var(--accent-d)" };
           return {
-            askCiteStyle: "font-size:11px;font-weight:400;border-radius:4px;padding:2px 6px;margin-left:5px;color:var(--accent-d);background:var(--accent-soft);vertical-align:1px",
+            askCiteStyle: "position:relative;font-size:11px;font-weight:400;border-radius:4px;padding:2px 6px;margin-left:5px;color:var(--accent-d);background:var(--accent-soft);vertical-align:1px",
             askStateReady: on("state"), askStateMeta: plan && plan.state ? plan.state.length + " points" : "",
             askStateGridStyle: "display:grid;gap:10px;grid-template-columns:" + (isMobile ? "minmax(0,1fr)" : "repeat(2,minmax(0,1fr))"),
             askState: (plan && plan.state || []).map(s => Object.assign({ kind: s.kind, text: s.text,
@@ -8225,7 +8227,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             text: p.text, cite: p.cite, open: openEv(p.cite), disputed,
             title: disputed ? "You reported this claim" : "Open source " + p.cite,
             textStyle: disputed ? "text-decoration:underline wavy var(--warn);text-underline-offset:4px" : "",
-            supStyle: "font-size:11px;border-radius:4px;padding:2px 6px;margin-left:3px;" + (disputed ? "color:var(--warn-text);background:var(--warn-soft);" : "color:var(--accent-d);background:var(--accent-soft);"),
+            supStyle: "position:relative;font-size:11px;border-radius:4px;padding:2px 6px;margin-left:3px;" + (disputed ? "color:var(--warn-text);background:var(--warn-soft);" : "color:var(--accent-d);background:var(--accent-soft);"),
           };
         }) : [],
 
