@@ -82,7 +82,9 @@ as an artboard it names.
 
 What the manifest names is the screens the client **implements**. A space the rail still draws as a placeholder is not
 a parity question: the difference would be the whole frame, every time, and acting on it means building the screen
-rather than correcting one. Such a space joins the manifest in the change that builds it.
+rather than correcting one. Such a space joins the manifest in the change that builds it. A screen in a space only
+developer mode offers, or one drawing what such a space lends another — a thread's tasks, a person's commitments —
+states `developerMode`, and the client capture switches the mode on after signing in, the way a developer does.
 
 **Read the report before any image, and then read a region rather than a frame.** A screenshot is the most expensive
 thing a session loads and the cost follows its pixel dimensions rather than its bytes — compressing a capture to a

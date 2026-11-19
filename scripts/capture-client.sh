@@ -99,6 +99,7 @@ plan="$(
                 composition: $sizes[.],
                 route: $screen.route,
                 signIn: $screen.signIn,
+                developerMode: ($screen.developerMode // false),
                 steps: ($screen.steps // [])
               }
           ]

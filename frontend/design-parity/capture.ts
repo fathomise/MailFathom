@@ -66,10 +66,14 @@ interface DesignCapture extends Capture {
     properties: Record<string, unknown>;
 }
 
-/** The client side: the address to open, and whether the credential has to be given first. */
+/**
+ * The client side: the address to open, whether the credential has to be given first, and whether developer mode is
+ * switched on after it, which is what a space still at an early stage is offered under.
+ */
 interface ClientCapture extends Capture {
     route: string;
     signIn: boolean;
+    developerMode: boolean;
 }
 
 /** What both plans state. */
@@ -436,6 +440,10 @@ function captureClient(
             await page.getByRole('button', { name: 'Connect' }).click();
             await page.getByRole('navigation', { name: 'Spaces' }).waitFor({ state: 'visible' });
 
+            if (pair.developerMode) {
+                await switchDeveloperModeOn(page);
+            }
+
             // Signing in lands on the client's default space, so an address naming another one is asked for again —
             // the fragment was read before the credential was accepted.
             if (pair.route !== '/') {
@@ -449,6 +457,36 @@ function captureClient(
         await settle(page);
     });
 }
+
+// The same presses `tests/client.harness.ts` makes, since Settings is the only way in: five on the version line, then
+// Settings closed and whatever it was opened from — the account menu, and on a phone the sheet that menu stands in —
+// dismissed. The mode lives in the running page, so the address asked for after this must not reload it.
+async function switchDeveloperModeOn(page: Page): Promise<void> {
+    const account = page.getByRole('button', { name: 'Account and preferences' });
+
+    if (!(await account.isVisible())) {
+        await page.getByRole('button', { name: 'More', exact: true }).click();
+    }
+
+    await account.click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+
+    const settings = page.getByRole('dialog', { name: 'Settings' });
+    const versionLine = settings.getByRole('button', { name: /^MailFathom v/u });
+
+    for (let press = 0; press < 5; press += 1) {
+        await versionLine.click();
+    }
+
+    await settings.getByRole('button', { name: 'Close settings' }).click();
+    await settings.waitFor({ state: 'hidden' });
+
+    for (let press = 0; press < 3 && (await page.evaluate(somethingOpenInTheTopLayer)); press += 1) {
+        await page.keyboard.press('Escape');
+    }
+}
+
+const somethingOpenInTheTopLayer = `document.querySelector(':popover-open, dialog[open]') !== null`;
 
 // What arrives on standard input is a document a shell script composed, which is a boundary rather than a value this
 // module already knows the shape of. So it is read as `unknown` and narrowed a field at a time: a plan that is wrong
@@ -581,6 +619,7 @@ function readClientCapture(value: unknown, at: string): ClientCapture {
         ...readCapture(value, at),
         route: text(given['route'], `${at}.route`),
         signIn: given['signIn'] === true,
+        developerMode: given['developerMode'] === true,
     };
 }
 

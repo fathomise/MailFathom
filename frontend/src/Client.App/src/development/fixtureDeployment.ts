@@ -435,7 +435,7 @@ function answerFor(
         outboxAnswer(route, options) ??
         contactAnswer(route, asked, request, options) ??
         draftAnswer(route, asked, request) ??
-        taskAnswer(route, request, options) ??
+        taskAnswer(route, asked, request, options) ??
         messageAnswer(route, asked) ?? { status: 404, body: '', headers: {} }
     );
 }
@@ -449,6 +449,7 @@ function answerFor(
  */
 function taskAnswer(
     route: string,
+    asked: URLSearchParams,
     request: ClientRequest,
     options: Readonly<FixtureDeploymentOptions>,
 ): ClientResponse | null {
@@ -491,7 +492,38 @@ function taskAnswer(
         return answering(options.emptyCollections ? tasks.emptyTaskPage : tasks.proposedTasks(dayHere()));
     }
 
-    return answering(options.emptyCollections ? tasks.emptyTaskPage : tasks.committedTasks(dayHere()));
+    return answering(options.emptyCollections ? tasks.emptyTaskPage : committedTasksAsked(asked));
+}
+
+/**
+ * The list narrowed to the thread, the event or the person a read names, which is how a thread's chips, an event's
+ * tasks and a person's commitments each ask for their own.
+ *
+ * shortcut: a `from`/`until` window is not narrowed, since every view places a task by its own dates; narrow it here if
+ * a screen ever draws whatever the list answers without reading those.
+ */
+function committedTasksAsked(asked: URLSearchParams) {
+    const listed = tasks.committedTasks(dayHere());
+    const threadId = asked.get('threadId');
+    const eventId = asked.get('eventId');
+    const counterpart = asked.get('counterpart')?.toLowerCase() ?? null;
+
+    // The corpus states each task through a record of what it holds, so what it is anchored to is read rather than typed.
+    const field = (value: unknown, name: string): unknown =>
+        typeof value === 'object' && value !== null ? (value as Record<string, unknown>)[name] : undefined;
+    const anchored = (task: unknown, kind: string, id: string) =>
+        field(field(task, 'anchor'), 'kind') === kind && field(field(task, 'anchor'), 'id') === id;
+    const withWhom = (task: unknown) => field(field(task, 'counterpart'), 'address');
+
+    return {
+        ...listed,
+        tasks: listed.tasks.filter(
+            (task) =>
+                (threadId === null || anchored(task, 'Thread', threadId)) &&
+                (eventId === null || anchored(task, 'Event', eventId)) &&
+                (counterpart === null || String(withWhom(task)).toLowerCase() === counterpart),
+        ),
+    };
 }
 
 /**

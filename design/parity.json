@@ -977,7 +977,9 @@
         },
         {
           "expect": {
-            "text": "Context"
+            "role": "button",
+            "name": "Sending options",
+            "exact": true
           }
         },
         {
@@ -1093,7 +1095,9 @@
         },
         {
           "expect": {
-            "text": "Context"
+            "role": "button",
+            "name": "Sending options",
+            "exact": true
           }
         },
         {
@@ -1139,7 +1143,9 @@
         },
         {
           "expect": {
-            "text": "Context"
+            "role": "button",
+            "name": "Sending options",
+            "exact": true
           }
         },
         {
@@ -1471,7 +1477,9 @@
         },
         {
           "expect": {
-            "text": "Context"
+            "role": "button",
+            "name": "Sending options",
+            "exact": true
           }
         },
         {
@@ -1516,7 +1524,9 @@
         },
         {
           "expect": {
-            "text": "Context"
+            "role": "button",
+            "name": "Sending options",
+            "exact": true
           }
         },
         {

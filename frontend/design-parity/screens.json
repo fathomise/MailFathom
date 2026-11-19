@@ -180,6 +180,7 @@
       "id": "mail-thread",
       "route": "/#/mail",
       "signIn": true,
+      "developerMode": true,
       "steps": [
         {
           "expect": {
@@ -190,12 +191,13 @@
         {
           "click": {
             "role": "option",
-            "nth": 0
+            "name": "The racking quote"
           }
         },
         {
           "expect": {
-            "role": "article"
+            "role": "region",
+            "name": "Conversation"
           }
         }
       ]
@@ -1290,6 +1292,7 @@
       "id": "calendar",
       "route": "/#/calendar",
       "signIn": true,
+      "developerMode": true,
       "steps": [
         {
           "expect": {
@@ -1373,6 +1376,7 @@
       "id": "person",
       "route": "/#/people",
       "signIn": true,
+      "developerMode": true,
       "steps": [
         {
           "click": {
@@ -1489,6 +1493,7 @@
       "id": "tasks",
       "route": "/#/tasks",
       "signIn": true,
+      "developerMode": true,
       "steps": [
         {
           "expect": {
@@ -1503,6 +1508,7 @@
       "id": "discover",
       "route": "/#/discover",
       "signIn": true,
+      "developerMode": true,
       "steps": [
         {
           "click": {
@@ -1672,6 +1678,7 @@
       "id": "composer-sending-options",
       "route": "/#/mail",
       "signIn": true,
+      "developerMode": true,
       "steps": [
         {
           "click": {

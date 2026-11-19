@@ -376,6 +376,41 @@ describe('fixtureAnswer', () => {
         expect(stated(answered('/tasks?pageSize=50'))).toStrictEqual(tasks.committedTasks('2026-09-28'));
     });
 
+    // A thread's chips, a person's commitments and an event's tasks each ask the list for their own, so a corpus that
+    // answered every read with the whole list would draw every task on every thread and every person.
+    it('answers a task list narrowed to a thread, an event or a person with only what belongs to it', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(2026, 8, 21, 9));
+
+        interface Listed {
+            readonly id: string;
+            readonly anchor: { readonly kind: string; readonly id: string } | null;
+            readonly counterpart: { readonly address: string } | null;
+        }
+        const listed = (route: string) => (stated(answered(route)) as { tasks: Listed[] }).tasks;
+        const ids = (route: string) => listed(route).map(({ id }) => id);
+        const all = listed('/tasks?pageSize=50');
+        const anchoredTo = (kind: string) => all.find(({ anchor }) => anchor?.kind === kind)?.anchor ?? null;
+        const thread = anchoredTo('Thread');
+        const event = anchoredTo('Event');
+        const address = all.find(({ counterpart }) => counterpart !== null)?.counterpart?.address ?? '';
+        const belonging = (kept: (task: Listed) => boolean) => all.filter(kept).map(({ id }) => id);
+
+        expect(thread).not.toBeNull();
+        expect(event).not.toBeNull();
+        expect(ids(`/tasks?threadId=${thread?.id ?? ''}`)).toStrictEqual(
+            belonging(({ anchor }) => anchor?.kind === 'Thread' && anchor.id === thread?.id),
+        );
+        expect(ids(`/tasks?eventId=${event?.id ?? ''}`)).toStrictEqual(
+            belonging(({ anchor }) => anchor?.kind === 'Event' && anchor.id === event?.id),
+        );
+        expect(ids(`/tasks?counterpart=${encodeURIComponent(address.toUpperCase())}`)).toStrictEqual(
+            belonging(({ counterpart }) => counterpart?.address === address),
+        );
+        expect(ids(`/tasks?threadId=${thread?.id ?? ''}`).length).toBeLessThan(all.length);
+        expect(ids('/tasks?threadId=thread-nobody-has')).toStrictEqual([]);
+    });
+
     // The path the day is arranged at has the list's own as a prefix and is read and written at the same address, so
     // both orderings are what a task route can get wrong without anything else noticing.
     it('tells the arranged day apart from the list, and its write apart from its read', () => {
