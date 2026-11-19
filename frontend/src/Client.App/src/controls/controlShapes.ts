@@ -30,9 +30,9 @@
 // `link` is a control drawn as words in the accent inside a sentence, which is how the design draws the help link at
 // the foot of the sign-in form.
 //
-// `accentPill` is the one control the design draws on the accent as a pill rather than as a square: *Zapytaj* in the
-// head of a conversation, which hands the thread to the agent. It is a shape of its own rather than `primary` with a
-// rounder corner because the two differ in every measure — the corner, the height, the padding — and not only in one.
+// `soft` is a control drawn as a tint of the accent inside the accent's own line, which is how the design draws a
+// second act beside a fact — *Plan* or *Move* beside where a task is planned — and fills with the accent under a
+// pointer; `softPill` is the same drawn smaller and rounder, where it stands among the chips of a task row.
 //
 // What is deliberately absent is the size a finger needs. Every shape below is drawn at the measure the design
 // gives it, and the floor a control grows to under a coarse pointer is stated once for the whole client in
@@ -50,7 +50,8 @@ export type ControlShape =
     | 'selected'
     | 'selectedSymbol'
     | 'link'
-    | 'accentPill'
+    | 'soft'
+    | 'softPill'
     | 'outlined'
     | 'outlinedSymbol';
 
@@ -66,8 +67,9 @@ export const controlShapes: Readonly<Record<ControlShape, string>> = {
     selected: 'gap-1.75 rounded-md px-2.75 py-1.75 text-base text-accent-deep hover:bg-accent-line',
     selectedSymbol: 'size-9.5 justify-center rounded-md text-accent-deep hover:bg-accent-line',
     link: 'rounded-sm text-accent hover:text-accent-strong',
-    accentPill:
-        'min-h-8.5 justify-center gap-1.75 rounded-2xl bg-accent px-3.25 text-base font-semibold text-on-accent',
+    soft: 'justify-center gap-1.75 rounded-md border border-accent-line bg-accent-soft px-3 py-1.5 text-sm font-semibold text-accent-deep hover:bg-accent hover:text-on-accent',
+    softPill:
+        'justify-center gap-1.75 rounded-lg border border-accent-line bg-accent-soft px-2.5 py-1 text-xs text-accent-deep hover:bg-accent hover:text-on-accent',
     outlined: 'gap-2 rounded-md border border-line-strong bg-panel px-3 py-1.75 text-base text-text-soft hover:bg-rail',
     outlinedSymbol: 'size-9.5 justify-center rounded-md border border-line-strong text-text-soft hover:bg-rail',
 };
@@ -81,7 +83,8 @@ export function labelledShape(shape: ControlShape): boolean {
         shape === 'primary' ||
         shape === 'selected' ||
         shape === 'link' ||
-        shape === 'accentPill' ||
+        shape === 'soft' ||
+        shape === 'softPill' ||
         shape === 'outlined'
     );
 }

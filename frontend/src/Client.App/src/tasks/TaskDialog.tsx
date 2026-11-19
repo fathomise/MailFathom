@@ -472,7 +472,7 @@ export function TaskDialog({
                                 </span>
                                 <Control
                                     label={translate(chosen.plan === null ? 'tasks.plan' : 'tasks.move')}
-                                    shape="accentPill"
+                                    shape="soft"
                                     {...(refused === null ? {} : { held: true, hint: refused })}
                                     onPress={() => {
                                         setSaid(null);

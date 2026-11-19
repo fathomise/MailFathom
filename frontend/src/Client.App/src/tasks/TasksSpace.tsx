@@ -734,7 +734,7 @@ export function TasksSpace({
             )}
 
             <div
-                className="flex min-h-0 flex-1 touch-pan-y touch-pinch-zoom flex-col overflow-y-auto panes:flex-row panes:overflow-visible"
+                className="flex min-h-0 flex-1 touch-pan-y touch-pinch-zoom flex-col overflow-y-auto desktop:flex-row desktop:overflow-visible"
                 {...viewSwipe}
                 onScroll={(event) => {
                     if (reachedTheRowsRead(event.currentTarget)) {
@@ -788,7 +788,7 @@ export function TasksSpace({
                     calendar meets the list alone. */}
                 {!readsCalendar ? null : (
                     <aside
-                        className={`order-first mx-4 mt-4 shrink-0 flex-col gap-3.5 rounded-lg border border-line bg-sunken p-3.5 panes:order-none panes:m-0 panes:flex panes:w-tasks-side panes:overflow-y-auto panes:rounded-none panes:border-y-0 panes:border-e-0 panes:px-5 panes:py-5 ${
+                        className={`order-first mx-4 mt-4 shrink-0 flex-col gap-3.5 rounded-lg border border-line bg-sunken p-3.5 desktop:order-none desktop:m-0 desktop:flex desktop:w-tasks-side desktop:overflow-y-auto desktop:rounded-none desktop:border-y-0 desktop:border-e-0 desktop:px-5 desktop:py-5 ${
                             view === 'today' ? 'flex' : 'hidden'
                         }`}
                     >

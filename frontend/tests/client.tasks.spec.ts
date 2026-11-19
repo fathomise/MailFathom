@@ -154,7 +154,7 @@ test('a link removed in the dialog goes at once, and the person it is with is wh
 
     await dialog.getByRole('button', { name: 'Remove the link to Contract addendum - signatures' }).click();
 
-    await expect(dialog.getByText('Anna Kowalska')).toBeVisible();
+    await expect(dialog.getByText('Anna Kowalska', { exact: true })).toBeVisible();
     expect(deployment.requests('PUT', '/tasks/task-tender').map(({ body }) => body)).toMatchObject([
         { anchor: null, counterpart: { address: 'anna@contoso.example' } },
     ]);

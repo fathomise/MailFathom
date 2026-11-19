@@ -43,7 +43,7 @@ export const segmentShapes: Readonly<Record<SegmentShape, SegmentLook>> = {
     row: { shape: 'flex-1 rounded-md py-1 text-center text-sm', chosen: accented, unchosen: quiet },
     section: { shape: 'flex-1 rounded-md px-2 py-1.5 text-center text-base', chosen: accented, unchosen: quiet },
     raised: {
-        shape: 'touch-extended flex flex-1 items-center justify-center rounded-md px-2.5 py-1.5 text-base whitespace-nowrap',
+        shape: 'touch-extended flex flex-1 items-center justify-center rounded-md px-2.5 py-1.5 text-base whitespace-nowrap max-workspace:px-1',
         chosen: 'bg-panel font-semibold text-text shadow-raised',
         unchosen: 'text-muted hover:text-text',
     },

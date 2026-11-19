@@ -447,7 +447,7 @@ export function TaskRow({
                 {proposal || awaited || completed || task.plan !== null || onPlan === undefined ? null : (
                     <Control
                         label={translate('tasks.plan')}
-                        shape="accentPill"
+                        shape="softPill"
                         {...refusedAs(translate('tasks.plan'))}
                         onPress={onPlan}
                     />

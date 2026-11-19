@@ -125,7 +125,7 @@ export function DayPlan({
                         <li
                             key={hour}
                             className={`min-h-7.5 gap-2.5 border-t border-line-soft py-1.25 pointer-coarse:min-h-11 ${
-                                free ? 'hidden panes:flex' : 'flex'
+                                free ? 'hidden desktop:flex' : 'flex'
                             } ${dropAt === hour ? 'rounded-md bg-accent-soft ring-1 ring-accent ring-inset' : ''}`}
                             onDragEnter={(event) => {
                                 if (carriesTask(event)) {
@@ -175,7 +175,7 @@ export function DayPlan({
                                         <button
                                             key={meeting.id}
                                             type="button"
-                                            className="flex min-w-0 text-start"
+                                            className="flex min-w-0 flex-col text-start"
                                             onClick={() => {
                                                 onOpenEvent(meeting.id);
                                             }}
