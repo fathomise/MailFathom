@@ -5470,6 +5470,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const rightNowDocked = !isMobile && !compact;
       const rightNowFolded = rightNowDocked && !!st.rightNowFolded;
       const rightNowDrawerOpen = !rightNowDocked && !!st.rightNowDrawer;
+      const rightNowDrag = rightNowDrawerOpen ? st.rightNowDrag || 0 : 0;
+      const rightNowDragging = !!(this._rnG && this._rnG.live);
       /* Its edge is a handle: dragged, the panel widens to twice its own width at the most, and never past 60% of the
          window; a double click puts it back. */
       const rightNowBase = st.screen === "start" ? Math.max(360, Math.min(460, Math.round(w * 0.29))) : 300;
@@ -7684,7 +7686,25 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            of every space from 1020 px, for the whole height of the screen; below that it stands on Start between the two. */
         startScreenStyle: "flex:1;display:flex;flex-direction:column;min-width:0;min-height:0",
         rightNowDocked, rightNowFolded, rightNowOpen: !rightNowFolded,
-        rightNowShown: rightNowDocked || rightNowDrawerOpen, rightNowDrawerOpen, rightNowResizable: rightNowDocked && !rightNowFolded,
+        /* The drawer stays mounted and slides on its transform, so it arrives and leaves at one pace and follows a
+           finger dragging it back to the edge: past 80 px the release closes it, short of that it springs back. */
+        rightNowShown: true, rightNowDrawer: !rightNowDocked, rightNowDrawerOpen,
+        rightNowScrimStyle: "position:fixed;inset:0;z-index:92;background:var(--scrim);transition:opacity " + (rightNowDragging ? "0s" : "var(--motion-slow) var(--ease-out)") + ";" +
+          (rightNowDrawerOpen ? "opacity:" + Math.max(0, 1 - rightNowDrag / rightNowDrawerPx).toFixed(2) : "opacity:0;pointer-events:none"),
+        rightNowSwipe: rightNowDocked ? {} : {
+          down: (e) => { const t = e.touches[0]; this._rnG = { x: t.clientX, y: t.clientY, live: false, off: false }; },
+          move: (e) => {
+            const g = this._rnG, t = e.touches[0]; if (!g || g.off) return;
+            const dx = t.clientX - g.x, dy = t.clientY - g.y;
+            if (!g.live) { if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { g.off = true; return; } if (dx < 10) return; g.live = true; }
+            this.setState({ rightNowDrag: Math.max(0, Math.round(dx)) });
+          },
+          up: () => {
+            const g = this._rnG; this._rnG = null; if (!g || !g.live) return;
+            this.setState({ rightNowDrawer: (this.state.rightNowDrag || 0) <= 80, rightNowDrag: 0 });
+          },
+        },
+        rightNowResizable: rightNowDocked && !rightNowFolded,
         rightNowTabShown: !rightNowDocked && !rightNowDrawerOpen && !st.compose && !st.doc && !st.htmlDoc && !st.settings && !st.notifCenter && !st.more,
         rightNowTabStyle: "position:fixed;z-index:87;right:0;top:calc(50% - 22px);width:44px;height:44px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:12px 0 0 12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-right:0;box-shadow:0 6px 18px var(--sh-2)",
         rightNowDrawerToggle: () => this.setState({ rightNowDrawer: !rightNowDrawerOpen }),
@@ -7693,7 +7713,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         rightNowFoldTitle: rightNowDocked ? "Fold Right now to its numbers" : "Close",
         rightNowFoldStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px;" + (touch ? "width:44px;height:44px" : "width:30px;height:30px;margin:-5px -2px -5px 0"),
         rightNowNumStyle: "flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-sizing:border-box;width:44px;min-height:" + (touch ? 56 : 52) + "px;border-radius:10px",
-        rightNowPanelStyle: (rightNowDocked ? "order:1;flex:0 0 auto;" : "position:fixed;z-index:93;top:0;right:0;bottom:0;border-left:1px solid var(--line);box-shadow:-18px 0 50px var(--sh-3);") + "width:" + rightNowW + ";box-sizing:border-box;display:flex;min-height:0;background:var(--panel)" + (rightNowFolded ? ";border-left:1px solid var(--line)" : ""),
+        rightNowPanelStyle: (rightNowDocked ? "order:1;flex:0 0 auto;" : "position:fixed;z-index:93;top:0;right:0;bottom:0;border-left:1px solid var(--line);touch-action:pan-y;" +
+          (rightNowDrawerOpen ? "box-shadow:-18px 0 50px var(--sh-3);visibility:visible;transform:translateX(" + rightNowDrag + "px);transition:" + (rightNowDragging ? "none;" : "transform var(--motion-slow) var(--ease-sheet);")
+            : "visibility:hidden;transform:translateX(100%);transition:transform var(--motion-slow) var(--ease-in),visibility 0s var(--motion-slow);")) + "width:" + rightNowW + ";box-sizing:border-box;display:flex;min-height:0;background:var(--panel)" + (rightNowFolded ? ";border-left:1px solid var(--line)" : ""),
         rightNowColStyle: "flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden",
         /* The panel is on the right, so a drag to the left widens it: the width is the start width less the travel. */
         rightNowResize: (e) => { const from = this._rightNowPx, base = this._rightNowBase; this.beginPaneDrag(e, from, (v) => this.setState({ rightNowScale: Math.max(1, Math.min(2, (2 * from - v) / base)) })); },

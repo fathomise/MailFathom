@@ -582,11 +582,11 @@ Project repository: https://github.com/fathomise/MailFathom
       <span aria-hidden="true" style="{{ nowDotStyle }};position:absolute;top:7px;right:7px"></span>
     </div>
   </sc-if>
-  <sc-if value="{{ rightNowDrawerOpen }}" hint-placeholder-val="{{ false }}">
-    <div data-motion="scrim" onClick="{{ rightNowDrawerToggle }}" style="position:fixed;inset:0;z-index:92;background:var(--scrim)"></div>
+  <sc-if value="{{ rightNowDrawer }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ rightNowDrawerToggle }}" style="{{ rightNowScrimStyle }}"></div>
   </sc-if>
   <sc-if value="{{ rightNowShown }}" hint-placeholder-val="{{ true }}">
-    <div style="{{ rightNowPanelStyle }}">
+    <div onTouchStart="{{ rightNowSwipe.down }}" onTouchMove="{{ rightNowSwipe.move }}" onTouchEnd="{{ rightNowSwipe.up }}" style="{{ rightNowPanelStyle }}">
       <sc-if value="{{ rightNowResizable }}" hint-placeholder-val="{{ true }}">
         <div role="separator" aria-orientation="vertical" aria-label="Resize Right now" onPointerDown="{{ rightNowResize }}" onDoubleClick="{{ rightNowResetSize }}" style="{{ boundaryStyle }}" style-hover="{{ boundaryListHover }}" title="Drag to widen Right now, up to twice its width (double-click to reset)" data-tip-hover=""><div aria-hidden="true" style="{{ boundaryReachStyle }}"></div><div aria-hidden="true" style="{{ boundaryGripStyle }}"><div style="{{ boundaryPillStyle }}"></div></div></div>
       </sc-if>
