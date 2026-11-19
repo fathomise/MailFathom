@@ -7928,8 +7928,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         calMonthWrapStyle: isMobile
           ? "flex:0 0 auto;display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:10px 8px 8px;align-content:start"
           : narrow
-          ? "flex:1;min-width:0;overflow:auto;display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:12px 14px"
-          : "flex:1;min-width:0;overflow:auto;display:grid;grid-template-columns:repeat(7,1fr);gap:4px;padding:14px 24px 20px 24px;align-content:start",
+          ? "flex:1;min-width:0;overflow:auto;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;padding:12px 14px"
+          : "flex:1;min-width:0;overflow:auto;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;padding:14px 24px 20px 24px;align-content:start",
         calDowLabels: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].map(l => ({ label: l })),
         calMonthCells: monthCells.map(c => ({
           n: c.n,
@@ -7943,7 +7943,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               (c.blank ? "background:transparent;" : (c.n === (st.calSelDay || "27")
                 ? "background:var(--accent-soft);border:1px solid var(--accent-line);"
                 : "background:var(--panel);border:1px solid var(--line2);"))
-            : "min-height:88px;display:flex;flex-direction:column;gap:3px;border-radius:8px;padding:6px 7px;" +
+            : "min-height:88px;min-width:0;display:flex;flex-direction:column;gap:3px;border-radius:8px;padding:6px 7px;" +
               (c.blank ? "background:transparent;" : "background:" + (c.today ? "var(--accent-soft)" : "var(--panel)") + ";border:1px solid var(--line);"),
           numStyle: isMobile
             ? (c.today
@@ -8020,7 +8020,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "display:flex;flex-direction:column;gap:10px"
           : narrow || touch
           ? "flex:0 0 auto;min-height:420px;display:grid;grid-template-columns:repeat(7,minmax(112px,1fr));gap:0;overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px"
-          : "flex:1;min-width:0;display:grid;grid-template-columns:repeat(7,1fr);gap:0;overflow:auto",
+          : "flex:1;min-width:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;overflow:auto",
         calDays: CAL_DAYS.map((d, i) => ({
           dow: d.dow, d: d.d,
           colStyle: isMobile
