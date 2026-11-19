@@ -65,7 +65,7 @@ export function wordEstimate(minutes: number, locale: Locale): string {
 // How long a task takes as somebody types it — *30*, *30 min*, *1 hr*, *1h 30*, *2 hrs* — in either language the
 // client reads in. A bare number is minutes, and a number after hours is the minutes past them.
 const typedLength =
-    /^(?:(\d+)\s*(?:h|hr|hrs|hour|hours|godz|godzina|godziny|godzin)\.?\s*)?(?:(\d+)\s*(?:m|min|mins|minute|minutes|minuta|minuty|minut)?\.?)?$/iu;
+    /^(?:(\d+)\s*(?:h|hr|hrs|hour|hours|godz|godzina|godziny|godzin)\.?\s*)?(?:(\d+)\s*(?:m|min|mins|minute|minutes|minu(?:ta|ty|t))?\.?)?$/iu;
 
 /**
  * How long somebody typed that a task takes, the inverse of {@link wordEstimate}.
