@@ -345,16 +345,31 @@ already holds — counts, a date in a thread, a question asked and not answered,
 things: *Now* and the answer to each watched question, which the reader asked for by pressing
 *Watch*. Each carries the provenance glyph.
 
-**Ask or find is short, and the Agent is where it goes long.** The field answers in one card with its citations and
-lists the messages the answer came from; it has no revisions, no refinements, and no clarifying step, because
-reworking an answer is a conversation. *Continue with the agent* carries the question and the answer there
-(`continueInAgent`). Start always asks about all of the reader's mail: the field carries no scope control, nothing the
-Mail space has open narrows it, and a question about one correspondence is asked in that correspondence's own field.
+**Ask or find answers with the widgets the question calls for, and the Agent is where it goes long.** The field
+answers in one card with its citations, and under it stand **only the widgets that fit the question and what the mail
+holds** — never all of them, and none where the answer alone settles it — then the messages the answer came from. It
+has no revisions, no refinements, and no clarifying step, because reworking an answer is a conversation. *Continue
+with the agent* carries the question and the answer there (`continueInAgent`). Start always asks about all of the
+reader's mail: the field carries no scope control, nothing the Mail space has open narrows it, and a question about one
+correspondence is asked in that correspondence's own field.
 
 The ask is a phase machine (`st.phase`: `idle`, `running`, `done`). The plan behind an answer is `askPlan(st)`, one of
-`PLANS`, and only its answer streams (`ready.answer`). The line under the field stands once a run is over
-(`runFinished`) and says what was read in plain counts (*41 messages read*), with *Watch* beside it; it names no run
-identifier, plan, model or spend, and an evidence entry carries no relevance score.
+`PLANS`: a watched question opens its own plan (`plan` on the question), anything typed is matched by its words
+(`planFor`). A plan names its widgets in `blocks`, and they stream in that order after the answer (`ready`). The line
+under the field stands once a run is over (`runFinished`) and says what was read in plain counts (*41 messages read*),
+with *Watch* beside it; it names no run identifier, plan, model or spend, and an evidence entry carries no relevance
+score.
+
+| The question | Plan | Widgets under the answer |
+|---|---|---|
+| *How have the Contoso contract terms changed since 2021?* | `contract` | *Timeline*, *Fact table* — the terms by version |
+| *Where is the latest version of the insurance policy?* | `files` | *Attachments* |
+| *Who approved the indexation budget in 2023?* | `people` | *People* |
+| *What is still open with Contoso before 28 August?* | `open` | *Thread state* |
+| *Which invoices from August are unpaid?* | `invoices` | *Fact table* — the invoices |
+| *Who owns the Q4 renewals?* | `owners` | *People* |
+| *When does the Fabrikam pilot sign-off land?* | `pilot` | *Timeline* |
+| *Has anyone answered about the office move in October?* | `move` | none — the answer settles it |
 
 ### The header
 
@@ -423,7 +438,13 @@ Nothing in the client carries this control.
 | A run is over | `runFinished` | `hasRun && st.phase === "done"`; gates the run line, *Found in your mail* and the hand-off |
 | Watching this question | `isWatching` | *Watch* in the run line — it turns to *Watching*, and the toast says each refresh counts against the allowance. Pressed again, it stops |
 | Answer | `answerReady` | `ready.answer` — the answer with its citations, its confidence, and *Open Mail* |
-| What the sources do **not** settle | `gapNote` | the plan carries a `gap` — `contract` and `people` do |
+| What the sources do **not** settle | `gapNote` | the plan carries a `gap` — `contract`, `people`, `invoices`, `owners` and `pilot` do |
+| Thread state | `askStateReady` | the plan names `state` — a card headed *Thread state* with the number of points: each point a cell on a hairline border, two across and one on a phone, its kind above it (*Open question* in `--warn-text`, *Agreed* in `--ok`, *Commitment* in `--accent-d`) and the point with its citation |
+| Timeline | `askTimelineReady` | the plan names `timeline` — a card headed *Timeline* with the number of dates: a row per date, the date in tabular figures, a dot (filled with the accent on the last), the event with its citation and one line under it |
+| Fact table | `askFactsReady` | the plan names `facts` — a card headed *Fact table* with the number of rows: a header of column names and a row per fact, the first cell in semibold, a citation after the cell it backs; wider than a phone, it scrolls sideways inside the card |
+| Attachments | `askGalleryReady` | the plan names `gallery` — a card headed *Attachments* with the number of files: four tiles across (two on a phone), each the file's type, its citation, its name and one line about it; a tile opens its source |
+| People | `askPeopleReady` | the plan names `people` — a card headed *People*: a row per person with initials on `--accent-soft`, the name with its citation, the part they played, and when they last wrote |
+| A fact's source | `askCiteStyle` | every citation in a widget is the answer's own marker and opens the same evidence inspector (`openEv`) |
 | Found in your mail | `foundRows` | the run is over — the messages the answer came from, one row each (sender, subject, time); a row opens the thread with *Back to Start* over it (`cameFromNote`) |
 | Hand-off | `continueInAgent` | the run is over — a dashed card, *Want to go further - compare, plan, or write back?*, and *Continue with the agent* |
 | A claim reported | `p.disputed` | *This is wrong* in the inspector for that citation — the claim gets a wavy warning underline and its citation turns warning; nothing else changes |

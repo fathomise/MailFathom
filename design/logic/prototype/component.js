@@ -5356,6 +5356,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     }
 
     planFor(q) {
+      const watched = WATCHED.find(w => w.q === q);
+      if (watched && watched.plan) return watched.plan;
       const s = (q || "").toLowerCase();
       if (s.includes("polic") || s.includes("file") || s.includes("document") || s.includes("attach")) return "files";
       if (s.includes("who") || s.includes("person") || s.includes("people") || s.includes("approv")) return "people";
@@ -5367,8 +5369,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.timers = [];
       const key = this.planFor(q);
       this.setState({ query: q, planKey: key, phase: "running", ready: {}, ev: null, cameFrom: false, mailAnswer: false });
-      /* Start answers short: the answer and the messages it came from. Anything longer is the Agent's. */
-      this.streamBlocks(["answer"]);
+      /* The answer first, then the widgets the plan names for this question, one after another. */
+      this.streamBlocks(PLANS[key].blocks);
     }
 
     streamBlocks(blocks) {
@@ -8151,6 +8153,41 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         })[plan.confidence] || "" : "",
         gapNote: plan && plan.gap ? plan.gap : false,
         answerReady: !!ready.answer,
+        /* The widgets under the answer. A plan draws only the ones its question calls for (`plan.blocks`), each in the
+           form the Agent's block of the same name has, and every fact in them cites its source as the answer does. */
+        ...(() => {
+          const on = (b) => !!(plan && plan.blocks.includes(b) && ready[b]);
+          const cited = (c) => ({ hasCite: !!c, cite: c || "", citeTitle: c ? "Open source " + c : "", open: c ? openEv(c) : () => {} });
+          const facts = plan && plan.facts ? plan.facts : { cols: [], rows: [] };
+          const tones = { "Open question": "var(--warn-text)", "Agreed": "var(--ok)", "Commitment": "var(--accent-d)" };
+          return {
+            askCiteStyle: "font-size:11px;font-weight:400;border-radius:4px;padding:2px 6px;margin-left:5px;color:var(--accent-d);background:var(--accent-soft);vertical-align:1px",
+            askStateReady: on("state"), askStateMeta: plan && plan.state ? plan.state.length + " points" : "",
+            askStateGridStyle: "display:grid;gap:10px;grid-template-columns:" + (isMobile ? "minmax(0,1fr)" : "repeat(2,minmax(0,1fr))"),
+            askState: (plan && plan.state || []).map(s => Object.assign({ kind: s.kind, text: s.text,
+              style: "display:flex;flex-direction:column;gap:3px;box-sizing:border-box;border:1px solid var(--line2);border-radius:10px;padding:10px 12px;min-width:0",
+              kindStyle: "font-size:11px;font-weight:600;color:" + (tones[s.kind] || "var(--muted)") }, cited(s.cite))),
+            askTimelineReady: on("timeline"), askTimelineMeta: plan && plan.timeline ? plan.timeline.length + " dates" : "",
+            askTimelineRowStyle: "display:flex;align-items:flex-start;gap:12px;border-top:1px solid var(--line2);padding:10px 0",
+            askTimelineDateStyle: "flex:0 0 " + (isMobile ? 92 : 112) + "px;font-size:13px;font-variant-numeric:tabular-nums;color:var(--muted);padding-top:2px",
+            askTimeline: (plan && plan.timeline || []).map((x, i, all) => Object.assign({ date: x.date, title: x.title, detail: x.detail,
+              dotStyle: "flex:0 0 9px;width:9px;height:9px;margin-top:6px;border-radius:50%;box-sizing:border-box;" + (i === all.length - 1 ? "background:var(--accent)" : "border:2px solid var(--border2)") }, cited(x.cite))),
+            askFactsReady: on("facts"), askFactsMeta: facts.rows.length + " rows",
+            askFactsGridStyle: "display:grid;grid-template-columns:repeat(" + (facts.cols.length || 1) + ",minmax(max-content,1fr));" + (isMobile ? "min-width:560px" : ""),
+            askFactsCols: facts.cols.map(c => ({ label: c })),
+            askFactsHeadCellStyle: "font-size:11px;font-weight:600;color:var(--muted);padding:8px 12px 8px 0;border-bottom:1px solid var(--line)",
+            askFactsCells: facts.rows.flatMap(r => r.map((c, i) => Object.assign({ v: c.v,
+              style: "font-size:14px;line-height:1.4;padding:10px 12px 10px 0;border-bottom:1px solid var(--line2);white-space:nowrap;color:var(--text" + (i === 0 ? ");font-weight:600" : "2)") }, cited(c.cite)))),
+            askGalleryReady: on("gallery"), askGalleryMeta: plan && plan.gallery ? plan.gallery.length + " files" : "",
+            askFileStyle: "display:flex;flex-direction:column;gap:6px;min-width:0;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 11px",
+            askFileTypeStyle: "font-size:10.5px;font-weight:600;letter-spacing:0.04em;color:var(--muted);border:1px solid var(--border2);border-radius:4px;padding:1px 5px",
+            askGallery: (plan && plan.gallery || []).map(f => ({ type: f.type, name: f.name, meta: f.meta, cite: f.cite, open: openEv(f.cite) })),
+            askPeopleReady: on("people"), askPeopleMeta: plan && plan.people ? plan.people.length + " people" : "",
+            askPersonRowStyle: "display:flex;align-items:center;gap:12px;border-top:1px solid var(--line2);padding:10px 0",
+            askAvatarStyle: "flex:0 0 34px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:12px;font-weight:600;color:var(--accent-d);background:var(--accent-soft)",
+            askPeople: (plan && plan.people || []).map(x => Object.assign({ initials: x.initials, name: x.name, role: x.role, last: x.last }, cited(x.cite))),
+          };
+        })(),
         answerParts: plan ? plan.parts.map(p => {
           const disputed = !!(st.reported || {})[p.cite];
           return {

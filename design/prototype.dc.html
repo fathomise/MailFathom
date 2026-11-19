@@ -484,6 +484,70 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </sc-if>
 
+            <sc-if value="{{ askStateReady }}" hint-placeholder-val="{{ false }}">
+              <div data-motion="fade" style="{{ blk.card }}">
+                <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.tile }}"><span style="{{ blk.glyph }}">checklist</span></span><div style="{{ blk.title }}">Thread state</div><div style="{{ blk.meta }}">{{ askStateMeta }}</div></div>
+                <div style="{{ askStateGridStyle }}">
+                  <sc-for list="{{ askState }}" as="si" hint-placeholder-count="4">
+                    <div style="{{ si.style }}"><div style="{{ si.kindStyle }}">{{ si.kind }}</div><div style="font-size:14.5px;line-height:1.45;color:var(--text);text-wrap:pretty">{{ si.text }}<sc-if value="{{ si.hasCite }}" hint-placeholder-val="{{ false }}"><sup role="button" tabIndex="0" onClick="{{ si.open }}" title="{{ si.citeTitle }}" style="{{ askCiteStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent);cursor:pointer">{{ si.cite }}</sup></sc-if></div></div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ askTimelineReady }}" hint-placeholder-val="{{ false }}">
+              <div data-motion="fade" style="{{ blk.card }}">
+                <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.tile }}"><span style="{{ blk.glyph }}">timeline</span></span><div style="{{ blk.title }}">Timeline</div><div style="{{ blk.meta }}">{{ askTimelineMeta }}</div></div>
+                <div style="display:flex;flex-direction:column">
+                  <sc-for list="{{ askTimeline }}" as="tl" hint-placeholder-count="4">
+                    <div style="{{ askTimelineRowStyle }}">
+                      <div style="{{ askTimelineDateStyle }}">{{ tl.date }}</div>
+                      <span aria-hidden="true" style="{{ tl.dotStyle }}"></span>
+                      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><div style="font-size:14.5px;font-weight:600;line-height:1.4;color:var(--text)">{{ tl.title }}<sc-if value="{{ tl.hasCite }}" hint-placeholder-val="{{ false }}"><sup role="button" tabIndex="0" onClick="{{ tl.open }}" title="{{ tl.citeTitle }}" style="{{ askCiteStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent);cursor:pointer">{{ tl.cite }}</sup></sc-if></div><div style="font-size:13px;color:var(--muted)">{{ tl.detail }}</div></div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ askFactsReady }}" hint-placeholder-val="{{ false }}">
+              <div data-motion="fade" style="{{ blk.card }}">
+                <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.tile }}"><span style="{{ blk.glyph }}">table_rows</span></span><div style="{{ blk.title }}">Fact table</div><div style="{{ blk.meta }}">{{ askFactsMeta }}</div></div>
+                <div style="overflow-x:auto">
+                  <div style="{{ askFactsGridStyle }}">
+                    <sc-for list="{{ askFactsCols }}" as="fc" hint-placeholder-count="4"><div style="{{ askFactsHeadCellStyle }}">{{ fc.label }}</div></sc-for>
+                    <sc-for list="{{ askFactsCells }}" as="cell" hint-placeholder-count="8"><div style="{{ cell.style }}">{{ cell.v }}<sc-if value="{{ cell.hasCite }}" hint-placeholder-val="{{ false }}"><sup role="button" tabIndex="0" onClick="{{ cell.open }}" title="{{ cell.citeTitle }}" style="{{ askCiteStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent);cursor:pointer">{{ cell.cite }}</sup></sc-if></div></sc-for>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ askGalleryReady }}" hint-placeholder-val="{{ false }}">
+              <div data-motion="fade" style="{{ blk.card }}">
+                <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.tile }}"><span style="{{ blk.glyph }}">attach_file</span></span><div style="{{ blk.title }}">Attachments</div><div style="{{ blk.meta }}">{{ askGalleryMeta }}</div></div>
+                <div style="{{ galleryGridStyle }}">
+                  <sc-for list="{{ askGallery }}" as="gf" hint-placeholder-count="4">
+                    <div role="button" tabIndex="0" onClick="{{ gf.open }}" style="{{ askFileStyle }}" style-hover="cursor:pointer;border-color:var(--accent)">
+                      <div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="{{ askFileTypeStyle }}">{{ gf.type }}</span><span style="flex:1"></span><span style="{{ askCiteStyle }}">{{ gf.cite }}</span></div>
+                      <div style="font-size:13.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ gf.name }}</div>
+                      <div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ gf.meta }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ askPeopleReady }}" hint-placeholder-val="{{ false }}">
+              <div data-motion="fade" style="{{ blk.card }}">
+                <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.tile }}"><span style="{{ blk.glyph }}">group</span></span><div style="{{ blk.title }}">People</div><div style="{{ blk.meta }}">{{ askPeopleMeta }}</div></div>
+                <div style="display:flex;flex-direction:column">
+                  <sc-for list="{{ askPeople }}" as="ap" hint-placeholder-count="3">
+                    <div style="{{ askPersonRowStyle }}">
+                      <div aria-hidden="true" style="{{ askAvatarStyle }}">{{ ap.initials }}</div>
+                      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><div style="font-size:14.5px;font-weight:600;color:var(--text)">{{ ap.name }}<sc-if value="{{ ap.hasCite }}" hint-placeholder-val="{{ false }}"><sup role="button" tabIndex="0" onClick="{{ ap.open }}" title="{{ ap.citeTitle }}" style="{{ askCiteStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent);cursor:pointer">{{ ap.cite }}</sup></sc-if></div><div style="font-size:13px;color:var(--muted);text-wrap:pretty">{{ ap.role }}</div></div>
+                      <div style="flex:0 0 auto;font-size:12px;color:var(--faint);white-space:nowrap">{{ ap.last }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
             <sc-if value="{{ runFinished }}" hint-placeholder-val="{{ false }}">
               <div data-motion="fade" style="{{ blk.card }}">
                 <div style="{{ blk.head }}"><span aria-hidden="true" style="{{ blk.tile }}"><span style="{{ blk.glyph }}">inbox</span></span><div style="{{ blk.title }}">Found in your mail</div><div style="{{ blk.meta }}">the messages this answer came from</div></div>
