@@ -83,6 +83,7 @@ import { NotificationCentre } from './notifications/NotificationCentre';
 import { usePanelSwipe } from './notifications/usePanelSwipe';
 import { useNotificationCentre } from './notifications/useNotificationCentre';
 import { PeopleSpace } from './people/PeopleSpace';
+import { MailTasksProvider } from './tasks/MailTasks';
 import { TasksSpace } from './tasks/TasksSpace';
 import { PendingChangesProvider } from './pendingChanges/PendingChanges';
 import { AiFiltersShownContext } from './preferences/aiFilters';
@@ -1331,333 +1332,303 @@ export function App({
             Writing is offered where the credential may file a draft; one that may not is told so by the strip above
             rather than by a screen that refuses every act. */}
                                                                 <ComposingContext value={composing}>
-                                                                    {/* Above the frame as well, and for a stronger reason than the composer's: what it draws covers
+                                                                    {/* Beside it, for the composer's reason: a list row, the head of a thread, the toolbar above it and the
+            composer each reach the person's tasks, and none of them is the parent of another. Offered where Tasks is. */}
+                                                                    <MailTasksProvider
+                                                                        session={
+                                                                            offeredSpaces.includes('tasks')
+                                                                                ? session
+                                                                                : null
+                                                                        }
+                                                                        transport={readMail}
+                                                                    >
+                                                                        {/* Above the frame as well, and for a stronger reason than the composer's: what it draws covers
                 everything below it, and the operations that ask for it — a mailbox migration, a bulk change, an
                 export — each begin somewhere different and none of them is the parent of what has to be covered. The
                 surface itself is the platform's own modal dialog, so where it sits in the document decides nothing
                 about where it is drawn; it stands first here because it stands in front of everything. */}
-                                                                    <BlockingContext value={blocking}>
-                                                                        <BlockingOverlay operation={blockedOn} />
+                                                                        <BlockingContext value={blocking}>
+                                                                            <BlockingOverlay operation={blockedOn} />
 
-                                                                        {/* Beside them for the composer's own reason, one component further down: the row that opens a
+                                                                            {/* Beside them for the composer's own reason, one component further down: the row that opens a
                     file a message carries sits three components below the frame that owns what is open, and none of
                     the three between them has a reason to name a file it never opens. */}
-                                                                        <OpenAttachmentContext
-                                                                            value={openTabs.openAttachment}
-                                                                        >
-                                                                            <MessageSourceReadingContext
-                                                                                value={sourceReading}
+                                                                            <OpenAttachmentContext
+                                                                                value={openTabs.openAttachment}
                                                                             >
-                                                                                <AgentHandOverContext
-                                                                                    value={
-                                                                                        session === null || !asksMail
-                                                                                            ? null
-                                                                                            : handToAgent
-                                                                                    }
+                                                                                <MessageSourceReadingContext
+                                                                                    value={sourceReading}
                                                                                 >
-                                                                                    <PassageRewritingContext
-                                                                                        value={passageRewriter}
+                                                                                    <AgentHandOverContext
+                                                                                        value={
+                                                                                            session === null ||
+                                                                                            !asksMail
+                                                                                                ? null
+                                                                                                : handToAgent
+                                                                                        }
                                                                                     >
-                                                                                        {/* Clipped rather than left to overflow: a space arriving rises
+                                                                                        <PassageRewritingContext
+                                                                                            value={passageRewriter}
+                                                                                        >
+                                                                                            {/* Clipped rather than left to overflow: a space arriving rises
                         from a few pixels below its place, and that offset would otherwise lengthen the document for the
                         length of the motion, so the focus placed in the arriving space would scroll the whole frame —
                         the navigation with it — up by that much and back. `clip` rather than `hidden`, so nothing can
                         scroll the frame itself either. */}
-                                                                                        <div className="flex h-dvh flex-col overflow-clip bg-rail pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left rail:flex-row">
-                                                                                            {/* Positioned because every space stays on the screen while
+                                                                                            <div className="flex h-dvh flex-col overflow-clip bg-rail pt-safe-top pr-safe-right pb-safe-bottom pl-safe-left rail:flex-row">
+                                                                                                {/* Positioned because every space stays on the screen while
                         one of them is in front, each aside one laid out over this region rather than beside it —
                         `shell/Space.tsx` holds why a space is stood aside instead of taken down. */}
-                                                                                            <div
-                                                                                                ref={workspaceRegion}
-                                                                                                tabIndex={-1}
-                                                                                                className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-page"
-                                                                                            >
-                                                                                                {/* Inside the frame as well as on the sign-in screen, because a credential that could not be kept is
+                                                                                                <div
+                                                                                                    ref={
+                                                                                                        workspaceRegion
+                                                                                                    }
+                                                                                                    tabIndex={-1}
+                                                                                                    className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-page"
+                                                                                                >
+                                                                                                    {/* Inside the frame as well as on the sign-in screen, because a credential that could not be kept is
                         learned about at the moment somebody successfully signed in — which is the one of these sentences
                         whose reader is already past that screen. Beside it, and in the same strip, is what this credential
                         may not do: both are statements about the credential rather than about anything it read. */}
-                                                                                                {notices.length === 0 &&
-                                                                                                withheld.length ===
-                                                                                                    0 ? null : (
-                                                                                                    <div className="flex min-h-0 flex-col gap-2 border-b border-line-soft bg-panel px-4 py-2 workspace:px-8">
-                                                                                                        <CredentialNotices
-                                                                                                            notices={
-                                                                                                                notices
-                                                                                                            }
-                                                                                                        />
-                                                                                                        <GrantNotice
-                                                                                                            withheld={
-                                                                                                                withheld
-                                                                                                            }
-                                                                                                        />
-                                                                                                    </div>
-                                                                                                )}
+                                                                                                    {notices.length ===
+                                                                                                        0 &&
+                                                                                                    withheld.length ===
+                                                                                                        0 ? null : (
+                                                                                                        <div className="flex min-h-0 flex-col gap-2 border-b border-line-soft bg-panel px-4 py-2 workspace:px-8">
+                                                                                                            <CredentialNotices
+                                                                                                                notices={
+                                                                                                                    notices
+                                                                                                                }
+                                                                                                            />
+                                                                                                            <GrantNotice
+                                                                                                                withheld={
+                                                                                                                    withheld
+                                                                                                                }
+                                                                                                            />
+                                                                                                        </div>
+                                                                                                    )}
 
-                                                                                                {/* The region the space is drawn in is there before the deployment says which space that is, so
+                                                                                                    {/* The region the space is drawn in is there before the deployment says which space that is, so
                         nothing on the screen moves under a reader when the answer arrives. Until it does, what stands in
                         the region is what the connection says — reaching, retrying, offline, or refused — because that is
                         the only thing on the screen there is to read, and the way out of a deployment that never answers
                         has to be somewhere. */}
-                                                                                                <Departing
-                                                                                                    value={
-                                                                                                        awayFromConversation
-                                                                                                    }
-                                                                                                >
-                                                                                                    {() => (
-                                                                                                        <ReturnToConversation
-                                                                                                            onReturn={
-                                                                                                                returnToConversation
-                                                                                                            }
-                                                                                                        />
-                                                                                                    )}
-                                                                                                </Departing>
-
-                                                                                                {space === null ? (
-                                                                                                    <main className="flex-1 px-4 py-6 workspace:px-8">
-                                                                                                        <ConnectionSummary
-                                                                                                            connection={
-                                                                                                                connection
-                                                                                                            }
-                                                                                                        />
-                                                                                                    </main>
-                                                                                                ) : (
-                                                                                                    <MailOutboxProvider
-                                                                                                        session={
-                                                                                                            session
+                                                                                                    <Departing
+                                                                                                        value={
+                                                                                                            awayFromConversation
                                                                                                         }
-                                                                                                        transport={
-                                                                                                            readMail
-                                                                                                        }
-                                                                                                        online={
-                                                                                                            connection.online
-                                                                                                        }
-                                                                                                        asked={
-                                                                                                            outboxAsked
-                                                                                                        }
-                                                                                                        onAskedTaken={() => {
-                                                                                                            setOutboxAsked(
-                                                                                                                null,
-                                                                                                            );
-                                                                                                        }}
                                                                                                     >
-                                                                                                        <Space
-                                                                                                            // Every space this deployment offers, because every one of them is mounted: moving
-                                                                                                            // between them changes which is in front and takes nothing down.
-                                                                                                            offered={
-                                                                                                                offeredSpaces
+                                                                                                        {() => (
+                                                                                                            <ReturnToConversation
+                                                                                                                onReturn={
+                                                                                                                    returnToConversation
+                                                                                                                }
+                                                                                                            />
+                                                                                                        )}
+                                                                                                    </Departing>
+
+                                                                                                    {space === null ? (
+                                                                                                        <main className="flex-1 px-4 py-6 workspace:px-8">
+                                                                                                            <ConnectionSummary
+                                                                                                                connection={
+                                                                                                                    connection
+                                                                                                                }
+                                                                                                            />
+                                                                                                        </main>
+                                                                                                    ) : (
+                                                                                                        <MailOutboxProvider
+                                                                                                            session={
+                                                                                                                session
                                                                                                             }
-                                                                                                            space={
-                                                                                                                space
+                                                                                                            transport={
+                                                                                                                readMail
                                                                                                             }
-                                                                                                            // Who is signed in, which is what was kept beside the session rather than anything read out of a credential.
-                                                                                                            // A screen never sees the credential; what it is handed is the name the deployment knows the
-                                                                                                            // person by, which is what a preference kept per person on this machine is written under.
-                                                                                                            person={
-                                                                                                                person
+                                                                                                            online={
+                                                                                                                connection.online
                                                                                                             }
-                                                                                                            // How the reading column is laid out under the AI button is the space's decision, which is
-                                                                                                            // why it is told rather than handed the button.
-                                                                                                            readingFooted={
-                                                                                                                readingFoot !==
-                                                                                                                null
+                                                                                                            asked={
+                                                                                                                outboxAsked
                                                                                                             }
-                                                                                                            status={
-                                                                                                                connectionSummary
-                                                                                                            }
-                                                                                                            agent={
-                                                                                                                session ===
-                                                                                                                    null ||
-                                                                                                                !asksMail ? null : (
-                                                                                                                    <AgentSpace
-                                                                                                                        session={
-                                                                                                                            session
-                                                                                                                        }
-                                                                                                                        transport={
-                                                                                                                            readMail
-                                                                                                                        }
-                                                                                                                        handOver={
-                                                                                                                            handedToAgent
-                                                                                                                        }
-                                                                                                                        history={
-                                                                                                                            agentHistory
-                                                                                                                        }
-                                                                                                                        inFront={
-                                                                                                                            space ===
-                                                                                                                            'agent'
-                                                                                                                        }
-                                                                                                                        opening={
-                                                                                                                            agentOpening
-                                                                                                                        }
-                                                                                                                        onLook={
-                                                                                                                            lookFromAgent
-                                                                                                                        }
-                                                                                                                    />
-                                                                                                                )
-                                                                                                            }
-                                                                                                            discover={
-                                                                                                                session ===
-                                                                                                                    null ||
-                                                                                                                !asksMail ? null : (
-                                                                                                                    <DiscoverSpace
-                                                                                                                        session={
-                                                                                                                            session
-                                                                                                                        }
-                                                                                                                        transport={
-                                                                                                                            readMail
-                                                                                                                        }
-                                                                                                                        accounts={
-                                                                                                                            mailAccounts
-                                                                                                                        }
-                                                                                                                        // Its field only while
-                                                                                                                        // this is the space in
-                                                                                                                        // front: a field inside a
-                                                                                                                        // region nobody can see is
-                                                                                                                        // a second place a
-                                                                                                                        // question could land.
-                                                                                                                        asking={
-                                                                                                                            space ===
-                                                                                                                            'discover'
-                                                                                                                        }
-                                                                                                                        onOpenMessage={(
-                                                                                                                            messageId,
-                                                                                                                        ) => {
-                                                                                                                            // A citation names a
-                                                                                                                            // message and mail is
-                                                                                                                            // read in the Mail
-                                                                                                                            // space, exactly as a
-                                                                                                                            // task's citation is:
-                                                                                                                            // the message opens
-                                                                                                                            // there and the
-                                                                                                                            // address follows it.
-                                                                                                                            openTabs.openMail(
-                                                                                                                                messageId,
-                                                                                                                                null,
-                                                                                                                            );
-                                                                                                                            window.location.hash =
-                                                                                                                                addressOf(
-                                                                                                                                    'mail',
-                                                                                                                                );
-                                                                                                                        }}
-                                                                                                                    />
-                                                                                                                )
-                                                                                                            }
-                                                                                                            listMode={
-                                                                                                                session ===
-                                                                                                                    null ||
-                                                                                                                !readsMail ? null : (
-                                                                                                                    <ListModeSwitch
-                                                                                                                        mode={
-                                                                                                                            preferences.listMode
-                                                                                                                        }
-                                                                                                                        // The Outbox is reached from a folder row, which the list read by
-                                                                                                                        // conversation has none of, so turning the list over closes it. A selection goes
-                                                                                                                        // with it: what is picked out in one reading is not what the other lists.
-                                                                                                                        onChoose={(
-                                                                                                                            mode,
-                                                                                                                        ) => {
-                                                                                                                            preferences.chooseListMode(
-                                                                                                                                mode,
-                                                                                                                            );
-                                                                                                                            revise(
-                                                                                                                                {
-                                                                                                                                    outbox: null,
-                                                                                                                                    selected:
-                                                                                                                                        [],
-                                                                                                                                },
-                                                                                                                            );
-                                                                                                                        }}
-                                                                                                                    />
-                                                                                                                )
-                                                                                                            }
-                                                                                                            folders={
-                                                                                                                session ===
-                                                                                                                    null ||
-                                                                                                                !readsMail ? null : preferences.listMode ===
-                                                                                                                  'threads' ? (
-                                                                                                                    <ThreadAccounts
-                                                                                                                        accounts={
-                                                                                                                            mailAccounts
-                                                                                                                        }
-                                                                                                                    />
-                                                                                                                ) : (
-                                                                                                                    <FolderTree
-                                                                                                                        session={
-                                                                                                                            session
-                                                                                                                        }
-                                                                                                                        transport={
-                                                                                                                            readMail
-                                                                                                                        }
-                                                                                                                        online={
-                                                                                                                            connection.online
-                                                                                                                        }
-                                                                                                                    />
-                                                                                                                )
-                                                                                                            }
-                                                                                                            list={
-                                                                                                                session ===
-                                                                                                                    null ||
-                                                                                                                !readsMail ? null : workspace.outbox !==
-                                                                                                                  null ? (
-                                                                                                                    <MailAccountsContext
-                                                                                                                        value={
-                                                                                                                            mailAccounts
-                                                                                                                        }
-                                                                                                                    >
-                                                                                                                        <OutboxList
-                                                                                                                            outbox={
-                                                                                                                                workspace.outbox
+                                                                                                            onAskedTaken={() => {
+                                                                                                                setOutboxAsked(
+                                                                                                                    null,
+                                                                                                                );
+                                                                                                            }}
+                                                                                                        >
+                                                                                                            <Space
+                                                                                                                // Every space this deployment offers, because every one of them is mounted: moving
+                                                                                                                // between them changes which is in front and takes nothing down.
+                                                                                                                offered={
+                                                                                                                    offeredSpaces
+                                                                                                                }
+                                                                                                                space={
+                                                                                                                    space
+                                                                                                                }
+                                                                                                                // Who is signed in, which is what was kept beside the session rather than anything read out of a credential.
+                                                                                                                // A screen never sees the credential; what it is handed is the name the deployment knows the
+                                                                                                                // person by, which is what a preference kept per person on this machine is written under.
+                                                                                                                person={
+                                                                                                                    person
+                                                                                                                }
+                                                                                                                // How the reading column is laid out under the AI button is the space's decision, which is
+                                                                                                                // why it is told rather than handed the button.
+                                                                                                                readingFooted={
+                                                                                                                    readingFoot !==
+                                                                                                                    null
+                                                                                                                }
+                                                                                                                status={
+                                                                                                                    connectionSummary
+                                                                                                                }
+                                                                                                                agent={
+                                                                                                                    session ===
+                                                                                                                        null ||
+                                                                                                                    !asksMail ? null : (
+                                                                                                                        <AgentSpace
+                                                                                                                            session={
+                                                                                                                                session
+                                                                                                                            }
+                                                                                                                            transport={
+                                                                                                                                readMail
+                                                                                                                            }
+                                                                                                                            handOver={
+                                                                                                                                handedToAgent
+                                                                                                                            }
+                                                                                                                            history={
+                                                                                                                                agentHistory
+                                                                                                                            }
+                                                                                                                            inFront={
+                                                                                                                                space ===
+                                                                                                                                'agent'
+                                                                                                                            }
+                                                                                                                            opening={
+                                                                                                                                agentOpening
+                                                                                                                            }
+                                                                                                                            onLook={
+                                                                                                                                lookFromAgent
                                                                                                                             }
                                                                                                                         />
-                                                                                                                    </MailAccountsContext>
-                                                                                                                ) : preferences.listMode ===
-                                                                                                                  'threads' ? (
-                                                                                                                    // Read by conversation, the list is narrowed by an account alone, and searching from it searches that
-                                                                                                                    // account's mail — the results are messages, drawn as the message list draws them.
-                                                                                                                    <MailSearch
-                                                                                                                        key={
-                                                                                                                            threadListAccountIn(
-                                                                                                                                mailAccounts,
-                                                                                                                                workspace.threadListAccount,
-                                                                                                                            ) ??
-                                                                                                                            ''
-                                                                                                                        }
-                                                                                                                        session={
-                                                                                                                            session
-                                                                                                                        }
-                                                                                                                        transport={
-                                                                                                                            readMail
-                                                                                                                        }
-                                                                                                                        scope={scopeOfAccount(
-                                                                                                                            threadListAccountIn(
-                                                                                                                                mailAccounts,
-                                                                                                                                workspace.threadListAccount,
-                                                                                                                            ),
-                                                                                                                        )}
-                                                                                                                        accounts={
-                                                                                                                            mailAccounts
-                                                                                                                        }
-                                                                                                                        online={
-                                                                                                                            connection.online
-                                                                                                                        }
-                                                                                                                        onOpen={
-                                                                                                                            openTabs.openMail
-                                                                                                                        }
-                                                                                                                        onOpenDraft={
-                                                                                                                            writesMail
-                                                                                                                                ? (
-                                                                                                                                      storedEmailId,
-                                                                                                                                  ) => {
-                                                                                                                                      composing.compose(
-                                                                                                                                          {
-                                                                                                                                              kind: 'draft',
-                                                                                                                                              storedEmailId,
-                                                                                                                                          },
-                                                                                                                                      );
-                                                                                                                                  }
-                                                                                                                                : null
-                                                                                                                        }
-                                                                                                                    >
-                                                                                                                        <MessageList
+                                                                                                                    )
+                                                                                                                }
+                                                                                                                discover={
+                                                                                                                    session ===
+                                                                                                                        null ||
+                                                                                                                    !asksMail ? null : (
+                                                                                                                        <DiscoverSpace
+                                                                                                                            session={
+                                                                                                                                session
+                                                                                                                            }
+                                                                                                                            transport={
+                                                                                                                                readMail
+                                                                                                                            }
+                                                                                                                            accounts={
+                                                                                                                                mailAccounts
+                                                                                                                            }
+                                                                                                                            // Its field only while
+                                                                                                                            // this is the space in
+                                                                                                                            // front: a field inside a
+                                                                                                                            // region nobody can see is
+                                                                                                                            // a second place a
+                                                                                                                            // question could land.
+                                                                                                                            asking={
+                                                                                                                                space ===
+                                                                                                                                'discover'
+                                                                                                                            }
+                                                                                                                            onOpenMessage={(
+                                                                                                                                messageId,
+                                                                                                                            ) => {
+                                                                                                                                // A citation names a
+                                                                                                                                // message and mail is
+                                                                                                                                // read in the Mail
+                                                                                                                                // space, exactly as a
+                                                                                                                                // task's citation is:
+                                                                                                                                // the message opens
+                                                                                                                                // there and the
+                                                                                                                                // address follows it.
+                                                                                                                                openTabs.openMail(
+                                                                                                                                    messageId,
+                                                                                                                                    null,
+                                                                                                                                );
+                                                                                                                                window.location.hash =
+                                                                                                                                    addressOf(
+                                                                                                                                        'mail',
+                                                                                                                                    );
+                                                                                                                            }}
+                                                                                                                        />
+                                                                                                                    )
+                                                                                                                }
+                                                                                                                listMode={
+                                                                                                                    session ===
+                                                                                                                        null ||
+                                                                                                                    !readsMail ? null : (
+                                                                                                                        <ListModeSwitch
+                                                                                                                            mode={
+                                                                                                                                preferences.listMode
+                                                                                                                            }
+                                                                                                                            // The Outbox is reached from a folder row, which the list read by
+                                                                                                                            // conversation has none of, so turning the list over closes it. A selection goes
+                                                                                                                            // with it: what is picked out in one reading is not what the other lists.
+                                                                                                                            onChoose={(
+                                                                                                                                mode,
+                                                                                                                            ) => {
+                                                                                                                                preferences.chooseListMode(
+                                                                                                                                    mode,
+                                                                                                                                );
+                                                                                                                                revise(
+                                                                                                                                    {
+                                                                                                                                        outbox: null,
+                                                                                                                                        selected:
+                                                                                                                                            [],
+                                                                                                                                    },
+                                                                                                                                );
+                                                                                                                            }}
+                                                                                                                        />
+                                                                                                                    )
+                                                                                                                }
+                                                                                                                folders={
+                                                                                                                    session ===
+                                                                                                                        null ||
+                                                                                                                    !readsMail ? null : preferences.listMode ===
+                                                                                                                      'threads' ? (
+                                                                                                                        <ThreadAccounts
+                                                                                                                            accounts={
+                                                                                                                                mailAccounts
+                                                                                                                            }
+                                                                                                                        />
+                                                                                                                    ) : (
+                                                                                                                        <FolderTree
+                                                                                                                            session={
+                                                                                                                                session
+                                                                                                                            }
+                                                                                                                            transport={
+                                                                                                                                readMail
+                                                                                                                            }
+                                                                                                                            online={
+                                                                                                                                connection.online
+                                                                                                                            }
+                                                                                                                        />
+                                                                                                                    )
+                                                                                                                }
+                                                                                                                list={
+                                                                                                                    session ===
+                                                                                                                        null ||
+                                                                                                                    !readsMail ? null : workspace.outbox !==
+                                                                                                                      null ? (
+                                                                                                                        <MailAccountsContext
+                                                                                                                            value={
+                                                                                                                                mailAccounts
+                                                                                                                            }
+                                                                                                                        >
+                                                                                                                            <OutboxList
+                                                                                                                                outbox={
+                                                                                                                                    workspace.outbox
+                                                                                                                                }
+                                                                                                                            />
+                                                                                                                        </MailAccountsContext>
+                                                                                                                    ) : preferences.listMode ===
+                                                                                                                      'threads' ? (
+                                                                                                                        // Read by conversation, the list is narrowed by an account alone, and searching from it searches that
+                                                                                                                        // account's mail — the results are messages, drawn as the message list draws them.
+                                                                                                                        <MailSearch
                                                                                                                             key={
                                                                                                                                 threadListAccountIn(
                                                                                                                                     mailAccounts,
@@ -1665,7 +1636,6 @@ export function App({
                                                                                                                                 ) ??
                                                                                                                                 ''
                                                                                                                             }
-                                                                                                                            listMode="threads"
                                                                                                                             session={
                                                                                                                                 session
                                                                                                                             }
@@ -1687,63 +1657,61 @@ export function App({
                                                                                                                             onOpen={
                                                                                                                                 openTabs.openMail
                                                                                                                             }
-                                                                                                                        />
-                                                                                                                    </MailSearch>
-                                                                                                                ) : (
-                                                                                                                    // Both keyed by the scope, so pointing at another mailbox starts a list and a search
-                                                                                                                    // rather than resetting either: every value below belongs to one mailbox read one way,
-                                                                                                                    // and a search carries the mailbox it was made in as a filter it would go on showing.
-                                                                                                                    // Searching stands above the list rather than beside it because it is where somebody
-                                                                                                                    // reaches for it — looking at a folder, with the message not in front of them — and
-                                                                                                                    // what it finds is drawn in the same column with the same row.
-                                                                                                                    <MailSearch
-                                                                                                                        key={scopeKey(
-                                                                                                                            workspace.scope,
-                                                                                                                        )}
-                                                                                                                        session={
-                                                                                                                            session
-                                                                                                                        }
-                                                                                                                        transport={
-                                                                                                                            readMail
-                                                                                                                        }
-                                                                                                                        scope={
-                                                                                                                            workspace.scope
-                                                                                                                        }
-                                                                                                                        accounts={
-                                                                                                                            mailAccounts
-                                                                                                                        }
-                                                                                                                        online={
-                                                                                                                            connection.online
-                                                                                                                        }
-                                                                                                                        onOpen={
-                                                                                                                            openTabs.openMail
-                                                                                                                        }
-                                                                                                                        onOpenDraft={
-                                                                                                                            // A result that is a draft opens
-                                                                                                                            // where it was written. Handed
-                                                                                                                            // down only where there is a
-                                                                                                                            // composer to open, so a
-                                                                                                                            // credential that may not write
-                                                                                                                            // mail opens it as a message. Read
-                                                                                                                            // from the grant rather than off
-                                                                                                                            // `composing`, which holds what
-                                                                                                                            // had focus and is therefore not a
-                                                                                                                            // value to read while rendering.
-                                                                                                                            writesMail
-                                                                                                                                ? (
-                                                                                                                                      storedEmailId,
-                                                                                                                                  ) => {
-                                                                                                                                      composing.compose(
-                                                                                                                                          {
-                                                                                                                                              kind: 'draft',
-                                                                                                                                              storedEmailId,
-                                                                                                                                          },
-                                                                                                                                      );
-                                                                                                                                  }
-                                                                                                                                : null
-                                                                                                                        }
-                                                                                                                    >
-                                                                                                                        <MessageList
+                                                                                                                            onOpenDraft={
+                                                                                                                                writesMail
+                                                                                                                                    ? (
+                                                                                                                                          storedEmailId,
+                                                                                                                                      ) => {
+                                                                                                                                          composing.compose(
+                                                                                                                                              {
+                                                                                                                                                  kind: 'draft',
+                                                                                                                                                  storedEmailId,
+                                                                                                                                              },
+                                                                                                                                          );
+                                                                                                                                      }
+                                                                                                                                    : null
+                                                                                                                            }
+                                                                                                                        >
+                                                                                                                            <MessageList
+                                                                                                                                key={
+                                                                                                                                    threadListAccountIn(
+                                                                                                                                        mailAccounts,
+                                                                                                                                        workspace.threadListAccount,
+                                                                                                                                    ) ??
+                                                                                                                                    ''
+                                                                                                                                }
+                                                                                                                                listMode="threads"
+                                                                                                                                session={
+                                                                                                                                    session
+                                                                                                                                }
+                                                                                                                                transport={
+                                                                                                                                    readMail
+                                                                                                                                }
+                                                                                                                                scope={scopeOfAccount(
+                                                                                                                                    threadListAccountIn(
+                                                                                                                                        mailAccounts,
+                                                                                                                                        workspace.threadListAccount,
+                                                                                                                                    ),
+                                                                                                                                )}
+                                                                                                                                accounts={
+                                                                                                                                    mailAccounts
+                                                                                                                                }
+                                                                                                                                online={
+                                                                                                                                    connection.online
+                                                                                                                                }
+                                                                                                                                onOpen={
+                                                                                                                                    openTabs.openMail
+                                                                                                                                }
+                                                                                                                            />
+                                                                                                                        </MailSearch>
+                                                                                                                    ) : (
+                                                                                                                        // Both keyed by the scope, so pointing at another mailbox starts a list and a search
+                                                                                                                        // rather than resetting either: every value below belongs to one mailbox read one way,
+                                                                                                                        // and a search carries the mailbox it was made in as a filter it would go on showing.
+                                                                                                                        // Searching stands above the list rather than beside it because it is where somebody
+                                                                                                                        // reaches for it — looking at a folder, with the message not in front of them — and
+                                                                                                                        // what it finds is drawn in the same column with the same row.
+                                                                                                                        <MailSearch
                                                                                                                             key={scopeKey(
                                                                                                                                 workspace.scope,
                                                                                                                             )}
@@ -1765,516 +1733,570 @@ export function App({
                                                                                                                             onOpen={
                                                                                                                                 openTabs.openMail
                                                                                                                             }
-                                                                                                                        />
-                                                                                                                    </MailSearch>
-                                                                                                                )
-                                                                                                            }
-                                                                                                            tasks={
-                                                                                                                session ===
-                                                                                                                    null ||
-                                                                                                                !offeredSpaces.includes(
-                                                                                                                    'tasks',
-                                                                                                                ) ? null : (
-                                                                                                                    <TasksSpace
-                                                                                                                        session={
-                                                                                                                            session
-                                                                                                                        }
-                                                                                                                        transport={
-                                                                                                                            readMail
-                                                                                                                        }
-                                                                                                                        // Whether the day may be
-                                                                                                                        // arranged at all is two
-                                                                                                                        // questions: whether this
-                                                                                                                        // credential may ask and may
-                                                                                                                        // read the calendar the
-                                                                                                                        // arrangement is laid around,
-                                                                                                                        // which is this, and
-                                                                                                                        // whether the deployment
-                                                                                                                        // arranges one, which the
-                                                                                                                        // screen asks the capability
-                                                                                                                        // route.
-                                                                                                                        asksDeployment={
-                                                                                                                            asksMail &&
-                                                                                                                            readsCalendar
-                                                                                                                        }
-                                                                                                                        readsCalendar={
-                                                                                                                            readsCalendar
-                                                                                                                        }
-                                                                                                                        openLayoutOffer={
-                                                                                                                            layoutOffered
-                                                                                                                        }
-                                                                                                                        onOpenEvent={
-                                                                                                                            !offeredSpaces.includes(
-                                                                                                                                'calendar',
-                                                                                                                            )
-                                                                                                                                ? undefined
-                                                                                                                                : (
-                                                                                                                                      eventId,
-                                                                                                                                  ) => {
-                                                                                                                                      // What a task belongs to is
-                                                                                                                                      // opened where it lives, so
-                                                                                                                                      // an event is opened in the
-                                                                                                                                      // calendar.
-                                                                                                                                      setEventAsked(
-                                                                                                                                          {
-                                                                                                                                              eventId,
-                                                                                                                                          },
-                                                                                                                                      );
-                                                                                                                                      window.location.hash =
-                                                                                                                                          addressOf(
-                                                                                                                                              'calendar',
+                                                                                                                            onOpenDraft={
+                                                                                                                                // A result that is a draft opens
+                                                                                                                                // where it was written. Handed
+                                                                                                                                // down only where there is a
+                                                                                                                                // composer to open, so a
+                                                                                                                                // credential that may not write
+                                                                                                                                // mail opens it as a message. Read
+                                                                                                                                // from the grant rather than off
+                                                                                                                                // `composing`, which holds what
+                                                                                                                                // had focus and is therefore not a
+                                                                                                                                // value to read while rendering.
+                                                                                                                                writesMail
+                                                                                                                                    ? (
+                                                                                                                                          storedEmailId,
+                                                                                                                                      ) => {
+                                                                                                                                          composing.compose(
+                                                                                                                                              {
+                                                                                                                                                  kind: 'draft',
+                                                                                                                                                  storedEmailId,
+                                                                                                                                              },
                                                                                                                                           );
-                                                                                                                                  }
-                                                                                                                        }
-                                                                                                                        onOpenMessage={
-                                                                                                                            !readsMail
-                                                                                                                                ? undefined
-                                                                                                                                : (
-                                                                                                                                      messageId,
-                                                                                                                                  ) => {
-                                                                                                                                      // A task cites a message
-                                                                                                                                      // and mail is read in the
-                                                                                                                                      // Mail space, so it is
-                                                                                                                                      // opened there and the
-                                                                                                                                      // address follows it —
-                                                                                                                                      // exactly as a person's
-                                                                                                                                      // page cites one. It is
-                                                                                                                                      // opened with no subject,
-                                                                                                                                      // a task carrying none.
-                                                                                                                                      openTabs.openMail(
-                                                                                                                                          messageId,
-                                                                                                                                          null,
-                                                                                                                                      );
-                                                                                                                                      window.location.hash =
-                                                                                                                                          addressOf(
-                                                                                                                                              'mail',
-                                                                                                                                          );
-                                                                                                                                  }
-                                                                                                                        }
-                                                                                                                    />
-                                                                                                                )
-                                                                                                            }
-                                                                                                            people={
-                                                                                                                session ===
-                                                                                                                    null ||
-                                                                                                                !readsContacts ? null : (
-                                                                                                                    <PeopleSpace
-                                                                                                                        session={
-                                                                                                                            session
-                                                                                                                        }
-                                                                                                                        transport={
-                                                                                                                            readMail
-                                                                                                                        }
-                                                                                                                        contactPhotos={
-                                                                                                                            contactPhotos
-                                                                                                                        }
-                                                                                                                        writable={
-                                                                                                                            writesContacts
-                                                                                                                        }
-                                                                                                                        organizationName={
-                                                                                                                            deploymentSession.organizationName ??
-                                                                                                                            null
-                                                                                                                        }
-                                                                                                                        inOrganization={
-                                                                                                                            deploymentSession.organization !==
-                                                                                                                            null
-                                                                                                                        }
-                                                                                                                        onOpenThread={(
-                                                                                                                            thread,
-                                                                                                                        ) => {
-                                                                                                                            // What a person's page cites
-                                                                                                                            // is mail, and mail is read
-                                                                                                                            // in the Mail space: the
-                                                                                                                            // message is opened and the
-                                                                                                                            // address follows it, so the
-                                                                                                                            // reader lands on what they
-                                                                                                                            // pressed rather than on a
-                                                                                                                            // space that has quietly
-                                                                                                                            // changed underneath them.
-                                                                                                                            openTabs.openMail(
-                                                                                                                                thread.messageId,
-                                                                                                                                thread.subject,
-                                                                                                                                thread.threadId,
-                                                                                                                            );
-                                                                                                                            window.location.hash =
-                                                                                                                                addressOf(
-                                                                                                                                    'mail',
-                                                                                                                                );
-                                                                                                                        }}
-                                                                                                                        onOpenDocument={(
-                                                                                                                            document,
-                                                                                                                        ) => {
-                                                                                                                            // Cited rather than opened,
-                                                                                                                            // exactly as a search result
-                                                                                                                            // cites one: the pane that
-                                                                                                                            // reads the message is what
-                                                                                                                            // turns a coordinate into an
-                                                                                                                            // opened file, because the
-                                                                                                                            // size a download is bounded
-                                                                                                                            // by is the message's.
-                                                                                                                            revise(
-                                                                                                                                {
-                                                                                                                                    citedAttachment:
-                                                                                                                                        {
-                                                                                                                                            storedEmailId:
-                                                                                                                                                document.messageId,
-                                                                                                                                            position:
-                                                                                                                                                document.position,
-                                                                                                                                        },
-                                                                                                                                },
-                                                                                                                            );
-                                                                                                                            openTabs.openMail(
-                                                                                                                                document.messageId,
-                                                                                                                                null,
-                                                                                                                            );
-                                                                                                                            window.location.hash =
-                                                                                                                                addressOf(
-                                                                                                                                    'mail',
-                                                                                                                                );
-                                                                                                                        }}
-                                                                                                                    />
-                                                                                                                )
-                                                                                                            }
-                                                                                                            calendar={
-                                                                                                                session ===
-                                                                                                                    null ||
-                                                                                                                !offeredSpaces.includes(
-                                                                                                                    'calendar',
-                                                                                                                ) ? null : (
-                                                                                                                    <CalendarSpace
-                                                                                                                        session={
-                                                                                                                            session
-                                                                                                                        }
-                                                                                                                        transport={
-                                                                                                                            readMail
-                                                                                                                        }
-                                                                                                                        readsTasks={offeredSpaces.includes(
-                                                                                                                            'tasks',
-                                                                                                                        )}
-                                                                                                                        onPlanDay={
-                                                                                                                            !offeredSpaces.includes(
-                                                                                                                                'tasks',
-                                                                                                                            ) ||
-                                                                                                                            !asksMail ||
-                                                                                                                            !readsCalendar
-                                                                                                                                ? undefined
-                                                                                                                                : () => {
-                                                                                                                                      // Tasks lays the day out under
-                                                                                                                                      // the same two questions its
-                                                                                                                                      // own control is reached
-                                                                                                                                      // under.
-                                                                                                                                      setLayoutOffered(
-                                                                                                                                          true,
-                                                                                                                                      );
-                                                                                                                                      window.location.hash =
-                                                                                                                                          addressOf(
-                                                                                                                                              'tasks',
-                                                                                                                                          );
-                                                                                                                                  }
-                                                                                                                        }
-                                                                                                                        eventAsked={
-                                                                                                                            eventAsked
-                                                                                                                        }
-                                                                                                                        onOpenMessage={
-                                                                                                                            !readsMail
-                                                                                                                                ? undefined
-                                                                                                                                : (
-                                                                                                                                      messageId,
-                                                                                                                                  ) => {
-                                                                                                                                      // An event read out of
-                                                                                                                                      // mail cites the message
-                                                                                                                                      // it came from, and mail
-                                                                                                                                      // is read in the Mail
-                                                                                                                                      // space: the message is
-                                                                                                                                      // opened and the address
-                                                                                                                                      // follows it, exactly as
-                                                                                                                                      // a person's page does
-                                                                                                                                      // with what it cites.
-                                                                                                                                      openTabs.openMail(
-                                                                                                                                          messageId,
-                                                                                                                                          null,
-                                                                                                                                      );
-                                                                                                                                      window.location.hash =
-                                                                                                                                          addressOf(
-                                                                                                                                              'mail',
-                                                                                                                                          );
-                                                                                                                                  }
-                                                                                                                        }
-                                                                                                                    />
-                                                                                                                )
-                                                                                                            }
-                                                                                                            tabs={
-                                                                                                                /* A map of what is open, so it is drawn only where there is something to map: an empty
-                                       strip over an empty pane would say the same thing twice. */
-                                                                                                                inTabs &&
-                                                                                                                openTabs
-                                                                                                                    .tabs
-                                                                                                                    .length >
-                                                                                                                    0 ? (
-                                                                                                                    <TabStrip
-                                                                                                                        tabs={
-                                                                                                                            openTabs.tabs
-                                                                                                                        }
-                                                                                                                        active={
-                                                                                                                            openTabs.active
-                                                                                                                        }
-                                                                                                                        onActivate={
-                                                                                                                            openTabs.activate
-                                                                                                                        }
-                                                                                                                        onClose={
-                                                                                                                            openTabs.close
-                                                                                                                        }
-                                                                                                                        onCloseEverything={
-                                                                                                                            openTabs.closeEverything
-                                                                                                                        }
-                                                                                                                    />
-                                                                                                                ) : null
-                                                                                                            }
-                                                                                                            mail={
-                                                                                                                // A message being written stands where one being read stands, which is the design's
-                                                                                                                // composition rather than a window over it — and what is open is still open
-                                                                                                                // underneath, so closing the composer is a return rather than a second thing to find.
-                                                                                                                // Keyed by what is being written, so asking for an answer while a message of its own is
-                                                                                                                // open starts that answer rather than pouring it into the fields already on the screen.
-                                                                                                                written ===
-                                                                                                                    null ||
-                                                                                                                session ===
-                                                                                                                    null ? (
-                                                                                                                    session !==
-                                                                                                                        null &&
-                                                                                                                    readsMail &&
-                                                                                                                    workspace.outbox !==
-                                                                                                                        null ? (
-                                                                                                                        <MailAccountsContext
-                                                                                                                            value={
-                                                                                                                                mailAccounts
+                                                                                                                                      }
+                                                                                                                                    : null
                                                                                                                             }
                                                                                                                         >
-                                                                                                                            <OutboxPane
+                                                                                                                            <MessageList
+                                                                                                                                key={scopeKey(
+                                                                                                                                    workspace.scope,
+                                                                                                                                )}
                                                                                                                                 session={
                                                                                                                                     session
                                                                                                                                 }
                                                                                                                                 transport={
                                                                                                                                     readMail
                                                                                                                                 }
-                                                                                                                                outbox={
-                                                                                                                                    workspace.outbox
+                                                                                                                                scope={
+                                                                                                                                    workspace.scope
+                                                                                                                                }
+                                                                                                                                accounts={
+                                                                                                                                    mailAccounts
+                                                                                                                                }
+                                                                                                                                online={
+                                                                                                                                    connection.online
+                                                                                                                                }
+                                                                                                                                onOpen={
+                                                                                                                                    openTabs.openMail
                                                                                                                                 }
                                                                                                                             />
-                                                                                                                        </MailAccountsContext>
-                                                                                                                    ) : (
-                                                                                                                        whatIsOpen()
+                                                                                                                        </MailSearch>
                                                                                                                     )
-                                                                                                                ) : (
-                                                                                                                    <Composer
-                                                                                                                        key={openingKey(
-                                                                                                                            written,
-                                                                                                                        )}
-                                                                                                                        session={
-                                                                                                                            session
-                                                                                                                        }
-                                                                                                                        transport={
-                                                                                                                            readMail
-                                                                                                                        }
-                                                                                                                        accounts={
-                                                                                                                            mailAccounts
-                                                                                                                        }
-                                                                                                                        opening={
-                                                                                                                            written
-                                                                                                                        }
-                                                                                                                        online={
-                                                                                                                            connection.online
-                                                                                                                        }
-                                                                                                                        drafts={
-                                                                                                                            composing.drafts
-                                                                                                                        }
-                                                                                                                        showsOutbox={
-                                                                                                                            readsMail
-                                                                                                                        }
-                                                                                                                        organizationName={
-                                                                                                                            deploymentSession?.organizationName ??
-                                                                                                                            null
-                                                                                                                        }
-                                                                                                                        inFront={
-                                                                                                                            space ===
-                                                                                                                            'mail'
-                                                                                                                        }
-                                                                                                                        onClosed={
-                                                                                                                            composing.close
-                                                                                                                        }
-                                                                                                                        onFiledAs={
-                                                                                                                            setComposerFiledAs
-                                                                                                                        }
-                                                                                                                    />
-                                                                                                                )
-                                                                                                            }
-                                                                                                        />
-                                                                                                    </MailOutboxProvider>
-                                                                                                )}
-                                                                                            </div>
+                                                                                                                }
+                                                                                                                tasks={
+                                                                                                                    session ===
+                                                                                                                        null ||
+                                                                                                                    !offeredSpaces.includes(
+                                                                                                                        'tasks',
+                                                                                                                    ) ? null : (
+                                                                                                                        <TasksSpace
+                                                                                                                            session={
+                                                                                                                                session
+                                                                                                                            }
+                                                                                                                            transport={
+                                                                                                                                readMail
+                                                                                                                            }
+                                                                                                                            // Whether the day may be
+                                                                                                                            // arranged at all is two
+                                                                                                                            // questions: whether this
+                                                                                                                            // credential may ask and may
+                                                                                                                            // read the calendar the
+                                                                                                                            // arrangement is laid around,
+                                                                                                                            // which is this, and
+                                                                                                                            // whether the deployment
+                                                                                                                            // arranges one, which the
+                                                                                                                            // screen asks the capability
+                                                                                                                            // route.
+                                                                                                                            asksDeployment={
+                                                                                                                                asksMail &&
+                                                                                                                                readsCalendar
+                                                                                                                            }
+                                                                                                                            readsCalendar={
+                                                                                                                                readsCalendar
+                                                                                                                            }
+                                                                                                                            openLayoutOffer={
+                                                                                                                                layoutOffered
+                                                                                                                            }
+                                                                                                                            onOpenEvent={
+                                                                                                                                !offeredSpaces.includes(
+                                                                                                                                    'calendar',
+                                                                                                                                )
+                                                                                                                                    ? undefined
+                                                                                                                                    : (
+                                                                                                                                          eventId,
+                                                                                                                                      ) => {
+                                                                                                                                          // What a task belongs to is
+                                                                                                                                          // opened where it lives, so
+                                                                                                                                          // an event is opened in the
+                                                                                                                                          // calendar.
+                                                                                                                                          setEventAsked(
+                                                                                                                                              {
+                                                                                                                                                  eventId,
+                                                                                                                                              },
+                                                                                                                                          );
+                                                                                                                                          window.location.hash =
+                                                                                                                                              addressOf(
+                                                                                                                                                  'calendar',
+                                                                                                                                              );
+                                                                                                                                      }
+                                                                                                                            }
+                                                                                                                            onOpenMessage={
+                                                                                                                                !readsMail
+                                                                                                                                    ? undefined
+                                                                                                                                    : (
+                                                                                                                                          messageId,
+                                                                                                                                      ) => {
+                                                                                                                                          // A task cites a message
+                                                                                                                                          // and mail is read in the
+                                                                                                                                          // Mail space, so it is
+                                                                                                                                          // opened there and the
+                                                                                                                                          // address follows it —
+                                                                                                                                          // exactly as a person's
+                                                                                                                                          // page cites one. It is
+                                                                                                                                          // opened with no subject,
+                                                                                                                                          // a task carrying none.
+                                                                                                                                          openTabs.openMail(
+                                                                                                                                              messageId,
+                                                                                                                                              null,
+                                                                                                                                          );
+                                                                                                                                          window.location.hash =
+                                                                                                                                              addressOf(
+                                                                                                                                                  'mail',
+                                                                                                                                              );
+                                                                                                                                      }
+                                                                                                                            }
+                                                                                                                        />
+                                                                                                                    )
+                                                                                                                }
+                                                                                                                people={
+                                                                                                                    session ===
+                                                                                                                        null ||
+                                                                                                                    !readsContacts ? null : (
+                                                                                                                        <PeopleSpace
+                                                                                                                            session={
+                                                                                                                                session
+                                                                                                                            }
+                                                                                                                            transport={
+                                                                                                                                readMail
+                                                                                                                            }
+                                                                                                                            contactPhotos={
+                                                                                                                                contactPhotos
+                                                                                                                            }
+                                                                                                                            writable={
+                                                                                                                                writesContacts
+                                                                                                                            }
+                                                                                                                            organizationName={
+                                                                                                                                deploymentSession.organizationName ??
+                                                                                                                                null
+                                                                                                                            }
+                                                                                                                            inOrganization={
+                                                                                                                                deploymentSession.organization !==
+                                                                                                                                null
+                                                                                                                            }
+                                                                                                                            onOpenThread={(
+                                                                                                                                thread,
+                                                                                                                            ) => {
+                                                                                                                                // What a person's page cites
+                                                                                                                                // is mail, and mail is read
+                                                                                                                                // in the Mail space: the
+                                                                                                                                // message is opened and the
+                                                                                                                                // address follows it, so the
+                                                                                                                                // reader lands on what they
+                                                                                                                                // pressed rather than on a
+                                                                                                                                // space that has quietly
+                                                                                                                                // changed underneath them.
+                                                                                                                                openTabs.openMail(
+                                                                                                                                    thread.messageId,
+                                                                                                                                    thread.subject,
+                                                                                                                                    thread.threadId,
+                                                                                                                                );
+                                                                                                                                window.location.hash =
+                                                                                                                                    addressOf(
+                                                                                                                                        'mail',
+                                                                                                                                    );
+                                                                                                                            }}
+                                                                                                                            onOpenDocument={(
+                                                                                                                                document,
+                                                                                                                            ) => {
+                                                                                                                                // Cited rather than opened,
+                                                                                                                                // exactly as a search result
+                                                                                                                                // cites one: the pane that
+                                                                                                                                // reads the message is what
+                                                                                                                                // turns a coordinate into an
+                                                                                                                                // opened file, because the
+                                                                                                                                // size a download is bounded
+                                                                                                                                // by is the message's.
+                                                                                                                                revise(
+                                                                                                                                    {
+                                                                                                                                        citedAttachment:
+                                                                                                                                            {
+                                                                                                                                                storedEmailId:
+                                                                                                                                                    document.messageId,
+                                                                                                                                                position:
+                                                                                                                                                    document.position,
+                                                                                                                                            },
+                                                                                                                                    },
+                                                                                                                                );
+                                                                                                                                openTabs.openMail(
+                                                                                                                                    document.messageId,
+                                                                                                                                    null,
+                                                                                                                                );
+                                                                                                                                window.location.hash =
+                                                                                                                                    addressOf(
+                                                                                                                                        'mail',
+                                                                                                                                    );
+                                                                                                                            }}
+                                                                                                                        />
+                                                                                                                    )
+                                                                                                                }
+                                                                                                                calendar={
+                                                                                                                    session ===
+                                                                                                                        null ||
+                                                                                                                    !offeredSpaces.includes(
+                                                                                                                        'calendar',
+                                                                                                                    ) ? null : (
+                                                                                                                        <CalendarSpace
+                                                                                                                            session={
+                                                                                                                                session
+                                                                                                                            }
+                                                                                                                            transport={
+                                                                                                                                readMail
+                                                                                                                            }
+                                                                                                                            readsTasks={offeredSpaces.includes(
+                                                                                                                                'tasks',
+                                                                                                                            )}
+                                                                                                                            onPlanDay={
+                                                                                                                                !offeredSpaces.includes(
+                                                                                                                                    'tasks',
+                                                                                                                                ) ||
+                                                                                                                                !asksMail ||
+                                                                                                                                !readsCalendar
+                                                                                                                                    ? undefined
+                                                                                                                                    : () => {
+                                                                                                                                          // Tasks lays the day out under
+                                                                                                                                          // the same two questions its
+                                                                                                                                          // own control is reached
+                                                                                                                                          // under.
+                                                                                                                                          setLayoutOffered(
+                                                                                                                                              true,
+                                                                                                                                          );
+                                                                                                                                          window.location.hash =
+                                                                                                                                              addressOf(
+                                                                                                                                                  'tasks',
+                                                                                                                                              );
+                                                                                                                                      }
+                                                                                                                            }
+                                                                                                                            eventAsked={
+                                                                                                                                eventAsked
+                                                                                                                            }
+                                                                                                                            onOpenMessage={
+                                                                                                                                !readsMail
+                                                                                                                                    ? undefined
+                                                                                                                                    : (
+                                                                                                                                          messageId,
+                                                                                                                                      ) => {
+                                                                                                                                          // An event read out of
+                                                                                                                                          // mail cites the message
+                                                                                                                                          // it came from, and mail
+                                                                                                                                          // is read in the Mail
+                                                                                                                                          // space: the message is
+                                                                                                                                          // opened and the address
+                                                                                                                                          // follows it, exactly as
+                                                                                                                                          // a person's page does
+                                                                                                                                          // with what it cites.
+                                                                                                                                          openTabs.openMail(
+                                                                                                                                              messageId,
+                                                                                                                                              null,
+                                                                                                                                          );
+                                                                                                                                          window.location.hash =
+                                                                                                                                              addressOf(
+                                                                                                                                                  'mail',
+                                                                                                                                              );
+                                                                                                                                      }
+                                                                                                                            }
+                                                                                                                        />
+                                                                                                                    )
+                                                                                                                }
+                                                                                                                tabs={
+                                                                                                                    /* A map of what is open, so it is drawn only where there is something to map: an empty
+                                       strip over an empty pane would say the same thing twice. */
+                                                                                                                    inTabs &&
+                                                                                                                    openTabs
+                                                                                                                        .tabs
+                                                                                                                        .length >
+                                                                                                                        0 ? (
+                                                                                                                        <TabStrip
+                                                                                                                            tabs={
+                                                                                                                                openTabs.tabs
+                                                                                                                            }
+                                                                                                                            active={
+                                                                                                                                openTabs.active
+                                                                                                                            }
+                                                                                                                            onActivate={
+                                                                                                                                openTabs.activate
+                                                                                                                            }
+                                                                                                                            onClose={
+                                                                                                                                openTabs.close
+                                                                                                                            }
+                                                                                                                            onCloseEverything={
+                                                                                                                                openTabs.closeEverything
+                                                                                                                            }
+                                                                                                                        />
+                                                                                                                    ) : null
+                                                                                                                }
+                                                                                                                mail={
+                                                                                                                    // A message being written stands where one being read stands, which is the design's
+                                                                                                                    // composition rather than a window over it — and what is open is still open
+                                                                                                                    // underneath, so closing the composer is a return rather than a second thing to find.
+                                                                                                                    // Keyed by what is being written, so asking for an answer while a message of its own is
+                                                                                                                    // open starts that answer rather than pouring it into the fields already on the screen.
+                                                                                                                    written ===
+                                                                                                                        null ||
+                                                                                                                    session ===
+                                                                                                                        null ? (
+                                                                                                                        session !==
+                                                                                                                            null &&
+                                                                                                                        readsMail &&
+                                                                                                                        workspace.outbox !==
+                                                                                                                            null ? (
+                                                                                                                            <MailAccountsContext
+                                                                                                                                value={
+                                                                                                                                    mailAccounts
+                                                                                                                                }
+                                                                                                                            >
+                                                                                                                                <OutboxPane
+                                                                                                                                    session={
+                                                                                                                                        session
+                                                                                                                                    }
+                                                                                                                                    transport={
+                                                                                                                                        readMail
+                                                                                                                                    }
+                                                                                                                                    outbox={
+                                                                                                                                        workspace.outbox
+                                                                                                                                    }
+                                                                                                                                />
+                                                                                                                            </MailAccountsContext>
+                                                                                                                        ) : (
+                                                                                                                            whatIsOpen()
+                                                                                                                        )
+                                                                                                                    ) : (
+                                                                                                                        <Composer
+                                                                                                                            key={openingKey(
+                                                                                                                                written,
+                                                                                                                            )}
+                                                                                                                            session={
+                                                                                                                                session
+                                                                                                                            }
+                                                                                                                            transport={
+                                                                                                                                readMail
+                                                                                                                            }
+                                                                                                                            accounts={
+                                                                                                                                mailAccounts
+                                                                                                                            }
+                                                                                                                            opening={
+                                                                                                                                written
+                                                                                                                            }
+                                                                                                                            online={
+                                                                                                                                connection.online
+                                                                                                                            }
+                                                                                                                            drafts={
+                                                                                                                                composing.drafts
+                                                                                                                            }
+                                                                                                                            showsOutbox={
+                                                                                                                                readsMail
+                                                                                                                            }
+                                                                                                                            organizationName={
+                                                                                                                                deploymentSession?.organizationName ??
+                                                                                                                                null
+                                                                                                                            }
+                                                                                                                            inFront={
+                                                                                                                                space ===
+                                                                                                                                'mail'
+                                                                                                                            }
+                                                                                                                            onClosed={
+                                                                                                                                composing.close
+                                                                                                                            }
+                                                                                                                            onFiledAs={
+                                                                                                                                setComposerFiledAs
+                                                                                                                            }
+                                                                                                                        />
+                                                                                                                    )
+                                                                                                                }
+                                                                                                            />
+                                                                                                        </MailOutboxProvider>
+                                                                                                    )}
+                                                                                                </div>
 
-                                                                                            {/* Navigation is last in the document because the keyboard follows the document rather than the layout,
+                                                                                                {/* Navigation is last in the document because the keyboard follows the document rather than the layout,
                     and the narrow composition puts it at the bottom of the screen: written the other way round, a reader
                     tabbing into a narrow window would reach the bottom bar before the header above it. The wide
                     composition then carries the one mismatch CSS cannot remove — a rail drawn on the left out of a node
                     that comes last — because no single document order matches both shapes, and content before navigation
                     is the direction a skip link exists to manufacture rather than the one it works around. */}
-                                                                                            <SpaceNavigation
-                                                                                                offered={offeredSpaces}
-                                                                                                current={space}
-                                                                                                // What the Agent reports on its tile, on the grant its conversations are read
-                                                                                                // under: a credential that may not ask is told nothing about a run.
-                                                                                                reports={
-                                                                                                    asksMail
-                                                                                                        ? {
-                                                                                                              agent: agentTile,
-                                                                                                          }
-                                                                                                        : {}
-                                                                                                }
-                                                                                                onPointerDown={
-                                                                                                    swipe.onNavigationPointerDown
-                                                                                                }
-                                                                                                onClickCapture={
-                                                                                                    swipe.onNavigationClickCapture
-                                                                                                }
-                                                                                                refresh={
-                                                                                                    // On the grant that reads mail, absent rather than inert without
-                                                                                                    // it: what it reads again is the mail, and the centre beside it
-                                                                                                    // where a bell is drawn, so a credential that may not read mail
-                                                                                                    // would press it for nothing.
-                                                                                                    readsMail ? (
-                                                                                                        <Refresh />
-                                                                                                    ) : null
-                                                                                                }
-                                                                                                presence={
-                                                                                                    ownPresence ===
-                                                                                                    null ? null : (
-                                                                                                        <OwnPresenceRow
-                                                                                                            presence={
-                                                                                                                ownPresence.presence
+                                                                                                <SpaceNavigation
+                                                                                                    offered={
+                                                                                                        offeredSpaces
+                                                                                                    }
+                                                                                                    current={space}
+                                                                                                    // What the Agent reports on its tile, on the grant its conversations are read
+                                                                                                    // under: a credential that may not ask is told nothing about a run.
+                                                                                                    reports={
+                                                                                                        asksMail
+                                                                                                            ? {
+                                                                                                                  agent: agentTile,
+                                                                                                              }
+                                                                                                            : {}
+                                                                                                    }
+                                                                                                    onPointerDown={
+                                                                                                        swipe.onNavigationPointerDown
+                                                                                                    }
+                                                                                                    onClickCapture={
+                                                                                                        swipe.onNavigationClickCapture
+                                                                                                    }
+                                                                                                    refresh={
+                                                                                                        // On the grant that reads mail, absent rather than inert without
+                                                                                                        // it: what it reads again is the mail, and the centre beside it
+                                                                                                        // where a bell is drawn, so a credential that may not read mail
+                                                                                                        // would press it for nothing.
+                                                                                                        readsMail ? (
+                                                                                                            <Refresh />
+                                                                                                        ) : null
+                                                                                                    }
+                                                                                                    presence={
+                                                                                                        ownPresence ===
+                                                                                                        null ? null : (
+                                                                                                            <OwnPresenceRow
+                                                                                                                presence={
+                                                                                                                    ownPresence.presence
+                                                                                                                }
+                                                                                                                place="sheet"
+                                                                                                                displayName={
+                                                                                                                    profile.displayName
+                                                                                                                }
+                                                                                                                picture={
+                                                                                                                    profile.picture
+                                                                                                                }
+                                                                                                            />
+                                                                                                        )
+                                                                                                    }
+                                                                                                    developer={
+                                                                                                        <DeveloperInformationButton />
+                                                                                                    }
+                                                                                                    notifications={
+                                                                                                        // Offered on the grant the routes are admitted under, and absent
+                                                                                                        // rather than inert without it: a bell that could never answer is
+                                                                                                        // a control saying less about why than not drawing it does.
+                                                                                                        keepsNotifications ? (
+                                                                                                            <NotificationBell
+                                                                                                                unreadCount={
+                                                                                                                    notifications.unreadCount
+                                                                                                                }
+                                                                                                                shown={
+                                                                                                                    notifications.shown
+                                                                                                                }
+                                                                                                                onPress={
+                                                                                                                    notifications.shown
+                                                                                                                        ? notifications.hide
+                                                                                                                        : notifications.show
+                                                                                                                }
+                                                                                                            />
+                                                                                                        ) : null
+                                                                                                    }
+                                                                                                    account={
+                                                                                                        <AccountMenu
+                                                                                                            accounts={
+                                                                                                                mailAccounts
                                                                                                             }
-                                                                                                            place="sheet"
-                                                                                                            displayName={
-                                                                                                                profile.displayName
+                                                                                                            deploymentVersion={
+                                                                                                                deploymentSession?.version ??
+                                                                                                                null
                                                                                                             }
-                                                                                                            picture={
-                                                                                                                profile.picture
-                                                                                                            }
-                                                                                                        />
-                                                                                                    )
-                                                                                                }
-                                                                                                developer={
-                                                                                                    <DeveloperInformationButton />
-                                                                                                }
-                                                                                                notifications={
-                                                                                                    // Offered on the grant the routes are admitted under, and absent
-                                                                                                    // rather than inert without it: a bell that could never answer is
-                                                                                                    // a control saying less about why than not drawing it does.
-                                                                                                    keepsNotifications ? (
-                                                                                                        <NotificationBell
-                                                                                                            unreadCount={
-                                                                                                                notifications.unreadCount
-                                                                                                            }
-                                                                                                            shown={
-                                                                                                                notifications.shown
-                                                                                                            }
-                                                                                                            onPress={
-                                                                                                                notifications.shown
-                                                                                                                    ? notifications.hide
-                                                                                                                    : notifications.show
-                                                                                                            }
-                                                                                                        />
-                                                                                                    ) : null
-                                                                                                }
-                                                                                                account={
-                                                                                                    <AccountMenu
-                                                                                                        accounts={
-                                                                                                            mailAccounts
-                                                                                                        }
-                                                                                                        deploymentVersion={
-                                                                                                            deploymentSession?.version ??
-                                                                                                            null
-                                                                                                        }
-                                                                                                        telemetryForwarding={telemetryForwardedBy(
-                                                                                                            deploymentSession,
-                                                                                                            baseAddress,
-                                                                                                        )}
-                                                                                                        writesProfile={
-                                                                                                            deploymentSession !==
-                                                                                                                null &&
-                                                                                                            offers(
+                                                                                                            telemetryForwarding={telemetryForwardedBy(
                                                                                                                 deploymentSession,
-                                                                                                                'writeProfile',
-                                                                                                            )
-                                                                                                        }
-                                                                                                        preferences={
-                                                                                                            preferences
-                                                                                                        }
-                                                                                                        profile={
-                                                                                                            profile
-                                                                                                        }
-                                                                                                        presence={
-                                                                                                            ownPresence?.presence ??
-                                                                                                            null
-                                                                                                        }
-                                                                                                        onSignOut={
-                                                                                                            signOut
-                                                                                                        }
-                                                                                                    />
-                                                                                                }
-                                                                                            />
+                                                                                                                baseAddress,
+                                                                                                            )}
+                                                                                                            writesProfile={
+                                                                                                                deploymentSession !==
+                                                                                                                    null &&
+                                                                                                                offers(
+                                                                                                                    deploymentSession,
+                                                                                                                    'writeProfile',
+                                                                                                                )
+                                                                                                            }
+                                                                                                            preferences={
+                                                                                                                preferences
+                                                                                                            }
+                                                                                                            profile={
+                                                                                                                profile
+                                                                                                            }
+                                                                                                            presence={
+                                                                                                                ownPresence?.presence ??
+                                                                                                                null
+                                                                                                            }
+                                                                                                            onSignOut={
+                                                                                                                signOut
+                                                                                                            }
+                                                                                                        />
+                                                                                                    }
+                                                                                                />
 
-                                                                                            {/* Outside the frame's own columns because it stands over all of them,
+                                                                                                {/* Outside the frame's own columns because it stands over all of them,
                                                     and inside the frame because it goes with the credential: it is the
                                                     platform's own modal dialog, so where it sits in the document decides
                                                     nothing about where it is drawn. It is mounted whether or not it is
                                                     open, which is what lets it travel on and off the screen rather than
                                                     appearing and disappearing. */}
-                                                                                            {keepsNotifications ? (
-                                                                                                <NotificationCentre
-                                                                                                    centre={
-                                                                                                        notifications
-                                                                                                    }
-                                                                                                    swipe={swipe}
-                                                                                                    session={
-                                                                                                        readsMail
-                                                                                                            ? session
-                                                                                                            : null
-                                                                                                    }
-                                                                                                    transport={readMail}
-                                                                                                    accounts={
-                                                                                                        mailAccounts
-                                                                                                    }
-                                                                                                    onDecideSend={
-                                                                                                        showSend
+                                                                                                {keepsNotifications ? (
+                                                                                                    <NotificationCentre
+                                                                                                        centre={
+                                                                                                            notifications
+                                                                                                        }
+                                                                                                        swipe={swipe}
+                                                                                                        session={
+                                                                                                            readsMail
+                                                                                                                ? session
+                                                                                                                : null
+                                                                                                        }
+                                                                                                        transport={
+                                                                                                            readMail
+                                                                                                        }
+                                                                                                        accounts={
+                                                                                                            mailAccounts
+                                                                                                        }
+                                                                                                        onDecideSend={
+                                                                                                            showSend
+                                                                                                        }
+                                                                                                    />
+                                                                                                ) : null}
+
+                                                                                                {ownPresence ===
+                                                                                                null ? null : (
+                                                                                                    <StatusMenu
+                                                                                                        own={
+                                                                                                            ownPresence
+                                                                                                        }
+                                                                                                        displayName={
+                                                                                                            profile.displayName
+                                                                                                        }
+                                                                                                        picture={
+                                                                                                            profile.picture
+                                                                                                        }
+                                                                                                    />
+                                                                                                )}
+
+                                                                                                <DeveloperInformation
+                                                                                                    context={
+                                                                                                        developerContext
                                                                                                     }
                                                                                                 />
-                                                                                            ) : null}
-
-                                                                                            {ownPresence ===
-                                                                                            null ? null : (
-                                                                                                <StatusMenu
-                                                                                                    own={ownPresence}
-                                                                                                    displayName={
-                                                                                                        profile.displayName
-                                                                                                    }
-                                                                                                    picture={
-                                                                                                        profile.picture
-                                                                                                    }
-                                                                                                />
-                                                                                            )}
-
-                                                                                            <DeveloperInformation
-                                                                                                context={
-                                                                                                    developerContext
-                                                                                                }
-                                                                                            />
-                                                                                        </div>
-                                                                                    </PassageRewritingContext>
-                                                                                </AgentHandOverContext>
-                                                                            </MessageSourceReadingContext>
-                                                                        </OpenAttachmentContext>
-                                                                    </BlockingContext>
+                                                                                            </div>
+                                                                                        </PassageRewritingContext>
+                                                                                    </AgentHandOverContext>
+                                                                                </MessageSourceReadingContext>
+                                                                            </OpenAttachmentContext>
+                                                                        </BlockingContext>
+                                                                    </MailTasksProvider>
                                                                 </ComposingContext>
                                                             </MailboxActsProvider>
                                                         </FolderMaintenanceProvider>

@@ -16,6 +16,7 @@ import { MoreActions } from '../messageSource/MoreActions';
 import { SpamControl } from '../spamMarking/SpamControl';
 import { actedMessages, useListedMail } from '../messageList/useListedMail';
 import { useCoarsePointer, useTwoPanes } from '../shell/useWideWorkspace';
+import { useMailTasks } from '../tasks/useMailTasks';
 import { useMailboxesForm } from '../workspace/mailboxesForm';
 import { useWorkspace } from '../workspace/useWorkspace';
 import type { StripFitting } from './useStripFit';
@@ -70,6 +71,24 @@ export function MailToolbar({
     const acts = useMailboxActs();
     const openMessages = open === null ? [] : actedMessages(listed, [open]);
     const openSpam = allDrawnSpam(acts, openMessages);
+
+    // Where two panes stand under a finger the head leaves its acts to this strip, *Make a task* among them, before
+    // the spam control. The strip holds only the open message's identity, so the thread it stands in is read on the
+    // press. With nothing open it is drawn as what it is, as the answers are.
+    const mailTasks = useMailTasks();
+    const makeTask =
+        mailTasks === null || !twoPanes || !coarse || openSpam ? null : open === null ? (
+            <PlannedControl label={translate('tasks.makeTask')} icon="add_task" shape={actShape} />
+        ) : (
+            <Control
+                label={translate('tasks.makeTask')}
+                icon="add_task"
+                shape={actShape}
+                onPress={() => {
+                    mailTasks.makeTaskOn(open);
+                }}
+            />
+        );
 
     return (
         <div
@@ -154,7 +173,9 @@ export function MailToolbar({
 
             {/* The five that change the mailbox, over the one message that is open. With nothing open each of them
                 says so rather than being left out, for the reason the three answers above are drawn either way. */}
-            {outboxOpen ? null : <MailboxActControls messages={openMessages} shape={actShape} spam="toolbar" />}
+            {outboxOpen ? null : (
+                <MailboxActControls messages={openMessages} shape={actShape} spam="toolbar" beforeSpam={makeTask} />
+            )}
 
             {/* Where two panes stand under a finger the head leaves its acts to this strip, and where the panels are
                 hidden there is no head at all, so *More actions* follows the spam control here instead, and every

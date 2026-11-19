@@ -35,6 +35,9 @@ import { SpamControl } from '../spamMarking/SpamControl';
 // the simplest case of that rule rather than a case of its own — reading it here would be a second answer to which
 // direction one message's flag goes.
 //
+// *Make a task* stands among them where the person keeps tasks, before the spam control: the new-task dialog, belonging to
+// the thread the message stands in. The head that knows which thread that is hands the act over; this only draws it.
+//
 // The head's own words for forwarding and flagging differ from the toolbar's — *Przekaż* and *Oflaguj* against
 // *Prześlij dalej* and *Flaga* — which is why they are keys of their own rather than the toolbar's reused.
 
@@ -43,6 +46,7 @@ export function HeadActs({
     toolbarCarriesActs = false,
     message,
     subject = null,
+    onMakeTask,
 }: {
     readonly compact: boolean;
 
@@ -63,6 +67,9 @@ export function HeadActs({
 
     /** What the head names the message by, which heads the *More actions* menu over it. */
     readonly subject?: string | null;
+
+    /** Writes a task down about the thread, or absent where no task can be. */
+    readonly onMakeTask?: (() => void) | undefined;
 }) {
     const { translate } = useLocalization();
     const acts = useMailboxActs();
@@ -153,6 +160,15 @@ export function HeadActs({
                         <Control label={flagLabel} icon="flag" shape={actShape} onPress={flag.press} />
                     ) : (
                         <PlannedControl label={flagLabel} icon="flag" shape={actShape} why={flag.why} />
+                    )}
+
+                    {onMakeTask === undefined ? null : (
+                        <Control
+                            label={translate('tasks.makeTask')}
+                            icon="add_task"
+                            shape={actShape}
+                            onPress={onMakeTask}
+                        />
                     )}
 
                     <SpamControl messages={message === null ? [] : [message]} shape={actShape} wording="mark" />

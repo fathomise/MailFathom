@@ -14,6 +14,7 @@ import { glyphOf } from '../controls/icons';
 import { MailboxActsContext, nothingActed, type MailboxAct, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { ReadMarkingContext, nothingMarkedRead, type MarkedIn, type ReadMarking } from '../readMarking/useReadMarking';
 import { ExternalMarkingContext, externalMarkingOf, type ExternalMarking } from '../senderMark/externalMark';
+import { MailTasksContext, type MailTasks } from '../tasks/useMailTasks';
 import { MessageRow } from './MessageRow';
 
 const email: MailTimelineEntry = {
@@ -1503,5 +1504,53 @@ describe('MessageRow, a sender with a photo', () => {
         expect(withInitials?.querySelector('img')).toBeNull();
         expect(read).toHaveBeenCalledWith({ id: 'writer', book: 'Member' }, 'revision-1', expect.any(AbortSignal));
         expect(read).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('MessageRow, a thread with an open task', () => {
+    const threadWithTask = '00000000-0000-4000-8000-0000000000c0';
+
+    const tasksHeld: MailTasks = {
+        session: { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' },
+        transport: () => Promise.reject(new Error('Nothing is read here.')),
+        threadsWithTasks: new Set([threadWithTask]),
+        makeTask: () => undefined,
+        makeTaskOn: () => undefined,
+        openTask: () => undefined,
+        record: () => Promise.reject(new Error('Nothing is written here.')),
+        follow: () => () => undefined,
+    };
+
+    function drawnIn(threadId: string | null): HTMLElement {
+        render(
+            <LocalizationProvider>
+                <MailTasksContext value={tasksHeld}>
+                    <MailboxActsContext value={nothingActed}>
+                        <ul>
+                            <MessageRow
+                                email={{ ...email, threadId }}
+                                position={1}
+                                open={false}
+                                selected={false}
+                                focusable
+                                onOpen={() => undefined}
+                                onPoint={() => undefined}
+                                onElement={() => undefined}
+                            />
+                        </ul>
+                    </MailboxActsContext>
+                </MailTasksContext>
+            </LocalizationProvider>,
+        );
+
+        return screen.getByRole('option');
+    }
+
+    it('marks a row whose thread carries an open task, and no other', () => {
+        expect(within(drawnIn(threadWithTask)).getAllByText('Has an open task')).toHaveLength(1);
+
+        cleanup();
+
+        expect(within(drawnIn('00000000-0000-4000-8000-0000000000d1')).queryByText('Has an open task')).toBeNull();
     });
 });

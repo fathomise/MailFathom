@@ -558,6 +558,17 @@ function conversationEmail(row: (typeof conversationRows)[number], position: num
  * Each message says what its row previews and nothing else, as a plain-text message a correspondence like this one is
  * written in — so what a screen draws under a message is the sentence a list row already promised about it.
  */
+/**
+ * What the message route answers for one message of the conversation, or `undefined` for a message outside it — the
+ * same head a read of the conversation carries, so an answer written to one of them is addressed to its author and
+ * belongs to its thread.
+ */
+export function conversationMessage(storedEmailId: string) {
+    const row = conversationRows.find((each) => each.id === storedEmailId);
+
+    return row === undefined ? undefined : conversationContent(row).message;
+}
+
 function conversationContent(row: (typeof conversationRows)[number]) {
     return {
         message: {

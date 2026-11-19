@@ -95,6 +95,8 @@ import {
 } from './sendLater';
 import { useDraftAtDeployment, type AttachedFile, type DraftStanding } from './useDraftAtDeployment';
 import { useSendingOptions } from './useSendingOptions';
+import { followUpRecord, type FollowUp } from './followUp';
+import { useMailTasks } from '../tasks/useMailTasks';
 import { useSendTimeWording } from './useSendTimeWording';
 import { RewriteFoot } from './RewriteFoot';
 import { WrittenMessage } from './WrittenMessage';
@@ -283,6 +285,16 @@ export function Composer({
     const wordSendTime = useSendTimeWording(shownAt, zone);
     const leaves = sendAt === null ? null : wordSendTime(sendAt);
 
+    // How long the message waits for a reply, which like the time it leaves belongs to the send rather than the draft;
+    // offered only where the person keeps tasks, which is where the wait is written down. An answer waits in the
+    // thread of the message it answers, read with that message.
+    const mailTasks = useMailTasks();
+    const [followUp, setFollowUp] = useState<FollowUp | null>(null);
+    const [answeredThread, setAnsweredThread] = useState<{
+        readonly threadId: string;
+        readonly subject: string;
+    } | null>(null);
+
     // Who the message is for, joined the way the active language joins a list rather than with a comma written here.
     const addresses = new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' });
     const [composition, setComposition] = useState(() => opened(opening, accounts));
@@ -433,6 +445,11 @@ export function Composer({
 
             setParticipants(offeredFrom(answer.value.headers.participants));
             setSubjects((held) => new Map(held).set(opening.storedEmailId, answer.value.headers.subject));
+            setAnsweredThread(
+                answer.value.threadId === null
+                    ? null
+                    : { threadId: answer.value.threadId, subject: answer.value.headers.subject ?? '' },
+            );
             // Read here rather than in the updater, which React runs while rendering.
             const ownAddress = sendingAddressOf(answer.value.account);
 
@@ -796,6 +813,8 @@ export function Composer({
         // already on its way — is then said by a toast of its own, because the one it would have settled has gone.
         let stopped = false;
         const scheduled = sendAt;
+        const waiting = followUp;
+        const waitedIn = sending.answering === null ? null : answeredThread;
 
         // A message scheduled for later is not being sent, so no *Sending your message…* stands over it: what it
         // came to is said once the deployment has answered.
@@ -829,6 +848,10 @@ export function Composer({
                 pickOn(scheduled);
             }
 
+            if (outcome.kind === 'queued' && waiting !== null) {
+                waitForTheReply(sending, waiting, waitedIn);
+            }
+
             const deploymentHasIt = outcome.kind === 'queued' || outcome.kind === 'withdrawn';
 
             // A send nobody answered may be queued already, so its words are not handed back to the tab to be sent a
@@ -844,6 +867,33 @@ export function Composer({
             } else if (!deploymentMayHaveIt && rememberedComposition() === null) {
                 rememberComposition(written);
                 rememberPictures(written);
+            }
+        });
+    }
+
+    // A message the deployment queued waits for its reply as a task. Writing it down can fail where the send did not, and
+    // the message is gone either way, so a refusal is said beside the send's own notice rather than instead of it.
+    function waitForTheReply(
+        sending: Composition,
+        waiting: FollowUp,
+        thread: { readonly threadId: string; readonly subject: string } | null,
+    ): void {
+        const record = followUpRecord({
+            to: sending.to,
+            named: participants,
+            thread,
+            dueOn: waiting.dueOn,
+            timeZone: zone,
+            replyFrom: (who) => translate('compose.replyFrom', { who }),
+        });
+
+        if (mailTasks === null || record === null) {
+            return;
+        }
+
+        void mailTasks.record(record).then((answer) => {
+            if (answer.outcome === 'failed') {
+                toasts.raise({ kind: 'warning', title: translate('compose.followUpNotWritten') });
             }
         });
     }
@@ -974,6 +1024,7 @@ export function Composer({
         onPick: () => {
             pickOn(sendAt);
         },
+        followUp: mailTasks === null ? undefined : { chosen: followUp, onChosen: setFollowUp },
     });
 
     const title = translate(titles[opening.kind === 'answer' ? opening.answers : opening.kind]);
@@ -1485,6 +1536,7 @@ export function Composer({
                     <div className={`sticky z-10 shrink-0 ${wide ? 'bottom-0' : 'bottom-safe-bottom'}`}>
                         {sendingOptions.line}
                         {sendingOptions.timeLine}
+                        {sendingOptions.followLine}
 
                         <div
                             ref={foot}

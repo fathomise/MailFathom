@@ -14,6 +14,8 @@ import { BackToList } from '../mailSpace/BackToList';
 import { HeadActs } from '../mailSpace/HeadActs';
 import type { ActedMessage } from '../mailboxActs/useMailboxActs';
 import { useCoarsePointer, useTwoPanes } from '../shell/useWideWorkspace';
+import { ThreadTasks } from '../tasks/ThreadTasks';
+import { taskAboutThread, useMailTasks } from '../tasks/useMailTasks';
 import { useWorkspace } from '../workspace/useWorkspace';
 
 // What a message displays above its body: what it is called, who wrote it and when on one line under it, and everybody
@@ -67,6 +69,7 @@ const roleLabels: Readonly<Record<DisclosedRole, MessageKey>> = {
 export function MessageHeaders({
     headers,
     message,
+    threadId = null,
     subject: subjectOfTheWhole,
     messagesInThread,
     children,
@@ -75,6 +78,9 @@ export function MessageHeaders({
 
     /** The message the head's acts are about, which is the one being read. */
     readonly message: ActedMessage;
+
+    /** The thread the message stands in, whose open tasks the head draws, or `null` where it names none. */
+    readonly threadId?: string | null;
 
     /**
      * What the head is called where that is not this message's own subject — a conversation says its own subject once,
@@ -109,6 +115,13 @@ export function MessageHeaders({
     const sentAt = wordInstant(headers.sentAt, locale, 'stamp', timeZone);
     const subject = subjectOfTheWhole ?? headers.subject ?? translate('message.noSubject');
     const held = messagesInThread ?? null;
+    const mailTasks = useMailTasks();
+    const makeTask =
+        mailTasks === null || threadId === null
+            ? undefined
+            : () => {
+                  mailTasks.makeTask(taskAboutThread(threadId, subject, authors[0] ?? null));
+              };
 
     const authorLine = (
         <>
@@ -171,6 +184,7 @@ export function MessageHeaders({
                     toolbarCarriesActs={toolbarCarriesActs}
                     message={message}
                     subject={subject}
+                    onMakeTask={makeTask}
                 />
             </div>
 
@@ -191,6 +205,8 @@ export function MessageHeaders({
                         {translate('message.sentAtUnknown')}
                     </p>
                 ) : null}
+
+                <ThreadTasks threadId={threadId} compact={!twoPanes} />
             </div>
 
             {children}

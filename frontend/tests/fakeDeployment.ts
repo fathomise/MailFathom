@@ -1395,11 +1395,12 @@ export class FakeDeployment {
 
         if (part === undefined) {
             const read =
-                spamRow === undefined
+                mail.conversationMessage(id) ??
+                (spamRow === undefined
                     ? markupOnly
                         ? messages.markupOnlyMessage
                         : messages.newsletterMessage
-                    : messages.spamMessage(spamRow);
+                    : messages.spamMessage(spamRow));
             const flags = this.flags.get(id);
             const marked = this.spamMarked.get(id);
 

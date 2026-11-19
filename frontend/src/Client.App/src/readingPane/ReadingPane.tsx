@@ -500,6 +500,7 @@ function OpenMessage({
             <MessageHeaders
                 headers={message.headers}
                 message={message}
+                threadId={message.threadId}
                 {...(headline === null ? {} : { subject: headline })}
             />
 

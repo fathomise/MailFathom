@@ -29,6 +29,7 @@ import { PassageRewritingContext, type PassageRewriter } from '../rewriting/pass
 import { ToastsProvider } from '../toasts/Toasts';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
+import { MailTasksContext, type MailTasks } from '../tasks/useMailTasks';
 import { Composer } from './Composer';
 import { nothingWrittenYet, type Composition, type ComposerOpening } from './composition';
 import {
@@ -439,6 +440,7 @@ function drawComposer(
     status: ConnectionStatus | null = null,
     zone: string | null = null,
     rewriter: PassageRewriter | null = null,
+    tasks: MailTasks | null = null,
 ): {
     closed: ReturnType<typeof vi.fn>;
     filedAs: ReturnType<typeof vi.fn>;
@@ -488,17 +490,19 @@ function drawComposer(
                                             <Framed>
                                                 {(onClosed) => (
                                                     <PassageRewritingContext value={rewriter}>
-                                                        <Composer
-                                                            session={session}
-                                                            transport={transport}
-                                                            accounts={accounts}
-                                                            opening={opening}
-                                                            online={online}
-                                                            drafts={drafts}
-                                                            showsOutbox={showsOutbox}
-                                                            onClosed={onClosed}
-                                                            onFiledAs={filedAs}
-                                                        />
+                                                        <MailTasksContext value={tasks}>
+                                                            <Composer
+                                                                session={session}
+                                                                transport={transport}
+                                                                accounts={accounts}
+                                                                opening={opening}
+                                                                online={online}
+                                                                drafts={drafts}
+                                                                showsOutbox={showsOutbox}
+                                                                onClosed={onClosed}
+                                                                onFiledAs={filedAs}
+                                                            />
+                                                        </MailTasksContext>
                                                     </PassageRewritingContext>
                                                 )}
                                             </Framed>
@@ -622,6 +626,73 @@ function confirmSend(): void {
 
     fireEvent.click(within(sendQuestion()).getByRole('button', { name: /^Send( anyway)?$/u }));
 }
+
+describe('Composer, waiting for a reply', () => {
+    function keepingTasks(record: MailTasks['record']): MailTasks {
+        return {
+            session,
+            transport: () => Promise.reject(new Error('Nothing is read here.')),
+            threadsWithTasks: new Set(),
+            makeTask: () => undefined,
+            makeTaskOn: () => undefined,
+            openTask: () => undefined,
+            record,
+            follow: () => () => undefined,
+        };
+    }
+
+    function sendWaiting(record: MailTasks['record']): void {
+        drawComposer(
+            { kind: 'new' },
+            {},
+            [work],
+            true,
+            uploadsOneFile,
+            false,
+            noTelemetry,
+            takesNothing,
+            false,
+            null,
+            'UTC',
+            null,
+            keepingTasks(record),
+        );
+
+        address('ada@example.invalid');
+        fireEvent.click(screen.getByRole('button', { name: 'Sending options' }));
+        fireEvent.click(screen.getByRole('menuitemradio', { name: /^Remind me tomorrow/u }));
+        confirmSend();
+    }
+
+    it('writes the wait down for the first recipient once the message is queued', async () => {
+        const record = vi.fn<MailTasks['record']>(() =>
+            Promise.resolve({ outcome: 'failed', failure: { reason: 'unavailable', status: null } }),
+        );
+
+        sendWaiting(record);
+
+        expect(await screen.findByText('Queued to go out.')).toBeDefined();
+        await waitFor(() => {
+            expect(record).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    title: 'Reply from ada@example.invalid',
+                    direction: 'Awaited',
+                    anchor: null,
+                    counterpart: { address: 'ada@example.invalid', displayName: null },
+                }),
+            );
+        });
+    });
+
+    it('says the wait was not written down where the server refused it, and the message is still sent', async () => {
+        sendWaiting(() => Promise.resolve({ outcome: 'failed', failure: { reason: 'unavailable', status: 503 } }));
+
+        expect(await screen.findByText('Queued to go out.')).toBeDefined();
+        expect(
+            await screen.findByText('The message was sent, but the server did not write down the wait for its reply.'),
+        ).toBeDefined();
+    });
+});
 
 describe('Composer, a message of its own', () => {
     it('opens empty, named for what is being written', () => {

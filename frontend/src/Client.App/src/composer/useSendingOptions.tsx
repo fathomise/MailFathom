@@ -13,6 +13,7 @@ import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { Departing } from '../shell/Departing';
 import type { Composition } from './composition';
+import { followUpDays, followUpKeys, type FollowUp, type FollowUpKey } from './followUp';
 import { namedZone, readyTimeKeys, readyTimes, type ChosenSendTime, type ReadyTimeKey } from './sendLater';
 import { useSendTimeWording } from './useSendTimeWording';
 
@@ -28,6 +29,10 @@ import { useSendTimeWording } from './useSendTimeWording';
 // *Send later* is the menu's second group: three ready times and a picked one, of which one is taken. A time taken is
 // said three times, so a message is never scheduled unaware or sent at once by mistake — the control names it, a line of
 // its own above the foot says when the message leaves with a way to change or clear it, and *Send* says it on its face.
+//
+// *If nobody replies* is the third group, offered where the person keeps tasks: three days, one of which is taken and
+// taken off again by the same press. A day taken is said in a line of its own above the foot, with a way to change it
+// and a way to stop waiting; the composer writes the wait down once the message is sent.
 
 /** The two requests, as the composition holds them. */
 export type ReceiptRequests = Pick<Composition, 'requestsDeliveryNotification' | 'requestsReadReceipt'>;
@@ -39,9 +44,18 @@ export interface SendingOptions {
     /** The line saying when the message leaves, or nothing while it is sent at once. */
     readonly timeLine: ReactNode;
 
+    /** The line saying how long the message waits for a reply, or nothing while it waits for none. */
+    readonly followLine: ReactNode;
+
     /** The control at the end of the foot, with the menu it opens. */
     readonly control: ReactNode;
 }
+
+const followUpSaid: Readonly<Record<FollowUpKey, MessageKey>> = {
+    tomorrow: 'compose.followUp.tomorrow',
+    monday: 'compose.followUp.monday',
+    week: 'compose.followUp.week',
+};
 
 type Asking = 'none' | 'deliveryNotification' | 'readReceipt' | 'both';
 
@@ -71,6 +85,7 @@ export function useSendingOptions({
     zone,
     onSendAt,
     onPick,
+    followUp,
 }: {
     readonly requested: ReceiptRequests;
 
@@ -88,8 +103,12 @@ export function useSendingOptions({
 
     /** Opens the picker, on the time already chosen or on the first ready time. */
     readonly onPick: () => void;
+
+    /** The day the message waits for a reply until and the way to choose one, or absent where nothing waits. */
+    readonly followUp?:
+        { readonly chosen: FollowUp | null; readonly onChosen: (chosen: FollowUp | null) => void } | undefined;
 }): SendingOptions {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
     const control = useRef<HTMLButtonElement | null>(null);
     const line = useRef<HTMLButtonElement | null>(null);
     const [menu, setMenu] = useState<{
@@ -102,6 +121,7 @@ export function useSendingOptions({
     const asking = askingOf(requested);
     const readReceiptNote = requested.requestsReadReceipt ? translate('compose.readReceiptMayNotCome') : null;
     const leaves = sendAt === null ? null : word(sendAt);
+    const waitsUntil = followUp?.chosen ?? null;
 
     // The menu stands above whatever opened it with its end edge on that element's, since the foot is the composer's
     // last row and there is nothing below it to open into. The ready times are read against the moment it opens.
@@ -140,6 +160,36 @@ export function useSendingOptions({
                 choose: onPick,
             },
         ];
+    }
+
+    function followUpItems(openedAt: number): readonly ContextMenuItem[] {
+        if (followUp === undefined) {
+            return [];
+        }
+
+        const days = followUpDays(openedAt, zone);
+
+        return followUpKeys.map((key, index) => ({
+            icon: 'hourglass_top',
+            label: translate(followUpSaid[key]),
+            hint: wordFollowUpDay(days[key]),
+            checked: followUp.chosen?.key === key,
+            takesOne: true,
+            ...(index === 0 ? { opensGroup: translate('compose.ifNobodyReplies') } : {}),
+            choose: () => {
+                followUp.onChosen(followUp.chosen?.key === key ? null : { key, dueOn: days[key] });
+            },
+        }));
+    }
+
+    // A day as the menu and the line name it: the weekday and the date, read as the calendar day it is.
+    function wordFollowUpDay(day: string): string {
+        const at = Date.parse(`${day}T00:00:00Z`);
+
+        return translate('compose.followUpDay', {
+            weekday: new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(at),
+            day: new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit', timeZone: 'UTC' }).format(at),
+        });
     }
 
     const lineTip = useTip({
@@ -212,6 +262,37 @@ export function useSendingOptions({
                     </span>
                 </p>
             ),
+        followLine:
+            waitsUntil === null ? null : (
+                <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-t border-accent-line bg-accent-soft py-1.5 ps-3.75 pe-2.25 text-base/normal text-pretty text-text-soft pointer-coarse:min-h-13 pointer-coarse:py-1">
+                    <Icon name="hourglass_top" className="size-icon-md shrink-0 text-warning" />
+                    <span className="min-w-0 flex-1 basis-55">
+                        {translate('compose.waitsForReply', { day: wordFollowUpDay(waitsUntil.dueOn) })}
+                    </span>
+                    <span className="ms-auto flex shrink-0 items-center gap-1.5">
+                        <button
+                            type="button"
+                            className="flex h-7 items-center rounded-md px-2 text-base font-semibold text-accent-deep transition hover:bg-hover pointer-coarse:h-11"
+                            onClick={() => {
+                                open(false);
+                            }}
+                        >
+                            {translate('compose.changeSendTime')}
+                        </button>
+                        <button
+                            type="button"
+                            className="flex h-7 items-center gap-1 rounded-md border border-accent-line bg-panel px-2 text-base text-text-soft transition hover:bg-hover pointer-coarse:h-11"
+                            onClick={() => {
+                                followUp?.onChosen(null);
+                                control.current?.focus();
+                            }}
+                        >
+                            <Icon name="close" className="size-icon-sm" />
+                            {translate('compose.dontWait')}
+                        </button>
+                    </span>
+                </p>
+            ),
         control: (
             <>
                 <SymbolControl
@@ -263,6 +344,7 @@ export function useSendingOptions({
                                     },
                                 },
                                 ...sendLaterItems(opened.openedAt),
+                                ...followUpItems(opened.openedAt),
                             ]}
                             onClose={() => {
                                 setMenu(null);

@@ -577,6 +577,7 @@ export function Thread({
                     <MessageHeaders
                         headers={headersOf(opened)}
                         message={actedOn(opened)}
+                        threadId={conversation.threadId}
                         subject={subject}
                         messagesInThread={latest.messageCount}
                     >

@@ -27,6 +27,7 @@ function drawHead({
     compact = false,
     toolbarCarriesActs = false,
     handToAgent = null,
+    onMakeTask,
 }: {
     readonly offered?: boolean;
     readonly acting?: ActedMessage | null;
@@ -34,6 +35,7 @@ function drawHead({
     readonly compact?: boolean;
     readonly toolbarCarriesActs?: boolean;
     readonly handToAgent?: ((handOver: AgentHandOver) => void) | null;
+    readonly onMakeTask?: () => void;
 } = {}): { composed: ReturnType<typeof vi.fn> } {
     const composed = vi.fn();
     const composing: Composing = {
@@ -50,7 +52,12 @@ function drawHead({
             <AgentHandOverContext value={handToAgent}>
                 <MailboxActsContext value={acts}>
                     <ComposingContext value={composing}>
-                        <HeadActs compact={compact} toolbarCarriesActs={toolbarCarriesActs} message={acting} />
+                        <HeadActs
+                            compact={compact}
+                            toolbarCarriesActs={toolbarCarriesActs}
+                            message={acting}
+                            onMakeTask={onMakeTask}
+                        />
                     </ComposingContext>
                 </MailboxActsContext>
             </AgentHandOverContext>
@@ -78,6 +85,29 @@ describe('HeadActs', () => {
             answers,
             storedEmailId: message.storedEmailId,
         });
+    });
+
+    it('offers Make a task before the spam control, and makes one when pressed', () => {
+        const made = vi.fn();
+        drawHead({ onMakeTask: made });
+
+        const spam = screen.getByRole('button', { name: /spam/iu });
+
+        expect(
+            screen.getByRole('button', { name: 'Make a task' }).compareDocumentPosition(spam) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Make a task' }));
+
+        expect(made).toHaveBeenCalledOnce();
+    });
+
+    it('offers no Make a task where no task can be written down', () => {
+        drawHead();
+
+        expect(screen.getByRole('button', { name: 'Reply' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Make a task' })).toBeNull();
     });
 
     it('flags the message being read', () => {

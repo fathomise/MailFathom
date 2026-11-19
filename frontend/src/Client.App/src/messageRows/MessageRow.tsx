@@ -40,6 +40,7 @@ import { senderMarkInk, senderMarkOf, senderMarksDrawn } from '../senderMark/sen
 import { receiptInk, receiptMarksDrawn, standingOfSummary, wordOf } from '../receipts/receiptMarks';
 import { reportHeadlineOf } from '../receipts/reportWords';
 import { RowMark } from './RowMark';
+import { TaskMark } from '../tasks/TaskMark';
 import { useRowSwipe, type RowSwipeDirection } from '../controls/rowSwipe';
 
 // One row of mail, which is its own component for the reason a tree's row is: it is what carries state, a keyboard
@@ -645,6 +646,8 @@ export function MessageRow({
                             <div className={`min-w-0 flex-1 truncate text-md ${unreadInk(unread)}`}>
                                 {reportHeadline ?? email.subject ?? translate('list.noSubject')}
                             </div>
+
+                            <TaskMark threadId={email.threadId} />
 
                             {externalChip}
                         </div>

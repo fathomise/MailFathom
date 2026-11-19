@@ -14,6 +14,7 @@ import { ReceivedAt } from '../controls/ReceivedAt';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import { useLocalization } from '../localization/useLocalization';
 import { ExternalPill } from '../senderMark/ExternalChip';
+import { TaskMark } from '../tasks/TaskMark';
 import { externalMarkOf, useExternalMarking } from '../senderMark/externalMark';
 import { senderMarkInk, senderMarkOf, senderMarksDrawn } from '../senderMark/senderMarks';
 import { newestAuthor, participantsNamed, rowVariantOf, titleStateOf, type ThreadTitleState } from './threadRows';
@@ -215,8 +216,9 @@ function ThreadTitle({
 
     if (thread.title === null || titled === 'untitled') {
         return (
-            <span className="flex min-w-0">
+            <span className="flex min-w-0 items-center gap-2">
                 <span className={words}>{thread.newest.subject ?? translate('list.noSubject')}</span>
+                <TaskMark threadId={thread.threadId} />
             </span>
         );
     }
@@ -227,6 +229,7 @@ function ThreadTitle({
                 <Icon name="auto_awesome" className="size-icon-sm shrink-0 text-muted" />
                 <span className="sr-only">{translate('threadList.aiTitle')}</span>
                 <span className={words}>{thread.title.topic}</span>
+                <TaskMark threadId={thread.threadId} />
             </span>
 
             {titled === 'standing' ? (

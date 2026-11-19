@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MailSpamVerdict } from '@mailfathom/client-backend';
 import type { Composing } from '../composer/useComposing';
@@ -13,6 +13,7 @@ import { MailboxActsContext, nothingActed, type MailboxActs } from '../mailboxAc
 import { ListedMailContext, nothingListed } from '../messageList/useListedMail';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { useWorkspace, type OpenOutbox } from '../workspace/useWorkspace';
+import { MailTasksContext, type MailTasks } from '../tasks/useMailTasks';
 import { MailToolbar } from './MailToolbar';
 import type { StripFit } from './useStripFit';
 
@@ -46,6 +47,7 @@ function drawToolbar(
     fit: StripFit = 'labelled',
     lead: { readonly openMailboxes: (() => void) | null } = { openMailboxes: null },
     outbox: OpenOutbox | null = null,
+    tasks: MailTasks | null = null,
 ): { composed: ReturnType<typeof vi.fn> } {
     const composed = vi.fn();
     const composing: Composing = {
@@ -64,7 +66,9 @@ function drawToolbar(
                     <MailboxActsContext value={acts}>
                         <ComposingContext value={composing}>
                             <Opens selection={selection} outbox={outbox} />
-                            <MailToolbar strip={() => undefined} fit={fit} openMailboxes={lead.openMailboxes} />
+                            <MailTasksContext value={tasks}>
+                                <MailToolbar strip={() => undefined} fit={fit} openMailboxes={lead.openMailboxes} />
+                            </MailTasksContext>
                         </ComposingContext>
                     </MailboxActsContext>
                 </ListedMailContext>
@@ -233,6 +237,35 @@ describe('MailToolbar', () => {
         drawToolbar(true, messageId, actsOffering(vi.fn()), 'labelled');
 
         expect(screen.getByRole('button', { name: /^More actions/u })).toBeDefined();
+    });
+
+    // Where two panes under a finger leave the head its subject alone, Make a task stands here instead, about the
+    // thread of the message open, which the strip reads on the press since it holds only its identity.
+    it('takes Make a task over from the head at two panes under a finger, about the open message', () => {
+        const madeOn = vi.fn();
+        const tasks: MailTasks = {
+            session: { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' },
+            transport: () => Promise.reject(new Error('Nothing is read here.')),
+            threadsWithTasks: new Set(),
+            makeTask: () => undefined,
+            makeTaskOn: madeOn,
+            openTask: () => undefined,
+            record: () => Promise.reject(new Error('Nothing is written here.')),
+            follow: () => () => undefined,
+        };
+
+        theCompositionHasTwoPanes(true);
+        drawToolbar(true, messageId, actsOffering(vi.fn()), 'labelled', { openMailboxes: null }, null, tasks);
+        fireEvent.click(screen.getByRole('button', { name: 'Make a task' }));
+
+        expect(madeOn).toHaveBeenCalledWith(messageId);
+
+        cleanup();
+        theCompositionHasTwoPanes(false);
+        drawToolbar(true, messageId, actsOffering(vi.fn()), 'labelled', { openMailboxes: null }, null, tasks);
+
+        expect(screen.getByRole('button', { name: 'Reply' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Make a task' })).toBeNull();
     });
 
     it('leads with the control that hides the mailbox column wherever the column stands beside the list', () => {

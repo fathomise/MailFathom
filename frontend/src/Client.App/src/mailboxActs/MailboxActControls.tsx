@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { Fragment, useRef } from 'react';
+import { Fragment, useRef, type ReactNode } from 'react';
 import { Control } from '../controls/Control';
 import type { ControlShape } from '../controls/controlShapes';
 import { PlannedControl } from '../controls/PlannedControl';
@@ -28,6 +28,7 @@ export function MailboxActControls({
     messages,
     shape,
     spam = null,
+    beforeSpam = null,
     onActed,
 }: {
     /** The messages every one of these acts is about, in the order the list draws them. */
@@ -41,6 +42,9 @@ export function MailboxActControls({
      * toolbar draws *Mark spam* after the others, leaving *Not spam* to stand where the answers would.
      */
     readonly spam?: 'strip' | 'toolbar' | null;
+
+    /** What the toolbar draws between the others and *Mark spam*, which is *Make a task* where the head leaves it. */
+    readonly beforeSpam?: ReactNode;
 
     /** What the strip does once an act has been asked for, which is where a selection is let go. */
     readonly onActed?: () => void;
@@ -113,6 +117,8 @@ export function MailboxActControls({
                     </Fragment>
                 );
             })}
+
+            {beforeSpam}
 
             {spam === 'toolbar' && !allDrawnSpam(acts, messages) ? (
                 <SpamControl messages={messages} shape={shape} wording="mark" onActed={onActed} />
