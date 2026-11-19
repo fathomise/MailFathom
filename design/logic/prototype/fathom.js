@@ -117,6 +117,8 @@ MailFathomDesign.fathomUi = (() => {
     /* 24 px from both edges, 20 on a phone, above its bottom bar. */
     const fabEdge = isMobile ? 20 : 24;
     const fabBottom = fabEdge + barH;
+    /* Fathom stands clear of the Right now panel, docked on the right from 1020 px. */
+    const fabRight = "calc(" + (c.rightNowW || "0px") + " + " + fabEdge + "px)";
     const menuRun = (a) => () => {
       if (a.do === "agent") { self.setState({ fathomMenu: false }); self.goAgentWith(a.ctx || where); return; }
       self.runFathom(a, { label: where });
@@ -131,7 +133,7 @@ MailFathomDesign.fathomUi = (() => {
       toggleFathom: () => {
         self.setState(s => ({ fathomMenu: !s.fathomMenu, fathomAnswer: null }));
       },
-      fathomFabStyle: "position:fixed;z-index:88;right:" + fabEdge + "px;bottom:" + fabBottom + "px;width:" + fabSize + "px;height:" + fabSize + "px;box-sizing:border-box;" +
+      fathomFabStyle: "position:fixed;z-index:88;right:" + fabRight + ";bottom:" + fabBottom + "px;width:" + fabSize + "px;height:" + fabSize + "px;box-sizing:border-box;" +
         "display:flex;align-items:center;justify-content:center;border-radius:" + (isMobile ? 18 : 14) + "px;color:var(--onaccent);background:var(--accent);box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2)",
       fathomFabGlyph: GLYPH + "font-size:22px;font-variation-settings:'wght' 400",
       fathomMenuOpen: fabShown && !!st.fathomMenu,
@@ -142,7 +144,7 @@ MailFathomDesign.fathomUi = (() => {
         c.fathomReply || [],
       ).map(a => ({ icon: a.icon, label: a.label, run: () => { self.setState({ fathomMenu: false }); a.run(); }, style: rowStyle })),
       fathomRowStyle: rowStyle,
-      fathomMenuStyle: "position:fixed;z-index:89;right:" + fabEdge + "px;bottom:" + (fabBottom + fabSize + (isMobile ? 12 : 8)) + "px;display:flex;flex-direction:column;align-items:flex-end;gap:8px",
+      fathomMenuStyle: "position:fixed;z-index:89;right:" + fabRight + ";bottom:" + (fabBottom + fabSize + (isMobile ? 12 : 8)) + "px;display:flex;flex-direction:column;align-items:flex-end;gap:8px",
       openAgentFromFathom: () => { self.setState({ fathomMenu: false }); self.goScreen("agent"); },
     };
 
@@ -163,7 +165,7 @@ MailFathomDesign.fathomUi = (() => {
       fathomAnswerStyle: "position:fixed;z-index:97;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--accent-line);border-radius:16px;" +
         "box-shadow:0 22px 50px var(--sh-3),0 2px 6px var(--sh-2);padding:14px 16px 14px 16px;" +
         (isMobile ? "left:12px;right:12px;bottom:" + (st.catchupOpen ? 16 : fabBottom + fabSize + 12) + "px;"
-          : st.catchupOpen ? "left:50%;transform:translateX(-50%);bottom:28px;width:420px;" : "right:" + fabEdge + "px;bottom:" + (fabBottom + fabSize + 12) + "px;width:380px;"),
+          : st.catchupOpen ? "left:50%;transform:translateX(-50%);bottom:28px;width:420px;" : "right:" + fabRight + ";bottom:" + (fabBottom + fabSize + 12) + "px;width:380px;"),
       fathomAnswerBtnStyle: "display:inline-flex;align-items:center;gap:7px;border-radius:9px;font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);box-sizing:border-box;" + (touch ? "min-height:44px;padding:0 15px;" : "min-height:34px;padding:0 13px;"),
       fathomAnswerCloseStyle: "margin-left:auto;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:var(--faint);" + GLYPH + (touch ? "width:44px;height:44px;font-size:20px;margin-right:-10px;" : "width:28px;height:28px;font-size:18px;margin-right:-6px;"),
     });

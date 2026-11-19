@@ -139,19 +139,19 @@ MailFathomDesign.data.home.headsUp = [
 ];
 
 // Right now: what matters most at this moment, a group for the mail, one for the tasks and one for the calendar, each
-// read off by rules. `meta` is the group's counts, and `go` the space its head opens. On a row, `tone` colours the tile
+// read off by rules. `meta` is the group's counts, `n` the one number the folded panel shows, and `go` the space its head opens. On a row, `tone` colours the tile
 // and the time left; `go` is the space it opens, and `tid` the thread when it is one.
 MailFathomDesign.data.home.rightNowAt = "13:40 · read off by rules";
 MailFathomDesign.data.home.rightNow = [
-  { key: "mail", icon: "mail", label: "Mail", meta: "14 new · 3 waiting on you", go: "mail", items: [
+  { key: "mail", icon: "mail", label: "Mail", n: 14, meta: "14 new · 3 waiting on you", go: "mail", items: [
     { id: "d-contoso", icon: "schedule", tone: "warn", title: "The Contoso decision is due tomorrow", note: "Anna Kowalska asked twice · the counter-proposal has not gone out", when: "tomorrow", go: "thread", tid: "contoso" },
     { id: "d-bank", icon: "gpp_maybe", tone: "err", title: "An invoice asks to pay a new bank account", note: "Not from fabrikam.com · confirm by phone before anything is paid", when: "before 29.08", go: "thread", tid: "fabrikam1" },
   ] },
-  { key: "tasks", icon: "task_alt", label: "Tasks", meta: "2 due today", go: "tasks", items: [
+  { key: "tasks", icon: "task_alt", label: "Tasks", n: 2, meta: "2 due today", go: "tasks", items: [
     { id: "d-fabrikam", icon: "task_alt", tone: "plain", title: "Confirm the Q4 date to Fabrikam", note: "Tomasz Bąk asked yesterday · before the call with Piotr", when: "16:30", go: "tasks" },
     { id: "d-invoice", icon: "task_alt", tone: "plain", title: "Approve invoice 08/2026", note: "Finance needs it before the payment run", when: "17:00", go: "tasks" },
   ] },
-  { key: "cal", icon: "event", label: "Calendar", meta: "2 meetings today · 1 left", go: "cal", items: [
+  { key: "cal", icon: "event", label: "Calendar", n: 2, meta: "2 meetings today · 1 left", go: "cal", items: [
     { id: "d-rollout", icon: "event", tone: "accent", title: "Rollout status with Piotr", note: "Teams · 15:00-15:30 · 2 open questions in the thread", when: "in 1 h 20 min", go: "cal" },
   ] },
 ];
@@ -172,3 +172,17 @@ MailFathomDesign.data.home.now = { updated: "Updated 6 min ago · 13:34", note: 
   [{ t: "In numbers: " }, { t: "14 new messages", b: true }, { t: " since this morning, of which only " }, { t: "3 need a reply", b: true }, { t: "; 5 are just for reading and 6 are newsletters that will not miss you", c: 4 }, { t: ". " }, { t: "3 people are waiting on you", b: true }, { t: ", " }, { t: "2 tasks are due today", b: true }, { t: ", and of your " }, { t: "2 meetings", b: true }, { t: " one is already behind you. There is more on your list, but only 4 things are today's job." }],
   [{ t: "Do those four and the rest can honestly wait until tomorrow. Coffee first is allowed." }],
 ] };
+
+// The Agent's small window in the Right now panel: what it answers, in text alone, by what is open. `{label}` is the
+// name of what is open - the conversation's subject, the person's name.
+MailFathomDesign.data.home.sideAgent = {
+  answers: {
+    start: "Short version of your day: answer Contoso first, confirm the Q4 date to Fabrikam before 15:00, and leave the invoice alone until Tomasz picks up the phone. Nothing else is on fire.",
+    mail: "In this list three conversations wait on you: Contoso, Fabrikam and the audit register. Five are for reading only and six are newsletters. The oldest unanswered one is Jacek's, from seven days ago.",
+    thread: "In “{label}” the last message asks something of you and nobody has answered yet. The open points are summed up above the messages; the reply itself is quicker to write in the Agent, where I can draft it.",
+    tasks: "Two tasks are due today: confirm the Q4 date to Fabrikam by 16:30 and approve invoice 08/2026 by 17:00. The first one unblocks the call with Piotr, so do it first.",
+    cal: "One meeting is left today: the rollout status with Piotr at 15:00, half an hour on Teams. Tomorrow starts with the call with Anna Kowalska, and the Contoso decision is due the same day.",
+    person: "{label}: you owe them one answer, and their last message came this week. Most of what you exchange is about the 2027 terms; nothing in it is overdue except the reply.",
+    people: "Three people are waiting on you right now: Anna Kowalska for two days, Tomasz Bąk since yesterday and Jacek Wrona for a week. Everyone else has had their answer.",
+  },
+};

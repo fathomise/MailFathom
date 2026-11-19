@@ -5461,7 +5461,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const framePad = (top, bottom) => (isMobile || narrow || compact)
         ? "padding:" + top + "px " + frameX + "px " + bottom + "px;"
         : "padding:" + top + "px max(" + frameX + "px, calc(100% - " + (frameMax + frameX) + "px)) " + bottom + "px " + frameX + "px;";
-      const rightNowDocked = !isMobile && !narrow && st.phase === "idle";
+      /* Right now is docked on every space from 1020 px: wide on Start, narrower beside the others, and folded to a
+         strip of its numbers when the reader folds it - or, until they choose, where a space has little room to give. */
+      const rightNowDocked = !isMobile && !narrow;
+      const rightNowFolded = rightNowDocked && (st.rightNowFolded != null ? !!st.rightNowFolded : st.screen !== "start" && compact);
+      const rightNowW = !rightNowDocked ? "0px" : rightNowFolded ? "56px" : st.screen === "start" ? "clamp(360px, 29%, 460px)" : "300px";
+      const rightNowSlim = rightNowDocked && st.screen !== "start";
       const watchPer = isMobile ? 1 : (narrow || compact) ? 2 : startWide ? 4 : 3;
       const watchList = st.watched || [];
       const watchPages = Math.max(1, Math.ceil(watchList.length / watchPer));
@@ -7664,11 +7669,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         searchWrapStyle: "flex:0 0 auto;position:relative;z-index:1;overflow:hidden;scrollbar-gutter:stable;background:var(--panel);border-bottom:1px solid var(--line);" + (st.phase === "idle" ? "box-shadow:0 6px 14px -12px var(--sh-3);" : ""),
         searchInnerStyle: "display:flex;flex-direction:column;box-sizing:border-box;" + (isMobile ? "gap:10px;" + framePad(12, 12) : "gap:12px;" + framePad(16, 16)),
         idleStyle: "flex:1;display:flex;flex-direction:column;overflow:auto;scrollbar-gutter:stable;min-height:0",
-        /* Start is one column - Now, then what is watched, on the same width - and from 1020 px Right now is a panel
-           docked on the right for the whole height of the screen. Below that it stands between the two. */
-        startScreenStyle: "flex:1;display:flex;min-width:0;min-height:0;flex-direction:" + (rightNowDocked ? "row" : "column"),
-        rightNowDocked, rightNowInline: !rightNowDocked,
-        rightNowPanelStyle: "flex:0 0 auto;width:clamp(360px, 29%, 460px);box-sizing:border-box;overflow:auto;background:var(--panel);border-left:1px solid var(--line);padding:22px 14px 96px",
+        /* Start is one column - Now, then what is watched, on the same width. Right now is a panel docked on the right
+           of every space from 1020 px, for the whole height of the screen; below that it stands on Start between the two. */
+        startScreenStyle: "flex:1;display:flex;flex-direction:column;min-width:0;min-height:0",
+        rightNowDocked, rightNowInline: !rightNowDocked, rightNowFolded, rightNowOpen: !rightNowFolded,
+        rightNowFold: () => this.setState({ rightNowFolded: !rightNowFolded }),
+        rightNowFoldStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px;" + (touch ? "width:44px;height:44px" : "width:30px;height:30px;margin:-5px -2px -5px 0"),
+        rightNowNumStyle: "flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-sizing:border-box;width:44px;min-height:" + (touch ? 56 : 52) + "px;border-radius:10px",
+        rightNowPanelStyle: "order:1;flex:0 0 auto;width:" + rightNowW + ";box-sizing:border-box;display:flex;flex-direction:column;min-height:0;overflow:hidden;background:var(--panel);border-left:1px solid var(--line)",
+        rightNowScrollStyle: "flex:1;min-height:0;overflow:auto;box-sizing:border-box;padding:" + (rightNowSlim ? "20px 8px 20px" : "22px 14px 22px"),
         rightNowDockedCardStyle: "display:flex;flex-direction:column;gap:8px;box-sizing:border-box;min-width:0",
         startBodyStyle: "box-sizing:border-box;display:flex;flex-direction:column;" + (isMobile || narrow
           ? "gap:22px;" + framePad(isMobile ? 16 : 24, isMobile ? 96 : 32)
@@ -7700,13 +7709,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         rightNowCardStyle: "display:flex;flex-direction:column;gap:8px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 28px -18px var(--sh-3);padding:" + (isMobile ? "14px 8px 4px" : "18px 12px 6px"),
         rightNowAt: HOME.rightNowAt,
         rightNowGroupStyle: "display:flex;align-items:center;gap:8px;min-width:0;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;padding:0 6px;min-height:" + (touch ? 44 : 34) + "px",
-        rightNowRowStyle: "display:flex;align-items:center;gap:12px;min-width:0;box-sizing:border-box;border-radius:8px;min-height:" + (touch ? 60 : 52) + "px;padding:7px 6px",
+        rightNowRowStyle: "display:flex;align-items:center;" + (rightNowSlim ? "flex-wrap:wrap;" : "") + "gap:12px;min-width:0;box-sizing:border-box;border-radius:8px;min-height:" + (touch ? 60 : 52) + "px;padding:7px 6px",
         /* On a phone a row is its title and one line, so the card stays short. */
         rightNowNoteStyle: "font-size:12.5px;line-height:1.4;color:var(--muted);" + (isMobile ? "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "text-wrap:pretty"),
         /* Right now holds the few things that matter most; the rest is a conversation, so its foot leads to the Agent. */
         rightNowToAgent: () => this.goAgentWith("your day"),
         rightNowAgentStyle: "display:flex;align-items:center;gap:10px;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;padding:10px 8px;min-height:" + (touch ? 52 : 44) + "px",
-        rightNow: HOME.rightNow.map(g => ({ icon: g.icon, label: g.label, meta: g.meta, aria: g.label + " - " + g.meta + " - open", open: () => this.goScreen(g.go), items: g.items.map(d => {
+        rightNow: HOME.rightNow.map(g => ({ icon: g.icon, label: g.label, meta: g.meta, n: String(g.n), tip: g.label + ": " + g.meta, aria: g.label + " - " + g.meta + " - open", open: () => this.goScreen(g.go), items: g.items.map(d => {
           const canWatch = d.go === "thread";
           const watching = canWatch && (st.watched || []).some(w => w.tid === d.tid);
           const subject = (THREADS.find(x => x.id === d.tid) || {}).subject || d.title;
@@ -7714,10 +7723,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           return { icon: d.icon, title: d.title, note: d.note, when: d.when, canWatch, watching: watching ? "true" : "false",
             watchTitle: watching ? "Stop watching this conversation" : "Watch this conversation",
             watch: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.toggleWatchThread(d.tid, subject, d.note); },
-            watchStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;font-family:'Material Symbols Rounded';line-height:1;font-size:19px;font-variation-settings:'wght' 300,'FILL' " + (watching ? 1 : 0) + ";" +
+            watchStyle: (rightNowSlim ? "order:1;" : "") + "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;font-family:'Material Symbols Rounded';line-height:1;font-size:19px;font-variation-settings:'wght' 300,'FILL' " + (watching ? 1 : 0) + ";" +
               (touch ? "width:44px;height:44px;margin-right:-6px;" : "width:30px;height:30px;margin-right:-2px;") + (watching ? "color:var(--accent-d);background:var(--accent-soft)" : "color:var(--faint)"),
             open: () => d.go === "thread" ? this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: d.tid, cameFrom: false }) : this.goScreen(d.go),
             tileStyle: "flex:0 0 34px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:10px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:19px;color:" + tone[0] + ";background:" + tone[1],
+            /* In the narrow panel the time drops under the reason, so the title keeps the row's width. */
+            whenWrapStyle: rightNowSlim ? "order:2;flex:0 0 100%;box-sizing:border-box;padding-left:46px;margin-top:-6px" : "flex:0 0 auto",
             whenStyle: "flex:0 0 auto;font-size:12px;font-weight:600;white-space:nowrap;border-radius:999px;padding:3px 9px;color:" + tone[0] + ";background:" + tone[1] };
         }) })),
         /* Watching is one list across the page: a row per question with its answer in full, what happened to it at the
@@ -9066,10 +9077,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* Watching the open conversation puts it on Start under Watching, as *Watch* on a Right now row does. */
         threadWatching: (st.watched || []).some(w => w.tid === thread.id) ? "true" : "false",
         threadWatchTitle: (st.watched || []).some(w => w.tid === thread.id) ? "Stop watching this conversation" : "Watch this conversation on Start",
-        threadWatchLabel: singlePane || paneNarrow ? "" : (st.watched || []).some(w => w.tid === thread.id) ? "Watching" : "Watch",
+        threadWatchLabel: singlePane || paneNarrow || (rightNowDocked && !rightNowFolded) ? "" : (st.watched || []).some(w => w.tid === thread.id) ? "Watching" : "Watch",
         threadWatchToggle: () => this.toggleWatchThread(thread.id, thread.subject),
         threadWatchStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;font-size:13px;white-space:nowrap;border-radius:999px;" +
-          (singlePane || paneNarrow ? "width:" + (touch ? 44 : 34) + "px;height:" + (touch ? 44 : 34) + "px;" : touch ? "min-height:44px;padding:0 14px 0 11px;" : "padding:5px 12px 5px 9px;") +
+          (singlePane || paneNarrow || (rightNowDocked && !rightNowFolded) ? "width:" + (touch ? 44 : 34) + "px;height:" + (touch ? 44 : 34) + "px;" : touch ? "min-height:44px;padding:0 14px 0 11px;" : "padding:5px 12px 5px 9px;") +
           ((st.watched || []).some(w => w.tid === thread.id) ? "color:var(--accent-d);background:var(--accent-soft);border:1px solid var(--accent-line)" : "color:var(--text2);background:transparent;border:1px solid var(--border2)"),
         backToList: () => this.setState({ mailPane: "list", replyDock: null, replyChooser: null }),
         threadListStyle: "position:relative;" + (singlePane
@@ -10709,7 +10720,43 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         { icon: "edit_note", label: "Draft a reply", run: vals.chooseDraftReply },
         { icon: "forum", label: "Ask about this thread", run: vals.chooseAskThread },
       ] : [];
-      Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, narrow, startWide, thread, person, fathomCreate, fathomReply, navBottom: vals.navBottom }));
+      /* The Agent's small window at the foot of the Right now panel. It knows what is open - the conversation, the list,
+         the day, the person - says so above its field, and answers in text alone: anything more is the Agent's own space. */
+      const sideCtx = st.screen === "mail" ? (st.threadOpen ? { kind: "thread", icon: "forum", name: "Conversation", label: thread.subject, busy: "the conversation" } : { kind: "mail", icon: "mail", name: "Mail", label: "the message list", busy: "the list" })
+        : st.screen === "tasks" ? { kind: "tasks", icon: "task_alt", name: "Tasks", label: "your task list", busy: "your tasks" }
+        : st.screen === "cal" ? { kind: "cal", icon: "event", name: "Calendar", label: "Thursday, 27 August", busy: "your calendar" }
+        : st.screen === "people" ? ((st.peoplePane || "list") === "detail" && person ? { kind: "person", icon: "person", name: "Person", label: person.name, busy: "what you exchanged" } : { kind: "people", icon: "group", name: "People", label: "the list", busy: "the list" })
+        : { kind: "start", icon: "home", name: "Start", label: "your day", busy: "your day" };
+      const sideSend = () => {
+        const q = (this.state.sideAsk || "").trim();
+        if (!q || this.state.sideBusy) return;
+        const about = sideCtx.name + " · " + sideCtx.label;
+        this.setState(s2 => ({ sideAsk: "", sideBusy: true, sideChat: (s2.sideChat || []).concat([{ who: "you", text: q, ctx: about }]) }));
+        this.timers.push(setTimeout(() => this.setState(s2 => ({ sideBusy: false, sideChat: (s2.sideChat || []).concat([{ who: "agent", text: HOME.sideAgent.answers[sideCtx.kind].replace("{label}", sideCtx.label) }]) })), Math.max(500, (this.props.streamDelay ?? 550) * 1.6)));
+      };
+      Object.assign(vals, {
+        sideAgentShown: rightNowDocked && st.screen !== "agent",
+        sideAgentStyle: "flex:0 0 auto;display:flex;flex-direction:column;gap:9px;box-sizing:border-box;border-top:1px solid var(--line);background:var(--bg);padding:" + (rightNowSlim ? "12px 10px 12px" : "14px 16px 14px"),
+        sideAgentOpen: () => this.goAgentWith(sideCtx.name + " · " + sideCtx.label),
+        sideCtxIcon: sideCtx.icon, sideCtxKind: sideCtx.name, sideCtxLabel: sideCtx.label, sideCtxBusy: sideCtx.busy,
+        sideCtxTitle: "The Agent answers about: " + sideCtx.name + " - " + sideCtx.label,
+        sideCtxStyle: "display:flex;align-items:center;gap:6px;min-width:0;box-sizing:border-box;font-size:12px;color:var(--text2);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:8px;padding:5px 9px",
+        sideChatAny: (st.sideChat || []).length > 0,
+        sideChatRef: this.sideChatRef || (this.sideChatRef = React.createRef()),
+        sideChatStyle: "display:flex;flex-direction:column;gap:8px;min-height:0;max-height:" + (touch ? 200 : 240) + "px;overflow:auto",
+        sideChat: (st.sideChat || []).map(m => ({ text: m.text, ctx: m.ctx || "", hasCtx: m.who === "you" && !!m.ctx,
+          wrapStyle: "display:flex;flex-direction:column;gap:2px;min-width:0;align-items:" + (m.who === "you" ? "flex-end" : "flex-start"),
+          style: "max-width:100%;box-sizing:border-box;font-size:13.5px;line-height:1.5;text-wrap:pretty;overflow-wrap:anywhere;" + (m.who === "you" ? "color:var(--text);background:var(--sub);border-radius:12px 12px 4px 12px;padding:6px 10px" : "color:var(--text2)") })),
+        sideBusy: !!st.sideBusy,
+        sideAsk: st.sideAsk || "",
+        sideAskPlaceholder: "Ask about " + (sideCtx.kind === "thread" ? "this conversation" : sideCtx.kind === "person" ? sideCtx.label : sideCtx.label),
+        onSideAsk: (e) => this.setState({ sideAsk: e.target.value }),
+        onSideAskKey: (e) => { if (e.key === "Enter") { e.preventDefault(); sideSend(); } },
+        sideAskSend: sideSend,
+        sideAskRowStyle: "display:flex;align-items:center;gap:6px;box-sizing:border-box;background:var(--panel);border:1px solid var(--border2);border-radius:12px;padding:" + (touch ? "2px 2px 2px 12px" : "4px 4px 4px 12px"),
+        sideAskSendStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:9px;color:var(--onaccent);background:var(--accent);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:19px;" + (touch ? "width:44px;height:44px" : "width:30px;height:30px"),
+      });
+      Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, narrow, startWide, rightNowW, thread, person, fathomCreate, fathomReply, navBottom: vals.navBottom }));
       this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml, sendLaterAsk: this.closeSendLater };
       return vals;
     }

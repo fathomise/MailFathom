@@ -413,7 +413,7 @@ Project repository: https://github.com/fathomise/MailFathom
                         <div style="font-size:14px;font-weight:600;line-height:1.35;color:var(--text);text-wrap:pretty">{{ d.title }}</div>
                         <div style="{{ rightNowNoteStyle }}">{{ d.note }}</div>
                       </div>
-                      <span style="{{ d.whenStyle }}">{{ d.when }}</span>
+                      <div style="{{ d.whenWrapStyle }}"><span style="{{ d.whenStyle }}">{{ d.when }}</span></div>
                       <sc-if value="{{ d.canWatch }}" hint-placeholder-val="{{ true }}">
                         <div role="button" tabIndex="0" aria-pressed="{{ d.watching }}" aria-label="{{ d.watchTitle }}" title="{{ d.watchTitle }}" onClick="{{ d.watch }}" style="{{ d.watchStyle }}" style-hover="cursor:pointer;background:var(--accent-soft);color:var(--accent-d)">visibility</div>
                       </sc-if>
@@ -564,13 +564,34 @@ Project repository: https://github.com/fathomise/MailFathom
         </div>
       </sc-if>
       </div>
-      <sc-if value="{{ rightNowDocked }}" hint-placeholder-val="{{ true }}">
-      <div style="{{ rightNowPanelStyle }}">
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ rightNowDocked }}" hint-placeholder-val="{{ true }}">
+    <div style="{{ rightNowPanelStyle }}">
+      <sc-if value="{{ rightNowFolded }}" hint-placeholder-val="{{ false }}">
+        <div role="region" aria-label="Right now" style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 5px">
+          <div role="button" tabIndex="0" aria-expanded="false" aria-label="Show Right now" title="Show Right now" onClick="{{ rightNowFold }}" style="{{ rightNowFoldStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">right_panel_open</div>
+          <span aria-hidden="true" style="{{ nowDotStyle }};margin:6px 0 8px"></span>
+          <sc-for list="{{ rightNow }}" as="rg" hint-placeholder-count="3">
+            <div role="button" tabIndex="0" aria-label="{{ rg.aria }}" title="{{ rg.tip }}" onClick="{{ rg.open }}" style="{{ rightNowNumStyle }}" style-hover="cursor:pointer;background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
+              <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:19px;color:var(--muted)">{{ rg.icon }}</span>
+              <span style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)">{{ rg.n }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ sideAgentShown }}" hint-placeholder-val="{{ true }}">
+            <div role="button" tabIndex="0" aria-label="Ask the Agent about what is open" title="{{ sideCtxTitle }}" onClick="{{ rightNowFold }}" style="{{ rightNowNumStyle }};margin-top:auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:21px;line-height:1;color:var(--accent-d)" style-hover="cursor:pointer;background:var(--accent-soft)">auto_awesome</div>
+          </sc-if>
+        </div>
+      </sc-if>
+      <sc-if value="{{ rightNowOpen }}" hint-placeholder-val="{{ true }}">
+        <div style="{{ rightNowScrollStyle }}">
               <div role="region" aria-label="Right now" style="{{ rightNowDockedCardStyle }}">
                 <div style="display:flex;align-items:center;gap:8px;min-width:0;padding:0 6px 4px">
                   <span aria-hidden="true" style="{{ nowDotStyle }}"></span>
                   <div style="{{ nowLabelStyle }}">Right now</div>
-                  <span style="margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ rightNowAt }}</span>
+                  <span style="margin-left:auto;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ rightNowAt }}</span>
+                  <div role="button" tabIndex="0" aria-expanded="true" aria-label="Fold Right now to its numbers" title="Fold Right now to its numbers" onClick="{{ rightNowFold }}" style="{{ rightNowFoldStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">right_panel_close</div>
                 </div>
                 <sc-for list="{{ rightNow }}" as="rg" hint-placeholder-count="3">
                 <div style="display:flex;flex-direction:column">
@@ -587,7 +608,7 @@ Project repository: https://github.com/fathomise/MailFathom
                         <div style="font-size:14px;font-weight:600;line-height:1.35;color:var(--text);text-wrap:pretty">{{ d.title }}</div>
                         <div style="{{ rightNowNoteStyle }}">{{ d.note }}</div>
                       </div>
-                      <span style="{{ d.whenStyle }}">{{ d.when }}</span>
+                      <div style="{{ d.whenWrapStyle }}"><span style="{{ d.whenStyle }}">{{ d.when }}</span></div>
                       <sc-if value="{{ d.canWatch }}" hint-placeholder-val="{{ true }}">
                         <div role="button" tabIndex="0" aria-pressed="{{ d.watching }}" aria-label="{{ d.watchTitle }}" title="{{ d.watchTitle }}" onClick="{{ d.watch }}" style="{{ d.watchStyle }}" style-hover="cursor:pointer;background:var(--accent-soft);color:var(--accent-d)">visibility</div>
                       </sc-if>
@@ -603,7 +624,37 @@ Project repository: https://github.com/fathomise/MailFathom
                   </div>
                 </div>
               </div>
-      </div>
+        </div>
+        <sc-if value="{{ sideAgentShown }}" hint-placeholder-val="{{ true }}">
+          <div role="region" aria-label="Agent, about what is open" style="{{ sideAgentStyle }}">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0">
+              <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">auto_awesome</span>
+              <div style="{{ nowLabelStyle }}">Agent</div>
+              <div style="flex:1;min-width:0;font-size:11.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">answers in text</div>
+              <div role="button" tabIndex="0" aria-label="Continue in the Agent" title="Continue in the Agent" onClick="{{ sideAgentOpen }}" style="{{ rightNowFoldStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">open_in_new</div>
+            </div>
+            <div title="{{ sideCtxTitle }}" style="{{ sideCtxStyle }}">
+              <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--accent-d)">{{ sideCtxIcon }}</span>
+              <span style="flex:0 0 auto;font-weight:600;color:var(--text)">{{ sideCtxKind }}</span>
+              <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ sideCtxLabel }}</span>
+            </div>
+            <sc-if value="{{ sideChatAny }}" hint-placeholder-val="{{ false }}">
+              <div ref="{{ sideChatRef }}" style="{{ sideChatStyle }}">
+                <sc-for list="{{ sideChat }}" as="sm" hint-placeholder-count="2">
+                  <div style="{{ sm.wrapStyle }}">
+                    <sc-if value="{{ sm.hasCtx }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">{{ sm.ctx }}</div></sc-if>
+                    <div style="{{ sm.style }}">{{ sm.text }}</div>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ sideBusy }}" hint-placeholder-val="{{ false }}"><div role="status" style="font-size:12.5px;color:var(--muted)">Reading {{ sideCtxBusy }}…</div></sc-if>
+              </div>
+            </sc-if>
+            <div style="{{ sideAskRowStyle }}">
+              <input aria-label="{{ sideAskPlaceholder }}" value="{{ sideAsk }}" onChange="{{ onSideAsk }}" onKeyDown="{{ onSideAskKey }}" placeholder="{{ sideAskPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-size:13.5px;color:var(--text);background:transparent;text-overflow:ellipsis" />
+              <div role="button" tabIndex="0" aria-label="Ask" title="Ask" onClick="{{ sideAskSend }}" style="{{ sideAskSendStyle }}" style-hover="cursor:pointer;opacity:0.9">arrow_upward</div>
+            </div>
+          </div>
+        </sc-if>
       </sc-if>
     </div>
   </sc-if>
