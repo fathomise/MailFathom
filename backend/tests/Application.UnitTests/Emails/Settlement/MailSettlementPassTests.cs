@@ -4,21 +4,23 @@
 
 using MailFathom.Application.AutomaticReplies;
 using MailFathom.Application.Emails.Settlement;
+using MailFathom.Application.Emails.Summaries;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Spam;
-using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Tasks;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
-using MailFathom.Domain.Tasks;
 using MailFathom.Domain.Spam;
+using MailFathom.Domain.Tasks;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Emails.Settlement;
@@ -234,38 +236,59 @@ public sealed class MailSettlementPassTests
     public async Task RunAsync_AReplySettlesInAThreadAWaitIsAnchoredTo_ClosesTheWait()
     {
         // Arrange
-        var thread = EmailThreadId.Create(new Guid("0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a92"));
-        var inbox = Email(1);
-        var summaries = new InMemoryStoredEmailSummaries().With(
-            SyntheticEmailSummaries.Create(
-                receivedAt: Now,
-                storedEmailId: inbox.Id.Value,
-                accountId: Account.Value,
-                senderAddress: "buyer@example.test",
-                threadId: thread.Value));
-        var tasks = new InMemoryPersonalTaskStore();
-        var wait = PersonalTask.Compose(
-            PersonalTaskId.Create(Guid.CreateVersion7(Now)),
-            SyntheticUser.Deployment,
-            "Hear back about the tender",
-            dueOn: null,
-            TaskAnnouncement.Silent,
-            PersonalTaskOrigin.Asserted,
-            sourceMessage: null,
-            new TaskCommitment(PersonalTaskDirection.Awaited, null, null, TaskAnchor.Thread(thread, "Tender"), null));
-        await tasks.AddAsync(wait, TestContext.Current.CancellationToken);
-        this.store.Holding(inbox);
+        var (inbox, summaries, tasks) = await this.ArrangeReplyToAWaitAsync();
         await using var signals = new ClientSignals([this.channel], this.clock);
-        var identities = Substitute.For<IOutgoingSenderIdentityReader>();
-        identities.FindSenderIdentity(Account).Returns(
-            OutgoingSenderIdentity.Create(Account, AutomaticReplyWorld.Address(AutomaticReplyWorld.OwnAddress)));
 
         // Act
-        await this.CreatePass(signals, awaitedReplies: new AwaitedReplies(summaries, tasks, identities, signals, this.clock))
+        await this.CreatePass(signals, awaitedReplies: this.AwaitedRepliesOver(summaries, tasks, signals))
             .RunAsync(Account, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(inbox.Id, Assert.Single(tasks.Held).Answer?.Message);
+    }
+
+    /// <summary>A failed answering is counted and does not stop the waits that settled mail closes.</summary>
+    [Fact]
+    public async Task RunAsync_TheAutomaticReplyFails_StillClosesTheWait()
+    {
+        // Arrange
+        var (inbox, summaries, tasks) = await this.ArrangeReplyToAWaitAsync();
+        var world = new AutomaticReplyWorld(this.clock, periodAround: Now) { FailsReadingContent = true };
+        await world.AnswerAsync();
+        world.Summaries.With((await summaries.FindAsync(inbox.Id, TestContext.Current.CancellationToken))!);
+        await using var signals = new ClientSignals([this.channel], this.clock);
+
+        // Act
+        var report = await this.CreatePass(signals, world.Responder, this.AwaitedRepliesOver(summaries, tasks, signals))
+            .RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(1, report.SettledCount);
+        Assert.Equal(inbox.Id, Assert.Single(tasks.Held).Answer?.Message);
+        this.telemetry.Received(1).RecordFollowUpFailed(MailSettlementFollowUp.AutomaticReply);
+    }
+
+    /// <summary>A failure closing waits is counted and neither fails the pass nor undoes the settlement it follows.</summary>
+    [Fact]
+    public async Task RunAsync_ClosingTheWaitsFails_StillSettlesAndReportsTheBatch()
+    {
+        // Arrange
+        var inbox = Email(1);
+        this.store.Holding(inbox);
+        var failing = Substitute.For<IStoredEmailSummaryReader>();
+        failing.ReadSummariesAsync(Arg.Any<IReadOnlyList<StoredEmailId>>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("The summaries are unavailable."));
+        await using var signals = new ClientSignals([this.channel], this.clock);
+        var awaited = this.AwaitedRepliesOver(failing, new InMemoryPersonalTaskStore(), signals);
+
+        // Act
+        var report = await this.CreatePass(signals, awaitedReplies: awaited)
+            .RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new MailSettlementReport(SettledCount: 1, AnnouncedCount: 1, StillSettlingCount: 0), report);
+        Assert.Equal([inbox.Id], this.store.Settled);
+        this.telemetry.Received(1).RecordFollowUpFailed(MailSettlementFollowUp.AwaitedReplies);
     }
 
     private static SettlingEmail Email(int number, SpamVerdict? verdict = SpamVerdict.NotSpam) =>
@@ -302,12 +325,45 @@ public sealed class MailSettlementPassTests
             this.clock);
 
     private AwaitedReplies NoAwaitedReplies(ClientSignals signals) =>
-        new(
-            new InMemoryStoredEmailSummaries(),
-            new InMemoryPersonalTaskStore(),
-            Substitute.For<IOutgoingSenderIdentityReader>(),
-            signals,
-            this.clock);
+        this.AwaitedRepliesOver(new InMemoryStoredEmailSummaries(), new InMemoryPersonalTaskStore(), signals);
+
+    private AwaitedReplies AwaitedRepliesOver(IStoredEmailSummaryReader summaries, IPersonalTaskStore tasks, ClientSignals signals)
+    {
+        var identities = Substitute.For<IOutgoingSenderIdentityReader>();
+        identities.FindSenderIdentity(Account).Returns(
+            OutgoingSenderIdentity.Create(Account, AutomaticReplyWorld.Address(AutomaticReplyWorld.OwnAddress)));
+
+        return new AwaitedReplies(summaries, tasks, identities, signals, this.clock);
+    }
+
+    private async Task<(SettlingEmail Inbox, InMemoryStoredEmailSummaries Summaries, InMemoryPersonalTaskStore Tasks)> ArrangeReplyToAWaitAsync()
+    {
+        var thread = EmailThreadId.Create(new Guid("0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a92"));
+        var inbox = Email(1);
+        var summaries = new InMemoryStoredEmailSummaries().With(
+            SyntheticEmailSummaries.Create(
+                receivedAt: Now,
+                storedEmailId: inbox.Id.Value,
+                accountId: Account.Value,
+                senderAddress: "buyer@example.test",
+                threadId: thread.Value));
+        var tasks = new InMemoryPersonalTaskStore();
+
+        await tasks.AddAsync(
+            PersonalTask.Compose(
+                PersonalTaskId.Create(Guid.CreateVersion7(Now)),
+                SyntheticUser.Deployment,
+                "Hear back about the tender",
+                dueOn: null,
+                TaskAnnouncement.Silent,
+                PersonalTaskOrigin.Asserted,
+                sourceMessage: null,
+                new TaskCommitment(PersonalTaskDirection.Awaited, null, null, TaskAnchor.Thread(thread, "Tender"), null)),
+            TestContext.Current.CancellationToken);
+        this.store.Holding(inbox);
+
+        return (inbox, summaries, tasks);
+    }
 
     private async Task DrainAsync(ClientSignals signals)
     {

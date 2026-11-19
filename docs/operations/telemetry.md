@@ -362,6 +362,12 @@ way is one whose rule pass or move convergence has stalled. Only the run that ac
 the counter is additive across replicas and is summed. [A message is shown once it has
 settled](../architecture/arrival-pipeline.md#a-message-is-shown-once-it-has-settled) holds what each wait is.
 
+What follows a settled batch can fail without undoing it, and a settled message is never read again, so a failure is
+not retried. `mailfathom.mail.settlement.follow_up_failures` counts the batches where it happened, one per failed
+follow-up, tagged with `mailfathom.mail.settlement.follow_up` as `automatic_reply` or `awaited_replies`: the first is
+an automatic reply a batch was owed and did not get, the second is a wait a person kept that stays open although its
+reply arrived. Both are counts per replica that sum across them, and nothing about a message reaches either.
+
 The spam model stage publishes `mailfathom.spam.model_stage.consultations`, one count per message the stage would have
 asked a decision model about, tagged with `mailfathom.spam.model_stage.job` — `decide_verdict` or `name_subcategory` —
 and `mailfathom.spam.model_stage.outcome`: `answered`, `not_activated`, `budget_exhausted`, `provider_unavailable`,

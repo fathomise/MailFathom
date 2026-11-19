@@ -14,7 +14,10 @@ public sealed class MailSettlementTelemetry : IMailSettlementTelemetry
 {
     private const string SettlementTagName = "mailfathom.mail.settlement";
 
+    private const string FollowUpTagName = "mailfathom.mail.settlement.follow_up";
+
     private readonly Counter<long> settledCount;
+    private readonly Counter<long> followUpFailureCount;
 
     /// <summary>Initializes the counter on the process's meter.</summary>
     public MailSettlementTelemetry()
@@ -23,11 +26,21 @@ public sealed class MailSettlementTelemetry : IMailSettlementTelemetry
             "mailfathom.mail.settlements",
             unit: "{message}",
             description: "Arriving messages made readable, by whether everything that decides their placement finished or they were released after waiting.");
+        this.followUpFailureCount = Telemetry.Meter.CreateCounter<long>(
+            "mailfathom.mail.settlement.follow_up_failures",
+            unit: "{batch}",
+            description: "Batches of settled messages whose automatic reply or closing of awaited replies failed, which is not retried.");
     }
 
     /// <inheritdoc />
     public void RecordSettled(MailSettlement settlement) =>
         this.settledCount.Add(1, new TagList { { SettlementTagName, TagOf(settlement) } });
+
+    /// <inheritdoc />
+    public void RecordFollowUpFailed(MailSettlementFollowUp followUp) =>
+        this.followUpFailureCount.Add(
+            1,
+            new TagList { { FollowUpTagName, followUp == MailSettlementFollowUp.AutomaticReply ? "automatic_reply" : "awaited_replies" } });
 
     private static string TagOf(MailSettlement settlement) => settlement switch
     {

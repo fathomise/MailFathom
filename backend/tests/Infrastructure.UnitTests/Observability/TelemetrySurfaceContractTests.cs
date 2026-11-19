@@ -497,6 +497,11 @@ public sealed class TelemetrySurfaceContractTests
         {
             Settlement.RecordSettled(settlement);
         }
+
+        foreach (var followUp in Enum.GetValues<MailSettlementFollowUp>())
+        {
+            Settlement.RecordFollowUpFailed(followUp);
+        }
     }
 
     private static void DriveEmbedding()

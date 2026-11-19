@@ -5,7 +5,6 @@
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Signals;
-using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Tasks;
@@ -29,6 +28,14 @@ namespace MailFathom.Application.Tasks;
 /// answers nothing. A wait naming a counterpart is closed only by that person; one naming nobody is closed by anybody
 /// else in the thread. Addresses are compared in their normalized form, never as written.
 /// </para>
+/// <para>
+/// An account that configures no sending address leaves the user's own address unknown. A wait naming a counterpart is
+/// still closed by that counterpart, because a message from them is not the user's own; a wait naming nobody stays
+/// open there, because without the address nothing tells a reply from the user's own message.
+/// </para>
+/// <para>
+/// The arrivals' summaries are read once for the batch and the open waits once for each distinct thread in it.
+/// </para>
 /// </remarks>
 public sealed class AwaitedReplies(
     IStoredEmailSummaryReader summaries,
@@ -44,41 +51,43 @@ public sealed class AwaitedReplies(
     /// <returns>A task that completes once every wait the arrivals answer is closed and its person told.</returns>
     public async Task AnswerAsync(
         MailAccountId account,
-        IReadOnlyCollection<StoredEmailId> arrivals,
+        IReadOnlyList<StoredEmailId> arrivals,
         CancellationToken cancellationToken)
     {
-        if (arrivals.Count == 0 || senderIdentities.FindSenderIdentity(account) is not { } own)
+        if (arrivals.Count == 0)
         {
             return;
         }
 
-        HashSet<UserId> changed = [];
+        var own = senderIdentities.FindSenderIdentity(account)?.Address;
+        var found = await summaries.ReadSummariesAsync(arrivals, cancellationToken);
+        Dictionary<EmailThreadId, IReadOnlyList<PersonalTask>> awaiting = [];
 
         foreach (var arrival in arrivals)
         {
-            if (await summaries.FindAsync(arrival, cancellationToken) is not
-                { ThreadId: { } thread, IsFiledSentCopy: false } summary
+            if (!found.TryGetValue(arrival, out var summary)
+                || summary is not { ThreadId: { } thread, IsFiledSentCopy: false }
                 || !EmailAddress.TryCreate(displayName: null, summary.SenderAddress, out var sender)
-                || sender == own.Address)
+                || own == sender)
             {
                 continue;
             }
 
+            if (!awaiting.TryGetValue(thread, out var waits))
+            {
+                awaiting[thread] = waits = await tasks.ReadAwaitingAnswerAsync(thread, cancellationToken);
+            }
+
             var answer = new TaskAnswer(arrival, summary.ReceivedAt ?? timeProvider.GetUtcNow());
 
-            foreach (var task in await tasks.ReadAwaitingAnswerAsync(thread, cancellationToken))
+            foreach (var task in waits)
             {
-                if ((task.Counterpart is null || task.Counterpart.Address == sender)
+                if ((task.Counterpart is { } counterpart ? counterpart.Address == sender : own is not null)
                     && await tasks.AnswerAsync(task.User, task.Id, answer, cancellationToken) is PersonalTaskChangeOutcome.Applied)
                 {
-                    changed.Add(task.User);
+                    signals.Publish(ClientSignal.TasksChanged(task.User));
                 }
             }
-        }
-
-        foreach (var user in changed)
-        {
-            signals.Publish(ClientSignal.TasksChanged(user));
         }
     }
 }

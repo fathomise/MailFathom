@@ -44,6 +44,7 @@ public sealed class AwaitedRepliesTests
 
     private readonly RecordingClientSignalChannel channel = new();
 
+    /// <summary>The wait ends with the reply that ended it, cited rather than copied, whatever case the address was written in.</summary>
     [Fact]
     public async Task AnswerAsync_TheCounterpartRepliesInTheThread_ClosesTheTaskCitingTheReply()
     {
@@ -61,6 +62,7 @@ public sealed class AwaitedRepliesTests
         Assert.Equal(new TaskAnswer(reply, Now.AddHours(2)), closed.Answer);
     }
 
+    /// <summary>A message the user sent into the thread is not an answer to them.</summary>
     [Fact]
     public async Task AnswerAsync_TheUsersOwnMessage_LeavesTheTaskOpen()
     {
@@ -75,6 +77,7 @@ public sealed class AwaitedRepliesTests
         Assert.False(Assert.Single(this.store.Held).IsCompleted);
     }
 
+    /// <summary>The copy of a send filed back into the mailbox is the user's own message however its sender reads.</summary>
     [Fact]
     public async Task AnswerAsync_AFiledSentCopy_LeavesTheTaskOpen()
     {
@@ -89,6 +92,7 @@ public sealed class AwaitedRepliesTests
         Assert.False(Assert.Single(this.store.Held).IsCompleted);
     }
 
+    /// <summary>A wait on one person is not answered by a third party's message in the same thread.</summary>
     [Fact]
     public async Task AnswerAsync_SomebodyElseRepliesWhileACounterpartIsNamed_LeavesTheTaskOpen()
     {
@@ -103,6 +107,7 @@ public sealed class AwaitedRepliesTests
         Assert.False(Assert.Single(this.store.Held).IsCompleted);
     }
 
+    /// <summary>A wait naming nobody is answered by whoever else writes in the thread.</summary>
     [Fact]
     public async Task AnswerAsync_ATaskWithNoCounterpart_IsClosedByAnyOtherSender()
     {
@@ -117,6 +122,7 @@ public sealed class AwaitedRepliesTests
         Assert.True(Assert.Single(this.store.Held).IsCompleted);
     }
 
+    /// <summary>A message threading placed in no conversation can answer no wait, and tells nobody anything.</summary>
     [Fact]
     public async Task AnswerAsync_AMessageWithNoThread_ChangesNothing()
     {
@@ -132,8 +138,9 @@ public sealed class AwaitedRepliesTests
         Assert.Empty(this.channel.Published);
     }
 
+    /// <summary>Each closed wait tells its person their list changed, and the signals fold into the one an open client refreshes on.</summary>
     [Fact]
-    public async Task AnswerAsync_OneUserWithTwoAnsweredTasks_IsSignalledOnce()
+    public async Task AnswerAsync_TwoWaitsOfOneUserClosedByOneReply_TellTheUserTheirListChanged()
     {
         // Arrange
         await this.WaitAsync(counterpart: null);
@@ -148,16 +155,71 @@ public sealed class AwaitedRepliesTests
         Assert.Equal(ClientSignal.TasksChanged(User).Scope, Assert.Single(this.channel.Published).Scope);
     }
 
-    private async Task AnswerAsync(StoredEmailId arrival)
+    /// <summary>An account that sends from no address leaves the user's own address unknown, and a message from the person a wait names is still theirs to answer it.</summary>
+    [Fact]
+    public async Task AnswerAsync_AnAccountWithNoSendingAddressAndTheCounterpartReplies_ClosesTheTask()
+    {
+        // Arrange
+        await this.WaitAsync("buyer@example.test");
+        var reply = this.Arrive("buyer@example.test", Now);
+
+        // Act
+        await this.AnswerAsync(reply, ownAddress: null);
+
+        // Assert
+        Assert.True(Assert.Single(this.store.Held).IsCompleted);
+    }
+
+    /// <summary>Without the user's own address nothing tells a reply from their own message, so a wait naming nobody stays open.</summary>
+    [Fact]
+    public async Task AnswerAsync_AnAccountWithNoSendingAddressAndATaskWithNoCounterpart_LeavesTheTaskOpen()
+    {
+        // Arrange
+        await this.WaitAsync(counterpart: null);
+        var reply = this.Arrive("colleague@example.test", Now);
+
+        // Act
+        await this.AnswerAsync(reply, ownAddress: null);
+
+        // Assert
+        Assert.False(Assert.Single(this.store.Held).IsCompleted);
+    }
+
+    /// <summary>A batch costs one read of its summaries however many arrivals it holds.</summary>
+    [Fact]
+    public async Task AnswerAsync_TwoArrivalsInOneThread_ReadTheirSummariesOnce()
+    {
+        // Arrange
+        await this.WaitAsync("buyer@example.test");
+        var first = this.Arrive("colleague@example.test", Now);
+        var second = this.Arrive("buyer@example.test", Now.AddHours(1));
+
+        // Act
+        await this.AnswerAsync(first, second);
+
+        // Assert
+        Assert.Single(this.summaries.Calls);
+        Assert.Equal(second, Assert.Single(this.store.Held).Answer?.Message);
+    }
+
+    private Task AnswerAsync(StoredEmailId arrival, string? ownAddress = OwnAddress) =>
+        this.AnswerAsync([arrival], ownAddress);
+
+    private Task AnswerAsync(StoredEmailId first, StoredEmailId second) => this.AnswerAsync([first, second], OwnAddress);
+
+    private async Task AnswerAsync(StoredEmailId[] arrivals, string? ownAddress)
     {
         await using var signals = new ClientSignals([this.channel], this.clock);
         var identities = Substitute.For<IOutgoingSenderIdentityReader>();
 
-        Assert.True(EmailAddress.TryCreate(null, OwnAddress, out var own));
-        identities.FindSenderIdentity(Account).Returns(OutgoingSenderIdentity.Create(Account, own));
+        if (ownAddress is not null)
+        {
+            Assert.True(EmailAddress.TryCreate(null, ownAddress, out var own));
+            identities.FindSenderIdentity(Account).Returns(OutgoingSenderIdentity.Create(Account, own));
+        }
 
         await new AwaitedReplies(this.summaries, this.store, identities, signals, this.clock)
-            .AnswerAsync(Account, [arrival], TestContext.Current.CancellationToken);
+            .AnswerAsync(Account, arrivals, TestContext.Current.CancellationToken);
 
         this.clock.Advance(ClientSignals.FoldingWindow);
         await signals.DrainAsync();

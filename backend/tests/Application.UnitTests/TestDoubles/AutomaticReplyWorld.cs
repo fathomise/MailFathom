@@ -57,7 +57,9 @@ internal sealed class AutomaticReplyWorld
 
         this.contentStore
             .FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())
-            .Returns(call => ContentNaming(call.ArgAt<StoredEmailId>(0)));
+            .Returns(call => this.FailsReadingContent
+                ? throw new InvalidOperationException("The content store is unavailable.")
+                : ContentNaming(call.ArgAt<StoredEmailId>(0)));
 
         var envelopeReader = Substitute.For<IArrivedMailEnvelopeReader>();
         envelopeReader
@@ -81,6 +83,9 @@ internal sealed class AutomaticReplyWorld
     }
 
     internal FakeTimeProvider Clock { get; }
+
+    /// <summary>Gets or sets whether reading an arrival's stored content throws, which fails the answering of an arrival that reached it.</summary>
+    internal bool FailsReadingContent { get; set; }
 
     internal StubMailAccountAssignments Assignments { get; } = new();
 

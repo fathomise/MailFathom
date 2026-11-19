@@ -15,4 +15,9 @@ public interface IMailSettlementTelemetry
     /// <summary>Records one message this replica settled.</summary>
     /// <param name="settlement">How it settled; never <see cref="MailSettlement.Settling" />.</param>
     void RecordSettled(MailSettlement settlement);
+
+    /// <summary>Records one batch whose follow-up failed after its messages had settled.</summary>
+    /// <param name="followUp">Which follow-up failed.</param>
+    /// <remarks>A failed follow-up is not retried, because a settled message is never read again; the count is how a deployment sees that.</remarks>
+    void RecordFollowUpFailed(MailSettlementFollowUp followUp);
 }

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.AutomaticReplies;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.Signals;
@@ -28,7 +29,9 @@ namespace MailFathom.Application.Emails.Settlement;
 /// <para>
 /// It is also where an automatic reply answers: a message settled here is answered once announced, on the same terms
 /// as the announcement — only by the replica that settled it, and not again if answering it failed. A reply a person
-/// was waiting on is recognised here as well, and closes that wait.
+/// was waiting on is recognised here as well, and closes that wait, on the same terms: a failure in either is counted
+/// and not retried, because the batch is settled and never read again, and it stops neither the other nor the rest of
+/// the pass.
 /// </para>
 /// <para>
 /// Nothing is held forever. A message waits at most the verdict's own wait and then
@@ -134,8 +137,14 @@ public sealed class MailSettlementPass
 
             StoredEmailId[] answerable = [.. settled.Where(static email => email.IsAnswerable()).Select(static email => email.Id)];
 
-            await this.responder.AnswerAsync(account, answerable, cancellationToken);
-            await this.awaitedReplies.AnswerAsync(account, answerable, cancellationToken);
+            await this.FollowUpAsync(
+                MailSettlementFollowUp.AutomaticReply,
+                () => this.responder.AnswerAsync(account, answerable, cancellationToken),
+                cancellationToken);
+            await this.FollowUpAsync(
+                MailSettlementFollowUp.AwaitedReplies,
+                () => this.awaitedReplies.AnswerAsync(account, answerable, cancellationToken),
+                cancellationToken);
 
             if (batch.Count < BatchSize)
             {
@@ -146,6 +155,20 @@ public sealed class MailSettlementPass
         }
 
         return new MailSettlementReport(settledCount, announcedCount, stillSettlingCount);
+    }
+
+    /// <summary>Runs what follows a settled batch, counting a failure rather than letting it stop the pass or the follow-up beside it.</summary>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "The batch is already settled and never read again; a failed follow-up is counted and must neither fail the settlement nor skip the other follow-up.")]
+    private async Task FollowUpAsync(MailSettlementFollowUp followUp, Func<Task> work, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await work();
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            this.telemetry.RecordFollowUpFailed(followUp);
+        }
     }
 
     private async Task<int> AnnounceAsync(MailAccountId account, SettlingEmail[] settled, CancellationToken cancellationToken)
