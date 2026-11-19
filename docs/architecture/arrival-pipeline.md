@@ -242,9 +242,10 @@ also why nothing a held account files locally and nothing a restore appends ever
 Settlement also closes the waits the batch answers, beside the automatic reply and for the same messages: a task a person
 marked as awaited, anchored to a conversation, is completed when a message the run settled arrives in that
 conversation from the person it waits on — or, where it names nobody, from anyone but the account's own sender — and
-what arrives as the copy of a send answers nothing.
+was received after the wait began. What arrives as the copy of a send, history a resynchronization settles again, and
+an automatic or bulk message answer nothing.
 [A wait is closed by the reply it waits for](../features/tasks-from-mail.md#a-wait-is-closed-by-the-reply-it-waits-for)
-holds which senders close one and what closing writes. The two follow-ups run one after the other and independently:
+holds which senders and which messages close one and what closing writes. The two follow-ups run one after the other and independently:
 the batch has already committed and a settled message is never read again, so a failure of either is counted, logged,
 and not retried, and it neither stops the pass nor the other follow-up.
 

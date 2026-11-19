@@ -4654,10 +4654,12 @@ parameter of both list routes, and none is required:
 | `from` and `until` | The tasks due inside the window **or** planned to start inside it, which is what a calendar reads. Both are ISO 8601 instants and are stated together |
 
 **A window matches a task in either of two ways, because a calendar draws a task twice.** A task is inside it when its
-due day falls on a day the window covers — read in the offset `from` carries, so the day is the one the client's own
-zone says — or when its plan starts inside it, which may be a different day altogether: a task due Thursday and planned
-for Friday is in the window of either. The window is half-open, so a plan starting exactly at `until` is outside it,
-and it spans at most 62 days; a window longer than that, one that closes before it opens, or one stating only one of
+due day falls on a day the window covers — the days read in the offset `from` carries, so a caller writing its window
+in its own offset is answered in its own days, and one writing it in UTC, as this repository's client does, is answered
+in UTC's and sorts the tasks onto its own days itself — or when its plan starts inside it, which may be a different day
+altogether: a task due Thursday and planned for Friday is in the window of either. The window is half-open, so a plan
+starting exactly at `until` is outside it, and it spans at most 62 days; a window longer than that, one that closes at
+or before the instant it opens, or one stating only one of
 the two instants is answered `400` naming the rule, as are a malformed `counterpart` and an all-zero identifier. **The
 cursor carries a fingerprint of the whole query** — the half of the list, the person, and every narrowing above — so a
 cursor issued for one query is refused with `400` under any other, which is what stops a walk continuing into a
@@ -4756,8 +4758,8 @@ those accounts. `mailfathom.mail.delete` is the power to remove somebody's mail 
 what leaves is a commitment about a message that stays.
 
 **An open client is told when the list moves.** A task recorded, revised, accepted, completed or reopened, or erased —
-over these routes, through a tool on the MCP surface, or by an Agent act — and a task mail proposed each raise
-`tasks.changed` on [the signal channel](#the-signal-channel) to the person whose list it is and nobody else, naming
+over these routes, through a tool on the MCP surface, or by an Agent act — a task mail proposed, and a wait a settled
+reply closed, each raise `tasks.changed` on [the signal channel](#the-signal-channel) to the person whose list it is and nobody else, naming
 nothing of the task, and the client reads its list again.
 
 ### The day-layout routes

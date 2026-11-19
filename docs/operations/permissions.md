@@ -63,7 +63,7 @@ administrative one and accepted on the other.
 **A domain is a kind of record, and that is what keeps a grant from meaning more than its name.** Tasks, the calendar,
 the notification centre, and a person's profile are each this deployment's own record rather than anything in a
 mailbox, so none of them is read or changed under a mail grant: `mailfathom.mail.read` shows a credential a mailbox and
-nothing its owner wrote beside it, and a credential that keeps somebody's task list needs no mail grant to do it, except to anchor a task to a thread, which asks to read it. Each
+nothing its owner wrote beside it, and a credential that keeps somebody's task list needs no mail grant to do it, except to anchor a task to a thread, which asks to read it, or to an event, which asks `mailfathom.calendar.read`. Each
 of those four has a reading name and a writing name, and holding the first never confers the second — the same
 separation the mail grants make, for the same reason. What decides the domain is where the record lives, not what it
 was derived from: a notification and a proposed task are both drawn from mail and are both this deployment's own rows.

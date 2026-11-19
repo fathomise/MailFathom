@@ -876,10 +876,10 @@ board: no column assigns work to anybody but the person whose list it is.
 | `Origin` | Where the task came from — `Asserted` for one the person entered or accepted, `Proposed` for one read out of mail and not yet committed to — stored as text |
 | `IsCompleted` | Whether the person has done it |
 | `SourceStoredEmailId` | The message the task was read out of, as a plain value carrying no foreign key. Absent where the task cites none, which most do |
-| `Direction` | Whether the person owes it — `Owed` — or waits for somebody else to answer it — `Awaited` — stored as text and defaulted to `Owed` in the database, which is what every task written before the column was |
-| `EstimatedMinutes` | How long the person expects it to take, in whole minutes from 5 to 720, and absent where nobody said |
+| `Direction` | Whether the person owes it — `Owed` — or waits for somebody else to answer it — `Awaited` — stored as text and defaulted to `Owed` in the database, which is what every task written before the column was. `ck_tasks_direction_declared` refuses any other name |
+| `EstimatedMinutes` | How long the person expects it to take, in whole minutes from 5 to 720, and absent where nobody said. `ck_tasks_estimate_bounded` holds it to that range |
 | `PlannedStartAt` | When the person plans to do it, as a `timestamptz` written in UTC. Separate from `DueOn`, because a task due Thursday may be planned for Friday, and a calendar draws it at both |
-| `PlannedMinutes` | How long that planned slot runs. `ck_tasks_plan_complete` holds it present exactly when `PlannedStartAt` is, because half a plan names no slot |
+| `PlannedMinutes` | How long that planned slot runs, in whole minutes from 5 to 720, which `ck_tasks_plan_bounded` holds it to. `ck_tasks_plan_complete` holds it present exactly when `PlannedStartAt` is, because half a plan names no slot |
 | `AnchorThreadId` | The thread the task belongs to, as a plain value carrying no foreign key for the reason `SourceStoredEmailId` carries none. It keeps the identifier it was written with when that thread is later merged into another, and a reader follows the merge instead |
 | `AnchorEventId` | The calendar event the task belongs to, as a value for the same reason. `ck_tasks_single_anchor` holds at most one of the two anchors present |
 | `AnchorLabel` | The subject or event title the anchor was drawn with when the task was written, bounded at 200 characters, so an anchor that is gone still reads. `ck_tasks_anchor_labelled` holds it present exactly when an anchor is |
@@ -888,6 +888,7 @@ board: no column assigns work to anybody but the person whose list it is.
 | `CounterpartDisplayName` | The name that person is drawn with, bounded at 200 characters |
 | `AnswerStoredEmailId` | The reply that closed a wait, as a plain value for the reason the source message is one |
 | `AnsweredAt` | When that reply arrived. `ck_tasks_answer_complete` holds it present exactly when `AnswerStoredEmailId` is, and `ck_tasks_answer_closes_a_wait` holds an answer only on a completed `Awaited` task, which is the one row the domain restores one on. Reopening a wait clears its answer |
+| `WaitingSince` | The instant from which only a later reply answers a wait, as a `timestamptz` written in UTC: when the task became `Awaited`, or, once the person reopened a wait a reply had answered, when that reply arrived. A backfill or a resynchronization settles a thread's history again, and this is what keeps a reply older than the wait from closing it. `ck_tasks_wait_began` holds it present exactly on an `Awaited` task |
 
 **Accepting a proposal moves `Origin` and writes no second row.** That is what keeps a commitment and the suggestion it
 came from one task: whatever already points at the row — a reminder, a citation — still points at it afterwards, and a

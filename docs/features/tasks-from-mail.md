@@ -73,6 +73,19 @@ open wait:
   the copy a send leaves in the sent folder, answers nothing. The step also sees only what the settlement
   itself reads as mail for the person's inbox — what settled as junk, in the trash, or tombstoned is not an answer — and
   only what this run settled, so a message stored already settled closes nothing.
+- **Only a reply received after the wait began.** A backfill or a resynchronization settles years of a thread's history
+  again, so what settles is not necessarily new: an arrival answers a wait only when the date its last receiving hop
+  recorded is later than the instant the wait began — when the task was written down as a wait, or edited into one —
+  and an arrival carrying no such date answers nothing, because nothing says it is new. That is the rule the
+  [automatic reply](automatic-reply.md) applies to the same arrivals for the same reason.
+- **Not what a machine sent.** An arrival that declares itself automatically submitted (`Auto-Submitted`, RFC 3834) or
+  bulk (`Precedence: bulk`, `list`, or `junk`) answers nothing, so an out-of-office notice from the person a wait names
+  leaves it open. A posting a mailing list distributed does answer: a person wrote it, and a conversation on a list is
+  answered through the list. The claim is read from the stored message's own header block, only for an arrival that
+  would otherwise close a wait, and a message whose content cannot be read is taken as a person's reply.
+- **In the thread, or a thread merged into it.** A wait anchored to a conversation threading later merged into the one
+  the arrival is in is answered there too: the step follows every merge back from the arrival's thread, so a wait keeps
+  the identifier it was written with and is still found once its thread has been folded into another.
   An account that configures no sending address leaves the person's own address unknown, so a wait naming a
   counterpart is still closed by that counterpart, while a wait naming nobody stays open there, because nothing tells
   a reply from the person's own message.
@@ -83,7 +96,8 @@ open wait:
   a wait the person completed by hand a moment earlier, or one a second replica closed first, is left as it stands and
   the person is told once.
 - **Reopening clears the answer.** A wait the person reopens is open again with no reply cited, and the next reply in
-  the conversation closes it afresh. The database holds this as a rule of its own: an answer is only ever recorded on
+  the conversation closes it afresh. The wait is then held to begin when the reply it cited arrived: the person has said
+  that reply was not the answer, so settling it again closes nothing, and only a reply after it does. The database holds this as a rule of its own: an answer is only ever recorded on
   a completed `Awaited` task, so the one state that cannot be stored is a reply cited by a task that is not a wait it
   closed. A reply cannot be turned into an owed task either: changing the direction of a wait that has been answered
   is refused with a conflict.
