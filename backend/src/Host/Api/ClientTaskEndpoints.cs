@@ -42,6 +42,8 @@ namespace MailFathom.Host.Api;
 /// or to an event that is not on their calendar, answers <c>404</c> exactly as reading that thread or event would, so a
 /// task is never the way to learn that somebody else's conversation exists. That asks the reading grant of whichever
 /// one the anchor names on top of the task grant, which is the grant that opening it from the task would ask anyway.
+/// A revision keeping the anchor the task already holds is not asked again, because the label is stored so that a task
+/// outlives access to what it was about.
 /// </para>
 /// <para>
 /// <b>No route names a user.</b> The person is the one the credential authenticated, resolved exactly as the record,
@@ -392,7 +394,7 @@ internal static class ClientTaskEndpoints
     /// <param name="threads">Says whether the person may read the thread an anchor names.</param>
     /// <param name="calendar">Says whether the event an anchor names is on the person's calendar.</param>
     /// <param name="cancellationToken">Cancels the read and the write.</param>
-    /// <returns><c>200</c> with the task as it now stands, <c>404</c> where this person holds no such task or its anchor names a thread or event they cannot open, <c>409</c> where a reply has answered it as a wait and the request states it owed, or <c>400</c> naming what the request has to change.</returns>
+    /// <returns><c>200</c> with the task as it now stands, <c>404</c> where this person holds no such task or the request moves its anchor to a thread or event they cannot open, <c>409</c> where a reply has answered it as a wait and the request states it owed, or <c>400</c> naming what the request has to change.</returns>
     /// <remarks>
     /// The whole of what an edit may state rather than the difference from what is held, which is what keeps renaming
     /// a task and taking the date off it one request. What it may not state is where the task came from, whether it is
@@ -446,12 +448,14 @@ internal static class ClientTaskEndpoints
             return refusal;
         }
 
-        if (!await OpensAsync(commitment.Anchor, threads, calendar, cancellationToken))
-        {
-            return TypedResults.NotFound();
-        }
-
-        var revised = await tasks.ReviseAsync(identity, title, dueOn, announcement, commitment, cancellationToken);
+        var revised = await tasks.ReviseAsync(
+            identity,
+            title,
+            dueOn,
+            announcement,
+            commitment,
+            (anchor, token) => OpensAsync(anchor, threads, calendar, token),
+            cancellationToken);
 
         return revised switch
         {
@@ -667,7 +671,6 @@ internal static class ClientTaskEndpoints
     /// </remarks>
     private static bool IsStatableOffset(int offsetMinutes) => offsetMinutes is >= -12 * 60 and <= 14 * 60;
 
-    /// <summary>States that the request carried no task to write.</summary>
     /// <summary>Reads the commitment a request states, or names what it has to change.</summary>
     /// <returns><see langword="null" /> where the commitment was read; otherwise the refusal to answer with.</returns>
     /// <remarks>
@@ -740,9 +743,12 @@ internal static class ClientTaskEndpoints
             return null;
         }
 
-        return kind is TaskAnchorKind.Thread
-            ? TaskAnchor.Thread(EmailThreadId.Create(anchor.Id), anchor.Label)
-            : TaskAnchor.Event(CalendarEventId.Create(anchor.Id), anchor.Label);
+        return kind switch
+        {
+            TaskAnchorKind.Thread => TaskAnchor.Thread(EmailThreadId.Create(anchor.Id), anchor.Label),
+            TaskAnchorKind.Event => TaskAnchor.Event(CalendarEventId.Create(anchor.Id), anchor.Label),
+            _ => null,
+        };
     }
 
     /// <summary>Reads a counterpart a request states, or <see langword="null" /> where it is not one.</summary>
@@ -754,9 +760,15 @@ internal static class ClientTaskEndpoints
             : null;
 
     /// <summary>Reads a declared name of an enumeration exactly as it is written, refusing a number or another casing.</summary>
+    /// <remarks>
+    /// <see cref="Enum.TryParse{TEnum}(string, bool, out TEnum)" /> reads a number as the value it names whether or not
+    /// any member carries it, and an undeclared value writes itself back as that same number, so the round trip alone
+    /// would let one through; being declared is asked separately.
+    /// </remarks>
     private static bool TryReadName<TEnum>(string? written, out TEnum value)
         where TEnum : struct, Enum =>
         Enum.TryParse(written, ignoreCase: false, out value)
+        && Enum.IsDefined(value)
         && string.Equals(value.ToString(), written, StringComparison.Ordinal);
 
     /// <summary>Reports whether a number of minutes is one an estimate or a plan may last.</summary>
@@ -782,6 +794,7 @@ internal static class ClientTaskEndpoints
             _ => false,
         };
 
+    /// <summary>States that the request carried no task to write.</summary>
     private static ProblemHttpResult NoRecord() => Refuse("The request carries no task.");
 
     /// <summary>States that the request named no usable title.</summary>

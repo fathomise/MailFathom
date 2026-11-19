@@ -302,6 +302,7 @@ public sealed class OwnTasksTests
             dueOn: null,
             TaskAnnouncement.Silent,
             TaskCommitment.Owed,
+            OpensNothing,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -327,6 +328,7 @@ public sealed class OwnTasksTests
             dueOn: null,
             TaskAnnouncement.Silent,
             TaskCommitment.Owed,
+            OpensNothing,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -378,6 +380,7 @@ public sealed class OwnTasksTests
             new DateOnly(2026, 9, 21),
             TaskAnnouncement.Silent,
             TaskCommitment.Owed with { EstimatedMinutes = 45, Plan = plan },
+            OpensNothing,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -385,6 +388,59 @@ public sealed class OwnTasksTests
 
         Assert.Equal(plan, reread!.Plan);
         Assert.Equal(45, reread.EstimatedMinutes);
+    }
+
+    /// <summary>The label is kept so a task outlives access to what it was about, so an anchor the task already holds is not read again.</summary>
+    [Fact]
+    public async Task ReviseAsync_AnAnchorTheTaskAlreadyHolds_IsKeptWithoutAskingWhetherItStillOpens()
+    {
+        // Arrange
+        var store = new InMemoryPersonalTaskStore();
+        var waiting = await KeepAsync(store, User, "hear back", dueOn: null, commitment: Awaiting());
+        var asked = 0;
+
+        // Act
+        var revised = await SignedIn(store).ReviseAsync(
+            waiting.Id,
+            "hear back soon",
+            dueOn: null,
+            TaskAnnouncement.Silent,
+            Awaiting() with { Anchor = TaskAnchor.Thread(Thread, "Tender questions, renamed") },
+            (_, _) =>
+            {
+                asked++;
+                return Task.FromResult(false);
+            },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(PersonalTaskChangeOutcome.Applied, revised.Outcome);
+        Assert.Equal("Tender questions, renamed", revised.Task!.Anchor!.Label);
+        Assert.Equal(0, asked);
+    }
+
+    /// <summary>Moving the anchor somewhere new is a new reading, so a place the person cannot open answers as a task they do not hold.</summary>
+    [Fact]
+    public async Task ReviseAsync_MovingTheAnchorSomewhereThePersonCannotOpen_IsNotFoundAndWritesNothing()
+    {
+        // Arrange
+        var store = new InMemoryPersonalTaskStore();
+        var waiting = await KeepAsync(store, User, "hear back", dueOn: null, commitment: Awaiting());
+        var elsewhere = EmailThreadId.Create(new Guid("0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a93"));
+
+        // Act
+        var revised = await SignedIn(store).ReviseAsync(
+            waiting.Id,
+            "hear back",
+            dueOn: null,
+            TaskAnnouncement.Silent,
+            Awaiting() with { Anchor = TaskAnchor.Thread(elsewhere, "Their thread") },
+            OpensNothing,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(PersonalTaskRevisionResult.NotFound, revised);
+        Assert.Equal(Thread, Assert.Single(store.Held).Anchor!.ThreadId);
     }
 
     /// <summary>The reply closed a wait, so the person turning it into something they owe is refused rather than rewriting what the reply answered.</summary>
@@ -403,6 +459,7 @@ public sealed class OwnTasksTests
             dueOn: null,
             TaskAnnouncement.Silent,
             TaskCommitment.Owed,
+            OpensNothing,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -440,6 +497,7 @@ public sealed class OwnTasksTests
             dueOn: null,
             TaskAnnouncement.Silent,
             TaskCommitment.Owed,
+            OpensNothing,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -658,7 +716,7 @@ public sealed class OwnTasksTests
         foreach (var write in new Func<Task>[]
         {
             () => tasks.RecordAsync("call back", null, TaskAnnouncement.Silent, TaskCommitment.Owed, null, TestContext.Current.CancellationToken),
-            () => tasks.ReviseAsync(proposed.Id, "call back soon", null, TaskAnnouncement.Silent, TaskCommitment.Owed, TestContext.Current.CancellationToken),
+            () => tasks.ReviseAsync(proposed.Id, "call back soon", null, TaskAnnouncement.Silent, TaskCommitment.Owed, OpensNothing, TestContext.Current.CancellationToken),
             () => tasks.AcceptAsync(proposed.Id, TestContext.Current.CancellationToken),
             () => tasks.SetCompletionAsync(proposed.Id, isCompleted: true, TestContext.Current.CancellationToken),
             () => tasks.EraseAsync(proposed.Id, TestContext.Current.CancellationToken),
@@ -687,7 +745,7 @@ public sealed class OwnTasksTests
         var tasks = Signed(store, User, signals);
 
         // Act
-        await tasks.ReviseAsync(theirs.Id, "mine now", null, TaskAnnouncement.Silent, TaskCommitment.Owed, TestContext.Current.CancellationToken);
+        await tasks.ReviseAsync(theirs.Id, "mine now", null, TaskAnnouncement.Silent, TaskCommitment.Owed, OpensNothing, TestContext.Current.CancellationToken);
         await tasks.AcceptAsync(theirs.Id, TestContext.Current.CancellationToken);
         await tasks.EraseAsync(theirs.Id, TestContext.Current.CancellationToken);
         clock.Advance(ClientSignals.FoldingWindow);
@@ -704,6 +762,8 @@ public sealed class OwnTasksTests
         store,
         new FakeTimeProvider(Stamped),
         signals ?? ClientSignalPublishers.ReachingNobody);
+
+    private static Task<bool> OpensNothing(TaskAnchor anchor, CancellationToken cancellationToken) => Task.FromResult(false);
 
     private static TaskCounterpart Counterpart() =>
         new(EmailAddress.TryCreate(null, "buyer@example.test", out var address) ? address : default, "The buyer");

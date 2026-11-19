@@ -281,6 +281,7 @@ public sealed class ClientTaskEndpointsTests
     [Theory]
     [InlineData("awaited")]
     [InlineData("1")]
+    [InlineData("2")]
     [InlineData("Delegated")]
     public async Task RecordAsync_ADirectionNoTaskTakes_IsRefused(string direction)
     {
@@ -303,6 +304,78 @@ public sealed class ClientTaskEndpointsTests
 
         Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
         Assert.DoesNotContain(direction, refusal.ProblemDetails.Detail, StringComparison.Ordinal);
+    }
+
+    /// <summary>Only the two kinds are names an anchor takes, so a number past them is refused rather than read as one of them.</summary>
+    [Theory]
+    [InlineData("2")]
+    [InlineData("1")]
+    [InlineData("thread")]
+    public async Task RecordAsync_AnAnchorKindNoTaskTakes_IsRefused(string kind)
+    {
+        // Arrange
+        var store = Substitute.For<IPersonalTaskStore>();
+
+        // Act
+        var result = await ClientTaskEndpoints.RecordAsync(
+            Anchored(new ClientTaskAnchor(kind, ThreadIdentifier, "Tender questions")),
+            SignedIn(store),
+            Threads(readable: true),
+            Calendar(holding: null),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+        await store.DidNotReceiveWithAnyArgs().AddAsync(default!, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>The label is kept so a task outlives access to what it was about, so keeping an anchor the person can no longer open is not a new reading of it.</summary>
+    [Fact]
+    public async Task ReviseAsync_KeepingAnAnchorThePersonCanNoLongerOpen_WritesTheRevision()
+    {
+        // Arrange
+        var store = Substitute.For<IPersonalTaskStore>();
+        store.FindAsync(User, PersonalTaskId.Create(TaskIdentifier), Arg.Any<CancellationToken>())
+            .Returns(AnchoredToTheThread());
+        store.ReviseAsync(Arg.Any<PersonalTask>(), Arg.Any<CancellationToken>())
+            .Returns(PersonalTaskChangeOutcome.Applied);
+
+        // Act
+        var result = await ClientTaskEndpoints.ReviseAsync(
+            TaskIdentifier,
+            Anchored(new ClientTaskAnchor("Thread", ThreadIdentifier, "Tender questions, renamed")),
+            SignedIn(store),
+            Threads(readable: false),
+            Calendar(holding: null),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var revised = Assert.IsType<Ok<ClientTaskResponse>>(result.Result).Value!;
+
+        Assert.Equal("Tender questions, renamed", revised.Anchor!.Label);
+    }
+
+    /// <summary>Moving the anchor somewhere new is a new reading, so a place the person cannot open still answers as one that does not exist.</summary>
+    [Fact]
+    public async Task ReviseAsync_MovingTheAnchorToAnEventNotOnTheirCalendar_IsNotFound()
+    {
+        // Arrange
+        var store = Substitute.For<IPersonalTaskStore>();
+        store.FindAsync(User, PersonalTaskId.Create(TaskIdentifier), Arg.Any<CancellationToken>())
+            .Returns(AnchoredToTheThread());
+
+        // Act
+        var result = await ClientTaskEndpoints.ReviseAsync(
+            TaskIdentifier,
+            Anchored(new ClientTaskAnchor("Event", ThreadIdentifier, "Their meeting")),
+            SignedIn(store),
+            Threads(readable: true),
+            Calendar(holding: null),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NotFound>(result.Result);
+        await store.DidNotReceiveWithAnyArgs().ReviseAsync(default!, TestContext.Current.CancellationToken);
     }
 
     /// <summary>The reply closed this wait, so turning it into something owed is a conflict with what the list holds rather than a malformed request.</summary>
@@ -990,6 +1063,18 @@ public sealed class ClientTaskEndpointsTests
         DueDayOffsetMinutes: null,
         SourceMessageId: null,
         Anchor: anchor);
+
+    private static PersonalTask AnchoredToTheThread() => PersonalTask.Restore(
+        PersonalTaskId.Create(TaskIdentifier),
+        User,
+        "Answer the tender",
+        dueOn: null,
+        TaskAnnouncement.Silent,
+        PersonalTaskOrigin.Asserted,
+        sourceMessage: null,
+        isCompleted: false,
+        TaskCommitment.Owed with { Anchor = TaskAnchor.Thread(EmailThreadId.Create(ThreadIdentifier), "Tender questions") },
+        answer: null);
 
     private static PersonalTask Answered() => PersonalTask.Restore(
         PersonalTaskId.Create(TaskIdentifier),

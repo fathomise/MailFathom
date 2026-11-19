@@ -198,13 +198,14 @@ public sealed class OwnTasks
     /// <param name="dueOn">The day it is due on, or <see langword="null" /> where they took the date off it.</param>
     /// <param name="announcement">What announces it afterwards and the offset their due day runs in, or <see cref="TaskAnnouncement.Silent" /> to announce nothing.</param>
     /// <param name="commitment">The commitment as it is to stand from now on, which replaces the one the task held.</param>
+    /// <param name="opensAnchor">Says whether the person can open what an anchor names, asked only of an anchor the task does not already hold.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>
     /// The task as it now stands; <see cref="PersonalTaskRevisionResult.NotFound" /> when this person holds none under
-    /// that identity; or <see cref="PersonalTaskRevisionResult.AnsweredWait" /> when a reply answered it as a wait and
+    /// that identity, or when the edit moves its anchor to a thread or event they cannot open; or <see cref="PersonalTaskRevisionResult.AnsweredWait" /> when a reply answered it as a wait and
     /// the edit states the other direction.
     /// </returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" /> or <paramref name="commitment" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="announcement" />, <paramref name="commitment" />, or <paramref name="opensAnchor" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="title" /> is blank, when one lead is stated twice, or when leads are stated against no due day.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="title" /> exceeds <see cref="PersonalTask.MaximumTitleLength" />, or when more than <see cref="Reminder.MaximumCount" /> leads are stated.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller acts for no user, or its grant omits <see cref="MailFathomPermission.TasksWrite" />.</exception>
@@ -223,6 +224,12 @@ public sealed class OwnTasks
     /// answered, because the answer belongs to the wait it closed — and a reply arriving after the read and before the
     /// write is refused by the store in the same words.
     /// </para>
+    /// <para>
+    /// An anchor the task already holds is kept without asking whether the person can still open it, because its label
+    /// is stored exactly so that a task outlives access to what it was about: an account taken away or an event deleted
+    /// must not lock the person out of editing their own task. Only an anchor the edit moves somewhere new is a new
+    /// reading, and a place they cannot open answers as a task they do not hold, so nothing reports that it exists.
+    /// </para>
     /// </remarks>
     public async Task<PersonalTaskRevisionResult> ReviseAsync(
         PersonalTaskId task,
@@ -230,9 +237,11 @@ public sealed class OwnTasks
         DateOnly? dueOn,
         TaskAnnouncement announcement,
         TaskCommitment commitment,
+        Func<TaskAnchor, CancellationToken, Task<bool>> opensAnchor,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(commitment);
+        ArgumentNullException.ThrowIfNull(opensAnchor);
 
         this.authorization.RequirePermission(MailFathomPermission.TasksWrite);
 
@@ -246,6 +255,13 @@ public sealed class OwnTasks
         if (held.Answer is not null && commitment.Direction != held.Direction)
         {
             return PersonalTaskRevisionResult.AnsweredWait;
+        }
+
+        if (commitment.Anchor is { } anchor
+            && !NamesTheSamePlace(anchor, held.Anchor)
+            && !await opensAnchor(anchor, cancellationToken))
+        {
+            return PersonalTaskRevisionResult.NotFound;
         }
 
         var revision = held.Revise(title, dueOn, announcement, commitment);
@@ -330,6 +346,13 @@ public sealed class OwnTasks
 
         return true;
     }
+
+    /// <summary>Reports whether two anchors name the same thread or event, whatever label each is drawn with.</summary>
+    private static bool NamesTheSamePlace(TaskAnchor anchor, TaskAnchor? held) =>
+        held is not null
+        && anchor.Kind == held.Kind
+        && anchor.ThreadId == held.ThreadId
+        && anchor.EventId == held.EventId;
 
     /// <summary>Reduces the reading's own narrowing to the fingerprint its cursors carry.</summary>
     /// <remarks>
