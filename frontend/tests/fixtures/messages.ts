@@ -34,6 +34,12 @@ export const markupOnlySubject = 'Your order is on its way';
 /** What the one attached file holds — small enough to state here, and large enough to arrive as more than nothing. */
 export const attachedOctets = 'order,quantity\nkettle,1\n';
 
+/** The inbox row whose message asks for replies to go to somebody other than its author. @see redirectedReplyMessage */
+export const redirectedReplyId = 'message-10';
+
+/** The `Reply-To` {@link redirectedReplyMessage} carries beside the newsletter's own author. */
+export const redirectedReplyTo = { role: 'ReplyTo', address: 'desk@elsewhere.invalid', displayName: 'Accounts desk' };
+
 /** The second row of the inbox, whose source the deployment fails to serve, so asking for it answers `503`. */
 export const unavailableSourceId = 'message-1';
 
@@ -320,6 +326,18 @@ export const newsletterMessage = {
     unread: true,
     flagged: false,
     answered: false,
+};
+
+/**
+ * The newsletter as the inbox row under {@link redirectedReplyId} answers it: asking for replies to go to somebody other
+ * than its author, which is what an answer to it is addressed by in the author's place and what the composer warns about.
+ */
+export const redirectedReplyMessage = {
+    ...newsletterMessage,
+    headers: {
+        ...newsletterMessage.headers,
+        participants: [...newsletterMessage.headers.participants, redirectedReplyTo],
+    },
 };
 
 /**

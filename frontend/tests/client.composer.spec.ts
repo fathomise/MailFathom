@@ -264,6 +264,38 @@ test('addresses a reply to the author alone, and a reply to everyone to the othe
     ]);
 });
 
+// Nothing authenticates Reply-To, so a genuine author beside a stranger's Reply-To is how a message takes the answer
+// somewhere else. The reply goes where the message asked, and the composer says so, naming both sides, until the person
+// takes that address out of the recipients.
+test('warns that a reply goes to the Reply-To rather than the author, until that address is taken out', async ({
+    page,
+    deployment,
+}) => {
+    const { address: replyTo, displayName } = messages.redirectedReplyTo;
+
+    await openMailWriting(page, deployment);
+    await page
+        .getByRole('listbox', { name: 'Messages' })
+        .getByRole('option', { name: /\bMessage 10\b/u })
+        .click();
+    await expect(page.getByRole('article', messageRegion)).toBeVisible();
+    await page
+        .getByRole('toolbar', { name: 'Mail actions' })
+        .getByRole('button', { name: 'Reply', exact: true })
+        .click();
+
+    const composer = page.getByRole('region', { name: 'Reply', exact: true });
+    const warning = composer.getByRole('alert');
+
+    await expect(warning).toHaveText(
+        `This answer goes to ${displayName} <${replyTo}>, not to the author, Example <news@example.invalid>: the message asked for replies to go there.`,
+    );
+
+    await composer.getByRole('button', { name: `Remove ${replyTo} from To` }).click();
+
+    await expect(warning).toHaveCount(0);
+});
+
 test('shows the copy headers, keeps what they hold while hidden, and sends nothing from them once they are hidden', async ({
     page,
     deployment,

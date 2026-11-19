@@ -1587,6 +1587,42 @@
       ]
     },
     {
+      "id": "composer-reply-redirected",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Messages"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "name": "Message 10"
+          }
+        },
+        {
+          "expect": {
+            "role": "article"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Reply",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "text": "This answer goes to Accounts desk <desk@elsewhere.invalid>, not to the author, Example <news@example.invalid>: the message asked for replies to go there."
+          }
+        }
+      ]
+    },
+    {
       "id": "mail-own-footer",
       "route": "/#/mail",
       "signIn": true,

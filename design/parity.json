@@ -996,6 +996,37 @@
         }
       ]
     },
+    "composer-reply-redirected": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Contract addendum - signatures"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Reply",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "text": "This answer goes to Frida Iversen <frida.iversen@contoso.example>, not to the author, Anna Kowalska <a.kowalska@contoso.example>: the message asked for replies to go there."
+          }
+        }
+      ]
+    },
     "mail-own-footer": {
       "file": "prototype.dc.html",
       "properties": {
