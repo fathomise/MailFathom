@@ -213,6 +213,18 @@ internal static class AgentConversationReadings
     /// <summary>The value <see cref="OriginAttributeName" /> carries for a task mail proposed and nobody has accepted.</summary>
     internal const string ProposedFromMailOrigin = "proposed-from-mail";
 
+    /// <summary>Names the attribute carrying whether the person owes a task or waits for it.</summary>
+    internal const string DirectionAttributeName = "direction";
+
+    /// <summary>The value <see cref="DirectionAttributeName" /> carries for a task the person owes.</summary>
+    internal const string OwedDirection = "owed";
+
+    /// <summary>The value <see cref="DirectionAttributeName" /> carries for a task the person waits for somebody else to do.</summary>
+    internal const string WaitingForDirection = "waiting for";
+
+    /// <summary>Names the attribute carrying the time set aside for a task, absent where none is.</summary>
+    internal const string PlannedAttributeName = "planned";
+
     /// <summary>Names the attribute carrying the day a task is due.</summary>
     internal const string DueAttributeName = "due";
 
@@ -596,7 +608,9 @@ internal static class AgentConversationReadings
             document.StartElement(TaskElementName);
             document.WriteAttribute(StateAttributeName, task.IsCompleted ? DoneState : OpenState);
             document.WriteAttribute(OriginAttributeName, task.Origin is PersonalTaskOrigin.Proposed ? ProposedFromMailOrigin : PersonOrigin);
+            document.WriteAttribute(DirectionAttributeName, task.Direction is PersonalTaskDirection.Awaited ? WaitingForDirection : OwedDirection);
             WriteOptional(document, DueAttributeName, task.DueOn?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            WriteOptional(document, PlannedAttributeName, task.Plan is { } plan ? $"planned {Instant(plan.StartAt)}, {plan.Minutes.ToString(CultureInfo.InvariantCulture)} min" : null);
             document.WriteQuoted(TitleElementName, task.Title);
             document.EndElement();
         }
@@ -755,6 +769,14 @@ internal sealed record GuardedCalendarReading(DateTimeOffset Start, DateTimeOffs
 /// <summary>One task as the Agent is shown it, its title already guarded.</summary>
 /// <param name="IsCompleted">Whether it is done.</param>
 /// <param name="Origin">Where it came from.</param>
+/// <param name="Direction">Whether the person owes it or waits for it.</param>
 /// <param name="DueOn">The day it is due, where it has one.</param>
+/// <param name="Plan">The time set aside for it, where some is.</param>
 /// <param name="Title">The guarded title.</param>
-internal sealed record GuardedTaskReading(bool IsCompleted, PersonalTaskOrigin Origin, DateOnly? DueOn, string Title);
+internal sealed record GuardedTaskReading(
+    bool IsCompleted,
+    PersonalTaskOrigin Origin,
+    PersonalTaskDirection Direction,
+    DateOnly? DueOn,
+    TaskPlan? Plan,
+    string Title);

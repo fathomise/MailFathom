@@ -63,6 +63,9 @@ internal static class DayLayoutInstructions
     /// <summary>Names the attribute carrying the day a task is due, absent where it states none.</summary>
     internal const string DueAttributeName = "due";
 
+    /// <summary>Names the attribute carrying how many minutes the person expects a task to take, absent where they state none.</summary>
+    internal const string EstimateAttributeName = "estimate";
+
     /// <summary>Names the element carrying a task's or a commitment's title.</summary>
     internal const string TitleElementName = "title";
 
@@ -103,8 +106,9 @@ internal static class DayLayoutInstructions
         {DayLayoutPlacement.MinimumMinutes} and {DayLayoutPlacement.MaximumMinutes}.
 
         Place nothing over a commitment the turn listed and nothing over another placement, leave a little room between
-        one piece of work and the next, and put what is due soonest first. Judge how long something takes from what it
-        says it is; where you cannot tell, allow {DayLayoutPlacement.DefaultMinutes} minutes.
+        one piece of work and the next, and put what is due soonest first. Where a task carries an "{EstimateAttributeName}" in
+        minutes, that is how long the person expects it to take: allow about that. Otherwise judge how long something
+        takes from what it says it is; where you cannot tell, allow {DayLayoutPlacement.DefaultMinutes} minutes.
 
         "notToday" is an array of the positions of the tasks that do not fit the day — the ones left after the window
         is full, or that plainly need more of the day than is free. Every task the turn gave you belongs in exactly one
@@ -210,6 +214,11 @@ internal static class DayLayoutInstructions
             if (task.DueOn is { } day)
             {
                 document.WriteAttribute(DueAttributeName, day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            }
+
+            if (task.EstimatedMinutes is { } estimate)
+            {
+                document.WriteAttribute(EstimateAttributeName, estimate.ToString(CultureInfo.InvariantCulture));
             }
 
             document.WriteQuoted(TitleElementName, titles[position]);

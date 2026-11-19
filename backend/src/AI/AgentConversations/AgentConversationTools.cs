@@ -1433,7 +1433,7 @@ internal sealed partial class AgentConversationTools
             cancellationToken);
 
         return AgentConversationReadings.Tasks(
-            [.. read.Select((task, index) => new GuardedTaskReading(task.IsCompleted, task.Origin, task.DueOn, titles[index]))]);
+            [.. read.Select((task, index) => new GuardedTaskReading(task.IsCompleted, task.Origin, task.Direction, task.DueOn, task.Plan, titles[index]))]);
     }
 
     [Description("Proposes a new email.")]

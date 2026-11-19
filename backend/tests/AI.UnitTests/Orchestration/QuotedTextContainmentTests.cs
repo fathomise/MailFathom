@@ -203,7 +203,7 @@ public sealed class QuotedTextContainmentTests
                 static text => AgentHistoryDocument.MessageOf(new AgentProposedMessageTurn(text, ["anna@example.test"])).Text,
                 AgentHistoryDocument.SubjectElementName),
             ["agent tasks: title"] = (
-                static text => AgentConversationReadings.Tasks([new GuardedTaskReading(IsCompleted: false, PersonalTaskOrigin.Proposed, DueOn: null, text)]),
+                static text => AgentConversationReadings.Tasks([new GuardedTaskReading(IsCompleted: false, PersonalTaskOrigin.Proposed, PersonalTaskDirection.Owed, DueOn: null, Plan: null, text)]),
                 AgentConversationReadings.TitleElementName),
             ["enrichment: subject"] = (
                 static text => EmailEnrichmentInstructions.ComposeEnrichmentTurn(text, Now, KnowledgePassages.KnownCorrespondent, [Harmless]),

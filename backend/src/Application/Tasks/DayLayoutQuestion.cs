@@ -34,7 +34,8 @@ public sealed record DayLayoutQuestion(
 /// <param name="Id">What addresses the task, which the arrangement names it by and no provider is shown.</param>
 /// <param name="Title">The line the task is drawn with, which is derived personal data.</param>
 /// <param name="DueOn">The day it is due on, or <see langword="null" /> where nobody has said when.</param>
-public sealed record DayLayoutTask(PersonalTaskId Id, string Title, DateOnly? DueOn);
+/// <param name="EstimatedMinutes">How long the person expects it to take, handed to the planner as a hint, or <see langword="null" /> where nobody has said.</param>
+public sealed record DayLayoutTask(PersonalTaskId Id, string Title, DateOnly? DueOn, int? EstimatedMinutes = null);
 
 /// <summary>One thing the person is already committed to during the day being laid out.</summary>
 /// <remarks>

@@ -101,9 +101,11 @@ public sealed class TodayLayout
     /// <exception cref="OperationCanceledException">Thrown when the caller cancels.</exception>
     /// <remarks>
     /// The deployment's state is asked first, so an instance that lays out no day reads nobody's tasks and nobody's
-    /// calendar to say so. What is laid out is what the person owes and has not done by that day — a task they have
-    /// already completed is not work the day has to hold, and one mail proposed and nobody accepted is not work they
-    /// owe at all, which is why only the committed half is read.
+    /// calendar to say so. What is laid out is what the person owes and has not done by that day and has set no time
+    /// aside for in it — a task they have already completed is not work the day has to hold, a task they wait for is
+    /// somebody else's move, and one mail proposed and nobody accepted is not work they owe at all, which is why only
+    /// the committed half is read. A block already set aside is fixed in the day like an event, so it is passed as a
+    /// commitment.
     /// </remarks>
     public async Task<DayLayoutDerivation?> SuggestAsync(
         DateTimeOffset dayStart,
@@ -128,7 +130,7 @@ public sealed class TodayLayout
             return DayLayoutDerivation.Withholding(DayLayoutWithholding.NotActivated);
         }
 
-        var owed = await this.ReadOwedAsync(dayStart, cancellationToken);
+        var open = await this.ReadOpenAsync(cancellationToken);
         var committed = await this.calendar.ReadWindowAsync(
             dayStart,
             dayEnd,
@@ -147,41 +149,64 @@ public sealed class TodayLayout
         using var actingFor = this.egressGuard.ActingFor(
             await this.egressGuard.ReadPostureAcrossAccountsOfAsync(user, cancellationToken));
 
+        // A block the person already set aside for a task is as fixed as an event, so it joins the commitments.
+        var blocks = open
+            .Where(task => IsPlannedWithin(task, dayStart, dayEnd))
+            .Select(static task => new DayLayoutCommitment(task.Title, task.Plan!.StartAt, task.Plan.StartAt.AddMinutes(task.Plan.Minutes)));
+
         return await this.planner.SuggestAsync(
             new DayLayoutQuestion(
                 dayStart,
                 dayEnd,
-                owed,
-                [.. committed.Select(static held => new DayLayoutCommitment(held.Title.Value, held.Start, held.End))]),
+                Unplanned(open, dayStart, dayEnd),
+                [
+                    .. committed
+                        .Select(static held => new DayLayoutCommitment(held.Title.Value, held.Start, held.End))
+                        .Concat(blocks)
+                        .OrderBy(static held => held.Start)
+                        .Take(MaximumCommitments),
+                ]),
             cancellationToken);
     }
 
-    /// <summary>Reads what the person owes by the end of the day being arranged, soonest due first.</summary>
+    /// <summary>Reads what the person has committed to and not done, soonest due first.</summary>
     /// <remarks>
     /// One page, because the list is read soonest due first with the undated last: everything due by that day stands
-    /// at the front of it, and a page of the size this reads is far past what a day could hold. A task with no day on
-    /// it is not part of any particular day and is left where it is, so an arrangement never quietly decides that
-    /// something nobody dated is due now.
+    /// at the front of it, and a page of the size this reads is far past what a day could hold.
     /// </remarks>
-    private async Task<IReadOnlyList<DayLayoutTask>> ReadOwedAsync(
-        DateTimeOffset dayStart,
-        CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<PersonalTask>> ReadOpenAsync(CancellationToken cancellationToken)
     {
-        var day = DateOnly.FromDateTime(dayStart.DateTime);
         var page = await this.tasks.ReadPageAsync(
             new PersonalTaskQuery(PersonalTaskOrigin.Asserted),
             OwnTasks.MaximumPageSize,
             cursor: null,
             cancellationToken);
 
-        return page is null
-            ? []
-            :
-            [
-                .. page.Tasks
-                    .Where(task => !task.IsCompleted && task.DueOn is { } due && due <= day)
-                    .Take(MaximumTasks)
-                    .Select(static task => new DayLayoutTask(task.Id, task.Title, task.DueOn)),
-            ];
+        return page is null ? [] : [.. page.Tasks.Where(static task => !task.IsCompleted)];
     }
+
+    /// <summary>Picks what the day is still to place: what the person owes by that day and has set no time aside for in it.</summary>
+    /// <remarks>
+    /// A task with no day on it is not part of any particular day and is left where it is, so an arrangement never
+    /// quietly decides that something nobody dated is due now. A task the person waits for is somebody else's move and
+    /// is never offered, and one already planned inside the window is a commitment rather than work to place twice.
+    /// </remarks>
+    private static IReadOnlyList<DayLayoutTask> Unplanned(IReadOnlyList<PersonalTask> open, DateTimeOffset dayStart, DateTimeOffset dayEnd)
+    {
+        var day = DateOnly.FromDateTime(dayStart.DateTime);
+
+        return
+        [
+            .. open
+                .Where(task => task.Direction == PersonalTaskDirection.Owed
+                    && task.DueOn is { } due
+                    && due <= day
+                    && !IsPlannedWithin(task, dayStart, dayEnd))
+                .Take(MaximumTasks)
+                .Select(static task => new DayLayoutTask(task.Id, task.Title, task.DueOn, task.EstimatedMinutes)),
+        ];
+    }
+
+    private static bool IsPlannedWithin(PersonalTask task, DateTimeOffset dayStart, DateTimeOffset dayEnd) =>
+        task.Plan is { } plan && plan.StartAt >= dayStart && plan.StartAt < dayEnd;
 }

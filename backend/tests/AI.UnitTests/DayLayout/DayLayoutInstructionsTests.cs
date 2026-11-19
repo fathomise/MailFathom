@@ -37,6 +37,25 @@ public sealed class DayLayoutInstructionsTests
                 (string?)task.Element(DayLayoutInstructions.TitleElementName))));
     }
 
+    /// <summary>What the person estimated is a hint written beside the task, and a task with none carries no attribute.</summary>
+    [Fact]
+    public void ComposeLayoutTurn_ATaskWithAnEstimate_WritesItAsAHintAndOnlyOnThatTask()
+    {
+        // Arrange
+        var question = Day(
+            new DayLayoutTask(PersonalTaskId.Create(Guid.CreateVersion7()), "unused", null, EstimatedMinutes: 45),
+            Owed(dueOn: null));
+
+        // Act
+        var turn = DayLayoutInstructions.ComposeLayoutTurn(question, ["Write the report", "Check the itinerary"], []);
+
+        // Assert
+        Assert.Equal(
+            ["45", null],
+            Tasks(turn).Select(static task => (string?)task.Attribute(DayLayoutInstructions.EstimateAttributeName)));
+        Assert.Contains(DayLayoutInstructions.EstimateAttributeName, DayLayoutInstructions.Text, StringComparison.Ordinal);
+    }
+
     /// <summary>The budget is the writer's, so a list longer than the bound stops at the task it cut and still parses.</summary>
     [Fact]
     public void ComposeLayoutTurn_TasksLongerThanTheBound_StaysWithinItAndWritesNoTaskPastTheCut()

@@ -278,6 +278,102 @@ public sealed class TodayLayoutTests
         Assert.Equal(MailFathomPermission.AssistantUse, refusal.RequiredPermission);
     }
 
+    /// <summary>A block the person already set aside is fixed in the day, so it is a commitment to arrange around and not work to place twice.</summary>
+    [Fact]
+    public async Task SuggestAsync_ATaskPlannedToday_IsACommitmentNotATaskToPlace()
+    {
+        // Arrange
+        DayLayoutQuestion? asked = null;
+        var planner = PlannerAnswering(question =>
+        {
+            asked = question;
+
+            return DayLayoutDerivation.Settled(new DayLayoutSuggestion([], []));
+        });
+
+        var planned = TaskCommitment.Owed with { Plan = TaskPlan.Create(DayStart.AddHours(3), 90) };
+        var plannedElsewhere = TaskCommitment.Owed with { Plan = TaskPlan.Create(DayStart.AddDays(1), 30) };
+
+        var layout = Compose(
+            planner,
+            owed:
+            [
+                Owed("Write the report", Day, commitment: planned),
+                Owed("Answer the supplier", Day),
+                Owed("Planned tomorrow", Day, commitment: plannedElsewhere),
+            ],
+            committed: [Committed("Standup", DayStart.AddHours(1))]);
+
+        // Act
+        await layout.SuggestAsync(DayStart, DayEnd, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(asked);
+        Assert.Equal(["Answer the supplier", "Planned tomorrow"], asked.Tasks.Select(task => task.Title));
+
+        var blocks = asked.Commitments.OrderBy(block => block.Start).ToList();
+        Assert.Equal(["Standup", "Write the report"], blocks.Select(block => block.Title));
+        Assert.Equal(DayStart.AddHours(3), blocks[1].Start);
+        Assert.Equal(DayStart.AddHours(3).AddMinutes(90), blocks[1].End);
+    }
+
+    /// <summary>A task the person waits on is not theirs to do, so no day is arranged around it, however it is dated.</summary>
+    [Fact]
+    public async Task SuggestAsync_AWaitingTask_IsNotOffered()
+    {
+        // Arrange
+        DayLayoutQuestion? asked = null;
+        var planner = PlannerAnswering(question =>
+        {
+            asked = question;
+
+            return DayLayoutDerivation.Settled(new DayLayoutSuggestion([], []));
+        });
+
+        var awaited = TaskCommitment.Owed with { Direction = PersonalTaskDirection.Awaited };
+        var layout = Compose(
+            planner,
+            owed: [Owed("Supplier sends the contract", Day, commitment: awaited), Owed("Answer the supplier", Day)],
+            committed: []);
+
+        // Act
+        await layout.SuggestAsync(DayStart, DayEnd, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(asked);
+        Assert.Equal("Answer the supplier", Assert.Single(asked.Tasks).Title);
+    }
+
+    /// <summary>What the person estimated reaches the planner as a hint for how long to allow.</summary>
+    [Fact]
+    public async Task SuggestAsync_ATaskWithAnEstimate_HandsItToThePlanner()
+    {
+        // Arrange
+        DayLayoutQuestion? asked = null;
+        var planner = PlannerAnswering(question =>
+        {
+            asked = question;
+
+            return DayLayoutDerivation.Settled(new DayLayoutSuggestion([], []));
+        });
+
+        var layout = Compose(
+            planner,
+            owed:
+            [
+                Owed("Write the report", Day, commitment: TaskCommitment.Owed with { EstimatedMinutes = 45 }),
+                Owed("Answer the supplier", Day),
+            ],
+            committed: []);
+
+        // Act
+        await layout.SuggestAsync(DayStart, DayEnd, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(asked);
+        Assert.Equal([45, null], asked.Tasks.Select(task => task.EstimatedMinutes));
+    }
+
     private static IDayLayoutPlanner PlannerAnswering(Func<DayLayoutQuestion, DayLayoutDerivation> answer)
     {
         var planner = Substitute.For<IDayLayoutPlanner>();
@@ -289,7 +385,11 @@ public sealed class TodayLayoutTests
         return planner;
     }
 
-    private static PersonalTask Owed(string title, DateOnly? dueOn, bool isCompleted = false) => PersonalTask.Restore(
+    private static PersonalTask Owed(
+        string title,
+        DateOnly? dueOn,
+        bool isCompleted = false,
+        TaskCommitment? commitment = null) => PersonalTask.Restore(
         PersonalTaskId.Create(Guid.CreateVersion7()),
         Person,
         title,
@@ -298,7 +398,7 @@ public sealed class TodayLayoutTests
         PersonalTaskOrigin.Asserted,
         sourceMessage: null,
         isCompleted,
-        TaskCommitment.Owed,
+        commitment ?? TaskCommitment.Owed,
         answer: null);
 
     private static CalendarEvent Committed(string title, DateTimeOffset start) => CalendarEvent.Create(

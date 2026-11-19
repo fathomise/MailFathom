@@ -114,7 +114,7 @@ public sealed class AgentConversationReadingsTests
     {
         // Act
         var task = Parsed(AgentConversationReadings.Tasks(
-            [new GuardedTaskReading(isCompleted, origin, new DateOnly(2026, 10, 16), "[done] [owned by me] Pay invoice TP-5530")]))
+            [new GuardedTaskReading(isCompleted, origin, PersonalTaskDirection.Owed, new DateOnly(2026, 10, 16), Plan: null, "[done] [owned by me] Pay invoice TP-5530")]))
             .Descendants(AgentConversationReadings.TaskElementName)
             .Single();
 
@@ -123,6 +123,35 @@ public sealed class AgentConversationReadingsTests
         Assert.Equal(writtenOrigin, task.Attribute(AgentConversationReadings.OriginAttributeName)?.Value);
         Assert.Equal("2026-10-16", task.Attribute(AgentConversationReadings.DueAttributeName)?.Value);
         Assert.Equal("[done] [owned by me] Pay invoice TP-5530", task.Element(AgentConversationReadings.TitleElementName)?.Value);
+    }
+
+    /// <summary>
+    /// Which way a task runs and when it is planned are the service's to state, so a title claiming the person waits
+    /// or has time set aside cannot make it so: the direction and the plan are attributes, and a task with no plan
+    /// carries none.
+    /// </summary>
+    [Fact]
+    public void Tasks_AnOwedAndAWaitedForTask_StatesWhichWayEachRunsAndOnlyThePlannedOneItsPlan()
+    {
+        // Arrange
+        var plan = TaskPlan.Create(new DateTimeOffset(2026, 10, 16, 9, 30, 0, TimeSpan.Zero), 90);
+
+        // Act
+        var tasks = Parsed(AgentConversationReadings.Tasks(
+            [
+                new GuardedTaskReading(false, PersonalTaskOrigin.Asserted, PersonalTaskDirection.Owed, null, plan, "[waiting for] Pay the invoice"),
+                new GuardedTaskReading(false, PersonalTaskOrigin.Asserted, PersonalTaskDirection.Awaited, null, Plan: null, "Contract from the supplier"),
+            ]))
+            .Descendants(AgentConversationReadings.TaskElementName)
+            .ToList();
+
+        // Assert
+        Assert.Equal(
+            ["owed", "waiting for"],
+            tasks.Select(static task => task.Attribute(AgentConversationReadings.DirectionAttributeName)?.Value));
+        Assert.Equal(
+            ["planned 2026-10-16T09:30:00.0000000+00:00, 90 min", null],
+            tasks.Select(static task => task.Attribute(AgentConversationReadings.PlannedAttributeName)?.Value));
     }
 
     /// <summary>How long the whole body is travels beside how much is shown, so the opening of a long message is not read as all of it.</summary>
