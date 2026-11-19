@@ -5,6 +5,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
+import { conversation } from '../../../../tests/fixtures/mail';
+import { swipeDistance } from '../controls/swipeAcross';
 import { LocalizationProvider } from '../localization/Localization';
 import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { TasksSpace } from './TasksSpace';
@@ -852,6 +854,58 @@ describe('TasksSpace', () => {
             reminders: [],
             dueDayOffsetMinutes: 120,
         });
+    });
+
+    it('walks to the next view on a swipe across the list', async () => {
+        const { transport } = deployment();
+
+        drawSpace(transport);
+
+        const row = await screen.findByRole('listitem');
+
+        fireEvent.pointerDown(row, { pointerId: 1, pointerType: 'touch', clientX: 300, clientY: 200 });
+        fireEvent.pointerMove(row, { pointerId: 1, pointerType: 'touch', clientX: 300 - swipeDistance, clientY: 200 });
+        fireEvent.pointerUp(row, { pointerId: 1, pointerType: 'touch', clientX: 300 - swipeDistance, clientY: 200 });
+
+        expect(screen.getByRole('radio', { name: /^Upcoming/u, checked: true })).toBeDefined();
+    });
+
+    // Two threads asked for one after the other: the first answering last, or at all, opens nothing, since the reader
+    // has since asked for the second.
+    it('opens only the thread asked for last when an earlier read answers after it', async () => {
+        const onOpenMessage = vi.fn();
+        const thread = (id: string, label: string) => ({ anchor: { kind: 'Thread', id, label } });
+        const { transport } = deployment({
+            committed: [
+                taskCalled('a', 'Answer the tender', thread('0190f3c2-8a7b-7cde-9f01-23456789ab01', 'Tender thread')),
+                taskCalled('b', 'Send the invoice', thread('0190f3c2-8a7b-7cde-9f01-23456789ab02', 'Invoice thread')),
+            ],
+        });
+        const threadReads: ((answer: ClientResponse) => void)[] = [];
+        const holding: MailFathomTransport = (request) =>
+            request.path.includes('/threads/')
+                ? new Promise((resolve) => {
+                      threadReads.push(resolve);
+                  })
+                : transport(request);
+
+        drawSpace(holding, { onOpenMessage });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Tender thread' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Invoice thread' }));
+
+        await waitFor(() => {
+            expect(threadReads).toHaveLength(2);
+        });
+
+        threadReads[0]?.({ ...answered, body: JSON.stringify(conversation()) });
+        threadReads[1]?.({ status: 503, headers: {}, body: '' });
+
+        await waitFor(() => {
+            expect(screen.getByRole('status').textContent).toBe('The thread could not be opened.');
+        });
+
+        expect(onOpenMessage).not.toHaveBeenCalled();
     });
 
     // A task cites a message and mail is read in the Mail space, so opening one is the frame's act rather than this

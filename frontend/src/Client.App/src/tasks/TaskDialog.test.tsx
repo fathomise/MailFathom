@@ -13,6 +13,7 @@ import {
     type MailFathomTransport,
     type PersonalTask,
 } from '@mailfathom/client-backend';
+import { calendarDayIn, dayFrom } from '../localization/instants';
 import { LocalizationProvider } from '../localization/Localization';
 import { TaskDialog } from './TaskDialog';
 
@@ -203,6 +204,58 @@ describe('TaskDialog', () => {
         ]);
         expect(screen.getByRole('heading', { name: 'Waiting for' })).toBeDefined();
         expect(dialog().open).toBe(true);
+    });
+
+    it('keeps a chip pressed while a write is out and writes it once that write answers', async () => {
+        const { sent, written, release } = drawDialog({ waits: true });
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Tomorrow' }));
+        fireEvent.click(screen.getByRole('radio', { name: 'I am waiting for this' }));
+
+        // Both stand at once, and only one write is out.
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Tomorrow' }).checked).toBe(true);
+        expect(screen.getByRole('heading', { name: 'Waiting for' })).toBeDefined();
+        expect(revisions(sent)).toHaveLength(1);
+
+        release();
+
+        await waitFor(() => {
+            expect(revisions(sent)).toHaveLength(2);
+        });
+
+        release();
+
+        await waitFor(() => {
+            expect(written).toHaveBeenCalledWith('tasks.revised');
+        });
+
+        const tomorrow = dayFrom(calendarDayIn(Date.now(), null), 1);
+
+        expect(revisions(sent)).toMatchObject([
+            { direction: 'Owed', dueOn: tomorrow },
+            { direction: 'Awaited', dueOn: tomorrow },
+        ]);
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Tomorrow' }).checked).toBe(true);
+        expect(screen.getByRole('heading', { name: 'Waiting for' })).toBeDefined();
+    });
+
+    it('keeps the reminders it cleared when a day is chosen again before the list reads back', async () => {
+        const { sent, written } = drawDialog();
+
+        fireEvent.click(screen.getByRole('radio', { name: 'No day' }));
+
+        await waitFor(() => {
+            expect(written).toHaveBeenCalledTimes(1);
+        });
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Tomorrow' }));
+
+        await waitFor(() => {
+            expect(written).toHaveBeenCalledTimes(2);
+        });
+
+        expect(revisions(sent)).toMatchObject([{ dueOn: null, reminders: [] }, { reminders: [] }]);
+        expect(screen.getByText('No reminder')).toBeDefined();
     });
 
     it('says a reply already answered a wait turned round, and puts the chip back', async () => {

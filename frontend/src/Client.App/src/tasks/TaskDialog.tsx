@@ -121,9 +121,10 @@ function refusalOf(failure: ClientFailure, anchorMoved: boolean): MessageKey | '
     return wentUnanswered(failure) ? 'tasks.writeUnknown' : 'tasks.writeFailed';
 }
 
-// What the dialog's chips write, each the moment it is pressed.
+// What the dialog's chips write, each the moment it is pressed, and the reminders that follow the day.
 interface TaskChoices {
     readonly dueOn: string | null;
+    readonly reminders: readonly number[];
     readonly direction: TaskDirection;
     readonly anchor: TaskAnchor | null;
     readonly counterpart: TaskCounterpart | null;
@@ -181,9 +182,13 @@ export function TaskDialog({
     const [now] = useState(() => Date.now());
     const [title, setTitle] = useState(task.title);
 
-    // What a chip pressed here applied, over what the task the screen read holds: the chip stands where it was pressed
+    // What the chips pressed here applied, over what the task the screen read holds: a chip stands where it was pressed
     // while its write is out, and stays there once the deployment took it, whatever the list has read back by then.
+    // `pressed` is the same thing for the write that answers later, and `taken` what the deployment last took.
     const [applied, setApplied] = useState<Partial<TaskChoices>>({});
+    const pressed = useRef<Partial<TaskChoices>>({});
+    const taken = useRef<Partial<TaskChoices>>({});
+    const sending = useRef(false);
     const [said, setSaid] = useState<MessageKey | null>(null);
     const [writing, setWriting] = useState<'save' | 'chip' | null>(null);
     // Whether this dialog still stands, and how many times it has been left: an answer acts here only where neither
@@ -199,13 +204,15 @@ export function TaskDialog({
         };
     }, []);
 
-    const chosen: TaskChoices = {
+    const choicesOver = (over: Partial<TaskChoices>): TaskChoices => ({
         dueOn: task.dueOn,
+        reminders: task.reminders,
         direction: task.direction,
         anchor: task.anchor,
         counterpart: task.counterpart,
-        ...applied,
-    };
+        ...over,
+    });
+    const chosen = choicesOver(applied);
     const writeRefused = useWriteRefusal();
     const refused = writeRefused(translate('tasks.save'));
     const today = calendarDayIn(now, timeZone);
@@ -217,31 +224,27 @@ export function TaskDialog({
     const clash = clashOf(task, events);
     const plan = task.plan === null ? null : wordPlan(task.plan, locale, now, timeZone, translate);
 
-    // One write of the whole record, with what changed laid over it. Its answer acts on this dialog only while the
+    // One write of the whole record, with what was chosen laid over it, and never two at once. A chip pressed while a
+    // write is out is laid over the dialog at once and written when that write answers, the latest press winning; a
+    // refusal puts every chip back to what the deployment last took. The answer acts on this dialog only while the
     // dialog still stands; once it has been left, the screen is told what the write did and nothing else.
-    function write(change: Partial<TaskChoices>, line: string, closes: boolean): void {
-        if (session === null || writing !== null || refused !== null) {
+    function send(over: Partial<TaskChoices>, line: string, closes: boolean): void {
+        if (session === null) {
             return;
         }
 
-        const before = applied;
-        const next = { ...chosen, ...change };
+        const next = choicesOver(over);
         const anchorMoved = next.anchor !== null && next.anchor.id !== task.anchor?.id;
+        const asking = leftTimes.current;
 
-        if (!closes) {
-            setApplied({ ...applied, ...change });
-        }
-
+        sending.current = true;
         setWriting(closes ? 'save' : 'chip');
         setSaid(null);
-
-        const asking = leftTimes.current;
 
         void reviseTask(session, transport, task.id, {
             title: line,
             dueOn: next.dueOn,
-            // A lead is measured back from the due day, so a task with no day announces nothing.
-            reminders: next.dueOn === null ? [] : task.reminders,
+            reminders: next.reminders,
             dueDayOffsetMinutes: dueDayOffsetMinutes(next.dueOn, timeZone),
             sourceMessageId: task.sourceMessageId,
             direction: next.direction,
@@ -253,35 +256,67 @@ export function TaskDialog({
             const refusal = answer.outcome === 'read' ? null : refusalOf(answer.failure, anchorMoved);
             const standing = here.current && leftTimes.current === asking && asked.current?.open === true;
 
-            if (refusal === null || refusal === 'gone') {
-                if (standing && (closes || refusal === 'gone')) {
-                    asked.current?.close();
-                }
+            if (refusal !== null && refusal !== 'gone') {
+                sending.current = false;
+                pressed.current = taken.current;
 
-                if (standing) {
+                if (here.current) {
+                    setApplied(taken.current);
                     setWriting(null);
                 }
 
-                onWritten(refusal === null ? 'tasks.revised' : 'tasks.gone');
+                if (standing) {
+                    setSaid(refusal);
+                }
 
                 return;
             }
 
-            if (standing) {
-                setWriting(null);
-                setApplied(before);
-                setSaid(refusal);
+            if (refusal === null) {
+                taken.current = over;
+
+                if (!closes && pressed.current !== over) {
+                    send(pressed.current, task.title, false);
+
+                    return;
+                }
             }
+
+            sending.current = false;
+
+            if (here.current) {
+                setWriting(null);
+            }
+
+            if (standing && (closes || refusal === 'gone')) {
+                asked.current?.close();
+            }
+
+            onWritten(refusal === null ? 'tasks.revised' : 'tasks.gone');
         });
     }
 
     function apply(change: Partial<TaskChoices>): void {
-        write(change, task.title, false);
+        if (session === null || refused !== null) {
+            return;
+        }
+
+        // A lead is measured back from the due day, so a task left with no day announces nothing — and stays that
+        // way when a day is chosen again, whatever the list has not read back yet.
+        const over = { ...pressed.current, ...change, ...(change.dueOn === null ? { reminders: [] } : {}) };
+
+        pressed.current = over;
+        setApplied(over);
+        setSaid(null);
+
+        if (!sending.current) {
+            send(over, task.title, false);
+        }
     }
 
     function save(): void {
-        if (savable) {
-            write({}, line, true);
+        if (savable && !sending.current) {
+            send(pressed.current, line, true);
         }
     }
 
@@ -484,9 +519,9 @@ export function TaskDialog({
                     <div className="flex items-center gap-2.25 text-base">
                         <Icon name="notifications_active" className="size-icon-lg shrink-0 text-muted" />
                         <span className="flex-1 text-text-soft">
-                            {task.reminders.length === 0 || chosen.dueOn === null
+                            {chosen.reminders.length === 0
                                 ? translate('tasks.noReminder')
-                                : wordReminderCount(task.reminders.length, locale, translate)}
+                                : wordReminderCount(chosen.reminders.length, locale, translate)}
                         </span>
                         {chosen.dueOn === null ? null : (
                             <button

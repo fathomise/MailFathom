@@ -8,9 +8,10 @@ import { holdTheDay, openSignedInAsDeveloper, switchDeveloperModeOn, test } from
 import { conversationId } from './fixtures/mail';
 
 // The Tasks space as somebody works it: the four views over the corpus's commitments, a task written down, finished,
-// shown again and deleted, a task's day, line and link changed in its dialog and still changed after a reload, a wait
-// a reply closed kept waiting, what a task belongs to opened, a proposal dismissed, and a wait written down. The list reads itself again after a write rather than correcting what
-// it holds, and the capacity counts off that same read — so the two agree only where both drew the deployment's answer.
+// shown again and deleted, a task's day, line and link changed in its dialog and still changed after a reload, a wait a
+// reply closed kept waiting, what a task belongs to opened, a proposal dismissed, and a wait written down. The list
+// reads itself again after a write rather than correcting what it holds, and the capacity counts off that same read —
+// so the two agree only where both drew the deployment's answer.
 
 // The corpus deployment states Greenwich as the reader's zone, and the reader sits in it, so the day the due-day field
 // is filled with is the day the list files under *Today*.
