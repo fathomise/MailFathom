@@ -7722,14 +7722,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         rightNowRowStyle: "display:flex;align-items:center;" + (rightNowSlim ? "flex-wrap:wrap;" : "") + "gap:12px;min-width:0;box-sizing:border-box;border-radius:8px;min-height:" + (touch ? 60 : 52) + "px;padding:7px 6px",
         /* On a phone a row is its title and one line, so the card stays short. */
         rightNowNoteStyle: "font-size:12.5px;line-height:1.4;color:var(--muted);" + (isMobile ? "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "text-wrap:pretty"),
-        /* Right now holds the few things that matter most; the rest is a conversation, so its foot is one button to the
-           Agent - on every space but the Agent's own. */
-        rightNowToAgent: () => this.goAgentWith("your day"),
-        rightNowAgentShown: st.screen !== "agent",
-        rightNowAgentFootStyle: "flex:0 0 auto;box-sizing:border-box;border-top:1px solid var(--line);padding:" + (rightNowSlim ? "12px 10px 14px" : "14px 16px 16px"),
-        rightNowAgentBtnStyle: "display:flex;align-items:center;gap:10px;box-sizing:border-box;min-height:" + (touch ? 52 : 48) + "px;padding:0 16px;border-radius:14px;font-size:15px;font-weight:600;color:var(--onaccent);" +
+        /* The panel's foot holds what Fathom's button offers on this screen, as buttons of their own; the last one opens
+           the Agent. Folded, the panel has no room for them, and Fathom's button comes back, standing on the strip. */
+        rightNowAgentBtnStyle: "display:flex;align-items:center;gap:10px;box-sizing:border-box;min-height:" + (touch ? 48 : 44) + "px;padding:0 14px;border-radius:12px;font-size:14px;font-weight:600;color:var(--onaccent);" +
           "background:linear-gradient(135deg, var(--accent), var(--accent-2));box-shadow:0 10px 24px -12px var(--accent),0 1px 0 var(--inset) inset",
-        rightNowAgentMiniStyle: "flex:0 0 auto;margin-top:auto;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;color:var(--onaccent);background:linear-gradient(135deg, var(--accent), var(--accent-2));font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;line-height:1;font-size:21px",
+        panelActionsStyle: "flex:0 0 auto;display:flex;flex-direction:column;gap:8px;box-sizing:border-box;border-top:1px solid var(--line);padding:" + (rightNowSlim ? "12px 10px 14px" : "14px 16px 16px"),
+        panelActionStyle: "display:flex;align-items:center;gap:10px;box-sizing:border-box;min-height:" + (touch ? 48 : 44) + "px;padding:0 14px;border-radius:12px;font-size:14px;font-weight:600;color:var(--text);background:var(--bg);border:1px solid var(--line)",
         rightNow: HOME.rightNow.map(g => ({ icon: g.icon, label: g.label, meta: g.meta, n: String(g.n), tip: g.label + ": " + g.meta, aria: g.label + " - " + g.meta + " - open", open: () => this.goScreen(g.go), items: g.items.map(d => {
           const canWatch = d.go === "thread";
           const watching = canWatch && (st.watched || []).some(w => w.tid === d.tid);
@@ -10735,7 +10733,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         { icon: "edit_note", label: "Draft a reply", run: vals.chooseDraftReply },
         { icon: "forum", label: "Ask about this thread", run: vals.chooseAskThread },
       ] : [];
-      Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, narrow, startWide, rightNowW, thread, person, fathomCreate, fathomReply, navBottom: vals.navBottom }));
+      Object.assign(vals, MailFathomDesign.fathomUi.vals(this, { st, isMobile, touch, singlePane, narrow, startWide, rightNowDocked, rightNowFolded, thread, person, fathomCreate, fathomReply, navBottom: vals.navBottom }));
       this._ownClose = { compose: vals.closeCompose, doc: vals.closeDoc, htmlDoc: vals.closeHtml, sendLaterAsk: this.closeSendLater };
       return vals;
     }

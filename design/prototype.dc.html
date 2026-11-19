@@ -421,7 +421,6 @@ Project repository: https://github.com/fathomise/MailFathom
                   </sc-for>
                 </div>
                 </sc-for>
-                <sc-if value="{{ rightNowAgentShown }}" hint-placeholder-val="{{ true }}"><div style="padding:8px 6px 10px"><div role="button" tabIndex="0" onClick="{{ rightNowToAgent }}" style="{{ rightNowAgentBtnStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px">auto_awesome</span><span style="flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Go to the Agent</span><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px">arrow_forward</span></div></div></sc-if>
               </div>
             </sc-if>
 
@@ -577,9 +576,6 @@ Project repository: https://github.com/fathomise/MailFathom
               <span style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)">{{ rg.n }}</span>
             </div>
           </sc-for>
-          <sc-if value="{{ rightNowAgentShown }}" hint-placeholder-val="{{ true }}">
-            <div role="button" tabIndex="0" aria-label="Go to the Agent" title="Go to the Agent" onClick="{{ rightNowToAgent }}" style="{{ rightNowAgentMiniStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)">auto_awesome</div>
-          </sc-if>
         </div>
       </sc-if>
       <sc-if value="{{ rightNowOpen }}" hint-placeholder-val="{{ true }}">
@@ -616,8 +612,18 @@ Project repository: https://github.com/fathomise/MailFathom
                 </sc-for>
               </div>
         </div>
-        <sc-if value="{{ rightNowAgentShown }}" hint-placeholder-val="{{ true }}">
-          <div style="{{ rightNowAgentFootStyle }}"><div role="button" tabIndex="0" onClick="{{ rightNowToAgent }}" style="{{ rightNowAgentBtnStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px">auto_awesome</span><span style="flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Go to the Agent</span><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px">arrow_forward</span></div></div>
+        <sc-if value="{{ panelActionsShown }}" hint-placeholder-val="{{ true }}">
+          <div role="group" aria-label="Fathom, for this screen" style="{{ panelActionsStyle }}">
+            <div style="display:flex;align-items:center;gap:7px;min-width:0;padding:0 2px 2px">
+              <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:17px;color:var(--accent-d)">auto_awesome</span>
+              <div style="{{ nowLabelStyle }}">Fathom</div>
+              <div style="flex:1;min-width:0;font-size:11.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ panelActionsNote }}</div>
+            </div>
+            <sc-for list="{{ panelActions }}" as="pa" hint-placeholder-count="2">
+              <div role="button" tabIndex="0" onClick="{{ pa.run }}" style="{{ panelActionStyle }}" style-hover="cursor:pointer;border-color:var(--accent);background:var(--accent-soft)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px;color:var(--accent-d)">{{ pa.icon }}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ pa.label }}</span></div>
+            </sc-for>
+            <div role="button" tabIndex="0" onClick="{{ openAgentFromFathom }}" style="{{ rightNowAgentBtnStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px">open_in_new</span><span style="flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Open the Agent</span></div>
+          </div>
         </sc-if>
       </sc-if>
       </div>

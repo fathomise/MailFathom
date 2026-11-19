@@ -117,8 +117,10 @@ MailFathomDesign.fathomUi = (() => {
     /* 24 px from both edges, 20 on a phone, above its bottom bar. */
     const fabEdge = isMobile ? 20 : 24;
     const fabBottom = fabEdge + barH;
-    /* Fathom stands clear of the Right now panel, docked on the right from 1020 px. */
-    const fabRight = "calc(" + (c.rightNowW || "0px") + " + " + fabEdge + "px)";
+    /* Beside an unfolded Right now panel the button gives way to the panel's own buttons, which hold the same choices;
+       beside a folded one it stands on the strip, centred in its 56 px. */
+    const inPanel = !!c.rightNowDocked && !c.rightNowFolded && !st.catchupOpen;
+    const fabRight = c.rightNowDocked && c.rightNowFolded ? ((56 - fabSize) / 2) + "px" : fabEdge + "px";
     const menuRun = (a) => () => {
       if (a.do === "agent") { self.setState({ fathomMenu: false }); self.goAgentWith(a.ctx || where); return; }
       self.runFathom(a, { label: where });
@@ -126,7 +128,7 @@ MailFathomDesign.fathomUi = (() => {
     const rowStyle = "display:flex;align-items:center;gap:10px;white-space:nowrap;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2);font-weight:600;" +
       (touch ? "min-height:48px;padding:0 18px 0 14px;font-size:15px;" : "height:40px;padding:0 16px 0 12px;font-size:14px;");
     const v = {
-      fathomFabShown: fabShown,
+      fathomFabShown: fabShown && !inPanel,
       fathomFabIcon: st.fathomMenu ? "close" : "auto_awesome",
       fathomFabTitle: st.fathomMenu ? "Close" : "Fathom - ask or act on what is on screen",
       fathomFabExpanded: !!st.fathomMenu,
@@ -136,13 +138,15 @@ MailFathomDesign.fathomUi = (() => {
       fathomFabStyle: "position:fixed;z-index:88;right:" + fabRight + ";bottom:" + fabBottom + "px;width:" + fabSize + "px;height:" + fabSize + "px;box-sizing:border-box;" +
         "display:flex;align-items:center;justify-content:center;border-radius:" + (isMobile ? 18 : 14) + "px;color:var(--onaccent);background:var(--accent);box-shadow:0 10px 26px var(--sh-3),0 2px 6px var(--sh-2)",
       fathomFabGlyph: GLYPH + "font-size:22px;font-variation-settings:'wght' 400",
-      fathomMenuOpen: fabShown && !!st.fathomMenu,
+      fathomMenuOpen: fabShown && !inPanel && !!st.fathomMenu,
       closeFathomMenu: () => self.setState({ fathomMenu: false }),
       fathomMenuItems: [].concat(
         c.fathomCreate ? [c.fathomCreate] : [],
         (F.menu[menuKey] || []).map(a => Object.assign({}, a, { run: menuRun(a) })),
         c.fathomReply || [],
       ).map(a => ({ icon: a.icon, label: a.label, run: () => { self.setState({ fathomMenu: false }); a.run(); }, style: rowStyle })),
+      panelActionsShown: inPanel && st.screen !== "agent",
+      panelActionsNote: ({ start: "for your day", mail: st.threadOpen ? "for this conversation" : "for your mail", tasks: "for your tasks", cal: "for your calendar", people: "for your people" })[st.screen] || "",
       fathomRowStyle: rowStyle,
       fathomMenuStyle: "position:fixed;z-index:89;right:" + fabRight + ";bottom:" + (fabBottom + fabSize + (isMobile ? 12 : 8)) + "px;display:flex;flex-direction:column;align-items:flex-end;gap:8px",
       openAgentFromFathom: () => { self.setState({ fathomMenu: false }); self.goScreen("agent"); },
@@ -151,6 +155,7 @@ MailFathomDesign.fathomUi = (() => {
     /* ——— The answer card both Fathom and the catch-up write into ——— */
     const ans = st.fathomAnswer;
     Object.assign(v, {
+      panelActions: v.fathomMenuItems,
       fathomAnswerOpen: supported && !!ans,
       fathomAnswerTitle: ans ? ans.title : "",
       fathomAnswerAbout: ans ? ans.about : "",
