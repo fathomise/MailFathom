@@ -8,6 +8,7 @@ import type { MenuPoint } from '../contextMenu/menuPlacement';
 import { useRowPress } from '../contextMenu/rowPress';
 import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
+import { ModelProvenance } from '../controls/ModelProvenance';
 import { SymbolControl } from '../controls/SymbolControl';
 import { useTip } from '../controls/useTip';
 import type { IconName } from '../controls/icons';
@@ -302,9 +303,15 @@ export function TaskRow({
                 ) : null}
 
                 {proposal ? (
-                    <span className="mt-0.5 shrink-0 rounded-sm bg-accent px-1.5 py-0.5 text-xs text-on-accent">
-                        {translate(task.sourceMessageId === null ? 'tasks.agentTag' : 'tasks.authored')}
-                    </span>
+                    task.sourceMessageId === null ? (
+                        <span className="mt-0.5 shrink-0 rounded-sm border border-line-strong px-1.5 py-px text-xs text-muted">
+                            {translate('tasks.agentTag')}
+                        </span>
+                    ) : (
+                        <span className="mt-0.5 flex shrink-0">
+                            <ModelProvenance inRow />
+                        </span>
+                    )
                 ) : (
                     // Refused rather than disabled while the server is out of reach: a disabled box leaves the
                     // keyboard and says nothing, while this one stays where it is, unchanged by a press, and is named

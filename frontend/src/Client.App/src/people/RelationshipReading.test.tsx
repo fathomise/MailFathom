@@ -28,7 +28,8 @@ describe('RelationshipReading', () => {
     it('marks what it draws as authored, so nobody reads it as something the mailbox stated', () => {
         drawCard(null);
 
-        expect(screen.getByText('AI')).toBeDefined();
+        expect(screen.getByRole('img', { name: 'Written by AI' })).toBeDefined();
+        expect(screen.queryByText('AI')).toBeNull();
     });
 
     it('waits with the correlation the figure beside it is read from', () => {

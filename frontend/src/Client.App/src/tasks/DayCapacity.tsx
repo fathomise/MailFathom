@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import type { ReactNode } from 'react';
+import { ModelProvenance } from '../controls/ModelProvenance';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 
@@ -62,9 +63,7 @@ export function DayCapacity({
             className="flex flex-col gap-2.25 rounded-lg bg-accent-soft p-3.25"
         >
             <div className="flex items-center gap-2.25">
-                <span className="rounded-sm bg-accent px-1.5 py-0.5 text-xs font-semibold text-on-accent">
-                    {translate('tasks.authored')}
-                </span>
+                <ModelProvenance />
                 <h2 id="tasks-day-capacity" className="text-xs font-semibold text-accent-deep">
                     {translate('tasks.dayCapacity')}
                 </h2>

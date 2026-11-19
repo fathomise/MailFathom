@@ -2549,6 +2549,74 @@ describe('Composer, an answer', () => {
         expect(offered).toStrictEqual([...new Set(offered)]);
     });
 
+    // The answered message with a Reply-To beside its author, which is what an answer is addressed by in their place.
+    function redirectedMessage(replyTo: string, displayName: string | null = 'Accounts desk'): Answers {
+        const message = JSON.parse(messageBody()) as {
+            headers: { participants: { role: string; address: string; displayName: string | null }[] };
+        };
+
+        message.headers.participants.push({ role: 'ReplyTo', address: replyTo, displayName });
+
+        return { message: { status: 200, body: JSON.stringify(message) } };
+    }
+
+    it.each(['senderOnly', 'everyone'] as const)(
+        'warns, naming both, when a %s answer goes to a Reply-To that is not the author',
+        async (answers) => {
+            drawComposer(
+                { kind: 'answer', answers, storedEmailId: messageId },
+                redirectedMessage('desk@elsewhere.invalid'),
+            );
+
+            await screen.findByText('Re: Quarterly invoice');
+
+            expect(screen.getByRole('alert').textContent).toBe(
+                'This answer goes to Accounts desk <desk@elsewhere.invalid>, not to the author, Billing <billing@example.invalid>: the message asked for replies to go there.',
+            );
+        },
+    );
+
+    it('stops warning once the Reply-To address is taken out of the recipients', async () => {
+        drawComposer(
+            { kind: 'answer', answers: 'senderOnly', storedEmailId: messageId },
+            redirectedMessage('desk@elsewhere.invalid'),
+        );
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Remove desk@elsewhere.invalid from To' }));
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('does not warn on a forward, which goes wherever the person forwarding it sends it', async () => {
+        drawComposer(
+            { kind: 'answer', answers: 'forward', storedEmailId: messageId },
+            redirectedMessage('desk@elsewhere.invalid'),
+        );
+
+        await screen.findByText('Fwd: Quarterly invoice');
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('does not warn where the Reply-To is the author written in other letters', async () => {
+        drawComposer(
+            { kind: 'answer', answers: 'senderOnly', storedEmailId: messageId },
+            redirectedMessage('Billing@EXAMPLE.invalid', null),
+        );
+
+        await screen.findByRole('button', { name: 'Remove Billing@EXAMPLE.invalid from To' });
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('does not warn on an answer to a message with no Reply-To', async () => {
+        drawComposer({ kind: 'answer', answers: 'senderOnly', storedEmailId: messageId });
+
+        await screen.findByRole('button', { name: 'Remove billing@example.invalid from To' });
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
     it('closes an answer nobody has written in without asking, since its recipients are not work anybody did', async () => {
         const { closed } = drawComposer(replying);
 

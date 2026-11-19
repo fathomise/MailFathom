@@ -60,9 +60,12 @@ import {
     draftContinued,
     draftHeld,
     nothingWrittenYet,
+    replyRedirection,
+    stillRedirected,
     type ComposerOpening,
     type Composition,
     type ReplyDraftAsked,
+    type ReplyRedirection,
 } from './composition';
 import { DiscardConfirmation } from './DiscardConfirmation';
 import { DraftingBlock, DraftingStanding, type DraftingContextStart } from './DraftingBlock';
@@ -84,6 +87,7 @@ import { pictureAddresses } from './pictureAddresses';
 import type { RecipientSuggestion } from './recipientSuggestions';
 import { AbsentRecipients } from './AbsentRecipients';
 import { RecipientField } from './RecipientField';
+import { RedirectedReply } from './RedirectedReply';
 import { SendConfirmation } from './SendConfirmation';
 import { SendLaterPicker } from './SendLaterPicker';
 import {
@@ -310,6 +314,9 @@ export function Composer({
 
     const [participants, setParticipants] = useState<readonly RecipientSuggestion[]>([]);
 
+    // Where the answered message's Reply-To took the answer away from its author, which only an answer being opened reads.
+    const [redirection, setRedirection] = useState<ReplyRedirection | null>(null);
+
     // Whether the copy headers are drawn, which is a choice only once somebody made one: before that they are drawn
     // exactly where the message already copies somebody in, so an answer to everyone and a draft carried on show the
     // addresses they will go to rather than holding them behind a control nobody pressed. Hiding them keeps what they
@@ -446,6 +453,7 @@ export function Composer({
             }
 
             setParticipants(offeredFrom(answer.value.headers.participants));
+            setRedirection(replyRedirection(answer.value, opening.answers));
             setSubjects((held) => new Map(held).set(opening.storedEmailId, answer.value.headers.subject));
             setAnsweredThread(
                 answer.value.threadId === null
@@ -1092,6 +1100,7 @@ export function Composer({
         copiesChosen ??
         (composition !== null && composition.cc.length + composition.bcc.length + composition.replyTo.length > 0);
     const footer = useFooterOf(composition?.account ?? null);
+    const redirected = redirection === null || composition === null ? [] : stillRedirected(redirection, composition);
 
     // Where each passage stands in the region's text, which is the line it is on counted from the region's start.
     function placesOf(text: string, passages: readonly TouchedPassage[]): readonly (readonly [number, number])[] {
@@ -1373,6 +1382,10 @@ export function Composer({
                             </button>
                         }
                     />
+
+                    {redirected.length > 0 && redirection !== null ? (
+                        <RedirectedReply replyTo={redirected} authors={redirection.authors} />
+                    ) : null}
 
                     <AbsentRecipients addresses={composition.to} session={session} transport={transport} />
 

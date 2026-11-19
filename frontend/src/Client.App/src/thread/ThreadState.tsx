@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MailThreadMessage, MailThreadState, MailThreadStateAspect } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
+import { ModelProvenance } from '../controls/ModelProvenance';
 import { SymbolControl } from '../controls/SymbolControl';
 import { Skeleton } from '../controls/Skeleton';
 import type { MessageKey } from '../localization/en';
@@ -219,9 +220,7 @@ function StateLine({
     return (
         <>
             <div className="flex items-center gap-2.25 border-b border-line bg-sunken px-3 py-2.25">
-                <span className="shrink-0 rounded-xs border border-line-strong px-1.5 py-0.5 text-xs text-muted">
-                    {translate('ai.badge')}
-                </span>
+                <ModelProvenance />
 
                 <span className="min-w-0 flex-1 truncate text-base text-text-soft">{entries[0]?.text}</span>
 

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import { ModelProvenance } from '../controls/ModelProvenance';
 import { useLocalization } from '../localization/useLocalization';
 import { ReceivedAt } from '../controls/ReceivedAt';
 
@@ -38,9 +39,7 @@ export function RelationshipReading({
         >
             <div className="flex items-center gap-2.25">
                 <h3 className="text-xs font-semibold text-muted">{translate('person.relationship')}</h3>
-                <span className="rounded-sm bg-accent px-1.5 py-0.5 text-xs font-semibold text-on-accent">
-                    {translate('person.authored')}
-                </span>
+                <ModelProvenance />
             </div>
 
             <p className="text-md text-text-soft text-pretty">{translate('person.relationshipPending')}</p>

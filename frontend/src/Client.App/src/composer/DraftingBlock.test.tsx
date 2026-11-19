@@ -68,6 +68,12 @@ describe('DraftingBlock', () => {
         expect(screen.getByText('the draft stays local until you send it')).toBeDefined();
     });
 
+    it('marks its field as asking AI with the glyph alone, never an AI badge', () => {
+        drawBlock();
+
+        expect(screen.queryByText('AI')).toBeNull();
+    });
+
     it('takes a message out of the context from its chip', () => {
         const { removed } = drawBlock();
 

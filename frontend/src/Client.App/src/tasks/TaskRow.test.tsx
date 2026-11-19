@@ -138,7 +138,7 @@ describe('TaskRow', () => {
 
         drawRow({ task: taskOf({ origin: 'Proposed', sourceMessageId: 'message' }), onOpenSource });
 
-        expect(screen.getByText('AI')).toBeDefined();
+        expect(screen.getByRole('img', { name: 'Written by AI' })).toBeDefined();
         expect(screen.getByText('From mail')).toBeDefined();
         expect(screen.queryByRole('checkbox')).toBeNull();
 

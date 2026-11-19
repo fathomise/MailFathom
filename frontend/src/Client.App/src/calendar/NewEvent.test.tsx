@@ -138,6 +138,13 @@ function describedIn(): HTMLElement {
 }
 
 describe('NewEvent', () => {
+    it('names the field that is described in a sentence by what it asks, with no AI badge read out first', () => {
+        drawDialog(deployment(drafted({ drafted: false, spent: false })).transport);
+
+        expect(screen.getByLabelText('Describe the event and MailFathom fills the fields')).toBeDefined();
+        expect(screen.queryByText('AI')).toBeNull();
+    });
+
     it('opens both its days on the day the reader is standing on rather than on nothing', () => {
         drawDialog(deployment(drafted({ drafted: false, spent: false })).transport);
 

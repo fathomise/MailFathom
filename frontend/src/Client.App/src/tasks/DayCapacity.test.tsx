@@ -18,6 +18,13 @@ function drawPanel({ dueToday = 3, eventsToday = 2 }: { dueToday?: number; event
 }
 
 describe('DayCapacity', () => {
+    it('says the reading was written by AI with the provenance mark rather than an AI badge', () => {
+        drawPanel();
+
+        expect(screen.getByRole('img', { name: 'Written by AI' })).toBeDefined();
+        expect(screen.queryByText('AI')).toBeNull();
+    });
+
     it('counts the day rather than composing a sentence about it', () => {
         drawPanel();
 

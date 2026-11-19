@@ -87,6 +87,13 @@ describe('AgentAnswer', () => {
         expect(screen.getByText('The lease renews in March.')).toBeDefined();
     });
 
+    it('says the agent wrote it with the provenance mark rather than an AI badge', () => {
+        drawnAnswer(answered);
+
+        expect(screen.getByRole('img', { name: 'Written by AI' })).toBeDefined();
+        expect(screen.queryByText('AI')).toBeNull();
+    });
+
     it('says an auto run went deep from the moment it moved, and why once it has answered', () => {
         const running: Answer = { ...answered, mode: 'auto', deepened: 'It reaches back eight months.', ending: null };
         const { rerender } = drawnAnswer(running);

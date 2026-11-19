@@ -77,9 +77,10 @@ test('the four views show the commitments the deployment holds', async ({ page, 
     await showView(page, 'Proposed');
 
     await expect(page.getByRole('heading', { name: 'Proposed to you' })).toBeVisible();
-    await expect(titlesIn(page, 'Today')).toHaveText([/^AISend Piotr the rollout risks/u]);
+    await expect(titlesIn(page, 'Today')).toHaveText([/^Send Piotr the rollout risks/u]);
+    await expect(titlesIn(page, 'Today').getByRole('img', { name: 'Written by AI' })).toBeVisible();
     await expect(titlesIn(page, 'Later')).toHaveText([/^AgentAsk Marta for the 2026 baseline figures/u]);
-    await expect(titlesIn(page, 'No day')).toHaveText([/^AIBook the auditor's visit/u]);
+    await expect(titlesIn(page, 'No day')).toHaveText([/^Book the auditor's visit/u]);
     await expect(titlesIn(page, 'Later')).toContainText('From the Agent');
 });
 

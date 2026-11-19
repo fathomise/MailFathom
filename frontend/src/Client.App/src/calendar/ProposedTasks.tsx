@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { PersonalTask } from '@mailfathom/client-backend';
 import { Control } from '../controls/Control';
 import { Icon } from '../controls/Icon';
+import { ModelProvenance } from '../controls/ModelProvenance';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
@@ -46,9 +47,7 @@ export function ProposedTasks({
             <div className="flex items-center gap-2.25">
                 <h3 className="flex items-center gap-2.25 text-xs font-semibold text-muted">
                     {translate('calendar.tasksHeading')}
-                    <span className="rounded-sm bg-accent px-1.5 py-0.5 text-xs text-on-accent">
-                        {translate('calendar.authored')}
-                    </span>
+                    <ModelProvenance />
                 </h3>
                 {onPlanDay === undefined ? null : (
                     <Control

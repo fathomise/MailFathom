@@ -4,6 +4,7 @@
 
 import type { CalendarEvent } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
+import { ModelProvenance } from '../controls/ModelProvenance';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import { wordInstantRange } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
@@ -47,9 +48,7 @@ export function ProposedDates({
         <section aria-label={translate('calendar.proposedHeading')} className="flex flex-col gap-2.75">
             <h3 className="flex items-center gap-2.25 text-xs font-semibold text-muted">
                 {translate('calendar.proposedHeading')}
-                <span className="rounded-sm bg-accent px-1.5 py-0.5 text-xs text-on-accent">
-                    {translate('calendar.authored')}
-                </span>
+                <ModelProvenance />
             </h3>
 
             <p className="text-sm text-muted text-pretty">{translate('calendar.proposedExplained')}</p>
