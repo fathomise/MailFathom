@@ -53,6 +53,8 @@ public sealed class AwaitedRepliesTests
 
     private readonly Dictionary<StoredEmailId, EmailAutomation> automations = [];
 
+    private readonly HashSet<StoredEmailId> unreadable = [];
+
     /// <summary>The wait ends with the reply that ended it, cited rather than copied, whatever case the address was written in.</summary>
     [Fact]
     public async Task AnswerAsync_TheCounterpartRepliesInTheThread_ClosesTheTaskCitingTheReply()
@@ -297,6 +299,29 @@ public sealed class AwaitedRepliesTests
         Assert.True(Assert.Single(this.store.Held).IsCompleted);
     }
 
+    /// <summary>
+    /// A content store failing on one arrival leaves that arrival's waits open and the rest of the batch answered, and
+    /// the failure still reaches the settlement once the batch is done.
+    /// </summary>
+    [Fact]
+    public async Task AnswerAsync_TheContentOfOneArrivalCannotBeRead_AnswersTheOthersAndThenFails()
+    {
+        // Arrange
+        var named = await this.WaitAsync("buyer@example.test");
+        var anybody = await this.WaitAsync(counterpart: null);
+        var unreadArrival = this.Arrive("buyer@example.test", Now);
+        var colleague = this.Arrive("colleague@example.test", Now.AddHours(1));
+        this.unreadable.Add(unreadArrival);
+
+        // Act
+        var answering = () => this.AnswerAsync(unreadArrival, colleague);
+
+        // Assert
+        await Assert.ThrowsAsync<IOException>(answering);
+        Assert.False(Assert.Single(this.store.Held, held => held.Id == named.Id).IsCompleted);
+        Assert.Equal(colleague, Assert.Single(this.store.Held, held => held.Id == anybody.Id).Answer?.Message);
+    }
+
     private Task AnswerAsync(StoredEmailId arrival, string? ownAddress = OwnAddress) =>
         this.AnswerAsync([arrival], ownAddress);
 
@@ -332,7 +357,9 @@ public sealed class AwaitedRepliesTests
         var contentStore = Substitute.For<IEmailContentStore>();
         contentStore
             .FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())
-            .Returns(call => ContentNaming(call.ArgAt<StoredEmailId>(0)));
+            .Returns(call => this.unreadable.Contains(call.ArgAt<StoredEmailId>(0))
+                ? throw new IOException("The object store did not answer.")
+                : ContentNaming(call.ArgAt<StoredEmailId>(0)));
 
         return contentStore;
     }

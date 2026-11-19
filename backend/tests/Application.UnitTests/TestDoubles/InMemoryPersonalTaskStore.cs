@@ -79,7 +79,7 @@ internal sealed class InMemoryPersonalTaskStore : IPersonalTaskStore
 
         var held = this.tasks.FirstOrDefault(candidate => candidate.User == user && candidate.Id == task);
 
-        return Task.FromResult(held is { Direction: PersonalTaskDirection.Awaited, IsCompleted: false }
+        return Task.FromResult(held is not null && held.IsAnswerableBy(answer)
             ? this.Replace(user, task, open => open.Answered(answer))
             : PersonalTaskChangeOutcome.NotFound);
     }

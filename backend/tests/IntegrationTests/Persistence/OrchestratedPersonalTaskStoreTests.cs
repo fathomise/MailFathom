@@ -334,6 +334,42 @@ public sealed class OrchestratedPersonalTaskStoreTests(MailFathomOrchestrationFi
     }
 
     [Fact]
+    public async Task AnswerAsync_TheReplyAWaitWasReopenedAgainst_ChangesNothing()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var waiting = Awaiting(services, Guid.NewGuid());
+        var reply = new TaskAnswer(StoredEmailId.Create(Guid.NewGuid()), new DateTimeOffset(2031, 5, 7, 9, 0, 0, Warsaw));
+        var before = new TaskAnswer(StoredEmailId.Create(Guid.NewGuid()), WrittenAt.AddMinutes(-1));
+
+        // Act
+        var (outcomes, read) = await InStoreAsync(
+            services,
+            async (store, token) =>
+            {
+                await store.AddAsync(waiting, token);
+                await store.AnswerAsync(services.ServedUser, waiting.Id, reply, token);
+                await store.SetCompletionAsync(services.ServedUser, waiting.Id, isCompleted: false, token);
+
+                PersonalTaskChangeOutcome[] answered =
+                [
+                    await store.AnswerAsync(services.ServedUser, waiting.Id, reply, token),
+                    await store.AnswerAsync(services.ServedUser, waiting.Id, before, token),
+                ];
+
+                return (answered, await store.FindAsync(services.ServedUser, waiting.Id, token));
+            },
+            cancellationToken);
+
+        // Assert
+        Assert.Equal([PersonalTaskChangeOutcome.NotFound, PersonalTaskChangeOutcome.NotFound], outcomes);
+        Assert.NotNull(read);
+        Assert.False(read.IsCompleted);
+        Assert.Null(read.Answer);
+    }
+
+    [Fact]
     public async Task SetCompletionAsync_ReopeningAnAnsweredWait_ClearsTheAnswerAndTheListStillReads()
     {
         // Arrange

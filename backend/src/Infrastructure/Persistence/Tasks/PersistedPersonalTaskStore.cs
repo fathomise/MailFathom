@@ -268,7 +268,9 @@ internal sealed class PersistedPersonalTaskStore(
     /// One conditional update rather than a read and a write: the condition that the task is still an open wait is part
     /// of the statement, so PostgreSQL decides it under the row's lock. Two replicas settling one reply therefore write
     /// it once — the second matches no row and reports nothing to answer — and a wait the person completed by hand a
-    /// moment earlier is left without an answer it never had.
+    /// moment earlier is left without an answer it never had. The wait having begun before the reply arrived is part of
+    /// the condition too, so a person reopening the wait against this very reply between the read and the write is not
+    /// overruled by it.
     /// </remarks>
     public async Task<PersonalTaskChangeOutcome> AnswerAsync(
         UserId user,
@@ -287,7 +289,8 @@ internal sealed class PersistedPersonalTaskStore(
             .Where(candidate => candidate.UserId == userValue
                 && candidate.Id == identifier
                 && candidate.Direction == PersonalTaskDirection.Awaited
-                && !candidate.IsCompleted)
+                && !candidate.IsCompleted
+                && candidate.WaitingSince < arrivedAt)
             .ExecuteUpdateAsync(
                 setters => setters
                     .SetProperty(candidate => candidate.IsCompleted, true)
