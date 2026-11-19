@@ -173,9 +173,7 @@ export function NewEvent({
                     {!readsDescriptions ? null : (
                         <div className="flex flex-col gap-2.25 rounded-lg bg-accent-soft px-3.25 py-3">
                             <label htmlFor={describes} className="flex items-center gap-2.25 text-sm text-accent-deep">
-                                <span className="rounded-sm bg-accent px-1.5 py-0.5 text-xs text-on-accent">
-                                    {translate('calendar.authored')}
-                                </span>
+                                <Icon name="auto_awesome" className="size-icon-md shrink-0 text-accent-deep" />
                                 {translate('calendar.describeEvent')}
                             </label>
 

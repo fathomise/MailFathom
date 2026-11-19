@@ -44,6 +44,12 @@ function renderField(): void {
 }
 
 describe('IntentField', () => {
+    it('marks the field as asking AI with the glyph alone, never an AI badge', () => {
+        renderField();
+
+        expect(screen.queryByText('AI')).toBeNull();
+    });
+
     it('keeps the question it was given rather than clearing it on the way', () => {
         renderField();
 

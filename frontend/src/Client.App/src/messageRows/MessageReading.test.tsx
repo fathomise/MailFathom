@@ -47,7 +47,15 @@ describe('MessageReading', () => {
         const container = drawn(mark('Significance', 'The auditor is waiting.'));
 
         expect(container.querySelector('.sr-only')?.textContent).toBe('Why this may matter: The auditor is waiting.');
-        expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2);
+        expect(screen.queryByRole('img', { name: 'Written by AI' })).toBeNull();
+        expect(container.querySelectorAll(':scope > span > [aria-hidden="true"]')).toHaveLength(2);
+    });
+
+    it('marks the reading with the glyph rather than an AI badge, which would repeat on every row', () => {
+        const container = drawn(mark('Sense', 'An invoice for August.'));
+
+        expect(container.textContent).not.toContain('AI');
+        expect(container.querySelector('svg')).toBeTruthy();
     });
 
     it('draws no control, because the row it sits on may hold none', () => {

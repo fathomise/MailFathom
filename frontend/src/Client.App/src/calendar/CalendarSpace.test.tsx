@@ -194,6 +194,8 @@ describe('CalendarSpace', () => {
 
         const proposals = screen.getByRole('region', { name: 'Detected in mail' });
         expect(proposals.textContent).toContain('Lunch with Celina');
+        expect(within(proposals).getByRole('img', { name: 'Written by AI' })).toBeDefined();
+        expect(within(proposals).queryByText('AI')).toBeNull();
     });
 
     it('reads the new span when the reader moves, rather than filtering what it already holds', async () => {

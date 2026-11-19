@@ -10,6 +10,7 @@ import { AnswerSourcesContext } from '../answerCanvas/answerSources';
 import { Containment } from '../containment/Containment';
 import { Icon } from '../controls/Icon';
 import type { IconName } from '../controls/icons';
+import { ModelProvenance } from '../controls/ModelProvenance';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { AnswerableBlock } from './AnswerableBlock';
@@ -76,7 +77,7 @@ export function AnswerScope({ scope, ranIn = null }: { readonly scope: MessageKe
 
     return (
         <p className="flex items-center gap-1.75 text-xs text-muted">
-            <span className="font-semibold text-accent-deep">{translate('ai.badge')}</span>
+            <ModelProvenance />
             {ranIn === null ? null : (
                 <>
                     <span aria-hidden="true">{translate('agent.lineSeparator')}</span>
