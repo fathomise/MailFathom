@@ -7671,7 +7671,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         myDayRowStyle: "display:flex;align-items:center;gap:12px;min-width:0;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;min-height:" + (touch ? 60 : 54) + "px;padding:9px 6px",
         /* On a phone a row is its title and one line, so the card stays short. */
         myDayNoteStyle: "font-size:12.5px;line-height:1.4;color:var(--muted);" + (isMobile ? "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : "text-wrap:pretty"),
-        myDay: HOME.myDay.map(d => {
+        /* My day opens on the first four; *More* unfolds the rest in the same order, twenty at the most. */
+        myDayHasMore: HOME.myDay.length > 4,
+        myDayOpen: !!st.myDayOpen,
+        myDayToggle: () => this.setState(s2 => ({ myDayOpen: !s2.myDayOpen })),
+        myDayMoreIcon: st.myDayOpen ? "expand_less" : "expand_more",
+        myDayMoreLabel: st.myDayOpen ? "Fewer" : "More · " + (Math.min(HOME.myDay.length, 20) - 4),
+        myDayMoreStyle: "display:flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;font-size:13px;font-weight:600;color:var(--accent-d);min-height:" + (touch ? 48 : 40) + "px",
+        myDay: HOME.myDay.slice(0, st.myDayOpen ? 20 : 4).map(d => {
           const tone = d.tone === "err" ? ["var(--err-text)", "var(--err-soft)"] : d.tone === "warn" ? ["var(--warn-text)", "var(--warn-soft)"] : d.tone === "accent" ? ["var(--accent-d)", "var(--accent-soft)"] : ["var(--muted)", "var(--sub)"];
           return { icon: d.icon, title: d.title, note: d.note, when: d.when,
             open: () => d.go === "thread" ? this.goScreen("mail", { mailPane: "thread", threadOpen: true, threadId: d.tid, cameFrom: false }) : this.goScreen(d.go),

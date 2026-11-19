@@ -145,6 +145,23 @@ MailFathomDesign.data.home.myDay = [
   { id: "d-bank", icon: "gpp_maybe", tone: "err", title: "An invoice asks to pay a new bank account", note: "Not from fabrikam.com · confirm by phone before anything is paid", when: "before 29.08", go: "thread", tid: "fabrikam1" },
   { id: "d-rollout", icon: "event", tone: "accent", title: "Rollout status with Piotr", note: "Teams · 2 open questions in the thread", when: "15:00", go: "cal" },
   { id: "d-fabrikam", icon: "task_alt", tone: "plain", title: "Confirm the Q4 date to Fabrikam", note: "Tomasz Bąk asked yesterday · due today", when: "16:30", go: "tasks" },
+  // What *More* unfolds, in the same order: twenty rows at the most are ever drawn.
+  { id: "d-invoice", icon: "task_alt", tone: "plain", title: "Approve invoice 08/2026", note: "Finance needs it before the payment run · due today", when: "17:00", go: "tasks" },
+  { id: "d-audit", icon: "schedule", tone: "warn", title: "IT contract register for audit", note: "Jacek Wrona set the date · the addenda are still missing", when: "03.09", go: "thread", tid: "audyt1" },
+  { id: "d-anna", icon: "event", tone: "accent", title: "Call with Anna Kowalska", note: "Teams · the 2027 terms", when: "tomorrow 10:00", go: "cal" },
+  { id: "d-marta", icon: "mail", tone: "plain", title: "Check Marta's September calculation", note: "Marta Nowak sent it this morning · she needs a yes before Friday", when: "Friday", go: "thread", tid: "marta" },
+  { id: "d-plan", icon: "description", tone: "plain", title: "Read the updated rollout plan", note: "rollout_v3.xlsx moves the pilot by one week", when: "before 15:00", go: "thread", tid: "piotr" },
+  { id: "d-payment", icon: "schedule", tone: "warn", title: "Payment of invoice 08/2026", note: "Only after the bank account is confirmed by phone", when: "29.08", go: "thread", tid: "faktura1" },
+  { id: "d-leave", icon: "task_alt", tone: "plain", title: "Approve two leave requests", note: "HR asked on Monday · both are for September", when: "this week", go: "thread", tid: "hr1" },
+  { id: "d-agenda", icon: "task_alt", tone: "plain", title: "Send the agenda for the steering committee", note: "Nobody has sent one yet · the meeting is on Tuesday", when: "Monday", go: "tasks" },
+  { id: "d-pilot", icon: "mail", tone: "plain", title: "Answer Piotr about the pilot group", note: "He asked who joins from controlling", when: "this week", go: "thread", tid: "piotr" },
+  { id: "d-steering", icon: "event", tone: "accent", title: "Steering committee", note: "Room 4.12 · 6 people", when: "01.09", go: "cal" },
+  { id: "d-licence", icon: "schedule", tone: "warn", title: "Adventure Works licence renewal", note: "The offer expires and nobody owns it yet", when: "05.09", go: "thread", tid: "faktura1" },
+  { id: "d-budget", icon: "task_alt", tone: "plain", title: "Review the Q4 budget draft", note: "Marta Nowak wants comments · 12 pages", when: "04.09", go: "tasks" },
+  { id: "d-policy", icon: "description", tone: "plain", title: "Sign the insurance policy annex", note: "The third version arrived last week · legal has cleared it", when: "04.09", go: "tasks" },
+  { id: "d-review", icon: "event", tone: "accent", title: "Quarterly review with Marta", note: "In person · bring the August figures", when: "08.09", go: "cal" },
+  { id: "d-move", icon: "mail", tone: "plain", title: "Confirm your desk for the office move", note: "Facilities need a floor plan choice from every team", when: "10.09", go: "thread", tid: "hr1" },
+  { id: "d-training", icon: "task_alt", tone: "plain", title: "Finish the security training", note: "Assigned to everyone in August · 20 minutes", when: "15.09", go: "tasks" },
 ];
 
 // The summary above My day: where the reader stands and what they have to do, written by the model in a manager's

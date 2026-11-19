@@ -404,6 +404,9 @@ Project repository: https://github.com/fathomise/MailFathom
                       <span style="{{ d.whenStyle }}">{{ d.when }}</span>
                     </div>
                   </sc-for>
+                  <sc-if value="{{ myDayHasMore }}" hint-placeholder-val="{{ true }}">
+                    <div role="button" tabIndex="0" aria-expanded="{{ myDayOpen }}" onClick="{{ myDayToggle }}" style="{{ myDayMoreStyle }}" style-hover="cursor:pointer;background:var(--accent-soft)" style-focus="outline:2px solid var(--accent);outline-offset:-2px"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px">{{ myDayMoreIcon }}</span>{{ myDayMoreLabel }}</div>
+                  </sc-if>
                 </div>
               </div>
             </div>
