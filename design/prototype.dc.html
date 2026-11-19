@@ -376,39 +376,6 @@ Project repository: https://github.com/fathomise/MailFathom
               </sc-for>
               <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--accent-line);padding-top:10px;margin-top:2px"><span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>{{ nowNote }}</div>
             </div>
-            <sc-if value="{{ rightNowInline }}" hint-placeholder-val="{{ false }}">
-              <div role="region" aria-label="Right now" style="{{ rightNowCardStyle }}">
-                <div style="display:flex;align-items:center;gap:8px;min-width:0;padding:0 6px 4px">
-                  <span aria-hidden="true" style="{{ nowDotStyle }}"></span>
-                  <div style="{{ nowLabelStyle }}">Right now</div>
-                  <span style="margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ rightNowAt }}</span>
-                </div>
-                <sc-for list="{{ rightNow }}" as="rg" hint-placeholder-count="3">
-                <div style="display:flex;flex-direction:column">
-                  <div role="button" tabIndex="0" aria-label="{{ rg.aria }}" onClick="{{ rg.open }}" style="{{ rightNowGroupStyle }}" style-hover="cursor:pointer;background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
-                    <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:17px;color:var(--muted)">{{ rg.icon }}</span>
-                    <div style="{{ sectionLabelStyle }}">{{ rg.label }}</div>
-                    <div style="flex:1;min-width:0;font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ rg.meta }}</div>
-                    <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:17px;color:var(--faint)">chevron_right</span>
-                  </div>
-                  <sc-for list="{{ rg.items }}" as="d" hint-placeholder-count="2">
-                    <div role="button" tabIndex="0" onClick="{{ d.open }}" style="{{ rightNowRowStyle }}" style-hover="cursor:pointer;background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:-2px">
-                      <span aria-hidden="true" style="{{ d.tileStyle }}">{{ d.icon }}</span>
-                      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
-                        <div style="font-size:14px;font-weight:600;line-height:1.35;color:var(--text);text-wrap:pretty">{{ d.title }}</div>
-                        <div style="{{ rightNowNoteStyle }}">{{ d.note }}</div>
-                      </div>
-                      <div style="{{ d.whenWrapStyle }}"><span style="{{ d.whenStyle }}">{{ d.when }}</span></div>
-                      <sc-if value="{{ d.canWatch }}" hint-placeholder-val="{{ true }}">
-                        <div role="button" tabIndex="0" aria-pressed="{{ d.watching }}" aria-label="{{ d.watchTitle }}" title="{{ d.watchTitle }}" onClick="{{ d.watch }}" style="{{ d.watchStyle }}" style-hover="cursor:pointer;background:var(--accent-soft);color:var(--accent-d)">visibility</div>
-                      </sc-if>
-                    </div>
-                  </sc-for>
-                </div>
-                </sc-for>
-              </div>
-            </sc-if>
-
             <div role="region" aria-label="Watching" style="display:flex;flex-direction:column;gap:10px;min-width:0;{{ startSpanStyle }}">
               <div style="{{ startHeadStyle }}">
                 <div style="{{ startHeadTitleStyle }}">Watching</div>
@@ -609,9 +576,18 @@ Project repository: https://github.com/fathomise/MailFathom
     </div>
   </sc-if>
 
-  <sc-if value="{{ rightNowDocked }}" hint-placeholder-val="{{ true }}">
+  <sc-if value="{{ rightNowTabShown }}" hint-placeholder-val="{{ false }}">
+    <div role="button" tabIndex="0" aria-haspopup="dialog" aria-label="Show Right now" title="Show Right now" onClick="{{ rightNowDrawerToggle }}" style="{{ rightNowTabStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">
+      <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:22px">menu</span>
+      <span aria-hidden="true" style="{{ nowDotStyle }};position:absolute;top:7px;right:7px"></span>
+    </div>
+  </sc-if>
+  <sc-if value="{{ rightNowDrawerOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-motion="scrim" onClick="{{ rightNowDrawerToggle }}" style="position:fixed;inset:0;z-index:92;background:var(--scrim)"></div>
+  </sc-if>
+  <sc-if value="{{ rightNowShown }}" hint-placeholder-val="{{ true }}">
     <div style="{{ rightNowPanelStyle }}">
-      <sc-if value="{{ rightNowOpen }}" hint-placeholder-val="{{ true }}">
+      <sc-if value="{{ rightNowResizable }}" hint-placeholder-val="{{ true }}">
         <div role="separator" aria-orientation="vertical" aria-label="Resize Right now" onPointerDown="{{ rightNowResize }}" onDoubleClick="{{ rightNowResetSize }}" style="{{ boundaryStyle }}" style-hover="{{ boundaryListHover }}" title="Drag to widen Right now, up to twice its width (double-click to reset)" data-tip-hover=""><div aria-hidden="true" style="{{ boundaryReachStyle }}"></div><div aria-hidden="true" style="{{ boundaryGripStyle }}"><div style="{{ boundaryPillStyle }}"></div></div></div>
       </sc-if>
       <div style="{{ rightNowColStyle }}">
@@ -634,7 +610,7 @@ Project repository: https://github.com/fathomise/MailFathom
                   <span aria-hidden="true" style="{{ nowDotStyle }}"></span>
                   <div style="{{ nowLabelStyle }}">Right now</div>
                   <span style="margin-left:auto;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ rightNowAt }}</span>
-                  <div role="button" tabIndex="0" aria-expanded="true" aria-label="Fold Right now to its numbers" title="Fold Right now to its numbers" onClick="{{ rightNowFold }}" style="{{ rightNowFoldStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">right_panel_close</div>
+                  <div role="button" tabIndex="0" aria-expanded="true" aria-label="{{ rightNowFoldTitle }}" title="{{ rightNowFoldTitle }}" onClick="{{ rightNowFold }}" style="{{ rightNowFoldStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ rightNowFoldIcon }}</div>
                 </div>
                 <sc-for list="{{ rightNow }}" as="rg" hint-placeholder-count="3">
                 <div style="display:flex;flex-direction:column">

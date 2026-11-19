@@ -2632,6 +2632,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
 
     goScreen = (id, patch) => {
+      if (this.state.rightNowDrawer) this.setState({ rightNowDrawer: false });
       this.setState({ fathomMenu: false });
       if (id !== "start") this.setState({ fathomAnswer: null });
       if (id !== "start" && id !== "agent") this.setState({ selBar: null });
@@ -5463,17 +5464,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const framePad = (top, bottom) => (isMobile || narrow || compact)
         ? "padding:" + top + "px " + frameX + "px " + bottom + "px;"
         : "padding:" + top + "px max(" + frameX + "px, calc(100% - " + (frameMax + frameX) + "px)) " + bottom + "px " + frameX + "px;";
-      /* Right now is docked on every space from 1020 px: wide on Start, narrower beside the others, and folded to a
-         strip of its numbers when the reader folds it - or, until they choose, where a space has little room to give. */
-      const rightNowDocked = !isMobile && !narrow;
-      const rightNowFolded = rightNowDocked && (st.rightNowFolded != null ? !!st.rightNowFolded : st.screen !== "start" && compact);
+      /* Right now is docked on every space on the desktop, from 1180 px: wide on Start, narrower beside the others,
+         and folded to a strip of its numbers when the reader folds it. Below that it is a drawer over the space,
+         opened from a tab on the screen's right edge. */
+      const rightNowDocked = !isMobile && !compact;
+      const rightNowFolded = rightNowDocked && !!st.rightNowFolded;
+      const rightNowDrawerOpen = !rightNowDocked && !!st.rightNowDrawer;
       /* Its edge is a handle: dragged, the panel widens to twice its own width at the most, and never past 60% of the
          window; a double click puts it back. */
       const rightNowBase = st.screen === "start" ? Math.max(360, Math.min(460, Math.round(w * 0.29))) : 300;
       const rightNowPx = Math.round(Math.min(rightNowBase * Math.max(1, Math.min(2, st.rightNowScale || 1)), Math.max(rightNowBase, w * 0.6)));
       this._rightNowPx = rightNowPx; this._rightNowBase = rightNowBase;
-      const rightNowW = !rightNowDocked ? "0px" : rightNowFolded ? "56px" : rightNowPx + "px";
-      const rightNowSlim = rightNowDocked && rightNowPx < 360;
+      const rightNowDrawerPx = Math.min(380, w - 48);
+      const rightNowW = !rightNowDocked ? rightNowDrawerPx + "px" : rightNowFolded ? "56px" : rightNowPx + "px";
+      const rightNowSlim = (rightNowDocked ? rightNowPx : rightNowDrawerPx) < 360;
       const watchPer = isMobile ? 1 : (narrow || compact) ? 2 : startWide ? 4 : 3;
       const watchList = st.watched || [];
       const watchPages = Math.max(1, Math.ceil(watchList.length / watchPer));
@@ -7679,11 +7683,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* Start is one column - Now, then what is watched, on the same width. Right now is a panel docked on the right
            of every space from 1020 px, for the whole height of the screen; below that it stands on Start between the two. */
         startScreenStyle: "flex:1;display:flex;flex-direction:column;min-width:0;min-height:0",
-        rightNowDocked, rightNowInline: !rightNowDocked, rightNowFolded, rightNowOpen: !rightNowFolded,
-        rightNowFold: () => this.setState({ rightNowFolded: !rightNowFolded }),
+        rightNowDocked, rightNowFolded, rightNowOpen: !rightNowFolded,
+        rightNowShown: rightNowDocked || rightNowDrawerOpen, rightNowDrawerOpen, rightNowResizable: rightNowDocked && !rightNowFolded,
+        rightNowTabShown: !rightNowDocked && !rightNowDrawerOpen && !st.compose && !st.doc && !st.htmlDoc && !st.settings && !st.notifCenter && !st.more,
+        rightNowTabStyle: "position:fixed;z-index:87;right:0;top:calc(50% - 22px);width:44px;height:44px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:12px 0 0 12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-right:0;box-shadow:0 6px 18px var(--sh-2)",
+        rightNowDrawerToggle: () => this.setState({ rightNowDrawer: !rightNowDrawerOpen }),
+        rightNowFold: () => this.setState(rightNowDocked ? { rightNowFolded: !rightNowFolded } : { rightNowDrawer: false }),
+        rightNowFoldIcon: rightNowDocked ? "right_panel_close" : "close",
+        rightNowFoldTitle: rightNowDocked ? "Fold Right now to its numbers" : "Close",
         rightNowFoldStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? 12 : 8) + "px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:20px;" + (touch ? "width:44px;height:44px" : "width:30px;height:30px;margin:-5px -2px -5px 0"),
         rightNowNumStyle: "flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-sizing:border-box;width:44px;min-height:" + (touch ? 56 : 52) + "px;border-radius:10px",
-        rightNowPanelStyle: "order:1;flex:0 0 auto;width:" + rightNowW + ";box-sizing:border-box;display:flex;min-height:0;background:var(--panel)" + (rightNowFolded ? ";border-left:1px solid var(--line)" : ""),
+        rightNowPanelStyle: (rightNowDocked ? "order:1;flex:0 0 auto;" : "position:fixed;z-index:93;top:0;right:0;bottom:0;border-left:1px solid var(--line);box-shadow:-18px 0 50px var(--sh-3);") + "width:" + rightNowW + ";box-sizing:border-box;display:flex;min-height:0;background:var(--panel)" + (rightNowFolded ? ";border-left:1px solid var(--line)" : ""),
         rightNowColStyle: "flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden",
         /* The panel is on the right, so a drag to the left widens it: the width is the start width less the travel. */
         rightNowResize: (e) => { const from = this._rightNowPx, base = this._rightNowBase; this.beginPaneDrag(e, from, (v) => this.setState({ rightNowScale: Math.max(1, Math.min(2, (2 * from - v) / base)) })); },
@@ -7718,7 +7728,6 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         nowNote: HOME.now.note,
         /* Right now: the panel beside Now and Watching. What matters most at this moment from the mail, the tasks and the calendar,
            a group each, read off by rules. */
-        rightNowCardStyle: "display:flex;flex-direction:column;gap:8px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 28px -18px var(--sh-3);padding:" + (isMobile ? "14px 8px 4px" : "18px 12px 6px"),
         rightNowAt: rightNowSlim ? HOME.rightNowAt.split(" · ")[0] : HOME.rightNowAt,
         rightNowGroupStyle: "display:flex;align-items:center;gap:8px;min-width:0;box-sizing:border-box;border-top:1px solid var(--line2);border-radius:8px;padding:0 6px;min-height:" + (touch ? 44 : 34) + "px",
         rightNowRowStyle: "display:flex;align-items:center;" + (rightNowSlim ? "flex-wrap:wrap;" : "") + "gap:12px;min-width:0;box-sizing:border-box;border-radius:8px;min-height:" + (touch ? 60 : 52) + "px;padding:7px 6px",
