@@ -4466,7 +4466,7 @@ fathom_review_tells_a_contributor_why_it_withheld_the_approval() {
   assert_excludes 'protected path' "$payload_file"
 }
 
-# A pass that found nothing in more than 10,000 changed lines is not approved, a maintainer's change
+# A pass that found nothing in more than 7,000 changed lines is not approved, a maintainer's change
 # included: the verdict arrives as the comment a contributor's does, naming the size as the reason.
 # The threshold itself is still approved, and a count `collect` never recorded withholds the approval
 # rather than granting it.
@@ -4477,21 +4477,21 @@ fathom_review_withholds_the_approval_from_a_change_above_the_line_limit() {
   local author_role
   local changed_lines
 
-  CHANGED_LINES_OUTSIDE_MIGRATIONS='10000' run_fathom_review_submit "$clean" "$output_file" "$payload_file"
+  CHANGED_LINES_OUTSIDE_MIGRATIONS='7000' run_fathom_review_submit "$clean" "$output_file" "$payload_file"
 
   ((submit_status == 0))
   assert_json '"APPROVE"' '.event' "$payload_file"
   assert_contains 'verdict=approved' "$submit_step_output_file"
 
   for author_role in maintain admin write; do
-    CHANGED_LINES_OUTSIDE_MIGRATIONS='10001' run_fathom_review_submit \
+    CHANGED_LINES_OUTSIDE_MIGRATIONS='7001' run_fathom_review_submit \
       "$clean" "$output_file" "$payload_file" 'success' '' '<!-- fathom-review: automatic -->' \
       'fathomise/MailFathom' "$author_role"
 
     ((submit_status == 0))
     assert_json '"COMMENT"' '.event' "$payload_file"
     assert_contains '# NO FINDINGS' "$payload_file"
-    assert_contains 'changes 10001 lines outside the generated migrations, which is more than the 10000' "$payload_file"
+    assert_contains 'changes 7001 lines outside the generated migrations, which is more than the 7000' "$payload_file"
     assert_contains 'A maintainer still has to review and approve its current head' "$payload_file"
     assert_excludes '# APPROVED' "$payload_file"
     assert_contains 'verdict=no_findings' "$submit_step_output_file"

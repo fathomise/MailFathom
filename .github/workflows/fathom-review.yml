@@ -66,7 +66,7 @@ name: Fathom review
 # does not ask for it from a code owner, so this one satisfies it — which is why it is given only to
 # a pull request whose head branch lives in this repository and whose author holds `maintain` or
 # `admin` on it — the `maintainers` team and the organization's owner — and only where the change is
-# no more than 10,000 lines, additions plus deletions, without the generated migrations: a pass that
+# no more than 7,000 lines, additions plus deletions, without the generated migrations: a pass that
 # found nothing in more than that is not evidence enough to merge on. Any other pull request never
 # gets one, a contributor's included: a pass that finds nothing there submits `event: COMMENT` under
 # `NO FINDINGS` instead, `Apply pull request rules` reads that heading as the clean verdict it is and
@@ -2529,7 +2529,7 @@ jobs:
           if [[ "$(jq '(.findings // []) | length' "$findings_file")" == '0' ]]; then
             head_repository="$(jq -r '.head_repository // ""' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || true)"
             author_role="$(jq -r '.author_role // ""' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || true)"
-            approval_line_limit=10000
+            approval_line_limit=7000
             changed_lines="$(jq -r '.changed_lines_outside_migrations // "" | if type == "number" then . else "" end' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || true)"
             if [[ -z "$changed_lines" ]]; then
               event='COMMENT'

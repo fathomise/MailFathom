@@ -2870,7 +2870,7 @@ records how many lines the change moves — the pull request's own additions plu
 deletions, without the files under
 `backend/src/Infrastructure/Persistence/Migrations/`, which EF Core writes and
 which would carry an ordinary schema change past any limit on their own. A pass
-that found nothing in more than 10,000 such lines is weaker evidence than the
+that found nothing in more than 7,000 such lines is weaker evidence than the
 same pass over an ordinary change, so the submission step publishes it as the same
 `event: COMMENT` under `NO FINDINGS`, with a notice naming the count and the
 limit, and a maintainer's approval is what merges it. The total is the pull
