@@ -2536,8 +2536,8 @@ nobody re-read, which carries the previous review's verdict and is counted.
 **An approval carries no findings.** The verdict follows the list rather than the
 severities in it: an empty answer is published as `event: APPROVE` under an
 `APPROVED` heading with the summary and nothing else — or, on a pull request from a
-fork or from an author who is not a maintainer here, as `event: COMMENT` under
-`NO FINDINGS` — and an answer holding anything
+fork, from an author who is not a maintainer here, or one larger than the reviewer
+approves, as `event: COMMENT` under `NO FINDINGS` — and an answer holding anything
 at all is published as `event: COMMENT` under `NEEDS CHANGES` with its findings as
 inline threads. So `APPROVED` means the reviewer found nothing, and reading the
 verdict is the whole of reading an approval.
@@ -2821,7 +2821,8 @@ that were actually posted.
 
 Every body opens with the verdict as a heading of its own — `APPROVED` when the
 findings array is empty, `NO FINDINGS` when it is empty on a pull request from a
-fork or from an author who is not a maintainer here,
+fork, from an author who is not a maintainer here, or one larger than the reviewer
+approves,
 `NEEDS CHANGES` when it is not — and the summary sits
 under it. That is the one thing a reader wants before deciding whether to read
 the rest, and inferring it from whether threads appeared fails exactly where it

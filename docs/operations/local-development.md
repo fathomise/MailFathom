@@ -2141,7 +2141,7 @@ its checks concluded — and writes the roadmap board where
 queue holds the pull request; `Changes requested` for a failed required check, a review that found something, a
 removal from the queue after a clean verdict, or a clean change that no longer merges; and
 `Ready to merge` where a clean verdict — an approval, or a `NO FINDINGS` comment on a change whose
-author is not a maintainer — and the checks agree and the change still merges — each verdict decided only once
+author is not a maintainer or which is larger than the reviewer approves — and the checks agree and the change still merges — each verdict decided only once
 every check the branch rules require has finished, so none is published while one is still running — and
 `Changes requested` from `Ready to merge` alone for a conflicting pull request nothing has a verdict
 about. The push sweeps every open pull request, a concluded pipeline decides the one it ran on, and
