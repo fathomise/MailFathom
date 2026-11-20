@@ -21,7 +21,8 @@
 # none is refused.
 #
 # A *clean* head, below, is one the reviewer approved or one it found nothing on and published as a
-# `COMMENT` under `NO FINDINGS` because the author is not a maintainer. Both are the same verdict and
+# `COMMENT` under `NO FINDINGS` because the author is not a maintainer or the change is larger than
+# the reviewer approves. Both are the same verdict and
 # the rules read them alike: what the second still waits on is a maintainer's approval, which is a
 # merge decision rather than a change the agent owes, so it belongs in `Ready to merge` beside the
 # first.

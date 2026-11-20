@@ -527,7 +527,8 @@ summary that says plainly what the change was covered by and that you found noth
 the bar.
 That is a finished review rather than a failed one, and the step after you turns it into
 an approval whose body is the verdict `APPROVED` followed by your summary — or, when the
-head branch lives in a fork or the author is not a maintainer of this repository, into a
+head branch lives in a fork, the author is not a maintainer of this repository, or the
+change is larger than this reviewer approves, into a
 comment under `NO FINDINGS` that says a maintainer still has to approve. Two or three lines under that heading: what the pass covered, and
 the state you found it in. Do not write the verdict yourself — the step adds it, and a
 second one below it reads as a contradiction — and do not invent a finding to avoid
