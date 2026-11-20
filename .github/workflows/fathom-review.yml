@@ -65,7 +65,9 @@ name: Fathom review
 # The approval is what lets a change merge. The `main` ruleset requires one approving review and
 # does not ask for it from a code owner, so this one satisfies it — which is why it is given only to
 # a pull request whose head branch lives in this repository and whose author holds `maintain` or
-# `admin` on it — the `maintainers` team and the organization's owner. Any other pull request never
+# `admin` on it — the `maintainers` team and the organization's owner — and only where the change is
+# no more than 7,000 lines, additions plus deletions, without the generated migrations: a pass that
+# found nothing in more than that is not evidence enough to merge on. Any other pull request never
 # gets one, a contributor's included: a pass that finds nothing there submits `event: COMMENT` under
 # `NO FINDINGS` instead, `Apply pull request rules` reads that heading as the clean verdict it is and
 # moves the board to `Ready to merge`, and a maintainer's approval is what merges it.
@@ -1124,6 +1126,25 @@ jobs:
              --argjson listed "$(jq 'length' "$all_files")" '
             .protected_changes = ($protected_changes | split("\n") | map(select(. != "")))
             | .protected_changes_complete = (.changed_files != null and $listed >= .changed_files)' \
+            "$REVIEW_DIRECTORY/pull-request.json" > "$REVIEW_DIRECTORY/pull-request.json.next"
+          mv "$REVIEW_DIRECTORY/pull-request.json.next" "$REVIEW_DIRECTORY/pull-request.json"
+
+          # How many lines the change moves, which the submission step withholds the approval above:
+          # the pull request's own additions plus deletions, without the files under
+          # `backend/src/Infrastructure/Persistence/Migrations/`, which EF Core writes and which
+          # would carry an ordinary schema change past any limit on their own. The total is the pull
+          # request's figure rather than a sum over the listing, so a listing the endpoint cut short
+          # leaves migration lines in the count and can never take other lines out of it. A pull
+          # request reporting no figure records `null`, which withholds the approval.
+          jq --slurpfile files "$all_files" '
+            .changed_lines_outside_migrations = (
+              if .additions == null or .deletions == null then null
+              else .additions + .deletions
+                - ($files[0]
+                   | map(select(.filename | startswith("backend/src/Infrastructure/Persistence/Migrations/"))
+                         | .additions + .deletions)
+                   | add // 0)
+              end)' \
             "$REVIEW_DIRECTORY/pull-request.json" > "$REVIEW_DIRECTORY/pull-request.json.next"
           mv "$REVIEW_DIRECTORY/pull-request.json.next" "$REVIEW_DIRECTORY/pull-request.json"
 
@@ -2484,7 +2505,11 @@ jobs:
           # comment under `NO FINDINGS`, which the board reads as `Ready to merge`, and a
           # maintainer's approval merges it. A contributor's notice says why from the protected-path
           # reading `collect` recorded: a protected path, a listing cut short, or neither, where the
-          # only reason is the role. These facts are read from
+          # only reason is the role. Size withholds it from everybody, a maintainer included: a
+          # pass that found nothing in more than `approval_line_limit` changed lines, counted by
+          # `collect` without the generated migrations, is weaker evidence than the same pass over
+          # an ordinary change, so it is published as the same comment and a maintainer approves
+          # the head. A count `collect` did not record withholds it too. These facts are read from
           # what `collect` asked the API, never from the event or the model, and an absent one — a
           # deleted fork reports `null` — withholds the approval. `REQUEST_CHANGES` is never used in
           # any branch: a reviewer that reports no status check must not be able to block a merge.
@@ -2504,7 +2529,19 @@ jobs:
           if [[ "$(jq '(.findings // []) | length' "$findings_file")" == '0' ]]; then
             head_repository="$(jq -r '.head_repository // ""' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || true)"
             author_role="$(jq -r '.author_role // ""' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || true)"
-            if [[ "$head_repository" == "$REPOSITORY" ]] \
+            approval_line_limit=7000
+            changed_lines="$(jq -r '.changed_lines_outside_migrations // "" | if type == "number" then . else "" end' "$REVIEW_DIRECTORY/pull-request.json" 2>/dev/null || true)"
+            if [[ -z "$changed_lines" ]]; then
+              event='COMMENT'
+              heading='# NO FINDINGS'
+              notice="The number of lines this pull request changes could not be counted, so it cannot be shown to stay within the ${approval_line_limit} lines this reviewer approves a change up to. This reviewer does not approve it; a maintainer still has to review and approve its current head before it can merge."
+              verdict='no_findings'
+            elif (( changed_lines > approval_line_limit )); then
+              event='COMMENT'
+              heading='# NO FINDINGS'
+              notice="This pull request changes ${changed_lines} lines outside the generated migrations, which is more than the ${approval_line_limit} this reviewer approves a change up to, so this reviewer does not approve it whoever its author is. A maintainer still has to review and approve its current head before it can merge."
+              verdict='no_findings'
+            elif [[ "$head_repository" == "$REPOSITORY" ]] \
               && [[ "$author_role" == 'maintain' || "$author_role" == 'admin' ]]; then
               event='APPROVE'
               heading='# APPROVED'
@@ -2567,7 +2604,7 @@ jobs:
             if [[ "$event" == 'APPROVE' ]]; then
               echo 'Approved: the review found nothing above the bar.'
             else
-              echo 'Found nothing above the bar; the head lives in a fork or the author is not a maintainer here, so a maintainer approves it.'
+              echo 'Found nothing above the bar; the change is above the size this reviewer approves, the head lives in a fork, or the author is not a maintainer here, so a maintainer approves it.'
             fi
             exit 0
           fi

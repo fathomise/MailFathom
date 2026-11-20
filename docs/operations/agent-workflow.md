@@ -1189,7 +1189,8 @@ list to exactly the workflows a pull request runs, in both directions, so a pipe
 becomes required later is already one whose conclusion decides the board.
 
 A **clean head**, below, is one the reviewer approved, or one it found nothing on and
-published as a `COMMENT` under `NO FINDINGS` because the author is not a maintainer. The rules
+published as a `COMMENT` under `NO FINDINGS` because the author is not a maintainer or the
+change is larger than the reviewer approves. The rules
 read the two alike: what the second still waits on is a maintainer's approval, which is a
 merge decision rather than a change the agent owes, so it belongs in `Ready to merge` beside
 the first.
@@ -2535,8 +2536,8 @@ nobody re-read, which carries the previous review's verdict and is counted.
 **An approval carries no findings.** The verdict follows the list rather than the
 severities in it: an empty answer is published as `event: APPROVE` under an
 `APPROVED` heading with the summary and nothing else — or, on a pull request from a
-fork or from an author who is not a maintainer here, as `event: COMMENT` under
-`NO FINDINGS` — and an answer holding anything
+fork, from an author who is not a maintainer here, or one larger than the reviewer
+approves, as `event: COMMENT` under `NO FINDINGS` — and an answer holding anything
 at all is published as `event: COMMENT` under `NEEDS CHANGES` with its findings as
 inline threads. So `APPROVED` means the reviewer found nothing, and reading the
 verdict is the whole of reading an approval.
@@ -2820,7 +2821,8 @@ that were actually posted.
 
 Every body opens with the verdict as a heading of its own — `APPROVED` when the
 findings array is empty, `NO FINDINGS` when it is empty on a pull request from a
-fork or from an author who is not a maintainer here,
+fork, from an author who is not a maintainer here, or one larger than the reviewer
+approves,
 `NEEDS CHANGES` when it is not — and the summary sits
 under it. That is the one thing a reader wants before deciding whether to read
 the rest, and inferring it from whether threads appeared fails exactly where it
@@ -2863,6 +2865,20 @@ its current head, and the maintainer's approval is what merges it. That comment 
 still the clean verdict it says it is, so `Apply pull request rules` moves the
 issue to `Ready to merge` on it exactly as on an approval; a contributor's change
 therefore never merges on the reviewer's word alone, whatever paths it touches.
+
+**Size withholds the approval from everybody, a maintainer included.** `collect`
+records how many lines the change moves — the pull request's own additions plus
+deletions, without the files under
+`backend/src/Infrastructure/Persistence/Migrations/`, which EF Core writes and
+which would carry an ordinary schema change past any limit on their own. A pass
+that found nothing in more than 7,000 such lines is weaker evidence than the
+same pass over an ordinary change, so the submission step publishes it as the same
+`event: COMMENT` under `NO FINDINGS`, with a notice naming the count and the
+limit, and a maintainer's approval is what merges it. The total is the pull
+request's figure rather than a sum over the listing, so a listing the
+changed-files endpoint cut short leaves migration lines in the count and never
+takes other lines out of it, and a count that was not recorded withholds the
+approval rather than granting it.
 
 **A contributor is told why.** `collect` reads every changed file — renames on
 both sides, vendored and generated files included, beyond the hundred the readers

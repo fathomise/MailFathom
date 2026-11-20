@@ -2141,7 +2141,7 @@ its checks concluded — and writes the roadmap board where
 queue holds the pull request; `Changes requested` for a failed required check, a review that found something, a
 removal from the queue after a clean verdict, or a clean change that no longer merges; and
 `Ready to merge` where a clean verdict — an approval, or a `NO FINDINGS` comment on a change whose
-author is not a maintainer — and the checks agree and the change still merges — each verdict decided only once
+author is not a maintainer or which is larger than the reviewer approves — and the checks agree and the change still merges — each verdict decided only once
 every check the branch rules require has finished, so none is published while one is still running — and
 `Changes requested` from `Ready to merge` alone for a conflicting pull request nothing has a verdict
 about. The push sweeps every open pull request, a concluded pipeline decides the one it ran on, and
@@ -2240,7 +2240,7 @@ The rulesets and the configurations live in repository and organization settings
 
 `.github/CODEOWNERS` names `@Krzysztof318` as the owner of every path, so GitHub requests the maintainer's review on every pull request. The ruleset does not require code-owner review (`require_code_owner_review` is `false`): it requires one approving review from an account with write access, and the `Fathom reviewer` App's approval is one. That is what lets the maintainer's own pull requests merge through the queue, since GitHub does not let an author approve their own pull request.
 
-Because the App's approval satisfies the requirement, it is given only where the head branch lives in this repository and the author holds `maintain` or `admin` on it, which is what the `maintainers` team and the organization's owner hold. `Fathom review` never approves a pull request from a fork, from a member of `contributors`, who holds `write`, or from an author with no role at all, and a pass that finds nothing there is submitted as a comment under `NO FINDINGS`, so such a pull request waits for a maintainer's approval. The board reads that comment as the clean verdict it is and moves the issue to `Ready to merge`, which is the column a maintainer reads for what is waiting on nothing but their approval and the merge. [`agent-workflow.md`](agent-workflow.md) records the submission rule.
+Because the App's approval satisfies the requirement, it is given only where the head branch lives in this repository and the author holds `maintain` or `admin` on it, which is what the `maintainers` team and the organization's owner hold. `Fathom review` never approves a pull request from a fork, from a member of `contributors`, who holds `write`, or from an author with no role at all, and a pass that finds nothing there is submitted as a comment under `NO FINDINGS`, so such a pull request waits for a maintainer's approval. So does any pull request that changes more than 7,000 lines outside the generated migrations, a maintainer's own included. The board reads that comment as the clean verdict it is and moves the issue to `Ready to merge`, which is the column a maintainer reads for what is waiting on nothing but their approval and the merge. [`agent-workflow.md`](agent-workflow.md) records the submission rule.
 
 The repository belongs to an organization, and the owner the file names is still a person. A GitHub Team is not a substitute to reach for: the review requested is the maintainer's own, and a team's is whoever its membership admits.
 

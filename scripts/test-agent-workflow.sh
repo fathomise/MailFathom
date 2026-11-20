@@ -3424,7 +3424,7 @@ case "$endpoint" in
                         else {full_name: "fathomise/MailFathom"} end)},
           base: {sha: "89abcdef0123456789abcdef0123456789abcdef", ref: "main"},
           changed_files: ((env.FAKE_PULL_REQUEST_CHANGED_FILES // "1") | tonumber),
-          additions: 1,
+          additions: ((env.FAKE_PULL_REQUEST_ADDITIONS // "1") | tonumber),
           deletions: 0}'
     )"
     ;;
@@ -3606,6 +3606,20 @@ fathom_review_collects_the_protected_paths_a_change_reaches() {
 
   FAKE_PULL_REQUEST_CHANGED_FILES='3001' run_fathom_review_collect "$output_file"
   assert_json 'false' '.protected_changes_complete' "$collect_review_directory/pull-request.json"
+}
+
+# The size the approval is withheld above is the pull request's own additions plus deletions without
+# the lines of the generated migration files, so a schema change is measured by what somebody wrote.
+# The total is the pull request's own figure rather than a sum over the listing, so a listing cut
+# short can leave migration lines in the count and never take other lines out of it.
+fathom_review_collects_the_changed_lines_outside_migrations() {
+  local output_file="$test_directory/fathom-review-collect-size-output"
+
+  run_fathom_review_collect "$output_file"
+  assert_json '1' '.changed_lines_outside_migrations' "$collect_review_directory/pull-request.json"
+
+  FAKE_PULL_REQUEST_ADDITIONS='12500' run_fathom_review_collect "$output_file" 120 120 1 false 0 3
+  assert_json '500' '.changed_lines_outside_migrations' "$collect_review_directory/pull-request.json"
 }
 
 # A prefix covers its directory and nothing beside it, a name matches at any depth and only whole, a
@@ -4169,14 +4183,19 @@ write_fathom_review_collection() {
   # read them. None, read in full, is the ordinary case.
   local protected_changes="${PROTECTED_CHANGES-[]}"
   local protected_changes_complete="${PROTECTED_CHANGES_COMPLETE-true}"
+  # The changed lines outside the generated migrations, as `collect` counted them. An ordinary
+  # change is far under what withholds the approval; an empty value stands for a count never read.
+  local changed_lines="${CHANGED_LINES_OUTSIDE_MIGRATIONS-120}"
 
   mkdir -p "$review_directory"
   jq -n --arg head_repository "$head_repository" --arg author_role "$author_role" \
     --argjson protected_changes "$protected_changes" --argjson complete "$protected_changes_complete" \
+    --argjson changed_lines "${changed_lines:-null}" \
     '{head_repository: (if $head_repository == "" then null else $head_repository end),
       author_role: (if $author_role == "" then null else $author_role end),
       protected_changes: $protected_changes,
-      protected_changes_complete: $complete}' \
+      protected_changes_complete: $complete,
+      changed_lines_outside_migrations: $changed_lines}' \
     > "$review_directory/pull-request.json"
   printf '[{"filename":"backend/src/Sample.cs","lines":[12,13,14]}]\n' > "$review_directory/lines.json"
   : > "$review_directory/truncation.txt"
@@ -4445,6 +4464,45 @@ fathom_review_tells_a_contributor_why_it_withheld_the_approval() {
   assert_json '"COMMENT"' '.event' "$payload_file"
   assert_contains 'The author of this pull request is not a maintainer' "$payload_file"
   assert_excludes 'protected path' "$payload_file"
+}
+
+# A pass that found nothing in more than 7,000 changed lines is not approved, a maintainer's change
+# included: the verdict arrives as the comment a contributor's does, naming the size as the reason.
+# The threshold itself is still approved, and a count `collect` never recorded withholds the approval
+# rather than granting it.
+fathom_review_withholds_the_approval_from_a_change_above_the_line_limit() {
+  local output_file="$test_directory/fathom-review-submit-size-output"
+  local payload_file="$test_directory/fathom-review-submit-size-payload"
+  local clean='{"summary":"Read every changed file and found nothing above the bar.","findings":[]}'
+  local author_role
+  local changed_lines
+
+  CHANGED_LINES_OUTSIDE_MIGRATIONS='7000' run_fathom_review_submit "$clean" "$output_file" "$payload_file"
+
+  ((submit_status == 0))
+  assert_json '"APPROVE"' '.event' "$payload_file"
+  assert_contains 'verdict=approved' "$submit_step_output_file"
+
+  for author_role in maintain admin write; do
+    CHANGED_LINES_OUTSIDE_MIGRATIONS='7001' run_fathom_review_submit \
+      "$clean" "$output_file" "$payload_file" 'success' '' '<!-- fathom-review: automatic -->' \
+      'fathomise/MailFathom' "$author_role"
+
+    ((submit_status == 0))
+    assert_json '"COMMENT"' '.event' "$payload_file"
+    assert_contains '# NO FINDINGS' "$payload_file"
+    assert_contains 'changes 7001 lines outside the generated migrations, which is more than the 7000' "$payload_file"
+    assert_contains 'A maintainer still has to review and approve its current head' "$payload_file"
+    assert_excludes '# APPROVED' "$payload_file"
+    assert_contains 'verdict=no_findings' "$submit_step_output_file"
+  done
+
+  CHANGED_LINES_OUTSIDE_MIGRATIONS='' run_fathom_review_submit "$clean" "$output_file" "$payload_file"
+
+  ((submit_status == 0))
+  assert_json '"COMMENT"' '.event' "$payload_file"
+  assert_contains 'could not be counted' "$payload_file"
+  assert_contains 'verdict=no_findings' "$submit_step_output_file"
 }
 
 # The marker is what the ceiling counts with, and it is written by the only step that publishes. A
@@ -13410,6 +13468,7 @@ run_test fathom_review_collects_the_labels_of_an_issue_the_change_closes
 run_test fathom_review_collects_only_what_members_and_the_reviewer_wrote
 run_test fathom_review_collects_where_the_head_lives_and_who_opened_it
 run_test fathom_review_collects_the_protected_paths_a_change_reaches
+run_test fathom_review_collects_the_changed_lines_outside_migrations
 run_test protected_paths_select_only_what_a_maintainer_must_change
 run_test fathom_review_reports_unknown_labels_for_an_issue_it_could_not_fetch
 run_test fathom_review_never_reads_the_design_runtime
@@ -13443,6 +13502,7 @@ run_test fathom_review_moves_a_finding_with_no_line_into_the_body
 run_test fathom_review_approves_when_it_finds_nothing
 run_test fathom_review_approves_only_a_pull_request_from_this_repository_by_a_maintainer
 run_test fathom_review_tells_a_contributor_why_it_withheld_the_approval
+run_test fathom_review_withholds_the_approval_from_a_change_above_the_line_limit
 run_test fathom_review_reports_the_files_a_review_never_named
 run_test fathom_review_reports_no_gap_when_the_review_named_every_file
 run_test fathom_review_counts_a_named_path_the_change_does_not_contain
