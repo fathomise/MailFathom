@@ -20,7 +20,7 @@ MailFathomDesign.data.notifications = [
   { id: "n1", kind: "mail", unread: true, mins: 3, title: "Anna Kowalska", body: "Re: Contract addendum - CPI cap counter-proposal", src: "Mail · Contoso", go: { screen: "mail", thread: "contoso" } },
   { id: "n3", kind: "mail", unread: true, mins: 12, merged: true, count: 8, account: "Fabrikam", title: "8 new messages", body: "More than five arrived unread, so they are gathered here.", src: "Mail · Fabrikam", go: { screen: "mail" } },
   { id: "n2", kind: "cal", unread: true, mins: 26, title: "Meeting in 30 minutes", body: "Contoso addendum review · Nordwind room and Teams.", src: "Calendar", go: { screen: "cal" } },
-  { id: "n4", kind: "task", unread: false, mins: 150, title: "Task: IT contract list", body: "Audit is waiting for the list with notice periods.", src: "Tasks", go: { screen: "tasks" } },
+  { id: "n4", kind: "task", unread: false, mins: 150, title: "Task: IT contract list", body: "Audit is waiting for the list with notice periods.", src: "Tasks", go: { screen: "tasks", task: "t4" } },
   { id: "n5", kind: "mail", unread: false, mins: 320, title: "Marek Wiśniewski", body: "Re: IT contract audit - two files attached", src: "Mail · Audit", go: { screen: "mail", thread: "audyt" } },
   { id: "n6", kind: "system", unread: false, mins: 700, title: "Sync finished", body: "3 accounts, 12 new threads, 1 account needs to sign in again.", src: "System", go: null },
   { id: "n7", kind: "cal", unread: false, mins: 1580, title: "Meeting invitation", body: "Nordwind - SLA negotiations, Tuesday 10:00.", src: "Calendar", go: { screen: "cal" } },

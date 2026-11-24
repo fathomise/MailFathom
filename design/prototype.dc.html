@@ -32,6 +32,7 @@ Project repository: https://github.com/fathomise/MailFathom
 <script src="logic/prototype/markdown.js"></script>
 <script src="logic/prototype/mail-html.js"></script>
 <script src="logic/prototype/fathom.js"></script>
+<script src="logic/prototype/tasks.js"></script>
 <script src="logic/prototype/component.js"></script>
 </head>
 <body>
@@ -637,7 +638,6 @@ Project repository: https://github.com/fathomise/MailFathom
                 </div>
                 </sc-for>
               </div>
-        </div>
         <sc-if value="{{ panelActionsShown }}" hint-placeholder-val="{{ true }}">
           <div role="group" aria-label="Actions for this screen" style="{{ panelActionsStyle }}">
             <div style="{{ panelActionsHeadStyle }}">
@@ -651,6 +651,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div role="button" tabIndex="0" onClick="{{ openAgentFromFathom }}" style="{{ panelActionStyle }}" style-hover="cursor:pointer;background:var(--hover)" style-focus="outline:2px solid var(--accent);outline-offset:-2px"><span aria-hidden="true" style="{{ panelActionTileStyle }}">forum</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Open the Agent</span><span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:17px;color:var(--faint)">chevron_right</span></div>
           </div>
         </sc-if>
+        </div>
       </sc-if>
       </div>
     </div>
@@ -1098,7 +1099,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 <sc-if value="{{ t.convShown }}" hint-placeholder-val="{{ false }}">
                 <div style="display:flex;align-items:center;gap:9px;min-width:0"><sc-if value="{{ t.selected }}" hint-placeholder-val="{{ false }}"><span style="align-self:center;width:17px;height:17px;flex:0 0 17px;border-radius:50%;background:var(--accent);color:var(--onaccent);display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">check</span></sc-if><span style="position:relative;flex:0 0 auto;display:inline-flex"><sc-if value="{{ t.hasAvatar }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarImgStyle }}"></span></sc-if><sc-if value="{{ t.noAvatar }}" hint-placeholder-val="{{ true }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarStyle }}">{{ t.initials }}</span></sc-if><sc-if value="{{ t.fromMember }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ t.fromDotStyle }}"></span></sc-if></span><span style="{{ t.convPeopleStyle }}">{{ t.convPeople }}</span><sc-if value="{{ t.markShown }}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" data-sender-mark data-tip-hover title="{{ t.markName }}" onClick="{{ t.openMark }}" style="{{ t.markBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ t.markGlyphStyle }}">{{ t.markGlyph }}</span></span></sc-if><sc-if value="{{ t.extShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" data-external-chip data-tip-hover title="{{ t.extName }}" onClick="{{ t.openExt }}" style="{{ t.extConvBtnStyle }}" style-hover="cursor:pointer;opacity:0.86"><span style="{{ t.extPillStyle }}">External</span></span></sc-if><span style="margin-left:auto;flex:0 0 auto;display:flex;align-items:center;gap:7px"><sc-if value="{{ t.rcptShown }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ t.rcptName }}</span><span aria-hidden="true" data-receipt-mark data-tip-hover title="{{ t.rcptName }}" onClick="{{ t.openRcpt }}" style="{{ t.rcptBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ t.rcptGlyphStyle }}">{{ t.rcptGlyph }}</span></span></sc-if><sc-if value="{{ t.encShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" data-tip-hover title="{{ t.encName }}" style="{{ t.encGlyphStyle }}">lock</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ t.encName }}</span></sc-if><sc-if value="{{ t.localOnly }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" data-tip-hover title="Local only" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)">cloud_off</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">Local only</span></sc-if><sc-if value="{{ t.attShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" data-tip-hover title="{{ t.attLabel }}" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)">attach_file</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ t.attLabel }}</span></sc-if><sc-if value="{{ t.flagged }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="Flagged" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1;color:var(--warn)">flag</span></sc-if><sc-if value="{{ t.multi }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--text2);background:var(--rail);border:1px solid var(--line2);border-radius:8px;padding:1px 6px">{{ t.count }}</span></sc-if><sc-if value="{{ t.aiBtnShown }}" hint-placeholder-val="{{ true }}"><span onClick="{{ t.openAiSum }}" title="AI summary" style="{{ t.aiBtnStyle }}" style-hover="cursor:pointer;background:var(--accent-soft);color:var(--accent-d)">auto_awesome</span></sc-if><span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)">{{ t.time }}</span></span></div>
                 <div style="{{ t.convAiBoxStyle }}">
-                <div style="{{ t.convTitleRowStyle }}"><sc-if value="{{ t.convTitled }}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="{{ t.convGlyphStyle }}">auto_awesome</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">AI title:</span></sc-if><span style="{{ t.convTitleStyle }}">{{ t.convTitle }}</span></div>
+                <div style="{{ t.convTitleRowStyle }}"><sc-if value="{{ t.convTitled }}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="{{ t.convGlyphStyle }}">auto_awesome</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">AI title:</span></sc-if><span style="{{ t.convTitleStyle }}">{{ t.convTitle }}</span><sc-if value="{{ t.taskMark }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="Has an open task" style="{{ t.taskMarkStyle }}">add_task</span></sc-if></div>
                 <sc-if value="{{ t.convStandingShown }}" hint-placeholder-val="{{ true }}"><div style="{{ t.convStandingStyle }}">{{ t.convStanding }}</div></sc-if>
                 <sc-if value="{{ t.convStandingStale }}" hint-placeholder-val="{{ false }}"><div style="{{ t.convStaleStyle }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1">hourglass_top</span><span style="overflow:hidden;text-overflow:ellipsis">Updating with the new message…</span></div></sc-if>
                 </div>
@@ -1107,7 +1108,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 </sc-if>
                 <sc-if value="{{ t.msgShown }}" hint-placeholder-val="{{ true }}">
                 <div style="display:flex;align-items:center;gap:9px;min-width:0"><sc-if value="{{ t.selected }}" hint-placeholder-val="{{ false }}"><span style="align-self:center;width:17px;height:17px;flex:0 0 17px;border-radius:50%;background:var(--accent);color:var(--onaccent);display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">check</span></sc-if><span style="position:relative;flex:0 0 auto;display:inline-flex"><sc-if value="{{ t.hasAvatar }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarImgStyle }}"></span></sc-if><sc-if value="{{ t.noAvatar }}" hint-placeholder-val="{{ true }}"><span data-tip-hover title="{{ t.from }}" style="{{ t.avatarStyle }}">{{ t.initials }}</span></sc-if><sc-if value="{{ t.fromMember }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ t.fromDotStyle }}"></span></sc-if></span><span style="{{ t.fromStyle }}">{{ t.from }}</span><sc-if value="{{ t.markShown }}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" data-sender-mark data-tip-hover title="{{ t.markName }}" onClick="{{ t.openMark }}" style="{{ t.markBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ t.markGlyphStyle }}">{{ t.markGlyph }}</span></span></sc-if><span style="{{ t.orgStyle }}">{{ t.org }}</span><span style="margin-left:auto;flex:0 0 auto;display:flex;align-items:center;gap:7px"><sc-if value="{{ t.rcptShown }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ t.rcptName }}</span><span aria-hidden="true" data-receipt-mark data-tip-hover title="{{ t.rcptName }}" onClick="{{ t.openRcpt }}" style="{{ t.rcptBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ t.rcptGlyphStyle }}">{{ t.rcptGlyph }}</span></span></sc-if><sc-if value="{{ t.encShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" data-tip-hover title="{{ t.encName }}" style="{{ t.encGlyphStyle }}">lock</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ t.encName }}</span></sc-if><sc-if value="{{ t.localOnly }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" data-tip-hover title="Local only" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)">cloud_off</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">Local only</span></sc-if><sc-if value="{{ t.attShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" data-tip-hover title="{{ t.attLabel }}" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)">attach_file</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ t.attLabel }}</span></sc-if><sc-if value="{{ t.flagged }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="Flagged" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:16px;line-height:1;color:var(--warn)">flag</span></sc-if><sc-if value="{{ t.iconsInline }}" hint-placeholder-val="{{ true }}"><sc-if value="{{ t.multi }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--text2);background:var(--rail);border:1px solid var(--line2);border-radius:8px;padding:1px 6px">{{ t.count }}</span></sc-if><sc-if value="{{ t.aiBtnShown }}" hint-placeholder-val="{{ true }}"><span onClick="{{ t.openAiSum }}" title="AI summary" style="{{ t.aiBtnStyle }}" style-hover="cursor:pointer;background:var(--accent-soft);color:var(--accent-d)">auto_awesome</span></sc-if></sc-if><span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint)">{{ t.time }}</span></span></div>
-                <div style="display:flex;align-items:flex-start;gap:8px;min-width:0"><div style="{{ t.subjStyle }}">{{ t.subject }}</div><sc-if value="{{ t.extShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" data-external-chip data-tip-hover title="{{ t.extName }}" onClick="{{ t.openExt }}" style="{{ t.extBtnStyle }}" style-hover="cursor:pointer;opacity:0.86"><span style="{{ t.extPillStyle }}">External</span></span></sc-if></div>
+                <div style="display:flex;align-items:flex-start;gap:8px;min-width:0"><div style="{{ t.subjStyle }}">{{ t.subject }}</div><sc-if value="{{ t.taskMark }}" hint-placeholder-val="{{ false }}"><span data-tip-hover title="Has an open task" style="{{ t.taskMarkStyle }}">add_task</span></sc-if><sc-if value="{{ t.extShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" data-external-chip data-tip-hover title="{{ t.extName }}" onClick="{{ t.openExt }}" style="{{ t.extBtnStyle }}" style-hover="cursor:pointer;opacity:0.86"><span style="{{ t.extPillStyle }}">External</span></span></sc-if></div>
                 </sc-if>
                 <sc-if value="{{ t.showMoved }}" hint-placeholder-val="{{ false }}">
                   <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">folder</span>{{ t.movedTo }}</div>
@@ -1313,6 +1314,20 @@ Project repository: https://github.com/fathomise/MailFathom
                       <span style="flex:1;min-width:0;color:var(--text2);text-wrap:pretty">{{ r.value }}</span>
                     </div>
                   </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ threadTasksShown }}" hint-placeholder-val="{{ false }}">
+                <div style="{{ threadTasksRowStyle }}">
+                  <sc-for list="{{ threadTasks }}" as="tt" hint-placeholder-count="1">
+                    <div onClick="{{ tt.open }}" style="{{ tt.chipStyle }}" style-hover="cursor:pointer;border-color:var(--accent)">
+                      <span style="{{ tt.glyphStyle }}">{{ tt.glyph }}</span>
+                      <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ tt.t }}</span>
+                      <span style="flex:0 0 auto;color:var(--muted)">{{ tt.meta }}</span>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ threadTasksMoreShown }}" hint-placeholder-val="{{ false }}">
+                    <div onClick="{{ threadTasksShowAll }}" title="{{ threadTasksMoreTitle }}" style="{{ threadTasksMoreStyle }}" style-hover="cursor:pointer;background:var(--hover)">{{ threadTasksMore }}</div>
+                  </sc-if>
                 </div>
               </sc-if>
             </div>
@@ -1955,6 +1970,9 @@ Project repository: https://github.com/fathomise/MailFathom
               </sc-if>
               <sc-if value="{{ composeSendAtOn }}" hint-placeholder-val="{{ false }}">
                 <div data-compose-send-at role="status" style="{{ composeSendAtLineStyle }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;flex-shrink:0;color:var(--accent-d)">schedule_send</span><span style="flex:1 1 220px;min-width:0">{{ composeSendAtText }} <span style="color:var(--muted)">{{ composeSendAtZone }}</span></span><span style="display:flex;align-items:center;gap:6px;margin-left:auto"><span role="button" tabindex="0" title="Change the time" onClick="{{ changeSendAt }}" onKeyDown="{{ changeSendAt }}" style="{{ composeSendAtChangeStyle }}" style-hover="cursor:pointer;background:var(--hover)">Change</span><span role="button" tabindex="0" title="Clear the time - the message leaves as soon as you send it" onClick="{{ clearSendAt }}" onKeyDown="{{ clearSendAt }}" style="{{ composeSendAtClearStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span>Clear time</span></span></div>
+              </sc-if>
+              <sc-if value="{{ composeFollowOn }}" hint-placeholder-val="{{ false }}">
+                <div data-compose-follow role="status" style="{{ composeSendAtLineStyle }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;flex-shrink:0;color:var(--warn)">hourglass_top</span><span style="flex:1 1 220px;min-width:0">{{ composeFollowText }}</span><span style="display:flex;align-items:center;gap:6px;margin-left:auto"><span role="button" tabindex="0" title="Change the day" aria-haspopup="menu" onClick="{{ openComposeMore }}" onKeyDown="{{ openComposeMore }}" style="{{ composeSendAtChangeStyle }}" style-hover="cursor:pointer;background:var(--hover)">Change</span><span role="button" tabindex="0" title="Do not wait for a reply" onClick="{{ clearComposeFollow }}" onKeyDown="{{ clearComposeFollow }}" style="{{ composeSendAtClearStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span>Don't wait</span></span></div>
               </sc-if>
               <div ref="{{ composeFootRef }}" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 15px;border-top:1px solid var(--line);background:var(--sub)">
                 <sc-if value="{{ composeIdle }}" hint-placeholder-val="{{ true }}">
@@ -2748,64 +2766,143 @@ Project repository: https://github.com/fathomise/MailFathom
         <div style="width:1px;align-self:stretch;background:var(--line);margin:0 2px"></div>
         </sc-if>
         <sc-for list="{{ taskActions }}" as="a" hint-placeholder-count="4">
-          <div onClick="{{ a.run }}" title="{{ a.label }}" style="{{ a.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;width:20px;text-align:center">{{ a.icon }}</span>{{ a.label }}</div>
+          <div onClick="{{ a.run }}" title="{{ a.title }}" style="{{ a.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;width:20px;text-align:center">{{ a.icon }}</span>{{ a.label }}</div>
         </sc-for>
       </div>
-      <div ref="{{ tasksBodyRef }}" onScroll="{{ onTasksScroll }}" style="{{ tasksBodyStyle }}">
+      <div style="{{ taskHeadStyle }}">
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1">
+          <div style="font-size:18px;font-weight:600;letter-spacing:-0.015em">{{ taskHeadTitle }}</div>
+          <div style="font-size:13px;color:var(--muted)">{{ taskHeadLine }}</div>
+        </div>
+        <div style="{{ taskViewsRowStyle }}">
+          <sc-for list="{{ taskViews }}" as="v" hint-placeholder-count="4">
+            <div onClick="{{ v.pick }}" style="{{ v.style }}" style-hover="cursor:pointer">{{ v.shown }}<sc-if value="{{ v.hasCount }}" hint-placeholder-val="{{ true }}"><span style="{{ v.countStyle }}">{{ v.count }}</span></sc-if></div>
+          </sc-for>
+        </div>
+      </div>
+      <sc-if value="{{ taskSaidShown }}" hint-placeholder-val="{{ false }}">
+        <div role="status" style="flex:0 0 auto;background:var(--sub);border-bottom:1px solid var(--line);padding:8px 16px;font-size:13px;color:var(--muted)">{{ taskSaid }}</div>
+      </sc-if>
+      <div ref="{{ tasksBodyRef }}" onScroll="{{ onTasksScroll }}" onTouchStart="{{ taskSwipe.down }}" onTouchMove="{{ taskSwipe.move }}" onTouchEnd="{{ taskSwipe.up }}" style="{{ tasksBodyStyle }}">
         <div style="{{ tasksMainStyle }}">
+          <sc-if value="{{ tasksEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:56px 20px;color:var(--muted)">
+              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:36px;line-height:1;color:var(--faint)">task_alt</span>
+              <div style="font-size:15px;font-weight:600;color:var(--text)">{{ tasksEmptyTitle }}</div>
+              <div style="font-size:13px;max-width:380px;text-wrap:pretty">{{ tasksEmptyText }}</div>
+            </div>
+          </sc-if>
           <sc-for list="{{ taskGroups }}" as="g" hint-placeholder-count="3">
-            <div style="display:flex;flex-direction:column;gap:9px">
-              <div style="display:flex;align-items:center;gap:9px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
                 <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">{{ g.label }}</div>
                 <div style="font-size:11px;color:var(--muted);background:var(--rail);border:1px solid var(--line);border-radius:8px;padding:1px 7px">{{ g.count }}</div>
+                <sc-if value="{{ g.hasNote }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--faint)">{{ g.note }}</div></sc-if>
               </div>
               <sc-for list="{{ g.items }}" as="t" hint-placeholder-count="2">
-                <div onClick="{{ t.tap }}" onContextMenu="{{ t.press.ctx }}" onTouchStart="{{ t.press.down }}" onTouchEnd="{{ t.press.up }}" onTouchMove="{{ t.press.up }}" style="{{ t.rowStyle }}" style-hover="background:var(--hover)">
+                <div onClick="{{ t.tap }}" draggable="{{ t.draggable }}" onDragStart="{{ t.dragStart }}" onDragEnd="{{ t.dragEnd }}" onContextMenu="{{ t.press.ctx }}" onTouchStart="{{ t.press.down }}" onTouchEnd="{{ t.press.up }}" onTouchMove="{{ t.press.up }}" style="{{ t.rowStyle }}" style-hover="background:var(--hover)">
                   <div style="{{ t.mainStyle }}">
-                    <div onClick="{{ t.toggle }}" style="{{ t.boxStyle }}" style-hover="cursor:pointer;border-color:var(--accent)">{{ t.check }}</div>
-                    <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0">
-                      <div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
-                        <span style="{{ t.titleStyle }}">{{ t.t }}</span>
-                        <sc-if value="{{ t.ai }}" hint-placeholder-val="{{ false }}">
-                          <span style="font-size:11px;color:var(--accent-d);background:var(--accent-soft);border-radius:4px;padding:2px 6px">from mail</span>
-                        </sc-if>
-                      </div>
-                      <div onClick="{{ t.openSrc }}" style="{{ srcLinkStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">open_in_new</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis">{{ t.src }}</span></div>
-                    </div>
+                    <sc-if value="{{ t.showBox }}" hint-placeholder-val="{{ true }}">
+                      <div onClick="{{ t.toggle }}" title="{{ t.boxTitle }}" data-tip-hover style="{{ t.boxStyle }}" style-hover="cursor:pointer;border-color:var(--accent)">{{ t.boxGlyph }}</div>
+                    </sc-if>
+                    <sc-if value="{{ t.showAi }}" hint-placeholder-val="{{ false }}">
+                      <sc-if value="{{ t.aiGlyph }}" hint-placeholder-val="{{ true }}"><span data-tip-hover title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span></sc-if><sc-if value="{{ t.agentTag }}" hint-placeholder-val="{{ false }}"><span style="flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);border:1px solid var(--border2);border-radius:4px;padding:1px 6px">Agent</span></sc-if>
+                    </sc-if>
+                    <span style="{{ t.titleStyle }}">{{ t.t }}</span>
                   </div>
                   <div style="{{ t.metaStyle }}">
-                    <div onClick="{{ t.openRem }}" title="{{ t.remTitle }}" style="{{ t.remStyle }}" style-hover="cursor:pointer;border-color:var(--accent);color:var(--accent-d)">
-                      <span style="{{ t.remIconStyle }}">{{ t.remIcon }}</span>{{ t.remCount }}
-                    </div>
-                    <span style="font-size:12px;color:var(--faint);white-space:nowrap">{{ t.est }}</span>
-                    <span style="{{ t.dueStyle }}">{{ t.when }}</span>
-                    <span onClick="{{ t.schedule }}" style="{{ t.schedStyle }}" style-hover="cursor:pointer;opacity:0.9">{{ t.schedLabel }}</span>
+                    <sc-if value="{{ t.anchorShown }}" hint-placeholder-val="{{ true }}">
+                      <span onClick="{{ t.openAnchor }}" title="{{ t.anchorTitle }}" data-tip-hover style="{{ t.anchorStyle }}" style-hover="cursor:pointer;text-decoration:underline"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">{{ t.anchorGlyph }}</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;max-width:200px">{{ t.anchorLabel }}</span></span>
+                    </sc-if>
+                    <sc-if value="{{ t.personShown }}" hint-placeholder-val="{{ false }}">
+                      <span style="{{ t.anchorStyle }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:14px">person</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;max-width:200px">{{ t.personLabel }}</span></span>
+                    </sc-if>
+                    <sc-if value="{{ t.fromLabel }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:var(--muted);white-space:nowrap">{{ t.fromLabel }}</span></sc-if>
+                    <sc-if value="{{ t.clashShown }}" hint-placeholder-val="{{ false }}">
+                      <span style="{{ t.clashStyle }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1;flex:0 0 auto">warning</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.clashLabel }}</span></span>
+                    </sc-if>
+                    <sc-if value="{{ t.estShown }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:var(--faint);white-space:nowrap">{{ t.est }}</span></sc-if>
+                    <sc-if value="{{ t.planShown }}" hint-placeholder-val="{{ false }}">
+                      <span onClick="{{ t.plan }}" title="Move in the calendar" data-tip-hover style="{{ t.planStyle }}" style-hover="cursor:pointer;border-color:var(--accent-d)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1;color:var(--accent-d)">schedule</span>{{ t.planLabel }}</span>
+                    </sc-if>
+                    <span style="{{ t.dueStyle }}">{{ t.dueText }}</span>
+                    <sc-if value="{{ t.planBtnShown }}" hint-placeholder-val="{{ true }}">
+                      <span onClick="{{ t.plan }}" style="{{ t.planBtnStyle }}" style-hover="cursor:pointer;background:var(--accent);color:var(--onaccent)">Plan</span>
+                    </sc-if>
+                    <sc-if value="{{ t.followShown }}" hint-placeholder-val="{{ false }}">
+                      <span onClick="{{ t.follow }}" style="{{ t.followStyle }}" style-hover="cursor:pointer;opacity:0.9">Follow up</span>
+                    </sc-if>
+                    <sc-if value="{{ t.acceptShown }}" hint-placeholder-val="{{ false }}">
+                      <span onClick="{{ t.accept }}" style="{{ t.acceptStyle }}" style-hover="cursor:pointer;opacity:0.9">Accept</span>
+                      <span onClick="{{ t.dismiss }}" title="Dismiss task" data-tip-hover style="{{ t.dismissStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</span>
+                    </sc-if>
+                    <sc-if value="{{ t.remShown }}" hint-placeholder-val="{{ true }}">
+                      <div onClick="{{ t.openRem }}" title="{{ t.remTitle }}" data-tip-hover style="{{ t.remStyle }}" style-hover="cursor:pointer;border-color:var(--accent);color:var(--accent-d)"><span style="{{ t.remIconStyle }}">{{ t.remIcon }}</span>{{ t.remCount }}</div>
+                    </sc-if>
                   </div>
                 </div>
               </sc-for>
             </div>
           </sc-for>
         </div>
+        <sc-if value="{{ tasksSideShown }}" hint-placeholder-val="{{ true }}">
         <div style="{{ tasksSideStyle }}">
           <div style="display:flex;align-items:center;gap:9px">
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Today's calendar</div>
-            <div onClick="{{ goCal }}" style="margin-left:auto;font-size:12px;color:var(--accent-d)" style-hover="cursor:pointer;text-decoration:underline">Open</div>
+            <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Today · Thu 27</div>
+            <div onClick="{{ goCal }}" style="{{ taskLinkStyle }};margin-left:auto" style-hover="cursor:pointer;text-decoration:underline">Open the calendar</div>
           </div>
-          <sc-for list="{{ taskAgenda }}" as="ta" hint-placeholder-count="3">
-            <div style="display:flex;align-items:baseline;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px">
-              <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);flex:0 0 52px">{{ ta.time }}</span>
-              <span style="font-size:13px;flex:1;min-width:0;text-wrap:pretty">{{ ta.t }}</span>
-            </div>
-          </sc-for>
+          <div style="font-size:12px;color:var(--muted)">{{ taskDayHint }}</div>
+          <div style="display:flex;flex-direction:column">
+            <sc-for list="{{ taskDayRows }}" as="h" hint-placeholder-count="10">
+              <div onDragOver="{{ h.dragOver }}" onDragEnter="{{ h.dragOver }}" onDrop="{{ h.drop }}" style="{{ h.rowStyle }}">
+                <div style="flex:0 0 40px;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);padding-top:6px">{{ h.label }}</div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+                  <sc-for list="{{ h.items }}" as="it" hint-placeholder-count="0">
+                    <div onClick="{{ it.open }}" style="{{ it.style }}" style-hover="cursor:pointer;border-color:var(--accent)">
+                      <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1;color:var(--muted)">{{ it.glyph }}</span>
+                      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ it.t }}</span>
+                      <span style="flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted)">{{ it.time }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
           <div style="display:flex;flex-direction:column;gap:8px;background:var(--accent-soft);border-radius:12px;padding:12px 13px">
             <div style="display:flex;align-items:center;gap:9px">
               <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
               <span style="font-size:11px;color:var(--accent-d);font-family:'Geist',system-ui,sans-serif;font-weight:600">Day capacity</span>
             </div>
             <div style="font-size:13px;line-height:1.5;color:var(--text2);text-wrap:pretty">{{ capacityText }}</div>
-            <div onClick="{{ autoSchedule }}" style="align-self:flex-start;font-size:12px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:7px 13px" style-hover="cursor:pointer;opacity:0.9">Lay out today</div>
+            <sc-if value="{{ layoutSpentShown }}" hint-placeholder-val="{{ false }}">
+              <div role="status" style="display:flex;align-items:flex-start;gap:7px;font-size:13px;line-height:1.45;color:var(--warn-text);text-wrap:pretty"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;line-height:1.2">hourglass_disabled</span>Laying out days is used up for now.</div>
+            </sc-if>
+            <sc-if value="{{ layoutIdle }}" hint-placeholder-val="{{ true }}">
+              <div onClick="{{ autoSchedule }}" style="{{ taskPrimaryStyle }};align-self:flex-start;font-size:12px" style-hover="cursor:pointer;opacity:0.9">Lay out today</div>
+            </sc-if>
+            <sc-if value="{{ layoutOfferShown }}" hint-placeholder-val="{{ false }}">
+              <sc-if value="{{ layoutNothing }}" hint-placeholder-val="{{ false }}">
+                <div role="status" style="display:flex;align-items:flex-start;gap:7px;font-size:13px;line-height:1.45;color:var(--ok-text);text-wrap:pretty"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;line-height:1.2">event_available</span>Nothing is left to lay out today.</div>
+                <div onClick="{{ layoutDismiss }}" style="{{ taskBtnStyle }};align-self:flex-start;background:var(--panel)" style-hover="cursor:pointer;background:var(--hover)">Not now</div>
+              </sc-if>
+              <sc-if value="{{ layoutSomething }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:13px;font-weight:600;color:var(--text)">Here is a way to fit the rest of today</div>
+              <sc-for list="{{ layoutRows }}" as="lr" hint-placeholder-count="2">
+                <div style="display:flex;flex-direction:column;gap:2px;background:var(--panel);border:1px dashed var(--accent);border-radius:8px;padding:7px 9px">
+                  <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--accent-d);flex:0 0 auto">{{ lr.time }}</span><span style="font-size:13px;min-width:0">{{ lr.t }}</span></div>
+                  <sc-if value="{{ lr.hasNote }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--muted)">{{ lr.note }}</div></sc-if>
+                </div>
+              </sc-for>
+              <div style="font-size:12px;line-height:1.5;color:var(--text2);text-wrap:pretty">{{ layoutMissed }}</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <div onClick="{{ layoutApply }}" style="{{ taskPrimaryStyle }}" style-hover="cursor:pointer;opacity:0.9">Plan these</div>
+                <div onClick="{{ layoutDismiss }}" style="{{ taskBtnStyle }};background:var(--panel)" style-hover="cursor:pointer;background:var(--hover)">Not now</div>
+              </div>
+              </sc-if>
+            </sc-if>
           </div>
         </div>
+        </sc-if>
       </div>
     </div>
   </sc-if>
@@ -2970,10 +3067,22 @@ Project repository: https://github.com/fathomise/MailFathom
       <div data-motion="{{ moDialog }}" data-phase="{{ mo.newTask }}" onClick="{{ stopProp }}" style="{{ dlgFormWide }}">
         <sc-if value="{{ sheetGrabber }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}"></div></sc-if>
         <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--sub)">
-          <div style="font-size:15px;font-weight:600">New task</div>
+          <div style="font-size:15px;font-weight:600">{{ newTaskHead }}</div>
           <div onClick="{{ closeNewTask }}" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
         </div>
         <div style="display:flex;flex-direction:column;gap:13px;padding:18px">
+          <sc-if value="{{ newTaskCtxShown }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:9px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:9px 11px">
+              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--accent-d)">{{ newTaskCtxGlyph }}</span>
+              <span style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0"><span style="font-size:11px;color:var(--muted)">{{ newTaskCtxKind }}</span><span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ newTaskCtxLabel }}</span></span>
+              <div onClick="{{ newTaskCtxClear }}" title="Remove the link" style="{{ taskIconBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">link_off</span></div>
+            </div>
+          </sc-if>
+          <div style="display:flex;gap:6px">
+            <sc-for list="{{ newTaskDirs }}" as="d" hint-placeholder-count="2">
+              <div onClick="{{ d.pick }}" style="{{ d.style }}" style-hover="cursor:pointer">{{ d.label }}</div>
+            </sc-for>
+          </div>
           <div style="display:flex;flex-direction:column;gap:9px;background:var(--accent-soft);border-radius:12px;padding:12px 13px">
             <div style="display:flex;align-items:center;gap:9px">
               <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">auto_awesome</span>
@@ -2982,9 +3091,9 @@ Project repository: https://github.com/fathomise/MailFathom
             <input ref="{{ tkPromptRef }}" placeholder="e.g. reply to Emma about the SLA by Monday, 30 min" style="{{ promptFieldStyle }}" />
             <div onClick="{{ tkParse }}" style="align-self:flex-start;font-size:12px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:7px 13px" style-hover="cursor:pointer;opacity:0.9">Create from description</div>
           </div>
-          <input ref="{{ tkTitleRef }}" placeholder="Task description" style="{{ fieldStyle }}" />
+          <input ref="{{ tkTitleRef }}" defaultValue="{{ tkTitleDefault }}" placeholder="Task description" style="{{ fieldStyle }}" />
           <div style="display:flex;gap:10px">
-            <input ref="{{ tkDueRef }}" placeholder="Due date (e.g. 02.09)" style="{{ fieldStyle }}" />
+            <input ref="{{ tkDueRef }}" defaultValue="{{ tkDueDefault }}" placeholder="Due date (e.g. 02.09)" style="{{ fieldStyle }}" />
             <input ref="{{ tkEstRef }}" placeholder="Duration (e.g. 30 min)" style="{{ fieldStyle }}" />
           </div>
           <div style="display:flex;flex-direction:column;gap:9px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:12px 13px">
@@ -3038,6 +3147,115 @@ Project repository: https://github.com/fathomise/MailFathom
     </div>
   </sc-if>
 
+  <sc-if value="{{ taskDlgOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-motion="scrim" data-phase="{{ mo.taskOpen }}" onClick="{{ closeTaskDlg }}" style="{{ ovZ96 }}">
+      <div data-motion="{{ moDialog }}" data-phase="{{ mo.taskOpen }}" onClick="{{ stopProp }}" style="{{ dlgFormWide }}">
+        <sc-if value="{{ sheetGrabber }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}"></div></sc-if>
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--sub)">
+          <div style="font-size:15px;font-weight:600">{{ taskDlgHead }}</div>
+          <div onClick="{{ closeTaskDlg }}" title="Close" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;padding:18px;overflow:auto">
+          <sc-if value="{{ taskDlgReopenShown }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:12px;padding:10px 12px;font-size:13px;color:var(--text2)">
+              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--accent-d)">mark_email_read</span>
+              <span style="flex:1;min-width:0">{{ taskDlgWaitNote }}</span>
+              <div onClick="{{ taskDlgReopen }}" style="{{ taskLinkStyle }}" style-hover="cursor:pointer;text-decoration:underline">Keep waiting</div>
+            </div>
+          </sc-if>
+          <input key="{{ taskDlgKey }}" ref="{{ taskDlgTitleRef }}" defaultValue="{{ taskDlgTitle }}" placeholder="What is it?" style="{{ fieldStyle }}" />
+          <div style="display:flex;gap:6px">
+            <sc-for list="{{ taskDlgDirs }}" as="d" hint-placeholder-count="2">
+              <div onClick="{{ d.pick }}" style="{{ d.style }}" style-hover="cursor:pointer">{{ d.label }}</div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <div style="font-size:12px;color:var(--muted);font-weight:600">{{ taskDlgDueLabel }}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <sc-for list="{{ taskDlgDays }}" as="d" hint-placeholder-count="6">
+                <div onClick="{{ d.pick }}" style="{{ d.style }}" style-hover="cursor:pointer">{{ d.label }}</div>
+              </sc-for>
+            </div>
+          </div>
+          <sc-if value="{{ taskDlgPlanShown }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:7px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:12px 13px">
+              <div style="display:flex;align-items:center;gap:9px">
+                <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">schedule</span>
+                <span style="font-size:13px;font-weight:600">Planned</span>
+                <span style="flex:1;min-width:0;font-size:13px;color:var(--text2)">{{ taskDlgPlanLabel }}</span>
+                <div onClick="{{ taskDlgPlan }}" style="{{ taskSoftBtnStyle }}" style-hover="cursor:pointer;background:var(--accent);color:var(--onaccent)">{{ taskDlgPlanAction }}</div>
+              </div>
+              <sc-if value="{{ taskDlgClashShown }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--err-text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1">warning</span>{{ taskDlgClash }}</div>
+              </sc-if>
+            </div>
+          </sc-if>
+          <div style="display:flex;flex-direction:column;gap:7px;background:var(--sub);border:1px solid var(--line);border-radius:12px;padding:12px 13px">
+            <div style="display:flex;align-items:center;gap:9px">
+              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">link</span>
+              <span style="font-size:13px;font-weight:600">Belongs to</span>
+              <sc-if value="{{ taskDlgAnchorNone }}" hint-placeholder-val="{{ false }}"><span style="flex:1;font-size:13px;color:var(--muted)">Nothing yet</span></sc-if>
+              <sc-if value="{{ taskDlgBelongsSpacer }}" hint-placeholder-val="{{ true }}"><span style="flex:1"></span></sc-if>
+              <div onClick="{{ taskDlgAnchorToggle }}" style="{{ taskLinkStyle }}" style-hover="cursor:pointer;text-decoration:underline">Change</div>
+            </div>
+            <sc-if value="{{ taskDlgAnchorShown }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px">
+                <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--accent-d)">{{ taskDlgAnchorGlyph }}</span>
+                <span style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0"><span style="font-size:11px;color:var(--muted)">{{ taskDlgAnchorKind }}</span><span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ taskDlgAnchorLabel }}</span></span>
+                <div onClick="{{ taskDlgAnchorOpen }}" style="{{ taskLinkStyle }}" style-hover="cursor:pointer;text-decoration:underline">Open</div>
+                <div onClick="{{ taskDlgAnchorRemove }}" title="Remove the link" style="{{ taskIconBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">link_off</span></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ taskDlgPersonShown }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px">
+                <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d)">person</span>
+                <span style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0"><span style="font-size:11px;color:var(--muted)">Person</span><span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ taskDlgPersonLabel }}</span></span>
+                <div onClick="{{ taskDlgPersonRemove }}" title="Remove the link" style="{{ taskIconBtnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px">link_off</span></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ taskDlgAnchorPickOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line2);padding-top:8px">
+                <sc-for list="{{ taskDlgAnchorGroups }}" as="ag" hint-placeholder-count="3">
+                  <div style="display:flex;flex-direction:column;gap:2px">
+                    <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600;padding:0 10px">{{ ag.group }}</div>
+                    <sc-for list="{{ ag.items }}" as="ai" hint-placeholder-count="3">
+                      <div onClick="{{ ai.pick }}" style="{{ ai.style }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">{{ ai.glyph }}</span>{{ ai.label }}</div>
+                    </sc-for>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+          <sc-if value="{{ taskDlgWaitShown }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--text2)">
+              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--warn)">hourglass_top</span>
+              <span style="flex:1;min-width:0">{{ taskDlgWaitNote }}</span>
+              <sc-if value="{{ taskDlgFollowShown }}" hint-placeholder-val="{{ false }}">
+                <div onClick="{{ taskDlgFollow }}" style="{{ taskPrimaryStyle }}" style-hover="cursor:pointer;opacity:0.9">Follow up</div>
+              </sc-if>
+            </div>
+          </sc-if>
+          <div style="display:flex;align-items:center;gap:9px;font-size:13px">
+            <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">notifications_active</span>
+            <span style="flex:1;color:var(--text2)">{{ taskDlgRem }}</span>
+            <sc-if value="{{ taskDlgRemChangeShown }}" hint-placeholder-val="{{ true }}">
+              <div onClick="{{ taskDlgRemOpen }}" title="Change the reminders" style="{{ taskLinkStyle }}" style-hover="cursor:pointer;text-decoration:underline">Change</div>
+            </sc-if>
+          </div>
+          <sc-if value="{{ taskDlgSaidShown }}" hint-placeholder-val="{{ false }}">
+            <div role="alert" style="font-size:13px;line-height:1.45;color:var(--warn-text);text-wrap:pretty">{{ taskDlgSaid }}</div>
+          </sc-if>
+          <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line2);padding-top:12px">
+            <div onClick="{{ taskDlgDelete }}" style="{{ taskQuietStyle }};color:var(--err-text)" style-hover="cursor:pointer;background:var(--hover)">Delete</div>
+            <div style="flex:1"></div>
+            <div onClick="{{ taskDlgToggleDone }}" style="{{ taskBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">{{ taskDlgDoneLabel }}</div>
+            <div onClick="{{ taskDlgSave }}" style="{{ taskPrimaryStyle }}" style-hover="cursor:pointer;opacity:0.9">{{ taskDlgSaveLabel }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
   <sc-if value="{{ fathomFabShown }}" hint-placeholder-val="{{ true }}">
     <div data-fathom-ui="1" data-fathom-fab="1" role="button" tabIndex="0" aria-haspopup="menu" aria-expanded="{{ fathomFabExpanded }}" aria-label="{{ fathomFabTitle }}" title="{{ fathomFabTitle }}" onClick="{{ toggleFathom }}" style="{{ fathomFabStyle }}" style-hover="cursor:pointer;filter:brightness(1.08)">
       <span style="{{ fathomFabGlyph }}">{{ fathomFabIcon }}</span>
@@ -3056,6 +3274,61 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line2);padding-top:10px">
         <div role="button" tabIndex="0" onClick="{{ fathomAnswerAgent }}" style="{{ fathomAnswerBtnStyle }}" style-hover="cursor:pointer;opacity:0.9"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:17px;line-height:1">forum</span>Continue with the agent</div>
         <span style="font-size:11.5px;color:var(--faint)">AI · read from your mail</span>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ planOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-motion="scrim" data-phase="{{ mo.taskPlanFor }}" onClick="{{ closePlan }}" style="{{ ovZ96 }};z-index:97">
+      <div data-motion="{{ moDialog }}" data-phase="{{ mo.taskPlanFor }}" onClick="{{ stopProp }}" style="{{ dlgFormWide }}">
+        <sc-if value="{{ sheetGrabber }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}"></div></sc-if>
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--sub)">
+          <div style="display:flex;flex-direction:column;gap:1px;min-width:0;flex:1"><span style="font-size:15px;font-weight:600">Plan a time</span><span style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ planTitle }}</span></div>
+          <div onClick="{{ closePlan }}" title="Close" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;padding:16px 18px;overflow:auto">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <sc-for list="{{ planDays }}" as="d" hint-placeholder-count="4">
+              <div onClick="{{ d.pick }}" style="{{ d.style }}" style-hover="cursor:pointer">{{ d.label }}</div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="font-size:12px;color:var(--muted);font-weight:600">How long</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <sc-for list="{{ planLengths }}" as="l" hint-placeholder-count="6">
+                <div onClick="{{ l.pick }}" style="{{ l.style }}" style-hover="cursor:pointer">{{ l.label }}</div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;padding:4px 12px;background:var(--panel)">
+            <sc-for list="{{ planRows }}" as="h" hint-placeholder-count="10">
+              <div onClick="{{ h.pick }}" style="{{ h.rowStyle }}" style-hover="background:var(--hover)">
+                <div style="flex:0 0 40px;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);padding-top:6px">{{ h.label }}</div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+                  <sc-for list="{{ h.items }}" as="it" hint-placeholder-count="0">
+                    <div style="{{ it.style }}">
+                      <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1;color:var(--muted)">{{ it.glyph }}</span>
+                      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ it.t }}</span>
+                      <span style="flex:0 0 auto;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted)">{{ it.time }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:13px;color:var(--text2)">{{ planHint }}</div>
+          <sc-if value="{{ planClashShown }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--err-text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:15px;line-height:1">warning</span>{{ planClash }}</div>
+          </sc-if>
+          <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+            <sc-if value="{{ planRemoveShown }}" hint-placeholder-val="{{ false }}">
+              <div onClick="{{ planRemove }}" style="{{ taskQuietStyle }};color:var(--text2)" style-hover="cursor:pointer;background:var(--hover)">Take out of the calendar</div>
+            </sc-if>
+            <div style="flex:1"></div>
+            <div onClick="{{ closePlan }}" style="{{ taskBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel</div>
+            <div onClick="{{ planSave }}" aria-disabled="{{ planCantSave }}" title="{{ planSaveTitle }}" style="{{ planSaveStyle }}" style-hover="cursor:pointer;opacity:0.9">Plan</div>
+          </div>
+        </div>
       </div>
     </div>
   </sc-if>
@@ -3341,8 +3614,10 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:10px 24px">
         <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
         <span style="font-size:14px;color:var(--text);text-wrap:pretty">{{ calBriefing }}</span>
-        <span style="font-size:12px;color:var(--accent-d);margin-left:auto" style-hover="cursor:pointer;text-decoration:underline">Plan my day</span>
       </div>
+      <sc-if value="{{ calSaidShown }}" hint-placeholder-val="{{ false }}">
+        <div role="status" style="flex:0 0 auto;background:var(--sub);border-bottom:1px solid var(--line);padding:8px 16px;font-size:13px;color:var(--muted)">{{ calSaid }}</div>
+      </sc-if>
       <div ref="{{ calScrollRef }}" onScroll="{{ onCalScroll }}" onTouchStart="{{ calSwipe.down }}" onTouchMove="{{ calSwipe.move }}" onTouchEnd="{{ calSwipe.up }}" style="{{ calBodyStyle }}">
         <sc-if value="{{ calIsWeek }}" hint-placeholder-val="{{ true }}">
         <div style="{{ calGridStyle }}">
@@ -3368,6 +3643,18 @@ Project repository: https://github.com/fathomise/MailFathom
 
         <sc-if value="{{ calIsDay }}" hint-placeholder-val="{{ false }}">
           <div style="{{ calDayWrapStyle }}">
+            <sc-if value="{{ calDayDueShown }}" hint-placeholder-val="{{ false }}">
+              <div aria-label="Due on this day" style="display:flex;flex-direction:column;gap:6px;padding:0 0 7px 66px">
+                <sc-for list="{{ calDayDue }}" as="e" hint-placeholder-count="1">
+                  <div onClick="{{ e.open }}" onContextMenu="{{ e.press.ctx }}" onTouchStart="{{ e.press.down }}" onTouchEnd="{{ e.press.up }}" onTouchMove="{{ e.press.up }}" style="{{ e.style }}" style-hover="cursor:pointer;border-color:var(--accent)">
+                    <div style="display:flex;align-items:baseline;gap:9px">
+                      <span style="font-size:14px;font-weight:600">{{ e.t }}</span>
+                      <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted)">{{ e.time }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
             <sc-for list="{{ calHours }}" as="h" hint-placeholder-count="8">
               <div style="display:flex;gap:14px;align-items:stretch;border-top:1px solid var(--line2);padding:7px 0;min-height:46px">
                 <div style="flex:0 0 52px;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--faint);padding-top:2px">{{ h.label }}</div>
@@ -3463,34 +3750,43 @@ Project repository: https://github.com/fathomise/MailFathom
             <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
           </div>
           <div style="font-size:12px;color:var(--muted);line-height:1.5;text-wrap:pretty">Deadlines found in threads, not in the calendar yet.</div>
-          <sc-for list="{{ calFocus }}" as="f" hint-placeholder-count="2">
-            <div style="display:flex;flex-direction:column;gap:6px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:11px 13px">
+          <sc-for list="{{ calDates }}" as="p" hint-placeholder-count="2">
+            <div style="display:flex;flex-direction:column;gap:7px;background:var(--panel);border:1px dashed var(--accent-line);border-radius:8px;padding:11px 13px">
               <div style="display:flex;align-items:baseline;gap:9px">
-                <span style="font-size:14px;line-height:1.35;text-wrap:pretty">{{ f.t }}</span>
-                <span style="margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap">{{ f.slot }}</span>
+                <span style="font-size:14px;line-height:1.35;text-wrap:pretty">{{ p.t }}</span>
+                <span style="margin-left:auto;font-size:12px;font-weight:600;color:var(--accent-d);white-space:nowrap">{{ p.when }}</span>
               </div>
-              <div style="font-size:11px;color:var(--muted);line-height:1.45;text-wrap:pretty">{{ f.why }}</div>
+              <div style="font-size:11px;color:var(--muted)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1;vertical-align:-2px;margin-right:4px">open_in_new</span>From mail</div>
               <div style="display:flex;gap:7px">
-                <div onClick="{{ f.add }}" style="font-size:12px;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:6px 12px" style-hover="cursor:pointer;opacity:0.9">Block time</div>
-                <div onClick="{{ f.skip }}" style="font-size:12px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:6px 12px" style-hover="cursor:pointer;background:var(--hover)">Not now</div>
+                <div onClick="{{ p.add }}" style="{{ calSideBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Add</div>
+                <div onClick="{{ p.skip }}" style="{{ calSideBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Dismiss</div>
               </div>
             </div>
           </sc-for>
+          <sc-if value="{{ calNoDates }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:13px;color:var(--faint)">Your mail has proposed nothing.</div>
+          </sc-if>
+          <div style="display:flex;align-items:center;gap:9px;padding-top:8px">
+            <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Proposed tasks</div>
+            <span title="Written by AI" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;color:var(--muted)">auto_awesome</span>
+            <div onClick="{{ calPlanDay }}" style="{{ taskLinkStyle }};margin-left:auto" style-hover="cursor:pointer;text-decoration:underline">Plan my day</div>
+          </div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.5;text-wrap:pretty">Found in your mail or suggested by the Agent. An accepted one shows on its day.</div>
           <sc-for list="{{ calProposed }}" as="p" hint-placeholder-count="3">
             <div style="display:flex;flex-direction:column;gap:7px;background:var(--panel);border:1px dashed var(--accent-line);border-radius:8px;padding:11px 13px">
               <div style="display:flex;align-items:baseline;gap:9px">
                 <span style="font-size:14px;line-height:1.35;text-wrap:pretty">{{ p.t }}</span>
                 <span style="margin-left:auto;font-size:12px;font-weight:600;color:var(--accent-d);white-space:nowrap">{{ p.when }}</span>
               </div>
-              <div style="font-size:11px;color:var(--muted)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1;vertical-align:-2px;margin-right:4px">open_in_new</span>{{ p.src }}</div>
+              <div style="font-size:11px;color:var(--muted)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1;vertical-align:-2px;margin-right:4px">{{ p.glyph }}</span>{{ p.src }}</div>
               <div style="display:flex;gap:7px">
-                <div onClick="{{ p.add }}" style="font-size:12px;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:6px 12px" style-hover="cursor:pointer;opacity:0.9">Add</div>
-                <div onClick="{{ p.skip }}" style="font-size:12px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:6px 12px" style-hover="cursor:pointer;background:var(--hover)">Dismiss</div>
+                <div onClick="{{ p.add }}" style="{{ calSideBtnStyle }};color:var(--onaccent);background:var(--accent);border-color:var(--accent)" style-hover="cursor:pointer;opacity:0.9">Accept</div>
+                <div onClick="{{ p.skip }}" style="{{ calSideBtnStyle }}" style-hover="cursor:pointer;background:var(--hover)">Dismiss</div>
               </div>
             </div>
           </sc-for>
           <sc-if value="{{ calNoProposals }}" hint-placeholder-val="{{ false }}">
-            <div style="font-size:13px;color:var(--faint)">Every detected deadline has been handled.</div>
+            <div style="font-size:13px;color:var(--faint)">No proposals left. Tasks keeps every one you accepted.</div>
           </sc-if>
         </div>
       </div>
@@ -3667,6 +3963,28 @@ Project repository: https://github.com/fathomise/MailFathom
               </div>
             </div>
             </sc-if>
+            <div style="display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px">
+              <div style="display:flex;align-items:center;gap:9px">
+                <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Commitments</div>
+                <div onClick="{{ personAddTask }}" style="{{ personAddTaskStyle }}" style-hover="cursor:pointer;background:var(--accent);color:var(--onaccent)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">add_task</span>Add a task</div>
+              </div>
+              <div style="{{ personColsStyle }}">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+                  <div style="font-size:12px;color:var(--text2);font-weight:600">{{ personOweLabel }}</div>
+                  <sc-for list="{{ personOwe }}" as="po" hint-placeholder-count="1">
+                    <div onClick="{{ po.open }}" style="{{ po.style }}" style-hover="background:var(--hover)"><span style="{{ po.glyphStyle }}">{{ po.glyph }}</span><span style="flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ po.t }}</span><span style="flex:0 0 auto;font-size:12px;color:var(--muted)">{{ po.meta }}</span></div>
+                  </sc-for>
+                  <sc-if value="{{ personOweNone }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--faint)">Nothing you owe.</div></sc-if>
+                </div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+                  <div style="font-size:12px;color:var(--text2);font-weight:600">{{ personOwedLabel }}</div>
+                  <sc-for list="{{ personOwed }}" as="pw" hint-placeholder-count="1">
+                    <div onClick="{{ pw.open }}" style="{{ pw.style }}" style-hover="background:var(--hover)"><span style="{{ pw.glyphStyle }}">{{ pw.glyph }}</span><span style="flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ pw.t }}</span><span style="flex:0 0 auto;font-size:12px;color:var(--muted)">{{ pw.meta }}</span></div>
+                  </sc-for>
+                  <sc-if value="{{ personOwedNone }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--faint)">Nothing you are waiting for.</div></sc-if>
+                </div>
+              </div>
+            </div>
             <div style="{{ personColsStyle }}">
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px">
                 <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">Contact details</div>
@@ -3837,6 +4155,26 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-if>
             <sc-if value="{{ eventRemNone }}" hint-placeholder-val="{{ false }}">
               <div style="font-size:12px;color:var(--muted);line-height:1.45;text-wrap:pretty">No reminder - you won't be notified about this event.</div>
+            </sc-if>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:11px 13px">
+            <div style="display:flex;align-items:center;gap:9px">
+              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">task_alt</span>
+              <span style="flex:1;font-size:13px;font-weight:600">Tasks for this event</span>
+              <div onClick="{{ eventAddTask }}" style="font-size:12px;color:var(--accent-d)" style-hover="cursor:pointer;text-decoration:underline">Add a task</div>
+            </div>
+            <sc-for list="{{ eventTasks }}" as="et" hint-placeholder-count="1">
+              <div onClick="{{ et.open }}" style="{{ et.style }}" style-hover="background:var(--hover)">
+                <span style="{{ et.glyphStyle }}">{{ et.glyph }}</span>
+                <span style="flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ et.t }}</span>
+                <span style="flex:0 0 auto;font-size:12px;color:var(--muted)">{{ et.meta }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ eventTasksMoreShown }}" hint-placeholder-val="{{ false }}">
+              <div onClick="{{ eventTasksShowAll }}" title="{{ eventTasksMoreTitle }}" style="{{ threadTasksMoreStyle }};align-self:flex-start" style-hover="cursor:pointer;background:var(--hover)">{{ eventTasksMore }}</div>
+            </sc-if>
+            <sc-if value="{{ eventTasksNone }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12px;color:var(--muted);line-height:1.45;text-wrap:pretty">Nothing to prepare yet. A task added here belongs to this event and is due on its day.</div>
             </sc-if>
           </div>
           <div style="display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap">

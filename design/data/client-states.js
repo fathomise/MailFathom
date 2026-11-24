@@ -97,7 +97,7 @@ MailFathomDesign.data.clientStatesSample = {
     eventDuration: "45 min",
     eventAllDayEndDay: "Sat 3 Oct",
     eventConflictEndTime: "12:00",
-    capacityLine: "5 h 20 min free between meetings · 6 open tasks, about 4 h.",
+    capacityLine: "6 tasks are due today. The calendar already holds 2 events.",
     didNotFit: "2 tasks did not fit today: Review §7.2 wording, Prepare Q4 budget notes.",
     taskReply: "Reply to Frida about the SLA",
     taskReplyMeta: "Today · 30 min",
