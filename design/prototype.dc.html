@@ -4161,7 +4161,7 @@ Project repository: https://github.com/fathomise/MailFathom
             <div style="display:flex;align-items:center;gap:9px">
               <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">task_alt</span>
               <span style="flex:1;font-size:13px;font-weight:600">Tasks for this event</span>
-              <div onClick="{{ eventAddTask }}" style="font-size:12px;color:var(--accent-d)" style-hover="cursor:pointer;text-decoration:underline">Add a task</div>
+              <div onClick="{{ eventAddTask }}" style="{{ taskLinkStyle }}" style-hover="cursor:pointer;text-decoration:underline">Add a task</div>
             </div>
             <sc-for list="{{ eventTasks }}" as="et" hint-placeholder-count="1">
               <div onClick="{{ et.open }}" style="{{ et.style }}" style-hover="background:var(--hover)">

@@ -118,7 +118,9 @@ MailFathomDesign.tasksLogic = (() => {
       const remN = self.remList(t.id).length;
       const a = t.anchor;
       const repliedNow = kind === "wait" && m.replied(t);
-      const follow = kind === "wait" && !done && t.on && t.on <= TODAY;
+      const dueNow = kind === "wait" && !done && t.on && t.on <= TODAY;
+      /* Following up opens a reply, so it stands only where there is a thread to reply in. */
+      const follow = dueNow && a && a.kind === "thread";
       const menu = kind === "proposal" ? [
         { icon: "add_task", label: "Accept", run: () => accept(t) },
         { icon: "close", label: "Dismiss task", run: () => dismiss(t) },
@@ -132,7 +134,7 @@ MailFathomDesign.tasksLogic = (() => {
         .concat([{ icon: "check_box", label: "Select tasks", run: () => self.selStart("tasks", t.id) },
           { icon: "delete", label: "Delete task", danger: true, run: () => self.askHide("tasks", [t.id], "Delete task?", t.t + " will disappear from your tasks.") }]);
       const dueText = kind === "wait"
-        ? (repliedNow ? t.replied : (follow ? "follow up today" : "follow up " + t.when))
+        ? (repliedNow ? t.replied : (dueNow ? "follow up today" : "follow up " + t.when))
         : (t.when || "no day");
       return {
         t: t.t, kind,
@@ -171,7 +173,7 @@ MailFathomDesign.tasksLogic = (() => {
         clashLabel: cl ? "Clashes with " + cl.t + " " + cl.time : "",
         clashStyle: chip + "overflow:hidden;text-overflow:ellipsis;color:var(--err-text);background:var(--err-soft, var(--hover));border:1px solid var(--err);",
         dueText,
-        dueStyle: "flex:0 0 auto;font-size:" + (touch ? 13 : 12) + "px;white-space:nowrap;color:" + (kind === "wait" && follow ? "var(--warn)" : repliedNow ? "var(--ok, var(--accent-d))" : "var(--text2)"),
+        dueStyle: "flex:0 0 auto;font-size:" + (touch ? 13 : 12) + "px;white-space:nowrap;color:" + (dueNow ? "var(--warn)" : repliedNow ? "var(--ok, var(--accent-d))" : "var(--text2)"),
         followShown: follow,
         follow: (e) => { if (e) e.stopPropagation(); followUp(t); },
         followStyle: "border-radius:12px;white-space:nowrap;color:var(--onaccent);background:var(--accent);" +
@@ -350,13 +352,13 @@ MailFathomDesign.tasksLogic = (() => {
       taskViewsRowStyle: touch
         ? "display:flex;align-items:center;gap:2px;background:var(--rail);border:1px solid var(--line);border-radius:10px;padding:3px" + (isMobile ? "" : ";flex:0 0 auto")
         : "display:flex;align-items:center;gap:7px;flex-wrap:wrap",
-      taskSwipe: touch ? self.tabSwipe(VIEWS.map(v => v.id), view, v => self.setState({ taskView: v })) : {},
+      taskSwipe: touch ? self.tabSwipe(VIEWS.map(v => v.id), view, v => self.setState({ taskView: v, taskSaid: null })) : {},
       taskHeadStyle: isMobile
         ? "display:flex;flex-direction:column;gap:8px;background:var(--sub);border-bottom:1px solid var(--line);padding:12px 14px"
         : "display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--sub);border-bottom:1px solid var(--line);padding:12px 24px",
       taskHeadTitle: view === "today" ? "Thursday, 27 August" : view === "upcoming" ? "Coming up" : view === "waiting" ? "Waiting for others" : "Proposed to you",
       taskHeadLine: view === "today"
-        ? counts.today + " for today · " + owe.filter(t => !m.done(t) && t.plan && t.plan.on === TODAY).length + " planned" + (owe.some(t => m.clash(t)) ? " · 1 clash" : "")
+        ? counts.today + " for today · " + owe.filter(t => !m.done(t) && t.plan && t.plan.on === TODAY).length + " planned" + ((n) => n ? " · " + n + (n === 1 ? " clash" : " clashes") : "")(owe.filter(t => !m.done(t) && t.plan && t.plan.on === TODAY && m.clash(t)).length)
         : view === "upcoming" ? counts.upcoming + " tasks after today"
         : view === "waiting" ? counts.waiting + " replies you are waiting on"
         : counts.proposed + " to accept or dismiss",
@@ -577,7 +579,7 @@ MailFathomDesign.tasksLogic = (() => {
           self.setState(s2 => ({ taskAccepted: (s2.taskAccepted || []).concat([p.id]) }));
           self.notify("“" + p.t + "” is in your tasks" + (p.on ? ", due " + p.when : "") + ".", { kind: "success", title: "Task added" });
         },
-        skip: () => self.setState(s2 => ({ hidden: Object.assign({}, s2.hidden || {}, { tasks: ((s2.hidden || {}).tasks || []).concat([p.id]) }) })),
+        skip: () => self.setState(s2 => ({ calSaid: "Dismissed.", hidden: Object.assign({}, s2.hidden || {}, { tasks: ((s2.hidden || {}).tasks || []).concat([p.id]) }) })),
       })),
       openTask, openPlan,
       askLayout: () => askLayoutFor(self),

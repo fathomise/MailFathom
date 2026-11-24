@@ -7241,7 +7241,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const p = parseEventPrompt(raw);
           const est = (raw.match(/\d{1,3}\s*(?:min|minutes?|h|hrs?|hours?)\b/i) || ["30 min"])[0];
           if (this.tkTitleRef.current) this.tkTitleRef.current.value = p.title;
-          if (this.tkDueRef.current) this.tkDueRef.current.value = p.day + ".09";
+          if (this.tkDueRef.current) this.tkDueRef.current.value = +p.day === 27 ? "today" : +p.day === 28 ? "tomorrow" : p.day + ".08";
           if (this.tkEstRef.current) this.tkEstRef.current.value = est;
         },
         /* A task made from a thread, a person or an event belongs to it from the start; one made in Tasks belongs to
