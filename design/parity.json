@@ -925,7 +925,7 @@
       "steps": [
         {
           "expect": {
-            "text": "This week"
+            "text": "Due today, not planned"
           }
         }
       ]
@@ -1011,7 +1011,9 @@
         },
         {
           "expect": {
-            "text": "Context"
+            "role": "button",
+            "name": "Sending options",
+            "exact": true
           }
         },
         {
@@ -1175,7 +1177,9 @@
         },
         {
           "expect": {
-            "text": "Context"
+            "role": "button",
+            "name": "Sending options",
+            "exact": true
           }
         },
         {
@@ -1238,7 +1242,9 @@
         },
         {
           "expect": {
-            "text": "Context"
+            "role": "button",
+            "name": "Sending options",
+            "exact": true
           }
         },
         {
@@ -1587,7 +1593,9 @@
         },
         {
           "expect": {
-            "text": "Context"
+            "role": "button",
+            "name": "Sending options",
+            "exact": true
           }
         },
         {
@@ -1649,7 +1657,9 @@
         },
         {
           "expect": {
-            "text": "Context"
+            "role": "button",
+            "name": "Sending options",
+            "exact": true
           }
         },
         {
