@@ -7266,7 +7266,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           }));
           this.notify((ctx.dir === "wait" ? "Waiting" : "Due " + (when || "no day")) + (ctx.anchor ? " · belongs to " + ctx.anchor.label : "") +
             (rem.length ? " · " + (rem.length === 1 ? remLabel(rem[0], "on the day") : rem.length + " reminders") : ""), { kind: "success", title: "Task added" });
-          this.remFire(t2, rem, "task", "Tasks", { screen: "tasks" });
+          this.remFire(t2, rem, "task", "Tasks", { screen: "tasks", task: id });
         },
         isAgent: st.screen === "agent" && !emptyApp,
         goAgent: () => { clearTimeout(this.peekT); this.goScreen("agent", { railPeek: null }); },

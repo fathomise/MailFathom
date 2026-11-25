@@ -111,7 +111,7 @@ MailFathomDesign.tasksLogic = (() => {
     const dismiss = (p) => self.setState(s2 => Object.assign({ hidden: Object.assign({}, s2.hidden || {}, { tasks: ((s2.hidden || {}).tasks || []).concat([p.id]) }) }, said("Dismissed.")));
 
     const chip = "display:inline-flex;align-items:center;gap:5px;min-width:0;max-width:100%;white-space:nowrap;border-radius:999px;" +
-      (touch ? "font-size:12px;padding:0 10px;min-height:28px;" : "font-size:11px;padding:2px 8px;");
+      (touch ? "font-size:12px;padding:0 10px;min-height:36px;" : "font-size:11px;padding:2px 8px;");
     const row = (t, kind) => {
       const done = kind !== "proposal" && m.done(t);
       const cl = kind === "owe" ? m.clash(t) : null;
