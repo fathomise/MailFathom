@@ -2827,7 +2827,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* A task's notification opens that task, over Tasks, rather than the list it is somewhere in. */
       if (n.go.task) {
         /* A reminder whose task was deleted since opens Tasks and says so rather than an empty dialog. */
-        const there = TASKS.concat(this.state.extraTasks || []).some(t => t.id === n.go.task && ((this.state.hidden || {}).tasks || []).indexOf(t.id) < 0);
+        const accepted = this.state.taskAccepted || [];
+        const there = TASKS.concat(this.state.extraTasks || [], MailFathomDesign.data.proposedTasks.filter(p => accepted.indexOf(p.id) >= 0)).some(t => t.id === n.go.task && ((this.state.hidden || {}).tasks || []).indexOf(t.id) < 0);
         this.goScreen("tasks", there ? { taskOpen: n.go.task, taskAnchorPick: false, taskDlgSaid: null, taskSaid: null } : { taskOpen: null, taskSaid: "That task is no longer on your list." });
         return;
       }
